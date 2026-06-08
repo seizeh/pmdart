@@ -3,6 +3,7 @@ import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../models/chat.dart';
 import '../../services/chat_repository.dart';
+import '../../services/app_events.dart';
 import '../auth/auth_wall_dialog.dart';
 import '../chat_room_screen.dart';
 
@@ -24,26 +25,42 @@ class _ChatTabState extends State<ChatTab> {
   @override
   void initState() {
     super.initState();
-    if (!widget.isGuest) _load();
+    if (!widget.isGuest) {
+      _load();
+      AppEvents.instance.chat.addListener(_onChatChanged);
+    }
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    AppEvents.instance.chat.removeListener(_onChatChanged);
+    super.dispose();
+  }
+
+  void _onChatChanged() {
+    if (mounted) _load(silent: true);
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final rooms = await _repo.fetchRooms();
       if (!mounted) return;
       setState(() {
         _rooms = rooms;
         _loading = false;
+        _error = null;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = '채팅을 불러오지 못했어요';
         _loading = false;
+        if (_rooms.isEmpty) _error = '채팅을 불러오지 못했어요';
       });
     }
   }
@@ -105,7 +122,7 @@ class _ChatTabState extends State<ChatTab> {
               context,
               MaterialPageRoute(builder: (_) => ChatRoomScreen(room: _rooms[i])),
             );
-            _load(); // 읽음/새 메시지 반영
+            _load(silent: true); // 읽음/새 메시지 반영
           },
         ),
       ),

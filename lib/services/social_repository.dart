@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/social.dart';
+import 'app_events.dart';
 import 'session.dart';
 
 /// Pawing(팔로우) 시스템 + 사용자 검색.
@@ -21,6 +22,7 @@ class SocialRepository {
       onConflict: 'follower_id,following_id',
       ignoreDuplicates: true,
     );
+    AppEvents.instance.notifySocial();
   }
 
   /// 언팔로우.
@@ -30,6 +32,7 @@ class SocialRepository {
         .delete()
         .eq('follower_id', _uid)
         .eq('following_id', userId);
+    AppEvents.instance.notifySocial();
   }
 
   /// 내가 [userId] 를 팔로우 중인지.

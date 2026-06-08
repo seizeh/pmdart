@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/chat.dart';
+import 'app_events.dart';
 import 'session.dart';
 
 /// 채팅(방 목록 / 메시지 / 전송 / 읽음 / 실시간) 데이터 접근.
@@ -21,6 +22,7 @@ class ChatRepository {
         .rpc('start_direct_chat', params: {'p_other': otherUserId}) as String;
     final row =
         await _c.from('v_chat_rooms').select().eq('id', roomId).single();
+    AppEvents.instance.notifyChat();
     return ChatRoomSummary.fromJson(row);
   }
 
@@ -58,6 +60,7 @@ class ChatRepository {
         .insert({'room_id': roomId, 'sender_id': myId, 'content': content})
         .select('id, room_id, sender_id, content, created_at')
         .single();
+    AppEvents.instance.notifyChat();
     return ChatMessage.fromJson(row, myId);
   }
 

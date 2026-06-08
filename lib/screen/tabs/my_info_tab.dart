@@ -3,6 +3,7 @@ import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show MockPet;
 import '../../models/profile.dart';
 import '../../services/profile_repository.dart';
+import '../../services/app_events.dart';
 import '../../widgets/pet_card.dart';
 import '../../services/auth_service.dart';
 import '../pet_detail_screen.dart';
@@ -28,26 +29,43 @@ class _MyInfoTabState extends State<MyInfoTab> {
   @override
   void initState() {
     super.initState();
-    if (!widget.isGuest) _load();
+    if (!widget.isGuest) {
+      _load();
+      AppEvents.instance.social.addListener(_onSocialChanged);
+    }
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    AppEvents.instance.social.removeListener(_onSocialChanged);
+    super.dispose();
+  }
+
+  void _onSocialChanged() {
+    if (mounted) _load(silent: true);
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final p = await ProfileRepository.instance.fetchProfile();
       if (!mounted) return;
       setState(() {
         _profile = p;
         _loading = false;
+        _error = null;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = '프로필을 불러오지 못했어요';
         _loading = false;
+        // 조용한 새로고침 실패 시 기존 데이터 유지
+        if (_profile == null) _error = '프로필을 불러오지 못했어요';
       });
     }
   }

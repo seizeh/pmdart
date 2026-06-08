@@ -226,6 +226,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 height: 1.7,
               ),
             ),
+            if (_post.imageUrl != null) ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.network(
+                  _post.imageUrl!,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ],
             if (_post.scheduledAt != null || _post.location != null) ...[
               const SizedBox(height: 24),
               _InfoBox(post: _post),

@@ -64,6 +64,19 @@ class PostCard extends StatelessWidget {
                 height: 1.5,
               ),
             ),
+            if (post.imageUrl != null) ...[
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  post.imageUrl!,
+                  height: 160,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ],
             if (post.location != null || post.scheduledAt != null) ...[
               const SizedBox(height: 10),
               Wrap(

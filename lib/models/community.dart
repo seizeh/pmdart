@@ -26,6 +26,7 @@ class Post {
   final int viewCount;
   final String progressStatus;
   final bool hearted;
+  final String? imageUrl;
 
   const Post({
     required this.id,
@@ -43,6 +44,7 @@ class Post {
     required this.viewCount,
     required this.progressStatus,
     required this.hearted,
+    this.imageUrl,
   });
 
   factory Post.fromJson(Map<String, dynamic> j) => Post(
@@ -61,6 +63,7 @@ class Post {
         viewCount: _parseInt(j['view_count']),
         progressStatus: (j['progress_status'] ?? 'recruiting') as String,
         hearted: j['hearted'] == true,
+        imageUrl: j['image_url'] as String?,
       );
 
   /// 하트 토글 등 낙관적 업데이트용.
@@ -80,6 +83,7 @@ class Post {
         viewCount: viewCount,
         progressStatus: progressStatus,
         hearted: hearted ?? this.hearted,
+        imageUrl: imageUrl,
       );
 }
 

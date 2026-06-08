@@ -1,19 +1,68 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
-import '../data/mock_data.dart';
+import '../data/mock_data.dart' show MockPet;
+import '../services/pet_repository.dart';
 import '../widgets/role_badge.dart';
+import 'pet_edit_screen.dart';
 
-/// 펫 상세 — 보호자 목록을 핵심 섹션으로 노출.
-/// owner 인 경우 펫 정보 수정·삭제·분양·보호자 초대/제거 액션이 보이고,
-/// co_guardian 인 경우는 조회만.
-class PetDetailScreen extends StatelessWidget {
+/// 펫 상세 — 펫 정보 + 보호자 목록(실데이터). owner 는 수정/삭제/초대 가능.
+class PetDetailScreen extends StatefulWidget {
   final MockPet pet;
   const PetDetailScreen({super.key, required this.pet});
 
   @override
-  Widget build(BuildContext context) {
-    final isOwner = pet.role == 'owner';
+  State<PetDetailScreen> createState() => _PetDetailScreenState();
+}
 
+class _PetDetailScreenState extends State<PetDetailScreen> {
+  final _repo = PetRepository.instance;
+  late MockPet _pet;
+  List<Guardian> _guardians = [];
+  bool _loading = true;
+
+  bool get _isOwner => _pet.role == 'owner';
+
+  @override
+  void initState() {
+    super.initState();
+    _pet = widget.pet;
+    _loadGuardians();
+  }
+
+  Future<void> _loadGuardians() async {
+    try {
+      final list = await _repo.fetchGuardians(_pet.id);
+      if (mounted) {
+        setState(() {
+          _guardians = list;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _reloadPet() async {
+    final fresh = await _repo.fetchPet(_pet.id);
+    if (!mounted) return;
+    if (fresh == null) {
+      Navigator.pop(context); // 삭제됨
+      return;
+    }
+    setState(() => _pet = fresh);
+    _loadGuardians();
+  }
+
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: CustomScrollView(
@@ -23,21 +72,23 @@ class PetDetailScreen extends StatelessWidget {
             elevation: 0,
             pinned: true,
             actions: [
-              if (isOwner)
+              if (_isOwner)
                 IconButton(
                   icon: const Icon(Icons.more_horiz),
-                  onPressed: () => _showOwnerMenu(context),
+                  onPressed: _showOwnerMenu,
                 ),
             ],
           ),
+          SliverToBoxAdapter(child: _Header(pet: _pet)),
           SliverToBoxAdapter(
-            child: _Header(pet: pet),
-          ),
-          SliverToBoxAdapter(
-            child: _GuardiansSection(pet: pet, isOwner: isOwner),
-          ),
-          SliverToBoxAdapter(
-            child: _ActionSection(pet: pet, isOwner: isOwner),
+            child: _GuardiansSection(
+              pet: _pet,
+              guardians: _guardians,
+              loading: _loading,
+              isOwner: _isOwner,
+              onInvite: _showInviteSheet,
+              onRemove: _removeGuardian,
+            ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
@@ -45,14 +96,14 @@ class PetDetailScreen extends StatelessWidget {
     );
   }
 
-  void _showOwnerMenu(BuildContext context) {
+  void _showOwnerMenu() {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => SafeArea(
+      builder: (sheetCtx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -66,28 +117,149 @@ class PetDetailScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _menu(Icons.edit_outlined, '펫 정보 수정'),
-            _menu(Icons.send_outlined, '분양 게시글 작성'),
-            _menu(Icons.swap_horiz, '소유권 이전'),
-            _menu(Icons.delete_outline, '펫 삭제', color: AppColors.danger),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined,
+                  color: AppColors.primaryDark),
+              title: const Text('펫 정보 수정'),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                final changed = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => PetEditScreen(pet: _pet)),
+                );
+                if (changed == true) _reloadPet();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline,
+                  color: AppColors.danger),
+              title: const Text('펫 삭제',
+                  style: TextStyle(color: AppColors.danger)),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _confirmDelete();
+              },
+            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
     );
   }
 
-  Widget _menu(IconData icon, String label, {Color? color}) => ListTile(
-    leading: Icon(icon, color: color ?? AppColors.primaryDark),
-    title: Text(
-      label,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: color ?? AppColors.textPrimary,
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('펫 삭제'),
+        content: Text('${_pet.name}을(를) 삭제할까요? 되돌릴 수 없어요.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx),
+              child: const Text('취소')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dCtx);
+              try {
+                await _repo.deletePet(_pet.id);
+                if (!mounted) return;
+                Navigator.pop(context);
+                _toast('삭제했어요');
+              } catch (_) {
+                _toast('삭제에 실패했어요');
+              }
+            },
+            child: const Text('삭제', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
       ),
-    ),
-    onTap: () {},
-  );
+    );
+  }
+
+  Future<void> _removeGuardian(Guardian g) async {
+    try {
+      await _repo.removeGuardian(_pet.id, g.userId);
+      _loadGuardians();
+    } catch (_) {
+      _toast('보호자 제거에 실패했어요');
+    }
+  }
+
+  void _showInviteSheet() {
+    final phoneCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 20,
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('공동보호자 초대',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            const Text(
+              '전화번호로 초대장을 보내드려요.\n상대가 수락하면 보호자로 등록됩니다.',
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                hintText: '01012345678',
+                prefixIcon:
+                    Icon(Icons.phone_outlined, color: AppColors.textSecondary),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                final phone = phoneCtrl.text.replaceAll(RegExp(r'[^\d]'), '');
+                if (phone.length < 10) {
+                  _toast('전화번호를 확인해주세요');
+                  return;
+                }
+                Navigator.pop(sheetCtx);
+                try {
+                  await _repo.invite(_pet.id, phone);
+                  _toast('초대를 보냈어요');
+                } catch (_) {
+                  _toast('초대에 실패했어요');
+                }
+              },
+              child: const Text('초대 보내기'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _Header extends StatelessWidget {
@@ -99,6 +271,13 @@ class _Header extends StatelessWidget {
     final age = pet.birthDate == null
         ? ''
         : '${DateTime.now().year - pet.birthDate!.year}살';
+    final meta = [
+      pet.species,
+      if (age.isNotEmpty) age,
+      if (pet.gender == 'male') '수컷' else if (pet.gender == 'female') '암컷',
+      if (pet.isNeutered) '중성화 완료',
+    ].join('  ·  ');
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: Column(
@@ -111,9 +290,15 @@ class _Header extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.primarySoft,
                 borderRadius: BorderRadius.circular(48),
+                image: pet.imageUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(pet.imageUrl!), fit: BoxFit.cover)
+                    : null,
               ),
-              child: const Icon(Icons.pets,
-                  color: AppColors.primaryDark, size: 64),
+              child: pet.imageUrl == null
+                  ? const Icon(Icons.pets,
+                      color: AppColors.primaryDark, size: 64)
+                  : null,
             ),
           ),
           const SizedBox(height: 20),
@@ -133,15 +318,10 @@ class _Header extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            [pet.species, if (age.isNotEmpty) age, if (pet.gender == 'male') '수컷' else if (pet.gender == 'female') '암컷']
-                .join('  ·  '),
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          if (pet.bio != null) ...[
+          Text(meta,
+              style: const TextStyle(
+                  fontSize: 14, color: AppColors.textSecondary)),
+          if (pet.bio != null && pet.bio!.isNotEmpty) ...[
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
@@ -151,14 +331,11 @@ class _Header extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.border, width: 0.5),
               ),
-              child: Text(
-                pet.bio!,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                  height: 1.5,
-                ),
-              ),
+              child: Text(pet.bio!,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                      height: 1.5)),
             ),
           ],
         ],
@@ -169,18 +346,23 @@ class _Header extends StatelessWidget {
 
 class _GuardiansSection extends StatelessWidget {
   final MockPet pet;
+  final List<Guardian> guardians;
+  final bool loading;
   final bool isOwner;
-  const _GuardiansSection({required this.pet, required this.isOwner});
+  final VoidCallback onInvite;
+  final Future<void> Function(Guardian) onRemove;
+
+  const _GuardiansSection({
+    required this.pet,
+    required this.guardians,
+    required this.loading,
+    required this.isOwner,
+    required this.onInvite,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Mock 보호자 목록 — 실제로는 pet_guardians 조회.
-    final guardians = [
-      _Guardian('주인장', 'owner', isMe: pet.role == 'owner'),
-      _Guardian('우진', 'co_guardian', isMe: pet.role == 'co_guardian'),
-      if (pet.guardianCount > 2) _Guardian('승주', 'co_guardian'),
-    ];
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
       child: Container(
@@ -199,7 +381,7 @@ class _GuardiansSection extends StatelessWidget {
                     color: AppColors.primaryDark, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  '보호자 ${pet.guardianCount}명',
+                  '보호자 ${loading ? '' : '${guardians.length}명'}',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -209,215 +391,84 @@ class _GuardiansSection extends StatelessWidget {
                 const Spacer(),
                 if (isOwner)
                   TextButton.icon(
-                    onPressed: () => _showInviteSheet(context),
+                    onPressed: onInvite,
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('초대'),
                     style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
+                        visualDensity: VisualDensity.compact),
                   ),
               ],
             ),
             const SizedBox(height: 12),
-            ...guardians.map(
-                  (g) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: AppColors.primarySoft,
-                      child: Text(
-                        g.nickname.characters.first,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryDark,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                            g.nickname,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          if (g.isMe) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.primarySoft,
-                                borderRadius: BorderRadius.circular(100),
-                              ),
-                              child: const Text(
-                                '나',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primaryDark,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    RoleBadge(role: g.role, compact: true),
-                    if (isOwner && !g.isMe && g.role != 'owner') ...[
-                      const SizedBox(width: 6),
-                      IconButton(
-                        icon: const Icon(Icons.close,
-                            size: 18, color: AppColors.textTertiary),
-                        onPressed: () {},
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              ...guardians.map((g) => _guardianRow(context, g)),
           ],
         ),
       ),
     );
   }
 
-  void _showInviteSheet(BuildContext context) {
-    final phoneCtrl = TextEditingController();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(100),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              '공동보호자 초대',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              '전화번호로 초대장을 보내드려요.\n상대가 수락하면 보호자로 자동 등록됩니다.',
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                hintText: '01012345678',
-                prefixIcon: Icon(Icons.phone_outlined,
-                    color: AppColors.textSecondary),
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('초대를 보냈습니다'),
-                      behavior: SnackBarBehavior.floating),
-                );
-              },
-              child: const Text('초대 보내기'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Guardian {
-  final String nickname;
-  final String role;
-  final bool isMe;
-  const _Guardian(this.nickname, this.role, {this.isMe = false});
-}
-
-class _ActionSection extends StatelessWidget {
-  final MockPet pet;
-  final bool isOwner;
-  const _ActionSection({required this.pet, required this.isOwner});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _guardianRow(BuildContext context, Guardian g) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
         children: [
-          if (!isOwner)
-            Container(
-              padding: const EdgeInsets.all(14),
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline,
-                      color: AppColors.warning, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '소유자 ${pet.ownerName}님이 이 펫의 정보 수정·분양·삭제 권한을 가집니다',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textPrimary,
-                        height: 1.5,
-                      ),
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: AppColors.primarySoft,
+            child: Text(
+              g.nickname.isEmpty ? '?' : g.nickname.characters.first,
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryDark),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Row(
+              children: [
+                Text(g.nickname,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary)),
+                if (g.isMe) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySoft,
+                      borderRadius: BorderRadius.circular(100),
                     ),
+                    child: const Text('나',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryDark)),
                   ),
                 ],
-              ),
+              ],
             ),
-          OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.directions_walk),
-            label: Text('${pet.name}와(과) 산책 글 쓰기'),
           ),
+          RoleBadge(role: g.role, compact: true),
+          if (isOwner && !g.isMe && g.role != 'owner') ...[
+            const SizedBox(width: 6),
+            IconButton(
+              icon: const Icon(Icons.close,
+                  size: 18, color: AppColors.textTertiary),
+              onPressed: () => onRemove(g),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
         ],
       ),
     );

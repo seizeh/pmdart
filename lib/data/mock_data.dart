@@ -30,6 +30,8 @@ class MockPet {
   final String role; // owner / co_guardian (현재 사용자 기준)
   final int guardianCount;
   final String ownerName;
+  final bool isNeutered;
+  final String? imageUrl;
 
   const MockPet({
     required this.id,
@@ -41,6 +43,8 @@ class MockPet {
     this.role = 'owner',
     this.guardianCount = 1,
     this.ownerName = '',
+    this.isNeutered = false,
+    this.imageUrl,
   });
 }
 

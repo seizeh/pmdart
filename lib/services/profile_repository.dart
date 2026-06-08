@@ -1,6 +1,7 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import '../data/mock_data.dart' show MockPet;
 import '../models/profile.dart';
+import 'app_events.dart';
 import 'session.dart';
 
 /// 내정보(프로필 헤더 / 활동·관심 통계 / 내 반려동물) 데이터 접근.
@@ -74,7 +75,7 @@ class ProfileRepository {
     final rows = await _c
         .from('pet_guardians')
         .select(
-            'role, pets(id, name, species, gender, birth_date, bio, pet_status, primary_guardian_id)')
+            'role, pets(id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id)')
         .eq('user_id', uid);
 
     final pets = <Map<String, dynamic>>[];
@@ -129,7 +130,28 @@ class ProfileRepository {
         role: myRole[id] ?? 'co_guardian',
         guardianCount: guardianCount[id] ?? 1,
         ownerName: ownerId == null ? '' : (ownerName[ownerId] ?? ''),
+        isNeutered: p['is_neutered'] == true,
+        imageUrl: p['image_url'] as String?,
       );
     }).toList();
+  }
+
+  /// 프로필 수정 (닉네임 등). RLS: users_update (id=app.uid()).
+  Future<void> updateProfile({String? nickname, String? profileImageUrl}) async {
+    final user = SessionManager.instance.user;
+    if (user == null) throw StateError('로그인이 필요합니다');
+    final data = <String, dynamic>{};
+    if (nickname != null) data['nickname'] = nickname;
+    if (profileImageUrl != null) data['profile_image_url'] = profileImageUrl;
+    if (data.isEmpty) return;
+    await _c.from('users').update(data).eq('id', user.id);
+    // 세션의 닉네임도 갱신
+    if (nickname != null) {
+      await SessionManager.instance.setSession(
+        SessionManager.instance.token!,
+        AuthUser(id: user.id, nickname: nickname, userType: user.userType),
+      );
+    }
+    AppEvents.instance.notifyProfile();
   }
 }

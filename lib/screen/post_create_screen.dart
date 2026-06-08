@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../models/community.dart';
 import '../services/community_repository.dart';
+import '../services/storage_service.dart';
 import '../widgets/role_badge.dart';
 
 /// 게시글 작성 — 카테고리 선택 / 제목·내용 / 약속 일정(선택) / 펫 연결.
@@ -28,6 +29,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   List<MyPet> _pets = [];
   bool _loadingPets = true;
   bool _submitting = false;
+
+  UploadedImage? _uploadedImage;
+  bool _uploadingImage = false;
 
   static const _categories = [
     'walk_together',
@@ -63,6 +67,41 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       if (!mounted) return;
       setState(() => _loadingPets = false);
     }
+  }
+
+  Future<void> _pickImage() async {
+    final file = await StorageService.instance.pickImage();
+    if (file == null) return;
+    setState(() {
+      _uploadedImage = null;
+      _uploadingImage = true;
+    });
+    try {
+      final up = await StorageService.instance.upload(file, category: 'posts');
+      if (!mounted) return;
+      setState(() {
+        _uploadedImage = up;
+        _uploadingImage = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _uploadingImage = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사진 업로드에 실패했어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _uploadedImage = null;
+      _uploadingImage = false;
+    });
   }
 
   @override
@@ -134,6 +173,14 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                   hintText: '자세한 내용을 적어주세요',
                 ),
                 onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 20),
+              const _SectionLabel('사진 (선택)'),
+              _PhotoPicker(
+                url: _uploadedImage?.url,
+                uploading: _uploadingImage,
+                onPick: _pickImage,
+                onRemove: _removeImage,
               ),
               if (_allowsSchedule) ...[
                 const SizedBox(height: 20),
@@ -294,6 +341,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   }
 
   bool get _canSubmit {
+    if (_uploadingImage) return false;
     if (_titleCtrl.text.isEmpty || _contentCtrl.text.isEmpty) return false;
     if (_needsSchedule && _scheduledAt == null) return false;
     if (_needsPet && _selectedPetIds.isEmpty) return false;
@@ -329,6 +377,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         content: _contentCtrl.text.trim(),
         scheduledAt: _allowsSchedule ? _scheduledAt : null,
         petIds: _needsPet ? _selectedPetIds.toList() : const [],
+        imageUrl: _uploadedImage?.url,
+        imageMime: _uploadedImage?.mime,
+        imageSize: _uploadedImage?.size,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -377,6 +428,97 @@ class _SectionLabel extends StatelessWidget {
           color: AppColors.textPrimary,
         ),
       ),
+    );
+  }
+}
+
+/// 사진 선택/미리보기. 선택 즉시 업로드되며 미리보기는 업로드된 URL 로 표시(크로스플랫폼).
+class _PhotoPicker extends StatelessWidget {
+  final String? url;
+  final bool uploading;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  const _PhotoPicker({
+    required this.url,
+    required this.uploading,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 업로드 중 — 스피너 박스
+    if (uploading) {
+      return Container(
+        height: 180,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    // 미선택 — 추가 버튼
+    if (url == null) {
+      return InkWell(
+        onTap: onPick,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border, width: 0.5),
+          ),
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_a_photo_outlined,
+                  color: AppColors.primaryDark, size: 26),
+              SizedBox(height: 6),
+              Text('사진 추가',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+      );
+    }
+    // 업로드 완료 — 미리보기 + 삭제
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.network(
+            url!,
+            height: 180,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => Container(
+              height: 180,
+              color: AppColors.surfaceMuted,
+              child: const Center(child: Icon(Icons.image, size: 40)),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, color: Colors.white, size: 18),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

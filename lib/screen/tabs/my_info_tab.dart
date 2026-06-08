@@ -7,10 +7,22 @@ import '../../services/app_events.dart';
 import '../../widgets/pet_card.dart';
 import '../../services/auth_service.dart';
 import '../pet_detail_screen.dart';
+import '../pet_edit_screen.dart';
 import '../connections_screen.dart';
+import '../profile_edit_screen.dart';
+import '../my_posts_screen.dart';
+import '../activity_screens.dart';
+import '../notification_settings_screen.dart';
+import '../blocked_users_screen.dart';
+import '../coming_soon_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_phone_screen.dart';
 import '../welcome_screen.dart';
+
+/// 화면 이동 공용 헬퍼.
+void _push(BuildContext context, Widget screen) {
+  Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+}
 
 /// 내정보 탭 — 프로필 헤더 / 내 반려동물(N:M) / 내 활동 / 관심 / 설정.
 class MyInfoTab extends StatefulWidget {
@@ -32,12 +44,14 @@ class _MyInfoTabState extends State<MyInfoTab> {
     if (!widget.isGuest) {
       _load();
       AppEvents.instance.social.addListener(_onSocialChanged);
+      AppEvents.instance.profile.addListener(_onSocialChanged);
     }
   }
 
   @override
   void dispose() {
     AppEvents.instance.social.removeListener(_onSocialChanged);
+    AppEvents.instance.profile.removeListener(_onSocialChanged);
     super.dispose();
   }
 
@@ -280,7 +294,13 @@ class _ProfileHeader extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.edit_outlined,
                     color: AppColors.textOnPrimary),
-                onPressed: () {},
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ProfileEditScreen(initialNickname: profile.nickname),
+                  ),
+                ),
               ),
             ],
           ),
@@ -377,7 +397,7 @@ class _PetSection extends StatelessWidget {
               ),
               const Spacer(),
               TextButton.icon(
-                onPressed: () {},
+                onPressed: () => _openPetEditor(context),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('등록'),
               ),
@@ -398,9 +418,16 @@ class _PetSection extends StatelessWidget {
             ),
           ),
           if (pets.isEmpty)
-            EmptyPetCard(onTap: () {}),
+            EmptyPetCard(onTap: () => _openPetEditor(context)),
         ],
       ),
+    );
+  }
+
+  void _openPetEditor(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PetEditScreen()),
     );
   }
 }
@@ -511,19 +538,24 @@ class _ActivitySection extends StatelessWidget {
         _Item(
             icon: Icons.article_outlined,
             label: '내 게시글',
-            trailing: '${profile.postCount}'),
+            trailing: '${profile.postCount}',
+            onTap: () => _push(context,
+                const MyPostsScreen(mode: PostListMode.mine))),
         _Item(
             icon: Icons.send_outlined,
             label: '내 지원 내역',
-            trailing: '${profile.applicationCount}'),
+            trailing: '${profile.applicationCount}',
+            onTap: () => _push(context, const MyApplicationsScreen())),
         _Item(
             icon: Icons.event_available_outlined,
             label: '약속',
-            trailing: '${profile.appointmentCount} 진행 중'),
+            trailing: '${profile.appointmentCount} 진행 중',
+            onTap: () => _push(context, const MyAppointmentsScreen())),
         _Item(
             icon: Icons.star_border,
             label: '받은 평가',
-            trailing: '${profile.reviewCount}'),
+            trailing: '${profile.reviewCount}',
+            onTap: () => _push(context, const MyReviewsScreen())),
       ],
     );
   }
@@ -541,7 +573,9 @@ class _InterestSection extends StatelessWidget {
         _Item(
             icon: Icons.favorite_border,
             label: '하트한 게시글',
-            trailing: '${profile.heartCount}'),
+            trailing: '${profile.heartCount}',
+            onTap: () => _push(context,
+                const MyPostsScreen(mode: PostListMode.hearted))),
         _Item(
           icon: Icons.handshake_outlined,
           label: 'Pawing (내가 팔로우)',
@@ -575,10 +609,23 @@ class _SettingsSection extends StatelessWidget {
     return _SectionCard(
       title: '설정',
       items: [
-        const _Item(icon: Icons.notifications_outlined, label: '알림 설정'),
-        const _Item(icon: Icons.location_on_outlined, label: '지역 인증'),
-        const _Item(icon: Icons.lock_outline, label: '계정 / 비밀번호'),
-        const _Item(icon: Icons.block_outlined, label: '차단 사용자 관리'),
+        _Item(
+            icon: Icons.notifications_outlined,
+            label: '알림 설정',
+            onTap: () => _push(context, const NotificationSettingsScreen())),
+        _Item(
+            icon: Icons.location_on_outlined,
+            label: '지역 인증',
+            onTap: () => _push(context, const ComingSoonScreen(title: '지역 인증'))),
+        _Item(
+            icon: Icons.lock_outline,
+            label: '계정 / 비밀번호',
+            onTap: () =>
+                _push(context, const ComingSoonScreen(title: '계정 / 비밀번호'))),
+        _Item(
+            icon: Icons.block_outlined,
+            label: '차단 사용자 관리',
+            onTap: () => _push(context, const BlockedUsersScreen())),
         _Item(
           icon: Icons.logout,
           label: '로그아웃',

@@ -23,6 +23,35 @@ class CommunityRepository {
         .toList();
   }
 
+  /// 특정 사용자의 게시글 (내 게시글 등).
+  Future<List<Post>> fetchUserPosts(String userId) async {
+    final rows = await _c
+        .from('v_post_feed')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
+    return (rows as List)
+        .map((r) => Post.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 내가 하트한 게시글.
+  Future<List<Post>> fetchHeartedPosts() async {
+    final uid = _requireUid();
+    final hearts =
+        await _c.from('post_hearts').select('post_id').eq('user_id', uid);
+    final ids = [for (final h in hearts as List) h['post_id'] as String];
+    if (ids.isEmpty) return const [];
+    final rows = await _c
+        .from('v_post_feed')
+        .select()
+        .inFilter('id', ids)
+        .order('created_at', ascending: false);
+    return (rows as List)
+        .map((r) => Post.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
   /// 하트 토글. 반환값은 토글 후 hearted 상태.
   Future<bool> toggleHeart(String postId, bool currentlyHearted) async {
     final uid = _requireUid();
@@ -46,19 +75,23 @@ class CommunityRepository {
     required String content,
     DateTime? scheduledAt,
     List<String> petIds = const [],
+    String? imageUrl,
+    String? imageMime,
+    int? imageSize,
   }) async {
     final uid = _requireUid();
-    final inserted = await _c
-        .from('posts')
-        .insert({
-          'user_id': uid,
-          'category': category,
-          'title': title,
-          'content': content,
-          'scheduled_at': scheduledAt?.toUtc().toIso8601String(),
-        })
-        .select('id')
-        .single();
+    final data = <String, dynamic>{
+      'user_id': uid,
+      'category': category,
+      'title': title,
+      'content': content,
+      'scheduled_at': scheduledAt?.toUtc().toIso8601String(),
+    };
+    if (imageUrl != null) data['image_url'] = imageUrl;
+    if (imageMime != null) data['image_mime_type'] = imageMime;
+    if (imageSize != null) data['image_file_size'] = imageSize;
+    final inserted =
+        await _c.from('posts').insert(data).select('id').single();
     final postId = inserted['id'] as String;
 
     if (petIds.isNotEmpty) {

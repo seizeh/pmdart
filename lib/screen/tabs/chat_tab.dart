@@ -1,19 +1,56 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
-import '../../data/mock_data.dart';
+import '../../data/mock_data.dart' show timeAgo;
+import '../../models/chat.dart';
+import '../../services/chat_repository.dart';
 import '../auth/auth_wall_dialog.dart';
 import '../chat_room_screen.dart';
 
-/// 채팅 탭 — 진행 중인 대화 목록.
-class ChatTab extends StatelessWidget {
+/// 채팅 탭 — 진행 중인 대화 목록(실데이터).
+class ChatTab extends StatefulWidget {
   final bool isGuest;
   const ChatTab({super.key, this.isGuest = false});
 
   @override
-  Widget build(BuildContext context) {
-    if (isGuest) return const _GuestChat();
+  State<ChatTab> createState() => _ChatTabState();
+}
 
-    final rooms = MockData.chatRooms;
+class _ChatTabState extends State<ChatTab> {
+  final _repo = ChatRepository.instance;
+  List<ChatRoomSummary> _rooms = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isGuest) _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rooms = await _repo.fetchRooms();
+      if (!mounted) return;
+      setState(() {
+        _rooms = rooms;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = '채팅을 불러오지 못했어요';
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isGuest) return const _GuestChat();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -32,19 +69,44 @@ class ChatTab extends StatelessWidget {
                 ),
               ),
             ),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: rooms.length,
-                separatorBuilder: (_, _) => const Divider(
-                  height: 1,
-                  indent: 64,
-                  color: AppColors.border,
-                ),
-                itemBuilder: (_, i) => _ChatRoomTile(room: rooms[i]),
-              ),
-            ),
+            Expanded(child: _buildBody()),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return _MessageState(message: _error!, onRetry: _load);
+    }
+    if (_rooms.isEmpty) {
+      return const _MessageState(
+        message: '아직 진행 중인 대화가 없어요.\n게시글에서 상대에게 채팅을 시작해보세요!',
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: _rooms.length,
+        separatorBuilder: (_, _) => const Divider(
+          height: 1,
+          indent: 64,
+          color: AppColors.border,
+        ),
+        itemBuilder: (_, i) => _ChatRoomTile(
+          room: _rooms[i],
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ChatRoomScreen(room: _rooms[i])),
+            );
+            _load(); // 읽음/새 메시지 반영
+          },
         ),
       ),
     );
@@ -52,16 +114,16 @@ class ChatTab extends StatelessWidget {
 }
 
 class _ChatRoomTile extends StatelessWidget {
-  final MockChatRoom room;
-  const _ChatRoomTile({required this.room});
+  final ChatRoomSummary room;
+  final VoidCallback onTap;
+  const _ChatRoomTile({required this.room, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final initial =
+        room.otherNickname.isEmpty ? '?' : room.otherNickname.characters.first;
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => ChatRoomScreen(room: room)),
-      ),
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
@@ -70,7 +132,7 @@ class _ChatRoomTile extends StatelessWidget {
               radius: 24,
               backgroundColor: AppColors.primarySoft,
               child: Text(
-                room.otherNickname.characters.first,
+                initial,
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -96,7 +158,9 @@ class _ChatRoomTile extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          timeAgo(room.lastAt),
+                          room.lastMessageAt == null
+                              ? ''
+                              : timeAgo(room.lastMessageAt!),
                           style: const TextStyle(
                             fontSize: 11,
                             color: AppColors.textTertiary,
@@ -105,22 +169,9 @@ class _ChatRoomTile extends StatelessWidget {
                       ),
                     ],
                   ),
-                  if (room.postTitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      room.postTitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 3),
                   Text(
-                    room.lastMessage,
+                    room.lastMessage.isEmpty ? '대화를 시작해보세요' : room.lastMessage,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -134,11 +185,9 @@ class _ChatRoomTile extends StatelessWidget {
             if (room.unreadCount > 0) ...[
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: const BoxDecoration(
                   color: AppColors.danger,
-                  shape: BoxShape.rectangle,
                   borderRadius: BorderRadius.all(Radius.circular(100)),
                 ),
                 child: Text(
@@ -150,6 +199,42 @@ class _ChatRoomTile extends StatelessWidget {
                   ),
                 ),
               ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageState extends StatelessWidget {
+  final String message;
+  final VoidCallback? onRetry;
+  const _MessageState({required this.message, this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.chat_bubble_outline,
+                size: 48, color: AppColors.textTertiary),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 12),
+              TextButton(onPressed: onRetry, child: const Text('다시 시도')),
             ],
           ],
         ),

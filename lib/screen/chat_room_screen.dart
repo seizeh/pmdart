@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
-import '../data/mock_data.dart';
+import '../models/chat.dart';
+import '../services/chat_repository.dart';
 
+/// 채팅방 — 메시지 목록(실데이터) + 전송 + 실시간 수신.
 class ChatRoomScreen extends StatefulWidget {
-  final MockChatRoom room;
+  final ChatRoomSummary room;
   const ChatRoomScreen({super.key, required this.room});
 
   @override
@@ -11,32 +14,109 @@ class ChatRoomScreen extends StatefulWidget {
 }
 
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
+  final _repo = ChatRepository.instance;
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
-  late List<_Message> _messages;
+
+  List<ChatMessage> _messages = [];
+  bool _loading = true;
+  bool _sending = false;
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _messages = [
-      _Message('안녕하세요! 게시글 보고 연락드려요', sentByMe: false, at: now.subtract(const Duration(minutes: 25))),
-      _Message('안녕하세요~ 반가워요', sentByMe: true, at: now.subtract(const Duration(minutes: 23))),
-      _Message('내일 시간 괜찮으세요?', sentByMe: false, at: now.subtract(const Duration(minutes: 20))),
-      _Message('네 5시 호수공원 어떠세요?', sentByMe: true, at: now.subtract(const Duration(minutes: 18))),
-      _Message('좋아요 그때 뵐게요!', sentByMe: false, at: now.subtract(const Duration(minutes: 12))),
-    ];
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final msgs = await _repo.fetchMessages(widget.room.id);
+      if (!mounted) return;
+      setState(() {
+        _messages = msgs;
+        _loading = false;
+      });
+      _markRead();
+      _scrollToBottom(animate: false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+    // 실시간 구독 (상대 메시지 수신)
+    try {
+      _channel = _repo.subscribeMessages(widget.room.id, _onIncoming);
+    } catch (_) {
+      // 실시간 미동작 시에도 전송/로드는 정상.
+    }
+  }
+
+  void _onIncoming(ChatMessage msg) {
+    if (!mounted) return;
+    if (_messages.any((m) => m.id == msg.id)) return; // 중복 방지
+    setState(() => _messages.add(msg));
+    if (!msg.mine) _markRead();
+    _scrollToBottom();
+  }
+
+  void _markRead() {
+    if (_messages.isEmpty) return;
+    _repo.markRead(widget.room.id, _messages.last.id).catchError((_) {});
   }
 
   @override
   void dispose() {
+    if (_channel != null) _repo.unsubscribe(_channel!);
     _ctrl.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
+  Future<void> _send() async {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      final msg = await _repo.sendMessage(widget.room.id, text);
+      _ctrl.clear();
+      if (!mounted) return;
+      setState(() {
+        if (!_messages.any((m) => m.id == msg.id)) _messages.add(msg);
+      });
+      _markRead();
+      _scrollToBottom();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('메시지 전송에 실패했어요'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _scrollToBottom({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      final pos = _scroll.position.maxScrollExtent;
+      if (animate) {
+        _scroll.animateTo(pos,
+            duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      } else {
+        _scroll.jumpTo(pos);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final initial = widget.room.otherNickname.isEmpty
+        ? '?'
+        : widget.room.otherNickname.characters.first;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -46,7 +126,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               radius: 16,
               backgroundColor: AppColors.primarySoft,
               child: Text(
-                widget.room.otherNickname.characters.first,
+                initial,
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -64,109 +144,123 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       ),
       body: Column(
         children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scroll,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (_, i) => _MessageBubble(message: _messages[i]),
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              decoration: const BoxDecoration(
-                color: AppColors.surface,
-                border: Border(
-                    top: BorderSide(color: AppColors.border, width: 0.5)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.add_photo_alternate_outlined,
-                        color: AppColors.primaryDark),
-                    onPressed: () {},
-                  ),
-                  Expanded(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 120),
-                      child: TextField(
-                        controller: _ctrl,
-                        maxLines: null,
-                        decoration: InputDecoration(
-                          hintText: '메시지를 입력하세요',
-                          filled: true,
-                          fillColor: AppColors.surfaceMuted,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(100),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(100),
-                            borderSide: const BorderSide(
-                                color: AppColors.primary, width: 1.2),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    decoration: const BoxDecoration(
-                      color: AppColors.primaryDark,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_upward,
-                          color: AppColors.textOnPrimary),
-                      onPressed: _send,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          Expanded(child: _buildMessages()),
+          _Composer(controller: _ctrl, sending: _sending, onSend: _send),
         ],
       ),
     );
   }
 
-  void _send() {
-    final text = _ctrl.text.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      _messages.add(_Message(text, sentByMe: true, at: DateTime.now()));
-      _ctrl.clear();
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
+  Widget _buildMessages() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_messages.isEmpty) {
+      return const Center(
+        child: Text(
+          '첫 메시지를 보내보세요',
+          style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+        ),
       );
-    });
+    }
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.all(16),
+      itemCount: _messages.length,
+      itemBuilder: (_, i) => _MessageBubble(message: _messages[i]),
+    );
   }
 }
 
-class _Message {
-  final String content;
-  final bool sentByMe;
-  final DateTime at;
-  _Message(this.content, {required this.sentByMe, required this.at});
+class _Composer extends StatelessWidget {
+  final TextEditingController controller;
+  final bool sending;
+  final VoidCallback onSend;
+  const _Composer({
+    required this.controller,
+    required this.sending,
+    required this.onSend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.add_photo_alternate_outlined,
+                  color: AppColors.primaryDark),
+              onPressed: () {},
+            ),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 120),
+                child: TextField(
+                  controller: controller,
+                  maxLines: null,
+                  decoration: InputDecoration(
+                    hintText: '메시지를 입력하세요',
+                    filled: true,
+                    fillColor: AppColors.surfaceMuted,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(100),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(100),
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 1.2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              decoration: const BoxDecoration(
+                color: AppColors.primaryDark,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.textOnPrimary,
+                        ),
+                      )
+                    : const Icon(Icons.arrow_upward,
+                        color: AppColors.textOnPrimary),
+                onPressed: sending ? null : onSend,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _MessageBubble extends StatelessWidget {
-  final _Message message;
+  final ChatMessage message;
   const _MessageBubble({required this.message});
 
   @override
   Widget build(BuildContext context) {
-    final mine = message.sentByMe;
-    final at = message.at;
+    final mine = message.mine;
+    final at = message.createdAt;
     final timeStr =
         '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
     return Padding(
@@ -176,13 +270,9 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (mine) ...[
-            Text(
-              timeStr,
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppColors.textTertiary,
-              ),
-            ),
+            Text(timeStr,
+                style: const TextStyle(
+                    fontSize: 10, color: AppColors.textTertiary)),
             const SizedBox(width: 6),
           ],
           ConstrainedBox(
@@ -190,8 +280,7 @@ class _MessageBubble extends StatelessWidget {
               maxWidth: MediaQuery.of(context).size.width * 0.7,
             ),
             child: Container(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: mine ? AppColors.primaryDark : AppColors.surface,
                 borderRadius: BorderRadius.only(
@@ -217,15 +306,10 @@ class _MessageBubble extends StatelessWidget {
           ),
           if (!mine) ...[
             const SizedBox(width: 6),
-            Text(
-              timeStr,
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppColors.textTertiary,
-              ),
-            ),
+            Text(timeStr,
+                style: const TextStyle(
+                    fontSize: 10, color: AppColors.textTertiary)),
           ],
-
         ],
       ),
     );

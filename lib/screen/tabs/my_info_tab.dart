@@ -6,6 +6,7 @@ import '../../services/profile_repository.dart';
 import '../../widgets/pet_card.dart';
 import '../../services/auth_service.dart';
 import '../pet_detail_screen.dart';
+import '../connections_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_phone_screen.dart';
 import '../welcome_screen.dart';
@@ -524,13 +525,25 @@ class _InterestSection extends StatelessWidget {
             label: '하트한 게시글',
             trailing: '${profile.heartCount}'),
         _Item(
-            icon: Icons.handshake_outlined,
-            label: 'Pawing (내가 팔로우)',
-            trailing: '${profile.pawingCount}'),
+          icon: Icons.handshake_outlined,
+          label: 'Pawing (내가 팔로우)',
+          trailing: '${profile.pawingCount}',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const ConnectionsScreen(initialIndex: 0)),
+          ),
+        ),
         _Item(
-            icon: Icons.groups_outlined,
-            label: 'Pawmate (나를 팔로우)',
-            trailing: '${profile.pawmateCount}'),
+          icon: Icons.groups_outlined,
+          label: 'Pawmate (나를 팔로우)',
+          trailing: '${profile.pawmateCount}',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const ConnectionsScreen(initialIndex: 1)),
+          ),
+        ),
       ],
     );
   }

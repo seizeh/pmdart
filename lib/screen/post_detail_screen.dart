@@ -3,6 +3,9 @@ import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
 import '../services/community_repository.dart';
+import '../services/social_repository.dart';
+import '../services/chat_launcher.dart';
+import '../services/session.dart';
 import '../widgets/role_badge.dart';
 import 'auth/auth_wall_dialog.dart';
 
@@ -30,14 +33,44 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _loadingComments = true;
   bool _sending = false;
   bool _applying = false;
+  bool _following = false;
 
   bool get _isFreePost => _post.category == 'free';
+  bool get _isMyPost => _post.userId == SessionManager.instance.user?.id;
 
   @override
   void initState() {
     super.initState();
     _post = widget.post;
     _loadComments();
+    if (!widget.isGuest && !_isMyPost) _loadFollowing();
+  }
+
+  Future<void> _loadFollowing() async {
+    try {
+      final f = await SocialRepository.instance.isFollowing(_post.userId);
+      if (mounted) setState(() => _following = f);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFollow() async {
+    if (!_guard('팔로우는 로그인 후 할 수 있어요')) return;
+    final was = _following;
+    setState(() => _following = !was);
+    try {
+      if (was) {
+        await SocialRepository.instance.unfollow(_post.userId);
+      } else {
+        await SocialRepository.instance.follow(_post.userId);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _following = was);
+    }
+  }
+
+  void _startChat() {
+    if (!_guard('채팅은 로그인 후 이용할 수 있어요')) return;
+    openDirectChat(context, _post.userId);
   }
 
   @override
@@ -133,6 +166,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         actions: [
+          if (!_isMyPost)
+            IconButton(
+              icon: const Icon(Icons.chat_bubble_outline),
+              tooltip: '채팅하기',
+              onPressed: _startChat,
+            ),
           IconButton(icon: const Icon(Icons.share_outlined), onPressed: () {}),
           IconButton(icon: const Icon(Icons.more_horiz), onPressed: () {}),
         ],
@@ -170,7 +209,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            _AuthorRow(post: _post),
+            _AuthorRow(
+              post: _post,
+              showFollow: !widget.isGuest && !_isMyPost,
+              following: _following,
+              onFollow: _toggleFollow,
+            ),
             const SizedBox(height: 20),
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: 20),
@@ -227,7 +271,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
 class _AuthorRow extends StatelessWidget {
   final Post post;
-  const _AuthorRow({required this.post});
+  final bool showFollow;
+  final bool following;
+  final VoidCallback onFollow;
+  const _AuthorRow({
+    required this.post,
+    required this.showFollow,
+    required this.following,
+    required this.onFollow,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -270,7 +322,54 @@ class _AuthorRow extends StatelessWidget {
             ),
           ],
         ),
+        const Spacer(),
+        if (showFollow) _FollowButton(following: following, onTap: onFollow),
       ],
+    );
+  }
+}
+
+/// 팔로우(Pawing) 토글 버튼.
+class _FollowButton extends StatelessWidget {
+  final bool following;
+  final VoidCallback onTap;
+  const _FollowButton({required this.following, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: following ? AppColors.surface : AppColors.primaryDark,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+            color: following ? AppColors.border : AppColors.primaryDark,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              following ? Icons.check : Icons.add,
+              size: 14,
+              color: following ? AppColors.textSecondary : AppColors.textOnPrimary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              following ? 'Pawing 중' : 'Pawing',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: following
+                    ? AppColors.textSecondary
+                    : AppColors.textOnPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

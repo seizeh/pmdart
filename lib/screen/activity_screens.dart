@@ -58,7 +58,7 @@ class _ListScaffoldState extends State<_ListScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(title: Text(widget.title)),
       body: SafeArea(child: _body()),
     );

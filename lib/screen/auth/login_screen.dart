@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/pawmate_logo.dart';
 import '../../services/auth_service.dart';
 import '../main_screen.dart';
 import 'signup_phone_screen.dart';
@@ -59,6 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.background,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -71,7 +71,13 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
-              const Center(child: PawMateLogo(size: 80)),
+              Center(
+                child: Image.asset(
+                  'assets/images/IMG_3.png',
+                  width: 300,
+                  fit: BoxFit.contain,
+                ),
+              ),
               const SizedBox(height: 24),
               const Text(
                 '다시 만나서\n반가워요',

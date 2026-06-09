@@ -16,7 +16,7 @@ class ConnectionsScreen extends StatelessWidget {
       length: 2,
       initialIndex: initialIndex,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.white,
         appBar: AppBar(
           title: const Text('내 친구'),
           bottom: const TabBar(

@@ -48,7 +48,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.background,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {

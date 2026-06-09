@@ -119,7 +119,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(_isEdit ? '반려동물 수정' : '반려동물 등록'),
         actions: [

@@ -68,12 +68,15 @@ class PostCard extends StatelessWidget {
               const SizedBox(height: 10),
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  post.imageUrl!,
-                  height: 160,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                child: AspectRatio(
+                  aspectRatio: kPostImageAspectRatio, // 4284 : 5712
+                  child: Image.network(
+                    post.imageUrl!,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        const ColoredBox(color: AppColors.surfaceMuted),
+                  ),
                 ),
               ),
             ],

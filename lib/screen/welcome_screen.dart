@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
-import '../widgets/pawmate_logo.dart';
 import 'auth/login_screen.dart';
 import 'auth/signup_phone_screen.dart';
 import 'main_screen.dart';
@@ -19,17 +19,23 @@ class WelcomeScreen extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(flex: 3),
-              const PawMateLogo(size: 120, showText: true),
+              Image.asset(
+                'assets/images/IMG_3.png',
+                width: 400,
+                fit: BoxFit.contain,
+              ),
               const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
-                  '반려동물 보호자가 모이는 공간',
+                  'PAWMATE',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: AppColors.textSecondary,
-                    height: 1.5,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800, // 두껍게
+                    color: AppColors.primaryDark,
+                    letterSpacing: 1.0,
+                    height: 1.4,
                   ),
                 ),
               ),

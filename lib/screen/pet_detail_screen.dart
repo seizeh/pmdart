@@ -64,11 +64,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            backgroundColor: AppColors.background,
+            backgroundColor: Colors.white,
             elevation: 0,
             pinned: true,
             actions: [

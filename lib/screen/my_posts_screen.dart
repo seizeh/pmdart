@@ -58,7 +58,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(title: Text(_title)),
       body: SafeArea(child: _body()),
     );

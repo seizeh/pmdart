@@ -163,7 +163,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final color = categoryColor(_post.category);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         actions: [
           if (!_isMyPost)
@@ -230,11 +230,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               const SizedBox(height: 16),
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  _post.imageUrl!,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                child: AspectRatio(
+                  aspectRatio: kPostImageAspectRatio, // 4284 : 5712
+                  child: Image.network(
+                    _post.imageUrl!,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        const ColoredBox(color: AppColors.surfaceMuted),
+                  ),
                 ),
               ),
             ],

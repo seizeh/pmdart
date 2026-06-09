@@ -4,10 +4,12 @@ import '../../models/community.dart';
 import '../../services/community_repository.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/role_badge.dart';
-import '../../widgets/pawmate_logo.dart';
+import '../../services/app_events.dart';
+import '../../services/notification_repository.dart';
 import '../auth/auth_wall_dialog.dart';
 import '../post_detail_screen.dart';
 import '../post_create_screen.dart';
+import '../notifications_screen.dart';
 
 /// 커뮤니티 탭 — 게시글 목록(실데이터) + 카테고리 필터 + 검색.
 class CommunityTab extends StatefulWidget {
@@ -101,7 +103,7 @@ class _CommunityTabState extends State<CommunityTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -240,10 +242,8 @@ class _SliverHeader extends StatelessWidget {
       sliver: SliverToBoxAdapter(
         child: Row(
           children: [
-            const PawMateLogo(size: 32),
-            const SizedBox(width: 10),
             const Text(
-              'PawMate',
+              '커뮤니티',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -252,37 +252,93 @@ class _SliverHeader extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            IconButton(
-              onPressed: () {
-                if (isGuest) AuthWallDialog.show(context);
-              },
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.notifications_outlined,
-                      color: AppColors.primaryDark, size: 26),
-                  if (!isGuest)
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: AppColors.danger,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.background,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            _NotificationBell(isGuest: isGuest),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 알림 벨 — 실제 안읽음 수 배지 + 알림함 열기. 변경 시 자동 갱신.
+class _NotificationBell extends StatefulWidget {
+  final bool isGuest;
+  const _NotificationBell({required this.isGuest});
+
+  @override
+  State<_NotificationBell> createState() => _NotificationBellState();
+}
+
+class _NotificationBellState extends State<_NotificationBell> {
+  int _unread = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isGuest) {
+      _loadCount();
+      AppEvents.instance.notification.addListener(_loadCount);
+    }
+  }
+
+  @override
+  void dispose() {
+    AppEvents.instance.notification.removeListener(_loadCount);
+    super.dispose();
+  }
+
+  Future<void> _loadCount() async {
+    try {
+      final c = await NotificationRepository.instance.unreadCount();
+      if (mounted) setState(() => _unread = c);
+    } catch (_) {}
+  }
+
+  Future<void> _open() async {
+    if (widget.isGuest) {
+      AuthWallDialog.show(context);
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
+    _loadCount();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: _open,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.notifications_outlined,
+              color: AppColors.primaryDark, size: 26),
+          if (!widget.isGuest && _unread > 0)
+            Positioned(
+              top: -4,
+              right: -4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                child: Text(
+                  _unread > 99 ? '99+' : '$_unread',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -1,6 +1,9 @@
 /// 커뮤니티 도메인 모델 (Supabase 실데이터).
 library;
 
+/// 게시글 이미지 표시 비율 (가로:세로 = 4284:5712, 최신 카메라 기본 비율 = 3:4).
+const double kPostImageAspectRatio = 4284 / 5712;
+
 DateTime _parseDate(dynamic v) =>
     v == null ? DateTime.fromMillisecondsSinceEpoch(0) : DateTime.parse(v as String).toLocal();
 

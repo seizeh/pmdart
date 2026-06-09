@@ -16,7 +16,11 @@ class AppEvents {
   /// 프로필/반려동물 변경 — 내정보 새로고침 트리거.
   final ValueNotifier<int> profile = ValueNotifier(0);
 
+  /// 알림 읽음/변경 — 벨 배지 새로고침 트리거.
+  final ValueNotifier<int> notification = ValueNotifier(0);
+
   void notifySocial() => social.value++;
   void notifyChat() => chat.value++;
   void notifyProfile() => profile.value++;
+  void notifyNotification() => notification.value++;
 }

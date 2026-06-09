@@ -118,7 +118,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ? '?'
         : widget.room.otherNickname.characters.first;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: Row(
           children: [

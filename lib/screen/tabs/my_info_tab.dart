@@ -90,13 +90,13 @@ class _MyInfoTabState extends State<MyInfoTab> {
 
     if (_loading) {
       return const Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.white,
         body: Center(child: CircularProgressIndicator()),
       );
     }
     if (_error != null || _profile == null) {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.white,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -113,7 +113,7 @@ class _MyInfoTabState extends State<MyInfoTab> {
 
     final profile = _profile!;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -147,7 +147,7 @@ class _GuestMyInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),

@@ -56,7 +56,7 @@ class _NotificationSettingsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(title: const Text('알림 설정')),
       body: SafeArea(
         child: _loading

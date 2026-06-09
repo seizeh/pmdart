@@ -35,6 +35,13 @@ class CommunityRepository {
         .toList();
   }
 
+  /// 단일 게시글 조회 (알림 등에서 이동용). 없으면 null.
+  Future<Post?> fetchPost(String postId) async {
+    final row =
+        await _c.from('v_post_feed').select().eq('id', postId).maybeSingle();
+    return row == null ? null : Post.fromJson(row);
+  }
+
   /// 내가 하트한 게시글.
   Future<List<Post>> fetchHeartedPosts() async {
     final uid = _requireUid();

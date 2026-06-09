@@ -54,7 +54,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(title: const Text('차단 사용자 관리')),
       body: SafeArea(child: _body()),
     );

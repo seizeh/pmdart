@@ -77,7 +77,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ? (SessionManager.instance.user?.nickname ?? '?')
         : _nickCtrl.text;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('프로필 편집'),
         actions: [

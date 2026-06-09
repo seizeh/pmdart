@@ -26,6 +26,13 @@ class ChatRepository {
     return ChatRoomSummary.fromJson(row);
   }
 
+  /// 단일 채팅방 조회 (알림 등에서 이동용). 없으면 null.
+  Future<ChatRoomSummary?> fetchRoom(String roomId) async {
+    final row =
+        await _c.from('v_chat_rooms').select().eq('id', roomId).maybeSingle();
+    return row == null ? null : ChatRoomSummary.fromJson(row);
+  }
+
   /// 내 채팅방 목록 (최근 메시지 순).
   Future<List<ChatRoomSummary>> fetchRooms() async {
     final rows = await _c

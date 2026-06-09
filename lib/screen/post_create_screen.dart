@@ -114,7 +114,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('새 게시글'),
         actions: [
@@ -486,20 +486,21 @@ class _PhotoPicker extends StatelessWidget {
         ),
       );
     }
-    // 업로드 완료 — 미리보기 + 삭제
+    // 업로드 완료 — 미리보기 + 삭제 (가로 3 : 세로 4)
     return Stack(
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: Image.network(
-            url!,
-            height: 180,
-            width: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => Container(
-              height: 180,
-              color: AppColors.surfaceMuted,
-              child: const Center(child: Icon(Icons.image, size: 40)),
+          child: AspectRatio(
+            aspectRatio: kPostImageAspectRatio, // 4284 : 5712
+            child: Image.network(
+              url!,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
+                color: AppColors.surfaceMuted,
+                child: const Center(child: Icon(Icons.image, size: 40)),
+              ),
             ),
           ),
         ),

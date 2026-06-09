@@ -70,7 +70,7 @@ class _ChatTabState extends State<ChatTab> {
     if (widget.isGuest) return const _GuestChat();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -266,7 +266,7 @@ class _GuestChat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: Padding(

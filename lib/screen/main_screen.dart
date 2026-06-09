@@ -31,7 +31,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: IndexedStack(index: _index, children: _tabs),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(

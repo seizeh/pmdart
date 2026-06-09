@@ -34,7 +34,7 @@ class AppTheme {
         labelLarge: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,

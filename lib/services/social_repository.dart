@@ -69,7 +69,8 @@ class SocialRepository {
         .toList();
   }
 
-  /// 사용자 검색 (닉네임/아이디). 나 자신은 제외, 팔로우 여부 포함.
+  /// 사용자 검색 (닉네임). 나 자신은 제외, 팔로우 여부 포함.
+  /// 아이디(username)는 비공개 값이라 검색 대상에서 제외한다.
   Future<List<Connection>> searchUsers(String query) async {
     final q = query.trim();
     if (q.isEmpty) return const [];
@@ -77,7 +78,7 @@ class SocialRepository {
     final rows = await _c
         .from('public_profiles')
         .select('id, nickname, user_type')
-        .or('nickname.ilike.%$q%,username.ilike.%$q%')
+        .ilike('nickname', '%$q%')
         .neq('id', uid)
         .limit(30);
 

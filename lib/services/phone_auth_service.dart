@@ -34,6 +34,21 @@ class PhoneAuthService {
     }
   }
 
+  /// 아이디 중복확인. 서버 RPC(`check_username_available`)로 존재 여부만 확인한다.
+  /// (아이디는 비공개 값이라 클라이언트가 직접 조회할 수 없고, 이 RPC 만 허용됨.)
+  /// [UsernameCheckResult.ok] == false 면 네트워크/서버 오류.
+  Future<UsernameCheckResult> checkUsername(String username) async {
+    try {
+      final res = await _client.rpc(
+        'check_username_available',
+        params: {'p_username': username},
+      );
+      return UsernameCheckResult(ok: true, available: res == true);
+    } catch (_) {
+      return const UsernameCheckResult(ok: false);
+    }
+  }
+
   /// 회원가입(계정 생성). 비밀번호 해싱·users INSERT 는 서버에서 처리된다.
   /// 성공 시 [SignupResult.ok] == true, [SignupResult.userId] 에 새 사용자 id.
   Future<SignupResult> signUp({
@@ -171,4 +186,12 @@ class PhoneVerifyResult {
         null => '인증되었어요',
         _ => '인증에 실패했어요',
       };
+}
+
+/// 아이디 중복확인 결과.
+class UsernameCheckResult {
+  final bool ok; // 서버 응답 성공 여부 (false 면 네트워크/서버 오류)
+  final bool available; // 사용 가능 여부
+
+  const UsernameCheckResult({required this.ok, this.available = false});
 }

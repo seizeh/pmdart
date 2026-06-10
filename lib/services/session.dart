@@ -5,23 +5,30 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 로그인된 사용자 정보(JWT 의 sub 에 해당하는 user_id 포함).
 class AuthUser {
   final String id;
+  final String username; // 로그인 아이디. 비공개 값이라 본인 세션에만 보관(공개 프로필엔 없음).
   final String nickname;
   final String userType;
 
   const AuthUser({
     required this.id,
+    required this.username,
     required this.nickname,
     required this.userType,
   });
 
   factory AuthUser.fromJson(Map json) => AuthUser(
         id: json['id'] as String,
+        username: (json['username'] ?? '') as String,
         nickname: (json['nickname'] ?? '') as String,
         userType: (json['user_type'] ?? '') as String,
       );
 
-  Map<String, dynamic> toJson() =>
-      {'id': id, 'nickname': nickname, 'user_type': userType};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'username': username,
+        'nickname': nickname,
+        'user_type': userType,
+      };
 }
 
 /// 앱 전역 세션. 커스텀 JWT 를 보관하고 모든 Supabase 요청에 첨부된다

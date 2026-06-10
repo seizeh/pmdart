@@ -30,7 +30,13 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
 
   bool _loading = false; // 발송/검증 진행 중
 
+  bool _checkingId = false; // 아이디 중복확인 진행 중
+  bool _idAvailable = false; // 현재 입력된 아이디가 사용 가능으로 확인됨
+  String? _idCheckMsg; // 중복확인 결과 안내 문구
+  bool _idCheckOk = false; // 결과 문구 색상용(true=초록/사용가능)
+
   static final RegExp _phoneRe = RegExp(r'^01\d{8,9}$');
+  static final RegExp _usernameRe = RegExp(r'^[A-Za-z0-9]{4,20}$');
 
   @override
   void dispose() {
@@ -208,12 +214,56 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          TextField(
-            controller: _idCtrl,
-            decoration: const InputDecoration(
-                labelText: '아이디',
-                hintText: '영문/숫자 4자 이상'),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _idCtrl,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                    LengthLimitingTextInputFormatter(20),
+                  ],
+                  decoration: const InputDecoration(
+                      labelText: '아이디',
+                      hintText: '영문/숫자 4~20자'),
+                  // 입력이 바뀌면 직전 중복확인 결과는 무효화
+                  onChanged: (_) {
+                    if (_idAvailable || _idCheckMsg != null) {
+                      setState(() {
+                        _idAvailable = false;
+                        _idCheckMsg = null;
+                      });
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: _checkingId ? null : _checkUsername,
+                  child: _checkingId
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        )
+                      : const Text('중복확인'),
+                ),
+              ),
+            ],
           ),
+          if (_idCheckMsg != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _idCheckMsg!,
+              style: TextStyle(
+                fontSize: 12,
+                color: _idCheckOk ? AppColors.primaryDark : AppColors.danger,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: _pwCtrl,
@@ -436,9 +486,45 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     _toast(result.message);
   }
 
+  /// 아이디 중복확인. 사용 가능하면 _idAvailable=true 로 표시.
+  Future<void> _checkUsername() async {
+    final id = _idCtrl.text.trim();
+    if (!_usernameRe.hasMatch(id)) {
+      setState(() {
+        _idAvailable = false;
+        _idCheckOk = false;
+        _idCheckMsg = '아이디는 영문/숫자 4~20자로 입력해주세요';
+      });
+      return;
+    }
+    setState(() => _checkingId = true);
+    final result = await PhoneAuthService.instance.checkUsername(id);
+    if (!mounted) return;
+    setState(() {
+      _checkingId = false;
+      if (!result.ok) {
+        _idAvailable = false;
+        _idCheckOk = false;
+        _idCheckMsg = '확인에 실패했어요. 잠시 후 다시 시도해주세요';
+      } else if (result.available) {
+        _idAvailable = true;
+        _idCheckOk = true;
+        _idCheckMsg = '사용 가능한 아이디예요';
+      } else {
+        _idAvailable = false;
+        _idCheckOk = false;
+        _idCheckMsg = '이미 사용 중인 아이디예요';
+      }
+    });
+  }
+
   bool _validateProfile() {
-    if (_idCtrl.text.trim().length < 4) {
-      _toast('아이디를 4자 이상 입력해주세요');
+    if (!_usernameRe.hasMatch(_idCtrl.text.trim())) {
+      _toast('아이디는 영문/숫자 4~20자로 입력해주세요');
+      return false;
+    }
+    if (!_idAvailable) {
+      _toast('아이디 중복확인을 해주세요');
       return false;
     }
     if (_pwCtrl.text.length < 8) {

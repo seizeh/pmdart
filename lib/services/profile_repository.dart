@@ -16,10 +16,10 @@ class ProfileRepository {
     if (user == null) throw StateError('로그인이 필요합니다');
     final uid = user.id;
 
-    // 프로필 헤더(공개 프로필 뷰)
+    // 프로필 헤더(공개 프로필 뷰). 아이디(username)는 공개 뷰에 없으므로 세션에서 가져온다.
     final profile = await _c
         .from('public_profiles')
-        .select('username, nickname, user_type')
+        .select('nickname, user_type')
         .eq('id', uid)
         .maybeSingle();
 
@@ -38,7 +38,7 @@ class ProfileRepository {
 
     return ProfileData(
       nickname: (profile?['nickname'] ?? user.nickname) as String,
-      username: (profile?['username'] ?? '') as String,
+      username: user.username,
       userType: (profile?['user_type'] ?? user.userType) as String,
       reviewCount: counts[0],
       pawingCount: counts[1],
@@ -149,7 +149,12 @@ class ProfileRepository {
     if (nickname != null) {
       await SessionManager.instance.setSession(
         SessionManager.instance.token!,
-        AuthUser(id: user.id, nickname: nickname, userType: user.userType),
+        AuthUser(
+          id: user.id,
+          username: user.username,
+          nickname: nickname,
+          userType: user.userType,
+        ),
       );
     }
     AppEvents.instance.notifyProfile();

@@ -109,35 +109,68 @@ class _CommunityTabState extends State<CommunityTab> {
           onRefresh: _load,
           child: CustomScrollView(
             slivers: [
-              _SliverHeader(isGuest: widget.isGuest),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                  child: _SearchBar(onTap: () {}),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 44,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    children: [
-                      _FilterChip(
-                        label: '전체',
-                        selected: _selectedCategory == null,
-                        onTap: () => _selectCategory(null),
+              // 검색창+카테고리를 floating/snap 헤더로 → 조금만 위로 스크롤해도 다시 나타남
+              SliverAppBar(
+                floating: true,
+                snap: true,
+                pinned: false,
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.white,
+                elevation: 0,
+                scrolledUnderElevation: 0.5,
+                shadowColor: Colors.black26,
+                automaticallyImplyLeading: false,
+                titleSpacing: 20,
+                toolbarHeight: 56,
+                title: Row(
+                  children: [
+                    const Text(
+                      '커뮤니티',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryDark,
+                        letterSpacing: -0.3,
                       ),
-                      const SizedBox(width: 8),
-                      ..._categories.map((c) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: CategoryChip(
-                              category: c,
-                              selected: _selectedCategory == c,
-                              onTap: () => _selectCategory(
-                                  _selectedCategory == c ? null : c),
+                    ),
+                    const Spacer(),
+                    _NotificationBell(isGuest: widget.isGuest),
+                  ],
+                ),
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(112),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        child: _SearchBar(onTap: () {}),
+                      ),
+                      SizedBox(
+                        height: 44,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          children: [
+                            _FilterChip(
+                              label: '전체',
+                              selected: _selectedCategory == null,
+                              onTap: () => _selectCategory(null),
                             ),
-                          )),
+                            const SizedBox(width: 8),
+                            ..._categories.map((c) => Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: CategoryChip(
+                                    category: c,
+                                    selected: _selectedCategory == c,
+                                    onTap: () => _selectCategory(
+                                        _selectedCategory == c ? null : c),
+                                  ),
+                                )),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                     ],
                   ),
                 ),
@@ -226,35 +259,6 @@ class _MessageState extends StatelessWidget {
             TextButton(onPressed: onRetry, child: const Text('다시 시도')),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _SliverHeader extends StatelessWidget {
-  final bool isGuest;
-  const _SliverHeader({required this.isGuest});
-
-  @override
-  Widget build(BuildContext context) {
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-      sliver: SliverToBoxAdapter(
-        child: Row(
-          children: [
-            const Text(
-              '커뮤니티',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryDark,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const Spacer(),
-            _NotificationBell(isGuest: isGuest),
-          ],
-        ),
       ),
     );
   }

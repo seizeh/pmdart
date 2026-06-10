@@ -8,6 +8,7 @@ import '../services/chat_launcher.dart';
 import '../services/session.dart';
 import '../widgets/role_badge.dart';
 import 'auth/auth_wall_dialog.dart';
+import 'applicants_screen.dart';
 
 /// 게시글 상세 — 본문 / 약속·위치 / 작성자 / 댓글(실데이터) / 하트·지원·댓글 작성.
 class PostDetailScreen extends StatefulWidget {
@@ -151,6 +152,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  void _openApplicants() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ApplicantsScreen(post: _post)),
+    );
+  }
+
   void _toast(String m) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -246,7 +254,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               const SizedBox(height: 24),
               _InfoBox(post: _post),
             ],
-            if (!_isFreePost && _post.progressStatus == 'recruiting') ...[
+            if (!_isFreePost && _isMyPost) ...[
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: _openApplicants,
+                icon: const Icon(Icons.people_outline),
+                label: const Text('지원자 목록 보기'),
+              ),
+            ] else if (!_isFreePost && _post.progressStatus == 'recruiting') ...[
               const SizedBox(height: 20),
               OutlinedButton.icon(
                 onPressed: _applying ? null : _apply,

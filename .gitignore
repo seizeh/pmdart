@@ -10,6 +10,8 @@
 .history
 .svn/
 .swiftpm/
+# Xcode/SwiftPM 자동 생성 락파일 (빌드 시 재생성)
+**/xcshareddata/swiftpm/Package.resolved
 migrate_working_dir/
 
 # IntelliJ related

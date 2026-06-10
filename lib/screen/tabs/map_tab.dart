@@ -1,54 +1,35 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 
-/// 지도 탭 — 주변 산책 메이트·업체 지도. (개발 예정)
-class MapTab extends StatelessWidget {
+/// 지도 탭 — 주변 산책 메이트·업체를 네이버 지도로 표시.
+class MapTab extends StatefulWidget {
   const MapTab({super.key});
+
+  @override
+  State<MapTab> createState() => _MapTabState();
+}
+
+class _MapTabState extends State<MapTab> {
+  // 초기 카메라 위치 (서울시청). 추후 현재 위치로 대체 가능.
+  static const _initialPosition = NCameraPosition(
+    target: NLatLng(37.5666, 126.9784),
+    zoom: 14,
+  );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(32),
-                  ),
-                  child: const Icon(Icons.map_outlined,
-                      size: 48, color: AppColors.primaryDark),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '지도 기능 준비 중',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '주변 산책 메이트와 반려동물 업체를\n지도에서 찾을 수 있도록 준비하고 있어요',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
+      body: NaverMap(
+        options: const NaverMapViewOptions(
+          initialCameraPosition: _initialPosition,
+          locationButtonEnable: true,
+          consumeSymbolTapEvents: false,
         ),
+        onMapReady: (controller) {
+          // 추후 마커·카메라 제어 시 controller 보관해 사용.
+          debugPrint('네이버 지도 준비 완료');
+        },
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'screen/welcome_screen.dart';
@@ -11,6 +12,21 @@ Future<void> main() async {
 
   // 저장된 로그인 세션 복원
   await SessionManager.instance.load();
+
+  // 네이버 지도 SDK 초기화 (NCP Maps 신규 인증 - Client ID)
+  await FlutterNaverMap().init(
+    clientId: 'cy02y6r0d5',
+    onAuthFailed: (ex) {
+      switch (ex) {
+        case NQuotaExceededException(:final message):
+          debugPrint('네이버 지도 사용량 초과: $message');
+        case NUnauthorizedClientException() ||
+              NClientUnspecifiedException() ||
+              NAnotherAuthFailedException():
+          debugPrint('네이버 지도 인증 실패: $ex');
+      }
+    },
+  );
 
   // Supabase 연결
   // publishableKey(공개 키)만 클라이언트에 둔다. service_role 키는 절대 포함 금지.

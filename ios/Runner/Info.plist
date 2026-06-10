@@ -70,5 +70,7 @@
 	<string>게시글·반려동물 사진을 첨부하기 위해 사진 보관함 접근이 필요합니다.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>사진을 촬영해 첨부하기 위해 카메라 접근이 필요합니다.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>지도에서 현재 위치를 표시하기 위해 위치 접근이 필요합니다.</string>
 </dict>
 </plist>

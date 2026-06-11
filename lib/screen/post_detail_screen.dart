@@ -53,14 +53,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _canManage = _isMyPost;
     _managerChecked = _isMyPost || widget.isGuest || _isFreePost;
     _loadComments();
-    if (!widget.isGuest) _recordView();
+    // 작성자 본인 조회는 조회수에 반영하지 않는다.
     if (!widget.isGuest && !_isMyPost) {
+      _recordView();
       _loadFollowing();
       if (!_isFreePost) _loadManager();
     }
   }
 
-  /// 조회수 기록 (같은 날 재조회는 집계 안 됨). 집계됐으면 화면 수치도 +1.
+  /// 조회수 기록 (같은 시간대 재조회는 집계 안 됨). 집계됐으면 화면 수치도 +1.
   Future<void> _recordView() async {
     final counted = await _repo.recordView(_post.id);
     if (counted && mounted) {

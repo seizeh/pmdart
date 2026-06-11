@@ -165,6 +165,33 @@ class AdminComment {
       );
 }
 
+/// 관리자가 보는 문의(admin_inquiry 채팅방) 1건.
+class AdminInquiry {
+  final String roomId;
+  final String? userId;
+  final String userNickname;
+  final String? lastMessage;
+  final DateTime? lastMessageAt;
+
+  const AdminInquiry({
+    required this.roomId,
+    required this.userId,
+    required this.userNickname,
+    required this.lastMessage,
+    required this.lastMessageAt,
+  });
+
+  factory AdminInquiry.fromJson(Map j) => AdminInquiry(
+        roomId: j['room_id'] as String,
+        userId: j['user_id'] as String?,
+        userNickname: (j['user_nickname'] ?? '알 수 없음') as String,
+        lastMessage: j['last_message'] as String?,
+        lastMessageAt: j['last_message_at'] == null
+            ? null
+            : DateTime.parse(j['last_message_at'] as String).toLocal(),
+      );
+}
+
 /// 관리자 전용 데이터 접근. 모든 호출은 DB 에서 app.is_admin() 으로 검증된다.
 class AdminRepository {
   AdminRepository._();
@@ -239,5 +266,16 @@ class AdminRepository {
   Future<void> setCommentDeleted(String commentId, bool deleted) async {
     await _c.rpc('admin_set_comment_deleted',
         params: {'p_comment': commentId, 'p_deleted': deleted});
+  }
+
+  /// 문의(admin_inquiry 채팅방) 목록.
+  Future<List<AdminInquiry>> listInquiries() async {
+    final res = await _c.rpc('admin_list_inquiries');
+    return (res as List).map((r) => AdminInquiry.fromJson(r as Map)).toList();
+  }
+
+  /// 문의방에 참여(답장 위해). 멱등.
+  Future<void> joinInquiry(String roomId) async {
+    await _c.rpc('admin_join_inquiry', params: {'p_room': roomId});
   }
 }

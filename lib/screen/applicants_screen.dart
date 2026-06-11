@@ -5,8 +5,9 @@ import '../models/community.dart';
 import '../services/activity_repository.dart';
 import '../services/chat_launcher.dart';
 
-/// 지원자 목록 — 글 작성자가 지원자를 확인하고 1명을 수락(선택)한다.
+/// 지원자 목록 — 글 작성자 또는 공동보호자가 지원자를 확인하고 1명을 수락(선택)한다.
 /// 수락 시 DB 트리거가 약속을 만들고 나머지 지원자는 자동 거절된다.
+/// 공동보호자가 수락하면 약속은 작성자가 아닌 그 공동보호자↔지원자로 맺어진다.
 class ApplicantsScreen extends StatefulWidget {
   final Post post;
   const ApplicantsScreen({super.key, required this.post});

@@ -36,6 +36,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _applying = false;
   bool _following = false;
 
+  /// 지원자 목록을 관리(조회·수락)할 수 있는지 — 작성자 또는 공동보호자.
+  bool _canManage = false;
+
+  /// 공동보호자 권한 확인이 끝났는지 (확인 전엔 지원하기 버튼을 숨긴다).
+  bool _managerChecked = false;
+
   bool get _isFreePost => _post.category == 'free';
   bool get _isMyPost => _post.userId == SessionManager.instance.user?.id;
 
@@ -43,8 +49,28 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   void initState() {
     super.initState();
     _post = widget.post;
+    // 작성자는 즉시 관리자, 그 외 사용자는 공동보호자 여부를 서버에 확인한다.
+    _canManage = _isMyPost;
+    _managerChecked = _isMyPost || widget.isGuest || _isFreePost;
     _loadComments();
-    if (!widget.isGuest && !_isMyPost) _loadFollowing();
+    if (!widget.isGuest && !_isMyPost) {
+      _loadFollowing();
+      if (!_isFreePost) _loadManager();
+    }
+  }
+
+  Future<void> _loadManager() async {
+    try {
+      final can = await _repo.canManageApplicants(_post.id);
+      if (mounted) {
+        setState(() {
+          _canManage = can;
+          _managerChecked = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _managerChecked = true);
+    }
   }
 
   Future<void> _loadFollowing() async {
@@ -254,14 +280,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               const SizedBox(height: 24),
               _InfoBox(post: _post),
             ],
-            if (!_isFreePost && _isMyPost) ...[
+            if (!_isFreePost && _canManage) ...[
               const SizedBox(height: 20),
               OutlinedButton.icon(
                 onPressed: _openApplicants,
                 icon: const Icon(Icons.people_outline),
                 label: const Text('지원자 목록 보기'),
               ),
-            ] else if (!_isFreePost && _post.progressStatus == 'recruiting') ...[
+            ] else if (!_isFreePost &&
+                _managerChecked &&
+                _post.progressStatus == 'recruiting') ...[
               const SizedBox(height: 20),
               OutlinedButton.icon(
                 onPressed: _applying ? null : _apply,

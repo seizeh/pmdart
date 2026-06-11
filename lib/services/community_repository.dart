@@ -141,6 +141,19 @@ class CommunityRepository {
     });
   }
 
+  /// 지원자 목록을 관리(조회·수락)할 수 있는지 — 작성자 또는 게시글 펫의 공동보호자.
+  /// 비로그인/실패 시 false.
+  Future<bool> canManageApplicants(String postId) async {
+    if (_uid == null) return false;
+    try {
+      final res =
+          await _c.rpc('can_manage_post_applicants', params: {'p_post': postId});
+      return res == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// 내 반려동물 목록 (작성 시 연결용).
   Future<List<MyPet>> fetchMyPets() async {
     final uid = _requireUid();

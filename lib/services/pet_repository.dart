@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/mock_data.dart' show MockPet;
+import '../models/pet_search.dart';
 import 'app_events.dart';
 import 'session.dart';
 
@@ -132,6 +133,43 @@ class PetRepository {
       ownerName: ownerName,
       isNeutered: p['is_neutered'] == true,
       imageUrl: p['image_url'] as String?,
+    );
+  }
+
+  /// 공개 펫 프로필 (read-only) — 검색에서 진입. 보호자가 아닌 사용자도 조회 가능.
+  /// 삭제된 펫은 null. 보호자/역할 정보는 노출하지 않는다.
+  Future<PetProfile?> fetchPublicPet(String petId) async {
+    final p = await _c
+        .from('pets')
+        .select(
+            'id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id')
+        .eq('id', petId)
+        .maybeSingle();
+    if (p == null || p['pet_status'] == 'deleted') return null;
+
+    final ownerId = p['primary_guardian_id'] as String?;
+    var ownerName = '';
+    if (ownerId != null) {
+      final o = await _c
+          .from('public_profiles')
+          .select('nickname')
+          .eq('id', ownerId)
+          .maybeSingle();
+      ownerName = (o?['nickname'] ?? '') as String;
+    }
+    return PetProfile(
+      id: p['id'] as String,
+      name: (p['name'] ?? '') as String,
+      species: (p['species'] ?? '') as String,
+      gender: p['gender'] as String?,
+      birthDate: p['birth_date'] == null
+          ? null
+          : DateTime.parse(p['birth_date'] as String),
+      isNeutered: p['is_neutered'] == true,
+      bio: p['bio'] as String?,
+      imageUrl: p['image_url'] as String?,
+      ownerId: ownerId ?? '',
+      ownerNickname: ownerName,
     );
   }
 

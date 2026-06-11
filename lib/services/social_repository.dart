@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/social.dart';
+import '../models/pet_search.dart';
 import 'app_events.dart';
 import 'session.dart';
 
@@ -100,5 +101,46 @@ class SocialRepository {
     return list
         .map((c) => c.copyWith(following: followingSet.contains(c.userId)))
         .toList();
+  }
+
+  /// 반려동물 이름으로 검색. 삭제된 펫 제외. 결과 탭의 '반려동물' 섹션용.
+  /// pets_select RLS: 삭제되지 않은 펫은 누구나 조회 가능.
+  Future<List<PetHit>> searchPets(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return const [];
+    final rows = await _c
+        .from('pets')
+        .select('id, name, species, image_url, primary_guardian_id')
+        .ilike('name', '%$q%')
+        .neq('pet_status', 'deleted')
+        .limit(20);
+    final list = (rows as List).cast<Map<String, dynamic>>();
+    if (list.isEmpty) return const [];
+
+    // 보호자(소유자) 닉네임 채우기
+    final ownerIds = <String>{
+      for (final r in list)
+        if (r['primary_guardian_id'] != null) r['primary_guardian_id'] as String
+    }.toList();
+    final nameById = <String, String>{};
+    if (ownerIds.isNotEmpty) {
+      final profs = await _c
+          .from('public_profiles')
+          .select('id, nickname')
+          .inFilter('id', ownerIds);
+      for (final p in profs as List) {
+        nameById[p['id'] as String] = (p['nickname'] ?? '') as String;
+      }
+    }
+    return [
+      for (final r in list)
+        PetHit(
+          id: r['id'] as String,
+          name: (r['name'] ?? '') as String,
+          species: (r['species'] ?? '') as String,
+          imageUrl: r['image_url'] as String?,
+          ownerNickname: nameById[r['primary_guardian_id']] ?? '',
+        )
+    ];
   }
 }

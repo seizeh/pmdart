@@ -46,6 +46,7 @@ class SessionManager extends ChangeNotifier {
   String? get token => _token;
   AuthUser? get user => _user;
   bool get isLoggedIn => _token != null && _user != null;
+  bool get isAdmin => _user?.userType == 'admin';
 
   /// 앱 시작 시 1회 호출 — 저장된 세션 복원.
   Future<void> load() async {

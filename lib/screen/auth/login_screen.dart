@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../services/auth_service.dart';
+import '../../services/session.dart';
 import '../main_screen.dart';
+import '../admin/admin_home_screen.dart';
 import 'signup_phone_screen.dart';
 
 /// 로그인 — 아이디/비밀번호 기반.
@@ -37,9 +39,13 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (result.ok) {
+      // 관리자 계정이면 관리자 화면으로 진입
+      final isAdmin = SessionManager.instance.isAdmin;
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const MainScreen()),
+        MaterialPageRoute(
+            builder: (_) =>
+                isAdmin ? const AdminHomeScreen() : const MainScreen()),
         (route) => false,
       );
     } else {

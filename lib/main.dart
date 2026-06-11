@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'screen/welcome_screen.dart';
 import 'screen/main_screen.dart';
+import 'screen/admin/admin_home_screen.dart';
 import 'services/session.dart';
 
 Future<void> main() async {
@@ -50,9 +51,11 @@ class PawMateApp extends StatelessWidget {
       title: 'PawMate',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: SessionManager.instance.isLoggedIn
-          ? const MainScreen()
-          : const WelcomeScreen(),
+      home: !SessionManager.instance.isLoggedIn
+          ? const WelcomeScreen()
+          : SessionManager.instance.isAdmin
+              ? const AdminHomeScreen()
+              : const MainScreen(),
     );
   }
 }

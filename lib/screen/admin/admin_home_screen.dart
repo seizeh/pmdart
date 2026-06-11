@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../coming_soon_screen.dart';
 import '../welcome_screen.dart';
 import 'admin_users_screen.dart';
+import 'admin_reports_screen.dart';
 
 /// 관리자 홈 — 대시보드 + 관리 메뉴.
 /// 관리자(user_type='admin') 로 로그인하면 일반 화면 대신 이 화면으로 진입한다.
@@ -122,7 +123,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 icon: Icons.flag_outlined,
                 label: '신고 처리',
                 badge: _stats?.reportsOpen ?? 0,
-                onTap: () => _open(const ComingSoonScreen(title: '신고 처리')),
+                onTap: () => _open(const AdminReportsScreen()),
               ),
               _MenuTile(
                 icon: Icons.support_agent_outlined,

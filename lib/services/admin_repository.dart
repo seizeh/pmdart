@@ -59,6 +59,47 @@ class AdminUser {
       );
 }
 
+/// 관리자가 보는 신고 1건.
+class AdminReport {
+  final String id;
+  final String targetType; // post / comment / chat_message / user
+  final String? targetId;
+  final List<String> categories;
+  final String? extraDescription;
+  final String status; // submitted / reviewing / resolved / dismissed
+  final DateTime createdAt;
+  final DateTime? reviewedAt;
+  final String reporterNickname;
+
+  const AdminReport({
+    required this.id,
+    required this.targetType,
+    required this.targetId,
+    required this.categories,
+    required this.extraDescription,
+    required this.status,
+    required this.createdAt,
+    required this.reviewedAt,
+    required this.reporterNickname,
+  });
+
+  factory AdminReport.fromJson(Map j) => AdminReport(
+        id: j['id'] as String,
+        targetType: (j['target_type'] ?? '') as String,
+        targetId: j['target_id'] as String?,
+        categories: ((j['categories'] as List?) ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+        extraDescription: j['extra_description'] as String?,
+        status: (j['status'] ?? 'submitted') as String,
+        createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+        reviewedAt: j['reviewed_at'] == null
+            ? null
+            : DateTime.parse(j['reviewed_at'] as String).toLocal(),
+        reporterNickname: (j['reporter_nickname'] ?? '알 수 없음') as String,
+      );
+}
+
 /// 관리자 전용 데이터 접근. 모든 호출은 DB 에서 app.is_admin() 으로 검증된다.
 class AdminRepository {
   AdminRepository._();
@@ -88,5 +129,21 @@ class AdminRepository {
   Future<void> setUserStatus(String userId, String status) async {
     await _c.rpc('admin_set_user_status',
         params: {'p_user': userId, 'p_status': status});
+  }
+
+  /// 신고 목록. [status] = 'open'(미처리), null(전체), 또는 정확한 상태값.
+  Future<List<AdminReport>> listReports({String? status = 'open'}) async {
+    final res = await _c.rpc('admin_list_reports', params: {
+      'p_status': status,
+      'p_limit': 50,
+      'p_offset': 0,
+    });
+    return (res as List).map((r) => AdminReport.fromJson(r as Map)).toList();
+  }
+
+  /// 신고 상태 변경 (submitted/reviewing/resolved/dismissed).
+  Future<void> setReportStatus(String reportId, String status) async {
+    await _c.rpc('admin_set_report_status',
+        params: {'p_report': reportId, 'p_status': status});
   }
 }

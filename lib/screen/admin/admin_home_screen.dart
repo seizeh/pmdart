@@ -3,6 +3,7 @@ import '../../theme/app_colors.dart';
 import '../../services/admin_repository.dart';
 import '../../services/auth_service.dart';
 import '../welcome_screen.dart';
+import '../change_password_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_posts_screen.dart';
@@ -85,6 +86,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       appBar: AppBar(
         title: const Text('관리자'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.lock_outline),
+            tooltip: '비밀번호 변경',
+            onPressed: () => _open(const ChangePasswordScreen()),
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: '로그아웃',

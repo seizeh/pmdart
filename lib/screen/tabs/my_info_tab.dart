@@ -13,6 +13,7 @@ import '../connections_screen.dart';
 import '../profile_edit_screen.dart';
 import '../my_posts_screen.dart';
 import '../activity_screens.dart';
+import '../change_password_screen.dart';
 import '../guardian_invites_screen.dart';
 import '../notification_settings_screen.dart';
 import '../blocked_users_screen.dart';
@@ -635,9 +636,8 @@ class _SettingsSection extends StatelessWidget {
             onTap: () => _push(context, const ComingSoonScreen(title: '지역 인증'))),
         _Item(
             icon: Icons.lock_outline,
-            label: '계정 / 비밀번호',
-            onTap: () =>
-                _push(context, const ComingSoonScreen(title: '계정 / 비밀번호'))),
+            label: '비밀번호 변경',
+            onTap: () => _push(context, const ChangePasswordScreen())),
         _Item(
             icon: Icons.block_outlined,
             label: '차단 사용자 관리',

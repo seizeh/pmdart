@@ -19,6 +19,27 @@ class Guardian {
   });
 }
 
+/// 받은 공동보호자 초대 1건.
+class GuardianInvite {
+  final String id;
+  final String petId;
+  final String petName;
+  final String petSpecies;
+  final String? petImageUrl;
+  final String inviterNickname;
+  final DateTime createdAt;
+
+  const GuardianInvite({
+    required this.id,
+    required this.petId,
+    required this.petName,
+    required this.petSpecies,
+    required this.petImageUrl,
+    required this.inviterNickname,
+    required this.createdAt,
+  });
+}
+
 /// 반려동물 등록/수정/삭제/보호자 관리.
 class PetRepository {
   PetRepository._();
@@ -200,6 +221,83 @@ class PetRepository {
       'inviter_id': _uid,
       'invitee_phone': phone,
     });
+  }
+
+  /// 나에게 온 대기 중 공동보호자 초대 수.
+  Future<int> pendingInviteCount() async {
+    final id = SessionManager.instance.user?.id;
+    if (id == null) return 0;
+    final res = await _c
+        .from('pet_guardian_invites')
+        .select('id')
+        .eq('invitee_user_id', id)
+        .eq('status', 'pending')
+        .eq('kind', 'invite')
+        .count(CountOption.exact);
+    return res.count;
+  }
+
+  /// 나에게 온 대기 중 공동보호자 초대 목록 (+ 펫/초대자 정보).
+  Future<List<GuardianInvite>> fetchPendingInvites() async {
+    final uid = _uid;
+    final rows = await _c
+        .from('pet_guardian_invites')
+        .select('id, created_at, pet_id, inviter_id')
+        .eq('invitee_user_id', uid)
+        .eq('status', 'pending')
+        .eq('kind', 'invite')
+        .order('created_at', ascending: false);
+    final list = (rows as List).cast<Map<String, dynamic>>();
+    if (list.isEmpty) return const [];
+
+    final petIds = <String>{for (final r in list) r['pet_id'] as String}.toList();
+    final inviterIds =
+        <String>{for (final r in list) r['inviter_id'] as String}.toList();
+
+    final pets = await _c
+        .from('pets')
+        .select('id, name, species, image_url')
+        .inFilter('id', petIds);
+    final petById = {
+      for (final p in pets as List) p['id'] as String: p as Map<String, dynamic>
+    };
+    final profs = await _c
+        .from('public_profiles')
+        .select('id, nickname')
+        .inFilter('id', inviterIds);
+    final nameById = {
+      for (final p in profs as List) p['id'] as String: (p['nickname'] ?? '') as String
+    };
+
+    return [
+      for (final r in list)
+        GuardianInvite(
+          id: r['id'] as String,
+          petId: r['pet_id'] as String,
+          petName: (petById[r['pet_id']]?['name'] ?? '알 수 없음') as String,
+          petSpecies: (petById[r['pet_id']]?['species'] ?? '') as String,
+          petImageUrl: petById[r['pet_id']]?['image_url'] as String?,
+          inviterNickname: nameById[r['inviter_id']] ?? '알 수 없음',
+          createdAt: DateTime.parse(r['created_at'] as String).toLocal(),
+        )
+    ];
+  }
+
+  /// 초대 수락 → 트리거가 공동보호자로 등록.
+  /// 진행 중 약속의 지원자면 DB 트리거가 막아 PostgrestException 을 던진다(메시지 노출용).
+  Future<void> acceptInvite(String inviteId) async {
+    await _c
+        .from('pet_guardian_invites')
+        .update({'status': 'accepted'}).eq('id', inviteId);
+    AppEvents.instance.notifyProfile();
+  }
+
+  /// 초대 거절.
+  Future<void> declineInvite(String inviteId) async {
+    await _c
+        .from('pet_guardian_invites')
+        .update({'status': 'declined'}).eq('id', inviteId);
+    AppEvents.instance.notifyProfile();
   }
 
   /// 공동보호자 제거 (owner). 본인/owner 는 제거 불가(트리거/규칙).

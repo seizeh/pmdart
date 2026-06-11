@@ -3,6 +3,7 @@ import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show MockPet;
 import '../../models/profile.dart';
 import '../../services/profile_repository.dart';
+import '../../services/pet_repository.dart';
 import '../../services/app_events.dart';
 import '../../widgets/pet_card.dart';
 import '../../services/auth_service.dart';
@@ -12,6 +13,7 @@ import '../connections_screen.dart';
 import '../profile_edit_screen.dart';
 import '../my_posts_screen.dart';
 import '../activity_screens.dart';
+import '../guardian_invites_screen.dart';
 import '../notification_settings_screen.dart';
 import '../blocked_users_screen.dart';
 import '../coming_soon_screen.dart';
@@ -35,6 +37,7 @@ class MyInfoTab extends StatefulWidget {
 
 class _MyInfoTabState extends State<MyInfoTab> {
   ProfileData? _profile;
+  int _pendingInvites = 0;
   bool _loading = true;
   String? _error;
 
@@ -68,9 +71,14 @@ class _MyInfoTabState extends State<MyInfoTab> {
     }
     try {
       final p = await ProfileRepository.instance.fetchProfile();
+      int invites = 0;
+      try {
+        invites = await PetRepository.instance.pendingInviteCount();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _profile = p;
+        _pendingInvites = invites;
         _loading = false;
         _error = null;
       });
@@ -127,7 +135,8 @@ class _MyInfoTabState extends State<MyInfoTab> {
                 const SizedBox(height: 24),
                 _PetSection(pets: profile.pets),
                 const SizedBox(height: 24),
-                _ActivitySection(profile: profile),
+                _ActivitySection(
+                    profile: profile, pendingInvites: _pendingInvites),
                 const SizedBox(height: 12),
                 _InterestSection(profile: profile),
                 const SizedBox(height: 12),
@@ -528,13 +537,20 @@ class _ItemRow extends StatelessWidget {
 
 class _ActivitySection extends StatelessWidget {
   final ProfileData profile;
-  const _ActivitySection({required this.profile});
+  final int pendingInvites;
+  const _ActivitySection(
+      {required this.profile, required this.pendingInvites});
 
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
       title: '내 활동',
       items: [
+        _Item(
+            icon: Icons.mail_outline,
+            label: '받은 보호자 초대',
+            trailing: pendingInvites > 0 ? '$pendingInvites' : null,
+            onTap: () => _push(context, const GuardianInvitesScreen())),
         _Item(
             icon: Icons.article_outlined,
             label: '내 게시글',

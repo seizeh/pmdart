@@ -69,8 +69,8 @@ class Post {
         imageUrl: j['image_url'] as String?,
       );
 
-  /// 하트 토글 등 낙관적 업데이트용.
-  Post copyWith({bool? hearted, int? heartCount}) => Post(
+  /// 하트 토글·조회수 등 낙관적 업데이트용.
+  Post copyWith({bool? hearted, int? heartCount, int? viewCount}) => Post(
         id: id,
         category: category,
         title: title,
@@ -83,7 +83,7 @@ class Post {
         location: location,
         heartCount: heartCount ?? this.heartCount,
         commentCount: commentCount,
-        viewCount: viewCount,
+        viewCount: viewCount ?? this.viewCount,
         progressStatus: progressStatus,
         hearted: hearted ?? this.hearted,
         imageUrl: imageUrl,

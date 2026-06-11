@@ -154,6 +154,30 @@ class CommunityRepository {
     }
   }
 
+  /// 게시글 조회 기록 — post_views INSERT 시 트리거가 view_count +1.
+  /// (post_id, user_id, view_bucket) 부분 유니크로 같은 날 재조회는 중복 집계되지 않는다.
+  /// 실제로 1 증가했으면 true(낙관적 표시용), 중복/비로그인/실패면 false.
+  Future<bool> recordView(String postId) async {
+    final uid = _uid;
+    if (uid == null) return false; // 비로그인은 RLS상 기록 불가
+    final now = DateTime.now().toUtc();
+    final bucket = DateTime.utc(now.year, now.month, now.day).toIso8601String();
+    try {
+      await _c.from('post_views').insert({
+        'post_id': postId,
+        'user_id': uid,
+        'view_bucket': bucket,
+      });
+      return true;
+    } on PostgrestException catch (e) {
+      // 23505 = 같은 버킷 내 중복 조회 → 정상(집계 안 됨)
+      if (e.code == '23505') return false;
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// 내 반려동물 목록 (작성 시 연결용).
   Future<List<MyPet>> fetchMyPets() async {
     final uid = _requireUid();

@@ -53,9 +53,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _canManage = _isMyPost;
     _managerChecked = _isMyPost || widget.isGuest || _isFreePost;
     _loadComments();
+    if (!widget.isGuest) _recordView();
     if (!widget.isGuest && !_isMyPost) {
       _loadFollowing();
       if (!_isFreePost) _loadManager();
+    }
+  }
+
+  /// 조회수 기록 (같은 날 재조회는 집계 안 됨). 집계됐으면 화면 수치도 +1.
+  Future<void> _recordView() async {
+    final counted = await _repo.recordView(_post.id);
+    if (counted && mounted) {
+      setState(() => _post = _post.copyWith(viewCount: _post.viewCount + 1));
     }
   }
 
@@ -373,7 +382,7 @@ class _AuthorRow extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              timeAgo(post.createdAt),
+              '${timeAgo(post.createdAt)} · 조회 ${post.viewCount}',
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textTertiary,

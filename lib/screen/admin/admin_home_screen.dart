@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../services/admin_repository.dart';
 import '../../services/auth_service.dart';
+import '../../services/session.dart';
 import '../welcome_screen.dart';
 import '../change_password_screen.dart';
+import 'admin_theme.dart';
 import 'admin_users_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_posts_screen.dart';
 import 'admin_inquiries_screen.dart';
+import 'admin_logs_screen.dart';
 
 /// 관리자 홈 — 대시보드 + 관리 메뉴.
 /// 관리자(user_type='admin') 로 로그인하면 일반 화면 대신 이 화면으로 진입한다.
@@ -83,8 +86,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('관리자'),
+      appBar: adminAppBar(
+        '관리자 콘솔',
         actions: [
           IconButton(
             icon: const Icon(Icons.lock_outline),
@@ -104,6 +107,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              const _AdminIdentityHeader(),
+              const SizedBox(height: 16),
               _dashboard(),
               const SizedBox(height: 24),
               const Text(
@@ -135,6 +140,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 icon: Icons.support_agent_outlined,
                 label: '문의 처리',
                 onTap: () => _open(const AdminInquiriesScreen()),
+              ),
+              _MenuTile(
+                icon: Icons.receipt_long_outlined,
+                label: '감사 로그',
+                onTap: () => _open(const AdminLogsScreen()),
               ),
             ],
           ),
@@ -292,6 +302,69 @@ class _MenuTile extends StatelessWidget {
           ],
         ),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// 관리자 신원 헤더 — 닉네임 + '관리자' 배지로 일반 사용자와 구분.
+class _AdminIdentityHeader extends StatelessWidget {
+  const _AdminIdentityHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final nickname = SessionManager.instance.user?.nickname ?? '관리자';
+    final username = SessionManager.instance.user?.username ?? '';
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.adminAccent,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.shield_outlined,
+                color: AppColors.adminOnAccent, size: 26),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        nickname,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.adminOnAccent),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const AdminBadge(light: true),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  username.isEmpty ? '관리자 모드' : '@$username · 관리자 모드',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.75)),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

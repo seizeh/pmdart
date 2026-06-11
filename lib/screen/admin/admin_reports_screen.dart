@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
+import 'admin_theme.dart';
+import 'admin_report_detail_screen.dart';
 
 /// 신고 처리 — 미처리/전체 신고 조회 + 상태 변경(검토중/처리완료/반려).
 class AdminReportsScreen extends StatefulWidget {
@@ -69,14 +71,12 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('신고 처리'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      appBar: adminAppBar('신고 처리'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               child: Row(
                 children: [
                   _chip('미처리', 'open'),
@@ -85,10 +85,10 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                 ],
               ),
             ),
-          ),
+            Expanded(child: _body()),
+          ],
         ),
       ),
-      body: SafeArea(child: _body()),
     );
   }
 
@@ -103,10 +103,10 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: sel ? AppColors.primaryDark : AppColors.surface,
+          color: sel ? AppColors.adminAccent : AppColors.surface,
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-              color: sel ? AppColors.primaryDark : AppColors.border),
+              color: sel ? AppColors.adminAccent : AppColors.border),
         ),
         child: Text(label,
             style: TextStyle(
@@ -142,10 +142,22 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
         padding: const EdgeInsets.all(20),
         itemCount: _items.length,
         separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (_, i) => _ReportCard(
-          report: _items[i],
-          busy: _busy == _items[i].id,
-          onSetStatus: (s) => _setStatus(_items[i], s),
+        itemBuilder: (_, i) => InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) =>
+                      AdminReportDetailScreen(report: _items[i])),
+            );
+            if (mounted) _load();
+          },
+          child: _ReportCard(
+            report: _items[i],
+            busy: _busy == _items[i].id,
+            onSetStatus: (s) => _setStatus(_items[i], s),
+          ),
         ),
       ),
     );

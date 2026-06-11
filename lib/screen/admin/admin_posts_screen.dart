@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo, categoryLabel;
 import '../../services/admin_repository.dart';
+import 'admin_theme.dart';
 
 /// 게시글/댓글 관리 — 게시글 검색/조회 + 숨김·삭제, 댓글 관리로 이동.
 class AdminPostsScreen extends StatefulWidget {
@@ -103,7 +104,7 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text('게시글/댓글 관리')),
+      appBar: adminAppBar('게시글/댓글 관리'),
       body: SafeArea(
         child: Column(
           children: [
@@ -381,7 +382,7 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text('댓글 관리')),
+      appBar: adminAppBar('댓글 관리'),
       body: SafeArea(child: _body()),
     );
   }

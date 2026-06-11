@@ -4,6 +4,7 @@ import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
 import '../../services/chat_repository.dart';
 import '../chat_room_screen.dart';
+import 'admin_theme.dart';
 
 /// 문의 처리 — admin_inquiry 채팅방 목록. 탭하면 방에 참여 후 채팅으로 응대.
 class AdminInquiriesScreen extends StatefulWidget {
@@ -78,7 +79,7 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text('문의 처리')),
+      appBar: adminAppBar('문의 처리'),
       body: SafeArea(child: _body()),
     );
   }

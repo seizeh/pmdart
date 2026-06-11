@@ -192,6 +192,52 @@ class AdminInquiry {
       );
 }
 
+/// 신고 대상의 실제 내용 (게시글/댓글/회원/채팅메시지). [data] 는 kind 별 필드.
+class ReportTarget {
+  final String kind; // post / comment / user / chat_message
+  final bool exists;
+  final Map<String, dynamic> data;
+  const ReportTarget(
+      {required this.kind, required this.exists, required this.data});
+
+  factory ReportTarget.fromJson(Map j) => ReportTarget(
+        kind: (j['kind'] ?? '') as String,
+        exists: j['exists'] == true,
+        data: j.cast<String, dynamic>(),
+      );
+}
+
+/// 감사 로그 1건.
+class AdminLog {
+  final String id;
+  final String adminNickname;
+  final String actionType;
+  final String? targetType;
+  final String? targetId;
+  final Map<String, dynamic>? detail;
+  final DateTime createdAt;
+
+  const AdminLog({
+    required this.id,
+    required this.adminNickname,
+    required this.actionType,
+    required this.targetType,
+    required this.targetId,
+    required this.detail,
+    required this.createdAt,
+  });
+
+  factory AdminLog.fromJson(Map j) => AdminLog(
+        id: j['id'] as String,
+        adminNickname: (j['admin_nickname'] ?? '알 수 없음') as String,
+        actionType: (j['action_type'] ?? '') as String,
+        targetType: j['target_type'] as String?,
+        targetId: j['target_id'] as String?,
+        detail: (j['detail'] as Map?)?.cast<String, dynamic>(),
+        createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+      );
+}
+
 /// 관리자 전용 데이터 접근. 모든 호출은 DB 에서 app.is_admin() 으로 검증된다.
 class AdminRepository {
   AdminRepository._();
@@ -277,5 +323,25 @@ class AdminRepository {
   /// 문의방에 참여(답장 위해). 멱등.
   Future<void> joinInquiry(String roomId) async {
     await _c.rpc('admin_join_inquiry', params: {'p_room': roomId});
+  }
+
+  /// 신고 대상의 실제 내용 조회.
+  Future<ReportTarget> getReportTarget(String reportId) async {
+    final res =
+        await _c.rpc('admin_get_report_target', params: {'p_report': reportId});
+    return ReportTarget.fromJson(res as Map);
+  }
+
+  /// 신고된 채팅 메시지 숨김/복원.
+  Future<void> setChatMessageDeleted(String messageId, bool deleted) async {
+    await _c.rpc('admin_set_chat_message_deleted',
+        params: {'p_message': messageId, 'p_deleted': deleted});
+  }
+
+  /// 감사 로그 조회.
+  Future<List<AdminLog>> listLogs() async {
+    final res =
+        await _c.rpc('admin_list_logs', params: {'p_limit': 100, 'p_offset': 0});
+    return (res as List).map((r) => AdminLog.fromJson(r as Map)).toList();
   }
 }

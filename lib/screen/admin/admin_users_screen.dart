@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
 import '../../services/session.dart';
+import 'admin_theme.dart';
 
 /// 회원 관리 — 검색/조회 + 상태 변경(정지/휴면/활성).
 class AdminUsersScreen extends StatefulWidget {
@@ -93,7 +94,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text('회원 관리')),
+      appBar: adminAppBar('회원 관리'),
       body: SafeArea(
         child: Column(
           children: [

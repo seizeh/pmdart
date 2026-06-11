@@ -26,6 +26,11 @@ class AppColors {
   static const Color border = Color(0xFFE5DDD0);
   static const Color borderStrong = Color(0xFFCFC3AC);
 
+  // 관리자 모드 (브랜드와 대비되는 딥 슬레이트로 '관리자' 임을 한눈에 구분)
+  static const Color adminAccent = Color(0xFF2F3A4A);     // 딥 슬레이트
+  static const Color adminAccentSoft = Color(0xFFE6E9EE); // 옅은 슬레이트 (배경/배지)
+  static const Color adminOnAccent = Color(0xFFFFFFFF);
+
   // 시맨틱
   static const Color success = Color(0xFF7CA77E);
   static const Color warning = Color(0xFFD4A658);

@@ -7,6 +7,7 @@ import '../services/community_repository.dart';
 import '../services/chat_repository.dart';
 import 'post_detail_screen.dart';
 import 'chat_room_screen.dart';
+import 'guardian_invites_screen.dart';
 
 /// 알림함 — 내 알림 목록 / 읽음 처리 / 관련 화면 이동.
 class NotificationsScreen extends StatefulWidget {
@@ -71,6 +72,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _navigate(AppNotification n) async {
+    // 공동보호자 초대 알림은 리소스 없이 초대함으로 이동
+    if (n.type == 'guardian_invite') {
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const GuardianInvitesScreen()));
+      return;
+    }
     if (n.resourceId == null) return;
     try {
       if (n.resourceType == 'post') {

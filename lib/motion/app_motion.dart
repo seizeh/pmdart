@@ -113,6 +113,9 @@ class SpringCurve extends Curve {
   /// 생동감 프리셋 — 살짝 튕김.
   static final SpringCurve lively = SpringCurve(stiffness: 210, ratio: 0.72);
 
+  /// 스냅 프리셋 — 오버슈트 없이 빠르게 안착. 화면 전환처럼 즉각 반응해야 할 때.
+  static final SpringCurve snappy = SpringCurve(stiffness: 320, ratio: 1.0);
+
   @override
   double transformInternal(double t) => _sim.x(t * _settle);
 }

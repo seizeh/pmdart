@@ -75,7 +75,16 @@ class _SpringyNavBarState extends State<SpringyNavBar>
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFFFFFFF),
-        border: Border(top: BorderSide(color: Color(0xFFE5DDD0), width: 0.5)),
+        // 상단 좌우 모서리를 둥글게 — 각진 느낌 제거.
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        // 하드 보더 대신 위로 번지는 부드러운 그림자로 본문과 분리.
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,

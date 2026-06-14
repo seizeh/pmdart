@@ -3,24 +3,19 @@ import 'app_motion.dart';
 
 /// 들어오는/나가는 두 애니메이션을 받아 유체 전환 위젯을 만든다.
 ///
-/// 들어오는 화면은 오른쪽에서 스프링 감속으로 미끄러져 들어오며 페이드 인하고,
-/// 떠나는(아래에 깔리는) 화면은 살짝 왼쪽으로 밀리며 축소·디밍되어 깊이로 물러난다.
-/// → 두 화면이 한 동작으로 이어지고(continuity), "앞으로 들어간다" 는 방향(direction)이 분명해진다.
+/// 단일 동작으로 통일: 들어오는 화면은 오른쪽에서 슬라이드+페이드로 들어오고,
+/// 아래 화면은 같은 비율만큼 왼쪽으로 시차 이동하며 살짝 디밍된다.
+/// 앞/뒤(push/pop)가 **대칭**이고 모두 스냅 스프링으로 빠르게 안착하므로,
+/// 뒤로가기도 답답하지 않고 한 가지 일관된 느낌으로 흐른다(continuity + direction).
 Widget buildFluidTransition(
   Animation<double> animation,
   Animation<double> secondaryAnimation,
   Widget child,
 ) {
-  final enter = CurvedAnimation(
-    parent: animation,
-    curve: SpringCurve.standard,
-    reverseCurve: Curves.easeInCubic,
-  );
-  final exit = CurvedAnimation(
-    parent: secondaryAnimation,
-    curve: Curves.easeOutCubic,
-    reverseCurve: SpringCurve.standard,
-  );
+  // 한 가지 곡선만 사용 — push/pop 모두 동일하게 빠르게 반응(통일).
+  final enter = CurvedAnimation(parent: animation, curve: SpringCurve.snappy);
+  final exit =
+      CurvedAnimation(parent: secondaryAnimation, curve: SpringCurve.snappy);
 
   return AnimatedBuilder(
     animation: Listenable.merge([enter, exit]),
@@ -29,20 +24,16 @@ Widget buildFluidTransition(
       final e = enter.value; // 0 → 1 : 들어옴
       final s = exit.value; // 0 → 1 : 다음 화면에 가려짐
 
-      final incomingDx = (1 - e) * 0.16; // 오른쪽에서 진입(화면폭 비율)
-      final outgoingDx = -s * 0.18; // 왼쪽으로 물러남(시차/깊이)
-      final outgoingScale = 1 - s * 0.06;
+      final incomingDx = (1 - e) * 0.18; // 오른쪽에서 진입(화면폭 비율)
+      final outgoingDx = -s * 0.18; // 같은 비율로 왼쪽 시차 이동(대칭)
 
       return FractionalTranslation(
         translation: Offset(outgoingDx, 0),
-        child: Transform.scale(
-          scale: outgoingScale,
-          child: Opacity(
-            opacity: 1 - s * 0.35,
-            child: FractionalTranslation(
-              translation: Offset(incomingDx, 0),
-              child: Opacity(opacity: e.clamp(0.0, 1.0), child: child),
-            ),
+        child: Opacity(
+          opacity: 1 - s * 0.25,
+          child: FractionalTranslation(
+            translation: Offset(incomingDx, 0),
+            child: Opacity(opacity: e.clamp(0.0, 1.0), child: child),
           ),
         ),
       );

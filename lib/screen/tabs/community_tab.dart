@@ -4,6 +4,7 @@ import '../../models/community.dart';
 import '../../services/community_repository.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/role_badge.dart';
+import '../../motion/entrance.dart';
 import '../../services/app_events.dart';
 import '../../services/notification_repository.dart';
 import '../auth/auth_wall_dialog.dart';
@@ -215,19 +216,22 @@ class _CommunityTabState extends State<CommunityTab> {
       sliver: SliverList.separated(
         itemCount: _posts.length,
         separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (_, i) => PostCard(
-          post: _posts[i],
-          onTap: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    PostDetailScreen(post: _posts[i], isGuest: widget.isGuest),
-              ),
-            );
-            _load(); // 상세에서 하트/댓글 변동 반영
-          },
-          onHeart: () => _toggleHeart(i),
+        itemBuilder: (_, i) => Entrance(
+          index: i,
+          child: PostCard(
+            post: _posts[i],
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PostDetailScreen(post: _posts[i], isGuest: widget.isGuest),
+                ),
+              );
+              _load(); // 상세에서 하트/댓글 변동 반영
+            },
+            onHeart: () => _toggleHeart(i),
+          ),
         ),
       ),
     );

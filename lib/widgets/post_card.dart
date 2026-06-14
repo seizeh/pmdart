@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
+import '../motion/pressable.dart';
+import '../motion/heart_burst.dart';
 import 'role_badge.dart';
 
 /// 커뮤니티 게시글 카드.
@@ -16,7 +18,7 @@ class PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = categoryColor(post.category);
 
-    return InkWell(
+    return Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
@@ -122,10 +124,9 @@ class PostCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                _Stat(
-                  icon: post.hearted ? Icons.favorite : Icons.favorite_border,
-                  value: post.heartCount,
-                  color: post.hearted ? AppColors.danger : AppColors.textTertiary,
+                HeartButton(
+                  active: post.hearted,
+                  count: post.heartCount,
                   onTap: onHeart,
                 ),
                 const SizedBox(width: 14),
@@ -211,34 +212,28 @@ class _Stat extends StatelessWidget {
   final IconData icon;
   final int value;
   final Color color;
-  final VoidCallback? onTap;
   const _Stat({
     required this.icon,
     required this.value,
     required this.color,
-    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
-          Text(
-            '$value',
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(
+          '$value',
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

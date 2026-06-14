@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import '../motion/spring_page_route.dart';
 
 class AppTheme {
   AppTheme._();
@@ -13,6 +14,13 @@ class AppTheme {
 
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.background,
+      // 모든 화면 전환을 유체 스프링 전환으로 통일 → 앱 전체 모션의 연속성.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FluidPageTransitionsBuilder(),
+          TargetPlatform.iOS: FluidPageTransitionsBuilder(),
+        },
+      ),
       colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         onPrimary: AppColors.textOnPrimary,

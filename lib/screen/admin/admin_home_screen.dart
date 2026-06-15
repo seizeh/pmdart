@@ -175,13 +175,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       );
     }
     final s = _stats!;
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.7,
+      // 비율(childAspectRatio) 대신 고정 높이로 — 좁은 화면에서도 카드 높이가
+      // 콘텐츠(아이콘+숫자+라벨)보다 작아져 하단이 넘치는 문제를 막는다.
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        mainAxisExtent: 120,
+      ),
       children: [
         _StatCard(label: '전체 회원', value: s.users, icon: Icons.people_outline),
         _StatCard(

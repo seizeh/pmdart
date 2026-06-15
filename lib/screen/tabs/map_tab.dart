@@ -83,16 +83,21 @@ class _MapTabState extends State<MapTab> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          NaverMap(
-            options: const NaverMapViewOptions(
-              initialCameraPosition: _initialPosition,
-              locationButtonEnable: false, // 기본 버튼 끄고 커스텀 버튼 사용
-              consumeSymbolTapEvents: false,
+          // 네이버 지도는 네이티브 플랫폼 뷰라 본문 경계를 넘어 그려질 수 있다.
+          // ClipRect 로 본문 영역에 가둬, 하단 내비바의 둥근(투명) 모서리 뒤로
+          // 지도가 비쳐 모서리가 각져 보이는 문제를 막는다.
+          ClipRect(
+            child: NaverMap(
+              options: const NaverMapViewOptions(
+                initialCameraPosition: _initialPosition,
+                locationButtonEnable: false, // 기본 버튼 끄고 커스텀 버튼 사용
+                consumeSymbolTapEvents: false,
+              ),
+              onMapReady: (controller) {
+                _controller = controller;
+                debugPrint('네이버 지도 준비 완료');
+              },
             ),
-            onMapReady: (controller) {
-              _controller = controller;
-              debugPrint('네이버 지도 준비 완료');
-            },
           ),
 
           // 상단 시설물 검색창

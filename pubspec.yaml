@@ -39,6 +39,7 @@ dependencies:
   image_picker: ^1.1.2
   google_fonts: ^6.2.1
   flutter_naver_map: ^1.4.4
+  geolocator: ^13.0.0 # 동네 인증용 고정확도 좌표 + accuracy/isMocked (0017)
 
 dev_dependencies:
   flutter_test:

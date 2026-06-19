@@ -19,7 +19,7 @@ class ProfileRepository {
     // 프로필 헤더(공개 프로필 뷰). 아이디(username)는 공개 뷰에 없으므로 세션에서 가져온다.
     final profile = await _c
         .from('public_profiles')
-        .select('nickname, user_type')
+        .select('nickname, user_type, address, is_location_verified')
         .eq('id', uid)
         .maybeSingle();
 
@@ -48,6 +48,8 @@ class ProfileRepository {
       applicationCount: counts[5],
       appointmentCount: counts[6],
       pets: pets,
+      address: profile?['address'] as String?,
+      isLocationVerified: profile?['is_location_verified'] == true,
     );
   }
 

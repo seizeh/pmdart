@@ -19,7 +19,7 @@ class ProfileRepository {
     // 프로필 헤더(공개 프로필 뷰). 아이디(username)는 공개 뷰에 없으므로 세션에서 가져온다.
     final profile = await _c
         .from('public_profiles')
-        .select('nickname, user_type')
+        .select('nickname, user_type, address, is_location_verified')
         .eq('id', uid)
         .maybeSingle();
 
@@ -48,6 +48,24 @@ class ProfileRepository {
       applicationCount: counts[5],
       appointmentCount: counts[6],
       pets: pets,
+      address: profile?['address'] as String?,
+      isLocationVerified: profile?['is_location_verified'] == true,
+    );
+  }
+
+  /// 활동 지역(동네 인증) 상태만 가볍게 조회 — 프로필 편집 화면의 즉시 갱신용.
+  /// address/is_location_verified 는 동네 인증 RPC(service_role)만 세팅한다.
+  Future<({String? address, bool verified})> fetchRegion() async {
+    final user = SessionManager.instance.user;
+    if (user == null) throw StateError('로그인이 필요합니다');
+    final row = await _c
+        .from('public_profiles')
+        .select('address, is_location_verified')
+        .eq('id', user.id)
+        .maybeSingle();
+    return (
+      address: row?['address'] as String?,
+      verified: row?['is_location_verified'] == true,
     );
   }
 

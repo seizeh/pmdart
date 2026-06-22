@@ -17,7 +17,6 @@ import '../change_password_screen.dart';
 import '../guardian_invites_screen.dart';
 import '../notification_settings_screen.dart';
 import '../blocked_users_screen.dart';
-import '../coming_soon_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_phone_screen.dart';
 import '../welcome_screen.dart';
@@ -141,7 +140,7 @@ class _MyInfoTabState extends State<MyInfoTab> {
                 const SizedBox(height: 12),
                 _InterestSection(profile: profile),
                 const SizedBox(height: 12),
-                const _SettingsSection(),
+                _SettingsSection(profile: profile),
               ],
             ),
           ),
@@ -307,8 +306,11 @@ class _ProfileHeader extends StatelessWidget {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        ProfileEditScreen(initialNickname: profile.nickname),
+                    builder: (_) => ProfileEditScreen(
+                      initialNickname: profile.nickname,
+                      initialAddress: profile.address,
+                      initialVerified: profile.isLocationVerified,
+                    ),
                   ),
                 ),
               ),
@@ -619,7 +621,8 @@ class _InterestSection extends StatelessWidget {
 }
 
 class _SettingsSection extends StatelessWidget {
-  const _SettingsSection();
+  final ProfileData profile;
+  const _SettingsSection({required this.profile});
 
   @override
   Widget build(BuildContext context) {
@@ -630,10 +633,6 @@ class _SettingsSection extends StatelessWidget {
             icon: Icons.notifications_outlined,
             label: '알림 설정',
             onTap: () => _push(context, const NotificationSettingsScreen())),
-        _Item(
-            icon: Icons.location_on_outlined,
-            label: '지역 인증',
-            onTap: () => _push(context, const ComingSoonScreen(title: '지역 인증'))),
         _Item(
             icon: Icons.lock_outline,
             label: '비밀번호 변경',

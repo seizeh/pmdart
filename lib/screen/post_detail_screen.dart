@@ -5,10 +5,19 @@ import '../models/community.dart';
 import '../services/community_repository.dart';
 import '../services/social_repository.dart';
 import '../services/chat_launcher.dart';
+import '../services/report_repository.dart';
 import '../services/session.dart';
 import '../widgets/role_badge.dart';
+import '../widgets/report_sheet.dart';
 import 'auth/auth_wall_dialog.dart';
 import 'applicants_screen.dart';
+
+/// 신고 액션 시트의 한 항목.
+class _ReportAction {
+  final String label;
+  final VoidCallback onTap;
+  const _ReportAction(this.label, this.onTap);
+}
 
 /// 게시글 상세 — 본문 / 약속·위치 / 작성자 / 댓글(실데이터) / 하트·지원·댓글 작성.
 class PostDetailScreen extends StatefulWidget {
@@ -202,6 +211,67 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
+  /// 게시글 상단 메뉴 — 게시글/작성자 신고(본인 글은 메뉴 미노출).
+  void _openPostMenu() {
+    if (!_guard('신고는 로그인 후 할 수 있어요')) return;
+    _showReportActions([
+      _ReportAction('게시글 신고', () => _report(ReportRepository.targetPost,
+          _post.id, '게시글', _post.title)),
+      _ReportAction('작성자 신고', () => _report(ReportRepository.targetUser,
+          _post.userId, '작성자', _post.authorNickname)),
+    ]);
+  }
+
+  /// 댓글 길게 누르기 — 댓글/작성자 신고(본인 댓글은 호출 안 됨).
+  void _openCommentMenu(Comment c) {
+    if (!_guard('신고는 로그인 후 할 수 있어요')) return;
+    _showReportActions([
+      _ReportAction('댓글 신고',
+          () => _report(ReportRepository.targetComment, c.id, '댓글', c.content)),
+      _ReportAction('작성자 신고', () => _report(ReportRepository.targetUser,
+          c.userId, '작성자', c.authorNickname)),
+    ]);
+  }
+
+  void _showReportActions(List<_ReportAction> actions) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final a in actions)
+              ListTile(
+                leading:
+                    const Icon(Icons.flag_outlined, color: AppColors.danger),
+                title: Text(a.label),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  a.onTap();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _report(
+      String type, String id, String label, String title) async {
+    final ok = await showReportSheet(
+      context,
+      targetType: type,
+      targetId: id,
+      targetLabel: label,
+      targetTitle: title,
+    );
+    if (ok && mounted) _toast('신고가 접수되었어요. 검토 후 조치할게요');
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = categoryColor(_post.category);
@@ -217,7 +287,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               onPressed: _startChat,
             ),
           IconButton(icon: const Icon(Icons.share_outlined), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.more_horiz), onPressed: () {}),
+          if (!_isMyPost)
+            IconButton(
+                icon: const Icon(Icons.report_outlined),
+                tooltip: '신고',
+                color: AppColors.danger,
+                onPressed: _openPostMenu),
         ],
       ),
       body: SafeArea(
@@ -323,7 +398,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            _CommentList(loading: _loadingComments, comments: _comments),
+            _CommentList(
+              loading: _loadingComments,
+              comments: _comments,
+              myUserId: SessionManager.instance.user?.id,
+              onReport: _openCommentMenu,
+            ),
           ],
         ),
       ),
@@ -500,7 +580,18 @@ class _InfoBox extends StatelessWidget {
 class _CommentList extends StatelessWidget {
   final bool loading;
   final List<Comment> comments;
-  const _CommentList({required this.loading, required this.comments});
+
+  /// 본인 댓글은 신고 대상에서 제외하기 위한 현재 사용자 id.
+  final String? myUserId;
+
+  /// 댓글 길게 누르기 신고 콜백.
+  final void Function(Comment) onReport;
+  const _CommentList({
+    required this.loading,
+    required this.comments,
+    required this.myUserId,
+    required this.onReport,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -528,9 +619,13 @@ class _CommentList extends StatelessWidget {
       children: comments.map((c) {
         final initial =
             c.authorNickname.isEmpty ? '?' : c.authorNickname.characters.first;
+        final isMine = myUserId != null && c.userId == myUserId;
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
-          child: Row(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onLongPress: isMine ? null : () => onReport(c),
+            child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
@@ -583,6 +678,7 @@ class _CommentList extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
         );
       }).toList(),

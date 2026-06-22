@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../models/chat.dart';
 import '../services/chat_repository.dart';
+import '../services/report_repository.dart';
+import '../widgets/report_sheet.dart';
 
 /// 채팅방 — 메시지 목록(실데이터) + 전송 + 실시간 수신.
 class ChatRoomScreen extends StatefulWidget {
@@ -99,6 +101,62 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  /// 상단 메뉴 — 현재는 상대 사용자 신고.
+  void _openRoomMenu() {
+    final otherId = widget.room.otherUserId;
+    if (otherId == null) {
+      _toast('상대 정보를 불러오지 못했어요');
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: AppColors.danger),
+              title: const Text('사용자 신고'),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _report(ReportRepository.targetUser, otherId, '사용자',
+                    widget.room.otherNickname);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 상대 메시지 길게 누르기 — 해당 메시지 신고.
+  void _reportMessage(ChatMessage msg) {
+    _report(ReportRepository.targetChatMessage, msg.id, '메시지', msg.content);
+  }
+
+  Future<void> _report(
+      String type, String id, String label, String title) async {
+    final ok = await showReportSheet(
+      context,
+      targetType: type,
+      targetId: id,
+      targetLabel: label,
+      targetTitle: title,
+    );
+    if (ok && mounted) _toast('신고가 접수되었어요. 검토 후 조치할게요');
+  }
+
   void _scrollToBottom({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
@@ -139,7 +197,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.more_horiz), onPressed: () {}),
+          IconButton(
+              icon: const Icon(Icons.more_horiz), onPressed: _openRoomMenu),
         ],
       ),
       body: Column(
@@ -167,7 +226,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       controller: _scroll,
       padding: const EdgeInsets.all(16),
       itemCount: _messages.length,
-      itemBuilder: (_, i) => _MessageBubble(message: _messages[i]),
+      itemBuilder: (_, i) => _MessageBubble(
+        message: _messages[i],
+        onReport: _reportMessage,
+      ),
     );
   }
 }
@@ -255,7 +317,10 @@ class _Composer extends StatelessWidget {
 
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
-  const _MessageBubble({required this.message});
+
+  /// 상대 메시지 길게 누르기 신고 콜백.
+  final void Function(ChatMessage) onReport;
+  const _MessageBubble({required this.message, required this.onReport});
 
   @override
   Widget build(BuildContext context) {
@@ -279,7 +344,9 @@ class _MessageBubble extends StatelessWidget {
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.7,
             ),
-            child: Container(
+            child: GestureDetector(
+              onLongPress: mine ? null : () => onReport(message),
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: mine ? AppColors.primaryDark : AppColors.surface,
@@ -302,6 +369,7 @@ class _MessageBubble extends StatelessWidget {
                   height: 1.4,
                 ),
               ),
+            ),
             ),
           ),
           if (!mine) ...[

@@ -51,6 +51,73 @@ class ProfileRepository {
     );
   }
 
+  /// 타 사용자 공개 프로필 조회 (사용자 검색 → 프로필).
+  /// 공개 뷰/공개 정책으로 읽을 수 있는 범위만 채운다.
+  Future<PublicProfileData> fetchPublicProfile(String userId) async {
+    final profile = await _c
+        .from('public_profiles')
+        .select('nickname, user_type, profile_image_url, address, is_location_verified')
+        .eq('id', userId)
+        .maybeSingle();
+    if (profile == null) throw StateError('프로필을 찾을 수 없어요');
+
+    // 통계 — 일부가 막혀 있어도 전체가 실패하지 않도록 개별 보호.
+    final counts = await Future.wait([
+      _count('reviews', 'reviewee_id', userId).catchError((_) => 0),
+      _count('pawings', 'follower_id', userId).catchError((_) => 0),
+      _count('pawings', 'following_id', userId).catchError((_) => 0),
+      _count('posts', 'user_id', userId).catchError((_) => 0),
+    ]);
+
+    final pets = await _fetchPublicPets(userId);
+
+    return PublicProfileData(
+      userId: userId,
+      nickname: (profile['nickname'] ?? '알 수 없음') as String,
+      userType: (profile['user_type'] ?? '') as String,
+      profileImageUrl: profile['profile_image_url'] as String?,
+      address: profile['address'] as String?,
+      isLocationVerified: profile['is_location_verified'] == true,
+      reviewCount: counts[0],
+      pawingCount: counts[1],
+      pawmateCount: counts[2],
+      postCount: counts[3],
+      pets: pets,
+    );
+  }
+
+  /// 타 사용자의 반려동물 — pet_guardians 는 타인 조회가 막혀 있어
+  /// pets.primary_guardian_id 로 직접 조회한다(대표 보호자 기준).
+  Future<List<MockPet>> _fetchPublicPets(String userId) async {
+    try {
+      final rows = await _c
+          .from('pets')
+          .select('id, name, species, gender, birth_date, bio, is_neutered, image_url')
+          .eq('primary_guardian_id', userId)
+          .eq('pet_status', 'active');
+      return [
+        for (final p in (rows as List).cast<Map<String, dynamic>>())
+          MockPet(
+            id: p['id'] as String,
+            name: (p['name'] ?? '') as String,
+            species: (p['species'] ?? '') as String,
+            gender: p['gender'] as String?,
+            birthDate: p['birth_date'] == null
+                ? null
+                : DateTime.parse(p['birth_date'] as String),
+            bio: p['bio'] as String?,
+            role: 'owner',
+            guardianCount: 1,
+            ownerName: '',
+            isNeutered: p['is_neutered'] == true,
+            imageUrl: p['image_url'] as String?,
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// 단일 컬럼 동등 필터 카운트.
   Future<int> _count(String table, String col, String val) async {
     final res =

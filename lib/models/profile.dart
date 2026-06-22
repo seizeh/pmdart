@@ -30,3 +30,45 @@ class ProfileData {
     required this.pets,
   });
 }
+
+/// 타 사용자 공개 프로필 조회용 데이터 (사용자 검색 → 프로필).
+class PublicProfileData {
+  final String userId;
+  final String nickname;
+  final String userType;
+  final String? profileImageUrl;
+
+  // 활동 지역(동네 인증) — 공개 뷰가 노출. 미인증이면 표시 안 함.
+  final String? address;
+  final bool isLocationVerified;
+
+  final int reviewCount; // 받은 평가
+  final int pawingCount; // 그 사용자가 팔로우
+  final int pawmateCount; // 그 사용자를 팔로우
+  final int postCount; // 게시글 수
+
+  final List<MockPet> pets;
+
+  const PublicProfileData({
+    required this.userId,
+    required this.nickname,
+    required this.userType,
+    this.profileImageUrl,
+    this.address,
+    this.isLocationVerified = false,
+    required this.reviewCount,
+    required this.pawingCount,
+    required this.pawmateCount,
+    required this.postCount,
+    required this.pets,
+  });
+
+  /// 표시용 동네명(행정동) — address 의 마지막 토큰. 미인증이면 null.
+  String? get regionName {
+    if (!isLocationVerified || address == null || address!.trim().isEmpty) {
+      return null;
+    }
+    final parts = address!.trim().split(RegExp(r'\s+'));
+    return parts.isEmpty ? null : parts.last;
+  }
+}

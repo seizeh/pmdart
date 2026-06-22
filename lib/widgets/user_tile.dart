@@ -3,6 +3,7 @@ import '../theme/app_colors.dart';
 import '../models/social.dart';
 import '../services/social_repository.dart';
 import '../services/chat_launcher.dart';
+import '../screen/user_profile_screen.dart';
 
 /// 사용자 한 명을 표시하는 공통 타일 — 채팅 시작 + 팔로우(Pawing) 토글.
 /// 연결 목록 / 사용자 검색에서 재사용.
@@ -49,7 +50,15 @@ class _UserTileState extends State<UserTile> {
   Widget build(BuildContext context) {
     final c = widget.connection;
     final initial = c.nickname.isEmpty ? '?' : c.nickname.characters.first;
-    return Padding(
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => UserProfileScreen(
+              userId: c.userId, previewNickname: c.nickname),
+        ),
+      ),
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
@@ -107,6 +116,7 @@ class _UserTileState extends State<UserTile> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

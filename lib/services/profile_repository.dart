@@ -53,6 +53,22 @@ class ProfileRepository {
     );
   }
 
+  /// 활동 지역(동네 인증) 상태만 가볍게 조회 — 프로필 편집 화면의 즉시 갱신용.
+  /// address/is_location_verified 는 동네 인증 RPC(service_role)만 세팅한다.
+  Future<({String? address, bool verified})> fetchRegion() async {
+    final user = SessionManager.instance.user;
+    if (user == null) throw StateError('로그인이 필요합니다');
+    final row = await _c
+        .from('public_profiles')
+        .select('address, is_location_verified')
+        .eq('id', user.id)
+        .maybeSingle();
+    return (
+      address: row?['address'] as String?,
+      verified: row?['is_location_verified'] == true,
+    );
+  }
+
   /// 단일 컬럼 동등 필터 카운트.
   Future<int> _count(String table, String col, String val) async {
     final res =

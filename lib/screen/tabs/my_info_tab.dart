@@ -17,7 +17,6 @@ import '../change_password_screen.dart';
 import '../guardian_invites_screen.dart';
 import '../notification_settings_screen.dart';
 import '../blocked_users_screen.dart';
-import '../location_verify_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_phone_screen.dart';
 import '../welcome_screen.dart';
@@ -307,8 +306,11 @@ class _ProfileHeader extends StatelessWidget {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        ProfileEditScreen(initialNickname: profile.nickname),
+                    builder: (_) => ProfileEditScreen(
+                      initialNickname: profile.nickname,
+                      initialAddress: profile.address,
+                      initialVerified: profile.isLocationVerified,
+                    ),
                   ),
                 ),
               ),
@@ -631,15 +633,6 @@ class _SettingsSection extends StatelessWidget {
             icon: Icons.notifications_outlined,
             label: '알림 설정',
             onTap: () => _push(context, const NotificationSettingsScreen())),
-        _Item(
-            icon: Icons.location_on_outlined,
-            label: '지역 인증',
-            trailing: profile.isLocationVerified
-                ? '${profile.regionName ?? '인증됨'} ✓'
-                : '미인증',
-            onTap: () => _push(
-                context,
-                LocationVerifyScreen(currentRegion: profile.regionName))),
         _Item(
             icon: Icons.lock_outline,
             label: '비밀번호 변경',

@@ -37,11 +37,15 @@ class ProfileData {
   });
 
   /// 표시용 동네명(행정동) — address 의 마지막 토큰. 미인증이면 null.
-  String? get regionName {
-    if (!isLocationVerified || address == null || address!.trim().isEmpty) {
-      return null;
-    }
-    final parts = address!.trim().split(RegExp(r'\s+'));
+  String? get regionName =>
+      regionNameFromAddress(address, verified: isLocationVerified);
+
+  /// address("경기 화성시 동탄2동") → 동네명("동탄2동"). 미인증/빈값이면 null.
+  /// 프로필 편집 화면 등 ProfileData 인스턴스 없이도 쓰도록 정적 제공.
+  static String? regionNameFromAddress(String? address,
+      {required bool verified}) {
+    if (!verified || address == null || address.trim().isEmpty) return null;
+    final parts = address.trim().split(RegExp(r'\s+'));
     return parts.isEmpty ? null : parts.last;
   }
 }

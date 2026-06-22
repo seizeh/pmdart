@@ -289,7 +289,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           IconButton(icon: const Icon(Icons.share_outlined), onPressed: () {}),
           if (!_isMyPost)
             IconButton(
-                icon: const Icon(Icons.more_horiz), onPressed: _openPostMenu),
+                icon: const Icon(Icons.report_outlined),
+                tooltip: '신고',
+                color: AppColors.danger,
+                onPressed: _openPostMenu),
         ],
       ),
       body: SafeArea(

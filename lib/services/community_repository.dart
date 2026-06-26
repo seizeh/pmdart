@@ -76,6 +76,10 @@ class CommunityRepository {
   }
 
   /// 게시글 작성. 반환값은 새 게시글 id.
+  ///
+  /// create_post_verified RPC 로 일원화(0018): 토큰 전달·INSERT·post_pets 연결·토큰
+  /// 소진이 한 트랜잭션에서 일어난다. 사진 필수 카테고리는 [photoToken] 필수
+  /// (서버 트리거가 검증), free/adoption 은 토큰 없이 호출.
   Future<String> createPost({
     required String category,
     required String title,
@@ -85,28 +89,21 @@ class CommunityRepository {
     String? imageUrl,
     String? imageMime,
     int? imageSize,
+    String? photoToken,
   }) async {
-    final uid = _requireUid();
-    final data = <String, dynamic>{
-      'user_id': uid,
-      'category': category,
-      'title': title,
-      'content': content,
-      'scheduled_at': scheduledAt?.toUtc().toIso8601String(),
-    };
-    if (imageUrl != null) data['image_url'] = imageUrl;
-    if (imageMime != null) data['image_mime_type'] = imageMime;
-    if (imageSize != null) data['image_file_size'] = imageSize;
-    final inserted =
-        await _c.from('posts').insert(data).select('id').single();
-    final postId = inserted['id'] as String;
-
-    if (petIds.isNotEmpty) {
-      await _c.from('post_pets').insert(
-            petIds.map((pid) => {'post_id': postId, 'pet_id': pid}).toList(),
-          );
-    }
-    return postId;
+    _requireUid();
+    final postId = await _c.rpc('create_post_verified', params: {
+      'p_category': category,
+      'p_title': title,
+      'p_content': content,
+      'p_scheduled_at': scheduledAt?.toUtc().toIso8601String(),
+      'p_pet_ids': petIds.isEmpty ? null : petIds,
+      'p_image_url': imageUrl,
+      'p_image_mime': imageMime,
+      'p_image_size': imageSize,
+      'p_photo_token': photoToken,
+    });
+    return postId as String;
   }
 
   /// 댓글 목록.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../models/community.dart';
 import '../services/community_repository.dart';
+import '../services/photo_verify_repository.dart';
 import '../services/storage_service.dart';
 import '../widgets/role_badge.dart';
 
@@ -32,6 +33,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
 
   UploadedImage? _uploadedImage;
   bool _uploadingImage = false;
+  // 사진 필수 카테고리(walk/care/give_away)에서 서버 검증 통과 시 받는 1회용 토큰.
+  String? _photoToken;
 
   static const _categories = [
     'walk_together',
@@ -48,6 +51,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   bool get _needsPet =>
       ['walk_together', 'walk_proxy', 'care', 'give_away'].contains(_category);
   bool get _giveAway => _category == 'give_away';
+  // 자유게시글(free)·입양게시글(adoption)을 제외한 게시글은 사진 등록이 필수.
+  bool get _needsPhoto => !['free', 'adoption'].contains(_category);
 
   @override
   void initState() {
@@ -69,11 +74,50 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
+  /// 사진 영역 탭. 사진 필수 카테고리는 카메라 촬영→서버 검증, 그 외는 갤러리 업로드.
+  Future<void> _onPhotoTap() =>
+      _needsPhoto ? _captureAndVerify() : _pickFromGallery();
+
+  /// 사진 필수 카테고리(walk/care/give_away): 카메라 촬영 → 위치·AI 실존 검증.
+  /// 통과 시 서버가 업로드한 URL 과 1회용 토큰을 보관한다.
+  Future<void> _captureAndVerify() async {
+    final shot = await StorageService.instance.capturePostPhoto();
+    if (shot == null) return; // 촬영 취소
+    setState(() {
+      _uploadedImage = null;
+      _photoToken = null;
+      _uploadingImage = true;
+    });
+    final res = await PhotoVerifyRepository.instance.verifyPostPhoto(shot);
+    if (!mounted) return;
+    if (res.pass && res.imageUrl != null && res.token != null) {
+      setState(() {
+        _uploadedImage = UploadedImage(
+          url: res.imageUrl!,
+          mime: shot.mimeType ?? 'image/jpeg',
+          size: 0,
+        );
+        _photoToken = res.token;
+        _uploadingImage = false;
+      });
+    } else {
+      setState(() => _uploadingImage = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res.message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  /// free/adoption: 기존 갤러리 선택 → 업로드(검증 없음).
+  Future<void> _pickFromGallery() async {
     final file = await StorageService.instance.pickImage();
     if (file == null) return;
     setState(() {
       _uploadedImage = null;
+      _photoToken = null;
       _uploadingImage = true;
     });
     try {
@@ -100,6 +144,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   void _removeImage() {
     setState(() {
       _uploadedImage = null;
+      _photoToken = null;
       _uploadingImage = false;
     });
   }
@@ -151,6 +196,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                     _category = c;
                     _selectedPetIds.clear();
                     if (!_allowsSchedule) _scheduledAt = null;
+                    // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
+                    _uploadedImage = null;
+                    _photoToken = null;
+                    _uploadingImage = false;
                   }),
                 ))
                     .toList(),
@@ -175,11 +224,20 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 20),
-              const _SectionLabel('사진 (선택)'),
+              _SectionLabel(_needsPhoto ? '사진 (촬영 인증)' : '사진 (선택)'),
+              if (_needsPhoto)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '카메라로 촬영한 실제 반려동물 사진만 등록할 수 있어요',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ),
               _PhotoPicker(
                 url: _uploadedImage?.url,
                 uploading: _uploadingImage,
-                onPick: _pickImage,
+                requireCamera: _needsPhoto,
+                onPick: _onPhotoTap,
                 onRemove: _removeImage,
               ),
               if (_allowsSchedule) ...[
@@ -343,6 +401,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   bool get _canSubmit {
     if (_uploadingImage) return false;
     if (_titleCtrl.text.isEmpty || _contentCtrl.text.isEmpty) return false;
+    if (_needsPhoto && (_uploadedImage == null || _photoToken == null)) {
+      return false;
+    }
     if (_needsSchedule && _scheduledAt == null) return false;
     if (_needsPet && _selectedPetIds.isEmpty) return false;
     return true;
@@ -380,6 +441,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         imageUrl: _uploadedImage?.url,
         imageMime: _uploadedImage?.mime,
         imageSize: _uploadedImage?.size,
+        photoToken: _needsPhoto ? _photoToken : null,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -436,19 +498,21 @@ class _SectionLabel extends StatelessWidget {
 class _PhotoPicker extends StatelessWidget {
   final String? url;
   final bool uploading;
+  final bool requireCamera;
   final VoidCallback onPick;
   final VoidCallback onRemove;
 
   const _PhotoPicker({
     required this.url,
     required this.uploading,
-    required this.onPick,
     required this.onRemove,
+    required this.onPick,
+    this.requireCamera = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 업로드 중 — 스피너 박스
+    // 업로드/검증 중 — 스피너 박스
     if (uploading) {
       return Container(
         height: 180,
@@ -457,10 +521,23 @@ class _PhotoPicker extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.border, width: 0.5),
         ),
-        child: const Center(child: CircularProgressIndicator()),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              if (requireCamera) ...[
+                const SizedBox(height: 12),
+                const Text('사진을 인증하는 중이에요',
+                    style: TextStyle(
+                        fontSize: 13, color: AppColors.textSecondary)),
+              ],
+            ],
+          ),
+        ),
       );
     }
-    // 미선택 — 추가 버튼
+    // 미선택 — 추가/촬영 버튼
     if (url == null) {
       return InkWell(
         onTap: onPick,
@@ -472,14 +549,18 @@ class _PhotoPicker extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.border, width: 0.5),
           ),
-          child: const Column(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_a_photo_outlined,
-                  color: AppColors.primaryDark, size: 26),
-              SizedBox(height: 6),
-              Text('사진 추가',
-                  style: TextStyle(
+              Icon(
+                  requireCamera
+                      ? Icons.photo_camera_outlined
+                      : Icons.add_a_photo_outlined,
+                  color: AppColors.primaryDark,
+                  size: 26),
+              const SizedBox(height: 6),
+              Text(requireCamera ? '사진 촬영' : '사진 추가',
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.textSecondary)),
             ],
           ),

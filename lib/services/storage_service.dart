@@ -18,6 +18,16 @@ class StorageService {
         imageQuality: 85,
       );
 
+  /// 게시글 사진 실존 검증용: 카메라만(갤러리 진입 불가) 방금 찍은 1장.
+  /// EXIF 위치는 신뢰하지 않으므로(위치는 geolocator 로 별도 취득) 메타데이터 요청 안 함.
+  Future<XFile?> capturePostPhoto() => _picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+        maxWidth: 1600,
+        imageQuality: 85,
+        requestFullMetadata: false,
+      );
+
   /// 업로드 후 공개 URL/메타 반환.
   Future<UploadedImage> upload(XFile file, {required String category}) async {
     final uid = SessionManager.instance.user?.id;

@@ -2,6 +2,8 @@
     <!-- 네이버 지도: 현재 위치 표시용 -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- 게시글 사진 실존 인증: 카메라 촬영 -->
+    <uses-permission android:name="android.permission.CAMERA"/>
 
     <application
         android:label="pawmate"

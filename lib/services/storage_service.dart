@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'session.dart';
@@ -41,6 +43,25 @@ class StorageService {
     final path =
         '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
 
+    await _c.storage.from('media').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: mime, upsert: false),
+        );
+    final url = _c.storage.from('media').getPublicUrl(path);
+    return UploadedImage(url: url, mime: mime, size: bytes.length);
+  }
+
+  /// 이미 가공된 바이트(예: 크롭된 이미지)를 업로드. 공개 URL/메타 반환.
+  Future<UploadedImage> uploadBytes(
+    Uint8List bytes, {
+    required String category,
+    String ext = 'png',
+    String mime = 'image/png',
+  }) async {
+    final uid = SessionManager.instance.user?.id;
+    if (uid == null) throw StateError('로그인이 필요합니다');
+    final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
     await _c.storage.from('media').uploadBinary(
           path,
           bytes,

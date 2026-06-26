@@ -110,7 +110,8 @@ class ProfileRepository {
     try {
       final rows = await _c
           .from('pets')
-          .select('id, name, species, gender, birth_date, bio, is_neutered, image_url')
+          .select(
+              'id, name, species, gender, birth_date, bio, is_neutered, image_url, ai_ref_image_url, pet_match_count')
           .eq('primary_guardian_id', userId)
           .eq('pet_status', 'active');
       return [
@@ -129,6 +130,8 @@ class ProfileRepository {
             ownerName: '',
             isNeutered: p['is_neutered'] == true,
             imageUrl: p['image_url'] as String?,
+            hasAiReference: p['ai_ref_image_url'] != null,
+            matchCount: (p['pet_match_count'] ?? 0) as int,
           ),
       ];
     } catch (_) {
@@ -160,7 +163,7 @@ class ProfileRepository {
     final rows = await _c
         .from('pet_guardians')
         .select(
-            'role, pets(id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id)')
+            'role, pets(id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id, ai_ref_image_url, pet_match_count)')
         .eq('user_id', uid);
 
     final pets = <Map<String, dynamic>>[];
@@ -217,6 +220,8 @@ class ProfileRepository {
         ownerName: ownerId == null ? '' : (ownerName[ownerId] ?? ''),
         isNeutered: p['is_neutered'] == true,
         imageUrl: p['image_url'] as String?,
+        hasAiReference: p['ai_ref_image_url'] != null,
+        matchCount: (p['pet_match_count'] ?? 0) as int,
       );
     }).toList();
   }

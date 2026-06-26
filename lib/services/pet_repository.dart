@@ -117,7 +117,7 @@ class PetRepository {
     final p = await _c
         .from('pets')
         .select(
-            'id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id')
+            'id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id, ai_ref_image_url, pet_match_count')
         .eq('id', petId)
         .maybeSingle();
     if (p == null || p['pet_status'] == 'deleted') return null;
@@ -154,6 +154,8 @@ class PetRepository {
       ownerName: ownerName,
       isNeutered: p['is_neutered'] == true,
       imageUrl: p['image_url'] as String?,
+      hasAiReference: p['ai_ref_image_url'] != null,
+      matchCount: (p['pet_match_count'] ?? 0) as int,
     );
   }
 
@@ -163,7 +165,7 @@ class PetRepository {
     final p = await _c
         .from('pets')
         .select(
-            'id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id')
+            'id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id, ai_ref_image_url, pet_match_count')
         .eq('id', petId)
         .maybeSingle();
     if (p == null || p['pet_status'] == 'deleted') return null;
@@ -191,6 +193,8 @@ class PetRepository {
       imageUrl: p['image_url'] as String?,
       ownerId: ownerId ?? '',
       ownerNickname: ownerName,
+      hasAiReference: p['ai_ref_image_url'] != null,
+      matchCount: (p['pet_match_count'] ?? 0) as int,
     );
   }
 

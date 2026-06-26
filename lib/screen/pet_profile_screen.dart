@@ -3,6 +3,7 @@ import '../theme/app_colors.dart';
 import '../models/pet_search.dart';
 import '../services/pet_repository.dart';
 import '../services/chat_launcher.dart';
+import '../widgets/pet_trust_badge.dart';
 
 /// 공개 반려동물 프로필 (read-only) — 검색에서 펫을 눌렀을 때 진입.
 /// 사용자 프로필이 아니라 반려동물 정보를 보여준다. 보호자 관리 기능은 없다.
@@ -111,6 +112,10 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
             color: AppColors.textPrimary,
           ),
         ),
+        if (pet.matchCount > 0) ...[
+          const SizedBox(height: 8),
+          PetTrustBadge(matchCount: pet.matchCount),
+        ],
         if (meta.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(meta,

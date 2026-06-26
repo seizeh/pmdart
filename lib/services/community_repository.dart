@@ -182,7 +182,8 @@ class CommunityRepository {
     final uid = _requireUid();
     final rows = await _c
         .from('pet_guardians')
-        .select('role, pets(id, name, species, pet_status)')
+        .select(
+            'role, pets(id, name, species, pet_status, ai_ref_image_url, pet_match_count)')
         .eq('user_id', uid);
     final result = <MyPet>[];
     for (final r in rows as List) {
@@ -194,6 +195,8 @@ class CommunityRepository {
         name: (pet['name'] ?? '') as String,
         species: (pet['species'] ?? '') as String,
         role: (r['role'] ?? 'co_guardian') as String,
+        hasAiReference: pet['ai_ref_image_url'] != null,
+        matchCount: (pet['pet_match_count'] ?? 0) as int,
       ));
     }
     return result;

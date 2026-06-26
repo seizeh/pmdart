@@ -140,6 +140,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  /// 보유 반려동물들의 개체 일치 누적 합(사용자 단위 신뢰 표시).
+  int _petMatchTotal(PublicProfileData p) =>
+      p.pets.fold(0, (s, e) => s + e.matchCount);
+
   Widget _header(PublicProfileData p) {
     final region = p.regionName;
     return Container(
@@ -209,6 +213,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ],
                       ],
                     ),
+                    if (_petMatchTotal(p) > 0) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.verified,
+                              size: 13, color: Color(0xFFD9CBA8)),
+                          const SizedBox(width: 4),
+                          Text(
+                            '반려동물 개체 인증 ${_petMatchTotal(p)}회',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFD9CBA8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

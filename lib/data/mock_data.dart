@@ -32,6 +32,8 @@ class MockPet {
   final String ownerName;
   final bool isNeutered;
   final String? imageUrl;
+  final bool hasAiReference; // AI 인증 기준 사진 등록 여부 (0019)
+  final int matchCount; // 개체 일치 누적 횟수 (신뢰도)
 
   const MockPet({
     required this.id,
@@ -45,6 +47,8 @@ class MockPet {
     this.ownerName = '',
     this.isNeutered = false,
     this.imageUrl,
+    this.hasAiReference = false,
+    this.matchCount = 0,
   });
 }
 

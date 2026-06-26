@@ -3,6 +3,7 @@ import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show MockPet;
 import '../services/pet_repository.dart';
 import '../widgets/role_badge.dart';
+import '../widgets/pet_trust_badge.dart';
 import 'pet_edit_screen.dart';
 
 /// 펫 상세 — 펫 정보 + 보호자 목록(실데이터). owner 는 수정/삭제/초대 가능.
@@ -317,6 +318,13 @@ class _Header extends StatelessWidget {
               RoleBadge(role: pet.role),
             ],
           ),
+          if (pet.matchCount > 0) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: PetTrustBadge(matchCount: pet.matchCount),
+            ),
+          ],
           const SizedBox(height: 6),
           Text(meta,
               style: const TextStyle(

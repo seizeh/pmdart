@@ -30,6 +30,8 @@ class PetProfile {
   final String? imageUrl;
   final String ownerId;
   final String ownerNickname;
+  final bool hasAiReference; // AI 인증 기준 사진 등록 여부 (0019)
+  final int matchCount; // 개체 일치 누적 횟수 (신뢰도)
 
   const PetProfile({
     required this.id,
@@ -42,5 +44,7 @@ class PetProfile {
     required this.imageUrl,
     required this.ownerId,
     required this.ownerNickname,
+    this.hasAiReference = false,
+    this.matchCount = 0,
   });
 }

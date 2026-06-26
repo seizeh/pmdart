@@ -35,6 +35,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   bool _uploadingImage = false;
   // 사진 필수 카테고리(walk/care/give_away)에서 서버 검증 통과 시 받는 1회용 토큰.
   String? _photoToken;
+  // 검증 사진이 묶인(촬영한) 펫 id — 이 펫이 선택 해제되면 사진을 무효화한다.
+  String? _photoPetId;
 
   static const _categories = [
     'walk_together',
@@ -78,17 +80,45 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   Future<void> _onPhotoTap() =>
       _needsPhoto ? _captureAndVerify() : _pickFromGallery();
 
-  /// 사진 필수 카테고리(walk/care/give_away): 카메라 촬영 → 위치·AI 실존 검증.
-  /// 통과 시 서버가 업로드한 URL 과 1회용 토큰을 보관한다.
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  /// 사진 필수 카테고리(walk/care/give_away): 촬영 대상 펫 결정 → 카메라 촬영 →
+  /// 위치·AI 실존 + 등록 펫 개체 대조. 통과 시 서버 URL/토큰 보관.
   Future<void> _captureAndVerify() async {
+    // 1) 촬영 대상 펫 결정(연결한 펫 중에서)
+    final candidates =
+        _pets.where((p) => _selectedPetIds.contains(p.id)).toList();
+    if (candidates.isEmpty) {
+      _toast('먼저 연결할 반려동물을 선택해주세요');
+      return;
+    }
+    final target = candidates.length == 1
+        ? candidates.first
+        : await _choosePhotoPet(candidates);
+    if (target == null) return; // 선택 취소
+
+    // 2) 기준(AI 인증용) 사진이 없으면 먼저 등록 유도
+    if (!target.hasAiReference) {
+      await _promptRegisterReference(target);
+      return;
+    }
+
+    // 3) 촬영 → 검증(개체 대조 포함)
     final shot = await StorageService.instance.capturePostPhoto();
-    if (shot == null) return; // 촬영 취소
+    if (shot == null) return;
     setState(() {
       _uploadedImage = null;
       _photoToken = null;
+      _photoPetId = null;
       _uploadingImage = true;
     });
-    final res = await PhotoVerifyRepository.instance.verifyPostPhoto(shot);
+    final res = await PhotoVerifyRepository.instance
+        .verifyPostPhoto(shot, petId: target.id);
     if (!mounted) return;
     if (res.pass && res.imageUrl != null && res.token != null) {
       setState(() {
@@ -98,16 +128,81 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
           size: 0,
         );
         _photoToken = res.token;
+        _photoPetId = target.id;
         _uploadingImage = false;
       });
+      if (!res.matched) {
+        _toast('등록된 반려동물과 일치 여부가 불확실해요. 게시는 되지만 검수 대상이 될 수 있어요');
+      }
     } else {
       setState(() => _uploadingImage = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(res.message),
-          behavior: SnackBarBehavior.floating,
+      _toast(res.message);
+    }
+  }
+
+  /// 여러 마리를 연결한 경우, 사진 속 반려동물을 고른다.
+  Future<MyPet?> _choosePhotoPet(List<MyPet> candidates) {
+    return showModalBottomSheet<MyPet>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('사진 속 반려동물을 선택하세요',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+            ...candidates.map((p) => ListTile(
+                  title: Text('${p.name}  ·  ${p.species}'),
+                  subtitle: p.hasAiReference
+                      ? null
+                      : const Text('인증용 사진 필요',
+                          style: TextStyle(color: AppColors.warning, fontSize: 12)),
+                  onTap: () => Navigator.pop(ctx, p),
+                )),
+            const SizedBox(height: 8),
+          ],
         ),
-      );
+      ),
+    );
+  }
+
+  /// 기준 사진이 없는 펫: 소유자면 지금 촬영해 등록, 아니면 안내만.
+  Future<void> _promptRegisterReference(MyPet target) async {
+    if (target.role != 'owner') {
+      _toast('${target.name}의 인증용 사진은 소유자가 먼저 등록해야 해요');
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('인증용 사진 등록'),
+        content: Text('${target.name}의 AI 인증용 사진이 아직 없어요.\n'
+            '지금 ${target.name}를 카메라로 촬영해 등록할까요?\n'
+            '(이후 게시글 사진이 이 사진과 대조됩니다)'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true), child: const Text('촬영')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    final shot = await StorageService.instance.capturePostPhoto();
+    if (shot == null) return;
+    setState(() => _uploadingImage = true);
+    final res = await PhotoVerifyRepository.instance
+        .verifyPetReference(shot, petId: target.id);
+    if (!mounted) return;
+    setState(() => _uploadingImage = false);
+    if (res.pass) {
+      _toast('${target.name}의 인증용 사진을 등록했어요. 이제 게시글 사진을 촬영하세요');
+      await _loadPets(); // hasAiReference 갱신
+    } else {
+      _toast(res.message);
     }
   }
 
@@ -145,6 +240,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     setState(() {
       _uploadedImage = null;
       _photoToken = null;
+      _photoPetId = null;
       _uploadingImage = false;
     });
   }
@@ -199,6 +295,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                     // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
                     _uploadedImage = null;
                     _photoToken = null;
+                    _photoPetId = null;
                     _uploadingImage = false;
                   }),
                 ))
@@ -229,8 +326,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                 const Padding(
                   padding: EdgeInsets.only(bottom: 8),
                   child: Text(
-                    '카메라로 촬영한 실제 반려동물 사진만 등록할 수 있어요',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    '아래에서 반려동물을 먼저 선택한 뒤, 그 아이를 카메라로 촬영하세요. '
+                    '등록된 인증 사진과 대조해 실제 반려동물인지 확인합니다.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
                   ),
                 ),
               _PhotoPicker(
@@ -318,6 +416,13 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                           } else {
                             _selectedPetIds.add(p.id);
                           }
+                        }
+                        // 검증 사진이 묶인 펫이 선택 해제되면 사진을 무효화한다.
+                        if (_photoPetId != null &&
+                            !_selectedPetIds.contains(_photoPetId)) {
+                          _uploadedImage = null;
+                          _photoToken = null;
+                          _photoPetId = null;
                         }
                       }),
                       child: Container(

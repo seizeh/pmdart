@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../theme/app_colors.dart';
@@ -37,7 +38,13 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
   void _reshuffle() => setState(() => _challenges = pickRandomChallenges());
 
   Future<void> _captureAndEnroll() async {
-    final video = await StorageService.instance.capturePetVideo();
+    XFile? video;
+    try {
+      video = await StorageService.instance.capturePetVideo();
+    } catch (_) {
+      _toast('카메라를 열 수 없어요. 카메라/마이크 권한을 확인하거나 실기기에서 시도해주세요');
+      return;
+    }
     if (video == null) return; // 취소
     setState(() {
       _busy = true;

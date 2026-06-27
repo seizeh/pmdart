@@ -16,8 +16,9 @@ class PetEditScreen extends StatefulWidget {
 
 class _PetEditScreenState extends State<PetEditScreen> {
   final _nameCtrl = TextEditingController();
-  final _speciesCtrl = TextEditingController();
+  final _speciesCtrl = TextEditingController(); // 품종(자유 입력)
   final _bioCtrl = TextEditingController();
+  String? _speciesKind; // 'dog' | 'cat' (강아지/고양이) — 필수
   String? _gender;
   DateTime? _birthDate;
   bool _neutered = false;
@@ -37,6 +38,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
     if (p != null) {
       _nameCtrl.text = p.name;
       _speciesCtrl.text = p.species;
+      _speciesKind = p.speciesKind;
       _bioCtrl.text = p.bio ?? '';
       _gender = p.gender;
       _birthDate = p.birthDate;
@@ -75,6 +77,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
       !_saving &&
       !_uploading &&
       _nameCtrl.text.trim().isNotEmpty &&
+      _speciesKind != null &&
       _speciesCtrl.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
@@ -104,6 +107,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
           widget.pet!.id,
           name: _nameCtrl.text.trim(),
           species: _speciesCtrl.text.trim(),
+          speciesKind: _speciesKind,
           gender: _gender,
           birthDate: _birthDate,
           bio: _bioCtrl.text.trim(),
@@ -114,6 +118,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
         await repo.createPet(
           name: _nameCtrl.text.trim(),
           species: _speciesCtrl.text.trim(),
+          speciesKind: _speciesKind,
           gender: _gender,
           birthDate: _birthDate,
           bio: _bioCtrl.text.trim(),
@@ -173,10 +178,19 @@ class _PetEditScreenState extends State<PetEditScreen> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
-              const _Label('종'),
+              const _Label('종 (필수)'),
+              Row(
+                children: [
+                  _kindChip('dog', '강아지'),
+                  const SizedBox(width: 8),
+                  _kindChip('cat', '고양이'),
+                ],
+              ),
+              const SizedBox(height: 10),
               TextField(
                 controller: _speciesCtrl,
-                decoration: const InputDecoration(hintText: '예) 말티즈'),
+                decoration:
+                    const InputDecoration(hintText: '품종 입력 (예: 말티즈, 코리안숏헤어)'),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
@@ -319,6 +333,34 @@ class _PetEditScreenState extends State<PetEditScreen> {
                 : Text(_hasAiRef ? '다시 촬영' : '촬영'),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 강아지/고양이 2지선다(필수) — 한 번 고르면 비우지 않고 서로 전환만.
+  Widget _kindChip(String value, String label) {
+    final selected = _speciesKind == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _speciesKind = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primaryDark : AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: selected ? AppColors.primaryDark : AppColors.border),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
+            ),
+          ),
+        ),
       ),
     );
   }

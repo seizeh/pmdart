@@ -399,7 +399,7 @@ class _PetSection extends StatelessWidget {
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: const Text(
-                  'N:M 공유',
+                  '공동보호자',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,

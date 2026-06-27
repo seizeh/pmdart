@@ -47,8 +47,8 @@ class _PetEditScreenState extends State<PetEditScreen> {
     }
   }
 
-  /// 신원 인증 화면으로 이동(저장된 펫만). 완료 시 상태 갱신.
-  Future<void> _openEnroll(String petId, String petName) async {
+  /// 신원 인증 화면으로 이동(저장된 펫만). 완료 시 상태 갱신. 인증 성공 여부 반환.
+  Future<bool> _openEnroll(String petId, String petName) async {
     final ok = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -56,6 +56,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
       ),
     );
     if (ok == true && mounted) setState(() => _identityVerified = true);
+    return ok == true;
   }
 
   @override
@@ -119,9 +120,18 @@ class _PetEditScreenState extends State<PetEditScreen> {
           imageUrl: _imageUrl,
         );
         if (!mounted) return;
-        // 등록 직후 신원 인증(영상)으로 유도.
-        await _openEnroll(id, _nameCtrl.text.trim());
+        // AI 영상 신원 인증을 통과해야만 등록 완료. 미완료면 방금 만든 펫을 취소(삭제).
+        final verified = await _openEnroll(id, _nameCtrl.text.trim());
         if (!mounted) return;
+        if (!verified) {
+          try {
+            await PetRepository.instance.deletePet(id);
+          } catch (_) {}
+          if (!mounted) return;
+          setState(() => _saving = false);
+          _toast('AI 신원 인증을 완료해야 등록돼요. 다시 시도해주세요');
+          return;
+        }
         Navigator.pop(context, true);
         _toast('반려동물을 등록했어요');
         return;

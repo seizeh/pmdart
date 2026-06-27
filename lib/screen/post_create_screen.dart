@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../models/community.dart';
@@ -5,6 +7,7 @@ import '../services/community_repository.dart';
 import '../services/photo_verify_repository.dart';
 import '../services/storage_service.dart';
 import '../widgets/role_badge.dart';
+import 'image_crop_screen.dart';
 
 /// 게시글 작성 — 카테고리 선택 / 제목·내용 / 약속 일정(선택) / 펫 연결.
 /// 카테고리에 따라 입력 UI가 다르게 분기:
@@ -206,17 +209,29 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     }
   }
 
-  /// free/adoption: 기존 갤러리 선택 → 업로드(검증 없음).
+  /// free/adoption: 갤러리 선택 → 표시 비율(3:4)에 맞게 영역 조정(크롭) → 업로드(검증 없음).
   Future<void> _pickFromGallery() async {
     final file = await StorageService.instance.pickImage();
     if (file == null) return;
+    final raw = await file.readAsBytes();
+    if (!mounted) return;
+    // 보여질 영역 조정 화면(취소하면 첨부 중단).
+    final cropped = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => ImageCropScreen(bytes: raw),
+      ),
+    );
+    if (cropped == null) return;
     setState(() {
       _uploadedImage = null;
       _photoToken = null;
       _uploadingImage = true;
     });
     try {
-      final up = await StorageService.instance.upload(file, category: 'posts');
+      final up = await StorageService.instance
+          .uploadBytes(cropped, category: 'posts', ext: 'png', mime: 'image/png');
       if (!mounted) return;
       setState(() {
         _uploadedImage = up;

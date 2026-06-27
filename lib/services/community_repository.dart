@@ -106,6 +106,22 @@ class CommunityRepository {
     return postId as String;
   }
 
+  /// 내 게시글 삭제(소프트) — delete_my_post RPC.
+  /// 직접 UPDATE 는 결과 행이 posts_select 비가시라 RLS(42501)에 막히므로,
+  /// 본인 확인 후 RLS 를 우회하는 SECURITY DEFINER RPC 로 처리한다.
+  Future<void> deletePost(String postId) async {
+    _requireUid();
+    await _c.rpc('delete_my_post', params: {'p_post': postId});
+  }
+
+  /// 여러 게시글 일괄 삭제(소프트).
+  Future<void> deletePosts(Iterable<String> postIds) async {
+    _requireUid();
+    for (final id in postIds) {
+      await deletePost(id);
+    }
+  }
+
   /// 댓글 목록.
   Future<List<Comment>> fetchComments(String postId) async {
     final rows = await _c

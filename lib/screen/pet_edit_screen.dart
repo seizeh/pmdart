@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show MockPet;
 import '../services/pet_repository.dart';
-import '../services/photo_verify_repository.dart';
 import '../services/storage_service.dart';
+import 'pet_identity_enroll_screen.dart';
 
 /// 반려동물 등록/수정 화면. [pet] 가 있으면 수정, 없으면 신규 등록.
 class PetEditScreen extends StatefulWidget {
@@ -25,8 +25,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
   String? _imageUrl;
   bool _uploading = false;
   bool _saving = false;
-  bool _hasAiRef = false; // AI 인증 기준 사진 등록 여부 (0019)
-  bool _refBusy = false;
+  bool _identityVerified = false; // 신원 영상 인증 완료 여부 (0020)
 
   bool get _isEdit => widget.pet != null;
   bool get _isOwner => widget.pet?.role == 'owner';
@@ -44,25 +43,19 @@ class _PetEditScreenState extends State<PetEditScreen> {
       _birthDate = p.birthDate;
       _neutered = p.isNeutered;
       _imageUrl = p.imageUrl;
-      _hasAiRef = p.hasAiReference;
+      _identityVerified = p.isIdentityVerified;
     }
   }
 
-  /// AI 인증용 기준 사진 등록(카메라 촬영 → 실존+위치 검증). owner 전용, 저장된 펫만.
-  Future<void> _registerAiReference() async {
-    final pet = widget.pet;
-    if (pet == null) return;
-    final shot = await StorageService.instance.capturePostPhoto();
-    if (shot == null) return;
-    setState(() => _refBusy = true);
-    final res = await PhotoVerifyRepository.instance
-        .verifyPetReference(shot, petId: pet.id);
-    if (!mounted) return;
-    setState(() {
-      _refBusy = false;
-      if (res.pass) _hasAiRef = true;
-    });
-    _toast(res.pass ? '인증용 사진을 등록했어요' : res.message);
+  /// 신원 인증 화면으로 이동(저장된 펫만). 완료 시 상태 갱신.
+  Future<void> _openEnroll(String petId, String petName) async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PetIdentityEnrollScreen(petId: petId, petName: petName),
+      ),
+    );
+    if (ok == true && mounted) setState(() => _identityVerified = true);
   }
 
   @override
@@ -115,7 +108,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
           imageUrl: _imageUrl,
         );
       } else {
-        await repo.createPet(
+        final id = await repo.createPet(
           name: _nameCtrl.text.trim(),
           species: _speciesCtrl.text.trim(),
           speciesKind: _speciesKind,
@@ -125,10 +118,17 @@ class _PetEditScreenState extends State<PetEditScreen> {
           isNeutered: _neutered,
           imageUrl: _imageUrl,
         );
+        if (!mounted) return;
+        // 등록 직후 신원 인증(영상)으로 유도.
+        await _openEnroll(id, _nameCtrl.text.trim());
+        if (!mounted) return;
+        Navigator.pop(context, true);
+        _toast('반려동물을 등록했어요');
+        return;
       }
       if (!mounted) return;
       Navigator.pop(context, true);
-      _toast(_isEdit ? '수정했어요' : '반려동물을 등록했어요');
+      _toast('수정했어요');
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -255,8 +255,8 @@ class _PetEditScreenState extends State<PetEditScreen> {
               ),
               if (_isEdit && _isOwner) ...[
                 const SizedBox(height: 24),
-                const _Label('AI 인증용 사진'),
-                _aiReferenceCard(),
+                const _Label('신원 인증'),
+                _identityCard(),
               ],
               const SizedBox(height: 40),
             ],
@@ -299,7 +299,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
     );
   }
 
-  Widget _aiReferenceCard() {
+  Widget _identityCard() {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -309,28 +309,26 @@ class _PetEditScreenState extends State<PetEditScreen> {
       ),
       child: Row(
         children: [
-          Icon(_hasAiRef ? Icons.verified : Icons.pets,
-              color: _hasAiRef ? AppColors.primary : AppColors.textTertiary,
+          Icon(_identityVerified ? Icons.verified : Icons.videocam_outlined,
+              color: _identityVerified
+                  ? AppColors.primary
+                  : AppColors.textTertiary,
               size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              _hasAiRef
-                  ? '인증용 사진이 등록됐어요. 게시글 사진이 이 사진과 대조됩니다.'
-                  : '산책·돌봄·분양 게시글을 쓰려면 이 아이를 카메라로 촬영해 인증용 사진을 등록해야 해요.',
+              _identityVerified
+                  ? '신원 인증이 완료됐어요. 게시글 사진이 이 아이와 대조됩니다.'
+                  : '산책·돌봄·분양 게시글을 쓰려면 무작위 동작 임무 영상으로 신원 인증을 해야 해요.',
               style: const TextStyle(
                   fontSize: 12.5, color: AppColors.textSecondary, height: 1.4),
             ),
           ),
           const SizedBox(width: 8),
           TextButton(
-            onPressed: _refBusy ? null : _registerAiReference,
-            child: _refBusy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : Text(_hasAiRef ? '다시 촬영' : '촬영'),
+            onPressed: () =>
+                _openEnroll(widget.pet!.id, _nameCtrl.text.trim()),
+            child: Text(_identityVerified ? '다시 인증' : '인증하기'),
           ),
         ],
       ),

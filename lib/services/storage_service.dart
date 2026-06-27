@@ -20,6 +20,13 @@ class StorageService {
         imageQuality: 85,
       );
 
+  /// 신원 인증용: 카메라 영상만(갤러리 진입 불가). 무작위 임무 수행 영상(~11초).
+  Future<XFile?> capturePetVideo() => _picker.pickVideo(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+        maxDuration: const Duration(seconds: 11),
+      );
+
   /// 게시글 사진 실존 검증용: 카메라만(갤러리 진입 불가) 방금 찍은 1장.
   /// EXIF 위치는 신뢰하지 않으므로(위치는 geolocator 로 별도 취득) 메타데이터 요청 안 함.
   Future<XFile?> capturePostPhoto() => _picker.pickImage(

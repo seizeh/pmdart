@@ -31,12 +31,16 @@ class PetEnrollResult {
   final List<String> warnings; // species_kind / breed 소프트 경고
   final List<String> missing; // challenge_failed 시 못 한 임무 코드
   final String? errorCode;
+  final String? detail; // 진단용(임시): 서버가 준 상세 사유
+  final int? videoKb; // 진단용(임시): 전송 영상 크기
 
   const PetEnrollResult({
     required this.enrolled,
     this.warnings = const [],
     this.missing = const [],
     this.errorCode,
+    this.detail,
+    this.videoKb,
   });
 
   /// 실패 사유 한글 메시지.
@@ -53,7 +57,7 @@ class PetEnrollResult {
       case 'too_few_frames':
         return '영상이 너무 짧아요. 더 길게(약 11초) 다시 촬영해주세요';
       case 'ai_unavailable':
-        return '인증 서버가 잠시 응답하지 않아요. 잠시 후 다시 시도해주세요';
+        return 'AI 사용량이 많아 잠시 지연되고 있어요. 잠시 후 다시 시도해주세요';
       case 'video_too_large':
         return '영상이 너무 커요. 더 짧게 다시 촬영해주세요';
       default:
@@ -100,6 +104,8 @@ class PetEnrollRepository {
         enrolled: false,
         errorCode: data['reason'] as String?,
         missing: [for (final m in (data['missing'] as List? ?? const [])) '$m'],
+        detail: data['detail'] as String?,
+        videoKb: data['videoKb'] is num ? (data['videoKb'] as num).toInt() : null,
       );
     } on FunctionException catch (e) {
       final detail = e.details;

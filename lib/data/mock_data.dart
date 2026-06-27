@@ -24,6 +24,7 @@ class MockPet {
   final String id;
   final String name;
   final String species;
+  final String? speciesKind; // 'dog' | 'cat' (강아지/고양이)
   final String? gender; // male / female / null
   final DateTime? birthDate;
   final String? bio;
@@ -39,6 +40,7 @@ class MockPet {
     required this.id,
     required this.name,
     required this.species,
+    this.speciesKind,
     this.gender,
     this.birthDate,
     this.bio,

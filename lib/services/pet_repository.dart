@@ -56,6 +56,7 @@ class PetRepository {
   Future<String> createPet({
     required String name,
     required String species,
+    String? speciesKind, // 'dog' | 'cat'
     String? gender,
     DateTime? birthDate,
     String? bio,
@@ -68,6 +69,7 @@ class PetRepository {
       'species': species,
       'is_neutered': isNeutered,
     };
+    if (speciesKind != null) data['species_kind'] = speciesKind;
     if (gender != null) data['gender'] = gender;
     if (birthDate != null) {
       data['birth_date'] =
@@ -86,6 +88,7 @@ class PetRepository {
     String petId, {
     required String name,
     required String species,
+    String? speciesKind, // 'dog' | 'cat'
     String? gender,
     DateTime? birthDate,
     String? bio,
@@ -100,6 +103,7 @@ class PetRepository {
       'birth_date': birthDate?.toIso8601String().split('T').first,
       'bio': (bio == null || bio.isEmpty) ? null : bio,
     };
+    if (speciesKind != null) data['species_kind'] = speciesKind;
     if (imageUrl != null) data['image_url'] = imageUrl;
     await _c.from('pets').update(data).eq('id', petId);
     AppEvents.instance.notifyProfile();
@@ -117,7 +121,7 @@ class PetRepository {
     final p = await _c
         .from('pets')
         .select(
-            'id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id, ai_ref_image_url, pet_match_count')
+            'id, name, species, species_kind, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id, ai_ref_image_url, pet_match_count')
         .eq('id', petId)
         .maybeSingle();
     if (p == null || p['pet_status'] == 'deleted') return null;
@@ -144,6 +148,7 @@ class PetRepository {
       id: p['id'] as String,
       name: (p['name'] ?? '') as String,
       species: (p['species'] ?? '') as String,
+      speciesKind: p['species_kind'] as String?,
       gender: p['gender'] as String?,
       birthDate: p['birth_date'] == null
           ? null

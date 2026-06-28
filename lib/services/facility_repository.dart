@@ -96,10 +96,14 @@ class FacilityRepository {
     required double lat,
     required double lng,
     double radiusM = 10000, // 지역 한정 검색이라 구 단위로 다소 멀 수 있어 완화
+    String? query, // 이름 검색 시 검색어(없으면 현재 동네 애견카페)
   }) async {
     try {
-      final res = await _c.functions
-          .invoke('search-petcafe', body: {'lat': lat, 'lng': lng});
+      final res = await _c.functions.invoke('search-petcafe', body: {
+        'lat': lat,
+        'lng': lng,
+        if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
+      });
       final data = (res.data as Map?) ?? const {};
       final items = (data['items'] as List?) ?? const [];
       final out = <Facility>[];

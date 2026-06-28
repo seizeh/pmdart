@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../models/community.dart';
@@ -29,6 +30,10 @@ class _CommunityTabState extends State<CommunityTab> {
   bool _loading = true;
   String? _error;
 
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  Timer? _debounce;
+
   static const _categories = [
     'walk_together',
     'walk_proxy',
@@ -44,13 +49,35 @@ class _CommunityTabState extends State<CommunityTab> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  /// 검색어 변경 → 디바운스 후 재조회.
+  void _onSearchChanged(String v) {
+    _query = v;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), _load);
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchCtrl.clear();
+    _query = '';
+    _load();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final posts = await _repo.fetchFeed(category: _selectedCategory);
+      final posts =
+          await _repo.fetchFeed(category: _selectedCategory, query: _query);
       if (!mounted) return;
       setState(() {
         _posts = posts;
@@ -145,7 +172,11 @@ class _CommunityTabState extends State<CommunityTab> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                        child: _SearchBar(onTap: () {}),
+                        child: _SearchBar(
+                          controller: _searchCtrl,
+                          onChanged: _onSearchChanged,
+                          onClear: _clearSearch,
+                        ),
                       ),
                       SizedBox(
                         height: 44,
@@ -207,8 +238,12 @@ class _CommunityTabState extends State<CommunityTab> {
       return SliverToBoxAdapter(child: _MessageState(message: _error!, onRetry: _load));
     }
     if (_posts.isEmpty) {
-      return const SliverToBoxAdapter(
-        child: _MessageState(message: '아직 게시글이 없어요.\n첫 게시글을 작성해보세요!'),
+      return SliverToBoxAdapter(
+        child: _MessageState(
+          message: _query.trim().isNotEmpty
+              ? '"${_query.trim()}" 검색 결과가 없어요'
+              : '아직 게시글이 없어요.\n첫 게시글을 작성해보세요!',
+        ),
       );
     }
     return SliverPadding(
@@ -353,35 +388,59 @@ class _NotificationBellState extends State<_NotificationBell> {
 }
 
 class _SearchBar extends StatelessWidget {
-  final VoidCallback onTap;
-  const _SearchBar({required this.onTap});
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  const _SearchBar({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
-        ),
-        child: Row(
-          children: const [
-            Icon(Icons.search, color: AppColors.textTertiary, size: 22),
-            SizedBox(width: 10),
-            Text(
-              '게시글 검색...',
-              style: TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 14,
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, color: AppColors.textTertiary, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              textInputAction: TextInputAction.search,
+              style: const TextStyle(
+                  color: AppColors.textPrimary, fontSize: 14),
+              decoration: const InputDecoration(
+                isCollapsed: true,
+                border: InputBorder.none,
+                hintText: '게시글 검색...',
+                hintStyle:
+                    TextStyle(color: AppColors.textTertiary, fontSize: 14),
               ),
             ),
-          ],
-        ),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (_, value, _) => value.text.isEmpty
+                ? const SizedBox.shrink()
+                : GestureDetector(
+                    onTap: onClear,
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Icon(Icons.close,
+                          color: AppColors.textTertiary, size: 20),
+                    ),
+                  ),
+          ),
+        ],
       ),
     );
   }

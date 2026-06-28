@@ -2,6 +2,31 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/community.dart';
 import 'session.dart';
 
+/// 행정동별 게시글 클러스터(지도용). posts_by_region RPC 결과 (0021 §6).
+class PostCluster {
+  final String regionCode;
+  final int count;
+  final double lat;
+  final double lng;
+  final List<String> postIds;
+
+  const PostCluster({
+    required this.regionCode,
+    required this.count,
+    required this.lat,
+    required this.lng,
+    required this.postIds,
+  });
+
+  factory PostCluster.fromJson(Map<String, dynamic> j) => PostCluster(
+        regionCode: (j['region_code'] ?? '') as String,
+        count: (j['post_count'] as num?)?.toInt() ?? 0,
+        lat: (j['lat'] as num).toDouble(),
+        lng: (j['lng'] as num).toDouble(),
+        postIds: [for (final id in (j['post_ids'] as List? ?? const [])) id as String],
+      );
+}
+
 /// 커뮤니티(게시글/하트/댓글/지원) 데이터 접근.
 /// 모든 쓰기는 RLS(app.uid() = JWT sub) 를 통과해야 하므로 로그인 필요.
 class CommunityRepository {
@@ -11,13 +36,18 @@ class CommunityRepository {
   SupabaseClient get _c => Supabase.instance.client;
   String? get _uid => SessionManager.instance.user?.id;
 
-  /// 게시글 피드. [category] 가 null 이면 전체.
-  Future<List<Post>> fetchFeed({String? category}) async {
-    var query = _c.from('v_post_feed').select();
+  /// 게시글 피드. [category] 가 null 이면 전체. [query] 가 있으면 제목/내용 검색.
+  Future<List<Post>> fetchFeed({String? category, String? query}) async {
+    var q = _c.from('v_post_feed').select();
     if (category != null) {
-      query = query.eq('category', category);
+      q = q.eq('category', category);
     }
-    final rows = await query.order('created_at', ascending: false).limit(100);
+    // or() 파서를 깨뜨릴 수 있는 문자 제거 후 제목/내용 ilike 검색.
+    final term = (query ?? '').replaceAll(RegExp(r'[,()%*]'), ' ').trim();
+    if (term.isNotEmpty) {
+      q = q.or('title.ilike.%$term%,content.ilike.%$term%');
+    }
+    final rows = await q.order('created_at', ascending: false).limit(100);
     return (rows as List)
         .map((r) => Post.fromJson(r as Map<String, dynamic>))
         .toList();
@@ -29,6 +59,37 @@ class CommunityRepository {
         .from('v_post_feed')
         .select()
         .eq('user_id', userId)
+        .order('created_at', ascending: false);
+    return (rows as List)
+        .map((r) => Post.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 지도 bbox 내 행정동별 게시글 클러스터 (0021 §6).
+  Future<List<PostCluster>> postsByRegion({
+    required double minLng,
+    required double minLat,
+    required double maxLng,
+    required double maxLat,
+  }) async {
+    final rows = await _c.rpc('posts_by_region', params: {
+      'p_min_lng': minLng,
+      'p_min_lat': minLat,
+      'p_max_lng': maxLng,
+      'p_max_lat': maxLat,
+    });
+    return (rows as List)
+        .map((r) => PostCluster.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 게시글 ID 목록으로 피드 행 조회 (클러스터 탭 → 그 지역 글 목록).
+  Future<List<Post>> fetchPostsByIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final rows = await _c
+        .from('v_post_feed')
+        .select()
+        .inFilter('id', ids)
         .order('created_at', ascending: false);
     return (rows as List)
         .map((r) => Post.fromJson(r as Map<String, dynamic>))

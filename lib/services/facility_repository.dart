@@ -72,6 +72,24 @@ class FacilityRepository {
         .toList();
   }
 
+  /// 시설명 검색(지도 검색창). [lat]/[lng] 주면 가까운 순 정렬. 최대 30건.
+  Future<List<Facility>> searchByName(
+    String query, {
+    double? lat,
+    double? lng,
+  }) async {
+    final q = query.trim();
+    if (q.isEmpty) return const [];
+    final rows = await _c.rpc('facilities_search', params: {
+      'p_query': q,
+      'p_lng': lng,
+      'p_lat': lat,
+    });
+    return (rows as List)
+        .map((r) => Facility.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
   /// 애견카페 실시간 검색(네이버 지역검색 프록시). 결과 최대 5건, 5km 후필터.
   /// DB 미적재(공공데이터에 전용 업종 없음) — 지도 진입 시 현재 위치로 검색.
   Future<List<Facility>> searchPetCafes({

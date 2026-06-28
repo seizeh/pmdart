@@ -445,12 +445,42 @@ class _MapTabState extends State<MapTab> {
         ],
       );
 
-  void _onSearchSubmitted(String query) {
+  /// 시설명 검색 → 가장 가까운 결과로 카메라 이동 + 상세 시트.
+  Future<void> _onSearchSubmitted(String query) async {
     final q = query.trim();
-    if (q.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('"$q" 검색 기능은 곧 연결됩니다.')),
+    final c = _controller;
+    if (q.isEmpty || c == null) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final center = _loadedCenter;
+    List<Facility> results;
+    try {
+      results = await FacilityRepository.instance.searchByName(
+        q,
+        lat: center?.latitude,
+        lng: center?.longitude,
+      );
+    } catch (_) {
+      results = const [];
+    }
+    if (!mounted) return;
+    if (results.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"$q" 검색 결과가 없어요')),
+      );
+      return;
+    }
+    final top = results.first;
+    await c.updateCamera(
+      NCameraUpdate.scrollAndZoomTo(
+        target: NLatLng(top.lat, top.lng),
+        zoom: 16,
+      )..setAnimation(
+          animation: NCameraAnimation.easing,
+          duration: const Duration(milliseconds: 400),
+        ),
     );
+    // 이동하면 onCameraIdle 가 주변 마커를 다시 로드한다. 매칭 시설 상세를 바로 보여준다.
+    if (mounted) _showFacilitySheet(top);
   }
 
   @override

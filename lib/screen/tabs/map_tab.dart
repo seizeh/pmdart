@@ -452,16 +452,30 @@ class _MapTabState extends State<MapTab> {
     if (q.isEmpty || c == null) return;
     FocusManager.instance.primaryFocus?.unfocus();
     final center = _loadedCenter;
-    List<Facility> results;
+    final results = <Facility>[];
     try {
-      results = await FacilityRepository.instance.searchByName(
-        q,
-        lat: center?.latitude,
-        lng: center?.longitude,
-      );
-    } catch (_) {
-      results = const [];
-    }
+      // DB 시설(이름) + 애견카페(실시간 이름검색) 동시 조회 후 거리순 병합.
+      final lists = await Future.wait([
+        FacilityRepository.instance.searchByName(
+          q,
+          lat: center?.latitude,
+          lng: center?.longitude,
+        ),
+        if (center != null)
+          FacilityRepository.instance.searchPetCafes(
+            lat: center.latitude,
+            lng: center.longitude,
+            query: q,
+            radiusM: double.infinity, // 이름 검색은 거리 무관
+          )
+        else
+          Future.value(<Facility>[]),
+      ]);
+      results
+        ..addAll(lists[0])
+        ..addAll(lists[1])
+        ..sort((a, b) => a.distanceM.compareTo(b.distanceM));
+    } catch (_) {/* 빈 결과 처리 */}
     if (!mounted) return;
     if (results.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

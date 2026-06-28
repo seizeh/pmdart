@@ -38,6 +38,37 @@ Color _colorFor(String category) {
   return AppColors.primaryDark;
 }
 
+/// 마커 캡션 줄바꿈: 한 줄 최대 8글자.
+/// 공백이 있으면 단어 단위로 끊되, 한 줄이 8자를 넘어도 단어는 안 자른다.
+/// 공백이 없는 긴 이름은 8글자마다 강제로 끊는다.
+String _wrapCaption(String name) {
+  final s = name.trim();
+  if (s.length <= 8) return s;
+  const max = 8;
+  if (s.contains(' ')) {
+    final lines = <String>[];
+    var cur = '';
+    for (final w in s.split(RegExp(r'\s+'))) {
+      if (cur.isEmpty) {
+        cur = w;
+      } else if (cur.length + 1 + w.length <= max) {
+        cur = '$cur $w';
+      } else {
+        lines.add(cur);
+        cur = w;
+      }
+    }
+    if (cur.isNotEmpty) lines.add(cur);
+    return lines.join('\n');
+  }
+  final lines = <String>[];
+  for (var i = 0; i < s.length; i += max) {
+    final end = (i + max < s.length) ? i + max : s.length;
+    lines.add(s.substring(i, end));
+  }
+  return lines.join('\n');
+}
+
 class _MapTabState extends State<MapTab> {
   NaverMapController? _controller;
   final _searchController = TextEditingController();
@@ -101,7 +132,7 @@ class _MapTabState extends State<MapTab> {
           ..setIconTintColor(_colorFor(f.category))
           ..setIsHideCollidedMarkers(true)
           ..setCaption(NOverlayCaption(
-            text: f.name,
+            text: _wrapCaption(f.name),
             textSize: 11,
             color: AppColors.textPrimary,
             haloColor: Colors.white,

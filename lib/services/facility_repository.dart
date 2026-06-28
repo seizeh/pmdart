@@ -77,7 +77,7 @@ class FacilityRepository {
   Future<List<Facility>> searchPetCafes({
     required double lat,
     required double lng,
-    double radiusM = 5000,
+    double radiusM = 10000, // 지역 한정 검색이라 구 단위로 다소 멀 수 있어 완화
   }) async {
     try {
       final res = await _c.functions

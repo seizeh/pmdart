@@ -51,6 +51,13 @@ class PawMateApp extends StatelessWidget {
       title: 'PawMate',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      // 전 화면 공통: 입력창/키보드 외 빈 곳을 누르면 포커스 해제 → 키보드 내려가고
+      // 검색 등 입력이 중단된다. translucent 라 버튼 등 자식 탭은 그대로 동작.
+      builder: (context, child) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: child,
+      ),
       home: !SessionManager.instance.isLoggedIn
           ? const WelcomeScreen()
           : SessionManager.instance.isAdmin

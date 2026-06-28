@@ -1,3 +1,4 @@
+import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// 반려동물 시설(공공데이터) 1건. facilities_within RPC 결과 매핑 (0021).
@@ -69,5 +70,43 @@ class FacilityRepository {
     return (rows as List)
         .map((r) => Facility.fromJson(r as Map<String, dynamic>))
         .toList();
+  }
+
+  /// 애견카페 실시간 검색(네이버 지역검색 프록시). 결과 최대 5건, 5km 후필터.
+  /// DB 미적재(공공데이터에 전용 업종 없음) — 지도 진입 시 현재 위치로 검색.
+  Future<List<Facility>> searchPetCafes({
+    required double lat,
+    required double lng,
+    double radiusM = 5000,
+  }) async {
+    try {
+      final res = await _c.functions
+          .invoke('search-petcafe', body: {'lat': lat, 'lng': lng});
+      final data = (res.data as Map?) ?? const {};
+      final items = (data['items'] as List?) ?? const [];
+      final out = <Facility>[];
+      for (final raw in items) {
+        final m = raw as Map<String, dynamic>;
+        final clat = (m['lat'] as num).toDouble();
+        final clng = (m['lng'] as num).toDouble();
+        final dist = Geolocator.distanceBetween(lat, lng, clat, clng);
+        if (dist > radiusM) continue; // 5km 후필터(지역검색은 위치정렬이 약함)
+        out.add(Facility(
+          id: 'petcafe_${clat.toStringAsFixed(5)}_${clng.toStringAsFixed(5)}',
+          category: 'pet_cafe',
+          name: (m['name'] ?? '') as String,
+          address: m['address'] as String?,
+          phone: m['phone'] as String?,
+          isOpen: true,
+          lat: clat,
+          lng: clng,
+          distanceM: dist,
+        ));
+      }
+      out.sort((a, b) => a.distanceM.compareTo(b.distanceM));
+      return out;
+    } catch (_) {
+      return const []; // 실시간 검색 실패는 다른 마커에 영향 없이 빈 결과
+    }
   }
 }

@@ -13,12 +13,14 @@ class MapTab extends StatefulWidget {
   State<MapTab> createState() => _MapTabState();
 }
 
-// 지도에 표시할 시설 카테고리(공공데이터 4종) — 코드/라벨/마커색.
+// 지도에 표시할 시설 카테고리 — 코드/라벨/마커색.
+// 앞 4종은 공공데이터(DB), pet_cafe 는 네이버 지역검색 실시간(DB 미적재).
 const _facilityCats = <(String, String, Color)>[
   ('animal_hospital', '동물병원', Color(0xFFEF5350)),
   ('grooming', '미용', Color(0xFFAB47BC)),
   ('pet_hotel', '위탁·호텔', Color(0xFF42A5F5)),
   ('pet_sales', '분양', Color(0xFF66BB6A)),
+  ('pet_cafe', '애견카페', Color(0xFFFF9800)),
 ];
 
 Color _colorFor(String category) {
@@ -58,12 +60,23 @@ class _MapTabState extends State<MapTab> {
     if (c == null) return;
     setState(() => _loadingFac = true);
     try {
-      final rows = await FacilityRepository.instance.nearby(
-        lat: center.latitude,
-        lng: center.longitude,
-        radiusM: 5000,
-        categories: _selected.toList(),
-      );
+      // 공공데이터(DB) 카테고리 + 애견카페(실시간) 분리 조회 후 합친다.
+      final dbCats =
+          _selected.where((cat) => cat != 'pet_cafe').toList();
+      final rows = <Facility>[
+        if (dbCats.isNotEmpty)
+          ...await FacilityRepository.instance.nearby(
+            lat: center.latitude,
+            lng: center.longitude,
+            radiusM: 5000,
+            categories: dbCats,
+          ),
+        if (_selected.contains('pet_cafe'))
+          ...await FacilityRepository.instance.searchPetCafes(
+            lat: center.latitude,
+            lng: center.longitude,
+          ),
+      ];
       await c.clearOverlays(type: NOverlayType.marker);
       _byMarkerId.clear();
       final markers = <NAddableOverlay>{};

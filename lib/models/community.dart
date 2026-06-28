@@ -124,7 +124,7 @@ class MyPet {
   final String name;
   final String species;
   final String role; // owner / co_guardian
-  final bool hasAiReference; // AI 인증 기준 사진 등록 여부 (0019)
+  final bool isIdentityVerified; // AI 인증 기준 사진 등록 여부 (0019)
   final int matchCount; // 개체 일치 누적 횟수 (신뢰도)
 
   const MyPet({
@@ -132,7 +132,7 @@ class MyPet {
     required this.name,
     required this.species,
     required this.role,
-    this.hasAiReference = false,
+    this.isIdentityVerified = false,
     this.matchCount = 0,
   });
 }

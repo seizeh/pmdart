@@ -105,13 +105,13 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         : await _choosePhotoPet(candidates);
     if (target == null) return; // 선택 취소
 
-    // 2) 기준(AI 인증용) 사진이 없으면 먼저 등록 유도
-    if (!target.hasAiReference) {
-      await _promptRegisterReference(target);
+    // 2) 신원 인증(영상)이 안 된 펫이면 안내(인증은 펫 등록/수정 화면에서 진행)
+    if (!target.isIdentityVerified) {
+      _toast('${target.name}의 신원 인증(영상)을 먼저 완료해주세요');
       return;
     }
 
-    // 3) 촬영 → 검증(개체 대조 포함)
+    // 3) 촬영 → 검증(등록 펫과 동일개체 매칭)
     final shot = await StorageService.instance.capturePostPhoto();
     if (shot == null) return;
     setState(() {
@@ -134,9 +134,6 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         _photoPetId = target.id;
         _uploadingImage = false;
       });
-      if (!res.matched) {
-        _toast('등록된 반려동물과 일치 여부가 불확실해요. 게시는 되지만 검수 대상이 될 수 있어요');
-      }
     } else {
       setState(() => _uploadingImage = false);
       _toast(res.message);
@@ -158,9 +155,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
             ),
             ...candidates.map((p) => ListTile(
                   title: Text('${p.name}  ·  ${p.species}'),
-                  subtitle: p.hasAiReference
+                  subtitle: p.isIdentityVerified
                       ? null
-                      : const Text('인증용 사진 필요',
+                      : const Text('신원 인증 필요',
                           style: TextStyle(color: AppColors.warning, fontSize: 12)),
                   onTap: () => Navigator.pop(ctx, p),
                 )),
@@ -169,44 +166,6 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         ),
       ),
     );
-  }
-
-  /// 기준 사진이 없는 펫: 소유자면 지금 촬영해 등록, 아니면 안내만.
-  Future<void> _promptRegisterReference(MyPet target) async {
-    if (target.role != 'owner') {
-      _toast('${target.name}의 인증용 사진은 소유자가 먼저 등록해야 해요');
-      return;
-    }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('인증용 사진 등록'),
-        content: Text('${target.name}의 AI 인증용 사진이 아직 없어요.\n'
-            '지금 ${target.name}를 카메라로 촬영해 등록할까요?\n'
-            '(이후 게시글 사진이 이 사진과 대조됩니다)'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true), child: const Text('촬영')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-
-    final shot = await StorageService.instance.capturePostPhoto();
-    if (shot == null) return;
-    setState(() => _uploadingImage = true);
-    final res = await PhotoVerifyRepository.instance
-        .verifyPetReference(shot, petId: target.id);
-    if (!mounted) return;
-    setState(() => _uploadingImage = false);
-    if (res.pass) {
-      _toast('${target.name}의 인증용 사진을 등록했어요. 이제 게시글 사진을 촬영하세요');
-      await _loadPets(); // hasAiReference 갱신
-    } else {
-      _toast(res.message);
-    }
   }
 
   /// free/adoption: 갤러리 선택 → 표시 비율(3:4)에 맞게 영역 조정(크롭) → 업로드(검증 없음).

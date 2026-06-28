@@ -100,6 +100,13 @@ class _MapTabState extends State<MapTab> {
         final m = NMarker(id: id, position: NLatLng(f.lat, f.lng))
           ..setIconTintColor(_colorFor(f.category))
           ..setIsHideCollidedMarkers(true)
+          ..setCaption(NOverlayCaption(
+            text: f.name,
+            textSize: 11,
+            color: AppColors.textPrimary,
+            haloColor: Colors.white,
+          ))
+          ..setIsHideCollidedCaptions(true)
           ..setOnTapListener((_) => _showFacilitySheet(f));
         _byMarkerId[id] = f;
         markers.add(m);

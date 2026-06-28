@@ -3,8 +3,15 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_colors.dart';
+import '../../models/community.dart';
 import '../../services/facility_repository.dart';
+import '../../services/community_repository.dart';
 import '../../services/location_service.dart';
+import '../../widgets/post_card.dart';
+import '../post_detail_screen.dart';
+
+// 게시글 행정동 클러스터 칩(시설과 별개) — 코드/라벨/색.
+const _postsLayer = ('posts', '게시글', Color(0xFF26A69A));
 
 /// 지도 탭 — 주변 반려동물 시설(공공데이터)을 네이버 지도에 표시 (0021).
 class MapTab extends StatefulWidget {
@@ -40,6 +47,7 @@ class _MapTabState extends State<MapTab> {
   // 선택된 카테고리(기본 전체). 마커 id → Facility(탭 시 바텀시트용).
   final Set<String> _selected = {for (final c in _facilityCats) c.$1};
   final Map<String, Facility> _byMarkerId = {};
+  final Map<String, PostCluster> _clusterByMarkerId = {}; // 게시글 클러스터 마커
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
 
   // 네이버 지도 커스텀 스타일(지도 스타일 에디터에서 발급한 ID).
@@ -78,8 +86,14 @@ class _MapTabState extends State<MapTab> {
             lng: center.longitude,
           ),
       ];
+      // 게시글 행정동 클러스터(현재 뷰포트 bbox 기준) — 별도 레이어.
+      final clusters = _selected.contains('posts')
+          ? await _loadClusters(c)
+          : const <PostCluster>[];
+
       await c.clearOverlays(type: NOverlayType.marker);
       _byMarkerId.clear();
+      _clusterByMarkerId.clear();
       final markers = <NAddableOverlay>{};
       for (final f in rows) {
         final id = 'fac_${f.id}';
@@ -88,6 +102,19 @@ class _MapTabState extends State<MapTab> {
           ..setIsHideCollidedMarkers(true)
           ..setOnTapListener((_) => _showFacilitySheet(f));
         _byMarkerId[id] = f;
+        markers.add(m);
+      }
+      for (final cl in clusters) {
+        final id = 'cluster_${cl.regionCode}';
+        final m = NMarker(id: id, position: NLatLng(cl.lat, cl.lng))
+          ..setIconTintColor(_postsLayer.$3)
+          ..setCaption(NOverlayCaption(
+            text: '게시글 ${cl.count}',
+            color: _postsLayer.$3,
+            haloColor: Colors.white,
+          ))
+          ..setOnTapListener((_) => _showRegionPosts(cl));
+        _clusterByMarkerId[id] = cl;
         markers.add(m);
       }
       if (markers.isNotEmpty) await c.addOverlayAll(markers);
@@ -101,6 +128,105 @@ class _MapTabState extends State<MapTab> {
     } finally {
       if (mounted) setState(() => _loadingFac = false);
     }
+  }
+
+  /// 현재 뷰포트(bbox) 안의 게시글 행정동 클러스터 조회.
+  Future<List<PostCluster>> _loadClusters(NaverMapController c) async {
+    try {
+      final b = await c.getContentBounds();
+      return await CommunityRepository.instance.postsByRegion(
+        minLng: b.southWest.longitude,
+        minLat: b.southWest.latitude,
+        maxLng: b.northEast.longitude,
+        maxLat: b.northEast.latitude,
+      );
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// 클러스터 탭 → 그 행정동 게시글 목록 시트.
+  void _showRegionPosts(PostCluster cl) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (ctx, scrollCtrl) => Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.forum_outlined, size: 18, color: _postsLayer.$3),
+                  const SizedBox(width: 8),
+                  Text('이 동네 게시글 ${cl.count}개',
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<List<Post>>(
+                future:
+                    CommunityRepository.instance.fetchPostsByIds(cl.postIds),
+                builder: (fctx, snap) {
+                  if (snap.connectionState != ConnectionState.done) {
+                    return const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2.4));
+                  }
+                  final posts = snap.data ?? const <Post>[];
+                  if (posts.isEmpty) {
+                    return const Center(
+                        child: Text('게시글을 불러오지 못했어요',
+                            style: TextStyle(color: AppColors.textTertiary)));
+                  }
+                  return ListView.builder(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    itemCount: posts.length,
+                    itemBuilder: (_, i) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: PostCard(
+                        post: posts[i],
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  PostDetailScreen(post: posts[i]),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 지도 준비 → 현재 위치로 이동 + 시설 조회. 위치 실패 시 서울 기준.
@@ -340,6 +466,16 @@ class _MapTabState extends State<MapTab> {
                                 onTap: () => _toggleCategory(c.$1),
                               ),
                             ),
+                          // 게시글 클러스터 레이어(시설과 별개)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: _CatChip(
+                              label: _postsLayer.$2,
+                              color: _postsLayer.$3,
+                              selected: _selected.contains(_postsLayer.$1),
+                              onTap: () => _toggleCategory(_postsLayer.$1),
+                            ),
+                          ),
                         ],
                       ),
                     ),

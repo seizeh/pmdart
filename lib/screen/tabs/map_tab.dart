@@ -39,6 +39,8 @@ class _MapTabState extends State<MapTab> {
   final Map<String, Facility> _byMarkerId = {};
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
 
+  // 네이버 지도 커스텀 스타일(지도 스타일 에디터에서 발급한 ID).
+  static const _customStyleId = '430d08d6-8afd-4661-9ffe-bcbf5c4351f4';
   static const _defaultZoom = 14.0;
   static const _seoul = NLatLng(37.5666, 126.9784);
   static const _initialPosition =
@@ -247,6 +249,7 @@ class _MapTabState extends State<MapTab> {
             child: NaverMap(
               options: const NaverMapViewOptions(
                 initialCameraPosition: _initialPosition,
+                customStyleId: _customStyleId,
                 locationButtonEnable: false,
                 consumeSymbolTapEvents: false,
               ),
@@ -255,6 +258,14 @@ class _MapTabState extends State<MapTab> {
                 _initLoad();
               },
               onCameraIdle: _onCameraIdle,
+              onCustomStyleLoadFailed: (e) {
+                debugPrint('커스텀 지도 스타일 로드 실패: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('지도 스타일을 불러오지 못했어요')),
+                  );
+                }
+              },
             ),
           ),
 

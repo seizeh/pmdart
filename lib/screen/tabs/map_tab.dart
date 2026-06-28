@@ -523,15 +523,29 @@ class _MapTabState extends State<MapTab> {
     }
     _suggestDebounce = Timer(const Duration(milliseconds: 250), () async {
       final center = _loadedCenter;
-      List<Facility> res;
+      final merged = <Facility>[];
       try {
-        res = await FacilityRepository.instance
-            .searchByName(q, lat: center?.latitude, lng: center?.longitude);
-      } catch (_) {
-        res = const [];
-      }
+        // DB 시설(이름) + 애견카페(실시간 이름검색) 병합 → 거리순.
+        final lists = await Future.wait([
+          FacilityRepository.instance
+              .searchByName(q, lat: center?.latitude, lng: center?.longitude),
+          if (center != null)
+            FacilityRepository.instance.searchPetCafes(
+              lat: center.latitude,
+              lng: center.longitude,
+              query: q,
+              radiusM: double.infinity,
+            )
+          else
+            Future.value(<Facility>[]),
+        ]);
+        merged
+          ..addAll(lists[0])
+          ..addAll(lists[1])
+          ..sort((a, b) => a.distanceM.compareTo(b.distanceM));
+      } catch (_) {/* 빈 결과 */}
       if (!mounted || _searchController.text.trim() != q) return;
-      setState(() => _suggestions = res.take(6).toList());
+      setState(() => _suggestions = merged.take(6).toList());
     });
   }
 

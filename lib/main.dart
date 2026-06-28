@@ -6,6 +6,7 @@ import 'screen/welcome_screen.dart';
 import 'screen/main_screen.dart';
 import 'screen/admin/admin_home_screen.dart';
 import 'services/session.dart';
+import 'services/keyboard_barrier.dart';
 
 Future<void> main() async {
   // Flutter 엔진 초기화
@@ -66,19 +67,23 @@ class PawMateApp extends StatelessWidget {
             }
             return false;
           },
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              child ?? const SizedBox.shrink(),
-              if (keyboardUp)
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () =>
-                        FocusManager.instance.primaryFocus?.unfocus(),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: keyboardBarrierEnabled,
+            builder: (_, barrierOn, _) => Stack(
+              fit: StackFit.expand,
+              children: [
+                child ?? const SizedBox.shrink(),
+                // 지도 등 자체 처리 화면(barrierOn=false)에서는 배리어를 끈다.
+                if (keyboardUp && barrierOn)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },

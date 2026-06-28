@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -82,6 +83,10 @@ class _MapTabState extends State<MapTab> {
   bool _dongSynced = false; // 세션당 1회 행정동 centroid 보충
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
 
+  Facility? _searchResult; // 검색으로 선택된 시설(강조 마커, 재조회에도 유지)
+  List<Facility> _suggestions = const []; // 자동완성 후보
+  Timer? _suggestDebounce;
+
   // 네이버 지도 커스텀 스타일(지도 스타일 에디터에서 발급한 ID).
   static const _customStyleId = '430d08d6-8afd-4661-9ffe-bcbf5c4351f4';
   static const _defaultZoom = 14.0;
@@ -91,6 +96,7 @@ class _MapTabState extends State<MapTab> {
 
   @override
   void dispose() {
+    _suggestDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -161,6 +167,20 @@ class _MapTabState extends State<MapTab> {
           ..setOnTapListener((_) => _showRegionPosts(cl));
         _clusterByMarkerId[id] = cl;
         markers.add(m);
+      }
+      // 검색으로 선택된 시설 강조 마커(카테고리/반경과 무관하게 항상 표시).
+      final sr = _searchResult;
+      if (sr != null) {
+        markers.add(NMarker(id: 'search', position: NLatLng(sr.lat, sr.lng))
+          ..setIconTintColor(AppColors.primaryDark)
+          ..setGlobalZIndex(1000000)
+          ..setCaption(NOverlayCaption(
+            text: _wrapCaption(sr.name),
+            textSize: 13,
+            color: AppColors.primaryDark,
+            haloColor: Colors.white,
+          ))
+          ..setOnTapListener((_) => _showFacilitySheet(sr)));
       }
       if (markers.isNotEmpty) await c.addOverlayAll(markers);
       _loadedCenter = center;
@@ -490,18 +510,140 @@ class _MapTabState extends State<MapTab> {
       );
       return;
     }
-    final top = results.first;
+    if (mounted) await _goToFacility(results.first);
+  }
+
+  /// 입력 변화 → 디바운스 후 자동완성 후보(시설명, DB) 조회.
+  void _onSuggestChanged(String v) {
+    _suggestDebounce?.cancel();
+    final q = v.trim();
+    if (q.isEmpty) {
+      setState(() => _suggestions = const []);
+      return;
+    }
+    _suggestDebounce = Timer(const Duration(milliseconds: 250), () async {
+      final center = _loadedCenter;
+      List<Facility> res;
+      try {
+        res = await FacilityRepository.instance
+            .searchByName(q, lat: center?.latitude, lng: center?.longitude);
+      } catch (_) {
+        res = const [];
+      }
+      if (!mounted || _searchController.text.trim() != q) return;
+      setState(() => _suggestions = res.take(6).toList());
+    });
+  }
+
+  void _clearSearch() {
+    _suggestDebounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _suggestions = const [];
+      _searchResult = null;
+    });
+    final center = _loadedCenter;
+    if (center != null) _loadFacilities(center); // 강조 마커 제거 반영
+  }
+
+  /// 검색 결과/후보 선택 → 카메라 이동 + 강조 마커 + 상세 시트.
+  Future<void> _goToFacility(Facility f) async {
+    final c = _controller;
+    if (c == null) return;
+    setState(() {
+      _searchResult = f;
+      _suggestions = const [];
+    });
+    _searchController.text = f.name;
+    FocusManager.instance.primaryFocus?.unfocus();
     await c.updateCamera(
-      NCameraUpdate.scrollAndZoomTo(
-        target: NLatLng(top.lat, top.lng),
-        zoom: 16,
-      )..setAnimation(
-          animation: NCameraAnimation.easing,
-          duration: const Duration(milliseconds: 400),
-        ),
+      NCameraUpdate.scrollAndZoomTo(target: NLatLng(f.lat, f.lng), zoom: 16)
+        ..setAnimation(
+            animation: NCameraAnimation.easing,
+            duration: const Duration(milliseconds: 400)),
     );
-    // 이동하면 onCameraIdle 가 주변 마커를 다시 로드한다. 매칭 시설 상세를 바로 보여준다.
-    if (mounted) _showFacilitySheet(top);
+    // 카메라 이동 → onCameraIdle 가 마커 재로드(강조 마커 포함). 상세 즉시 표시.
+    if (mounted) _showFacilitySheet(f);
+  }
+
+  /// 자동완성 후보 드롭다운.
+  Widget _buildSuggestions() {
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      constraints: const BoxConstraints(maxHeight: 280),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: _suggestions.length,
+        separatorBuilder: (_, _) =>
+            const Divider(height: 1, color: AppColors.border),
+        itemBuilder: (_, i) {
+          final f = _suggestions[i];
+          final dist = f.distanceM <= 0
+              ? ''
+              : (f.distanceM < 1000
+                  ? '${f.distanceM.round()}m'
+                  : '${(f.distanceM / 1000).toStringAsFixed(1)}km');
+          return InkWell(
+            onTap: () => _goToFacility(f),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                        shape: BoxShape.circle, color: _colorFor(f.category)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(f.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary)),
+                        if (f.address != null && f.address!.isNotEmpty)
+                          Text(f.address!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textTertiary)),
+                      ],
+                    ),
+                  ),
+                  if (dist.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text(dist,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textTertiary)),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -552,7 +694,10 @@ class _MapTabState extends State<MapTab> {
                     _SearchField(
                       controller: _searchController,
                       onSubmitted: _onSearchSubmitted,
+                      onChanged: _onSuggestChanged,
+                      onClear: _clearSearch,
                     ),
+                    if (_suggestions.isNotEmpty) _buildSuggestions(),
                     const SizedBox(height: 10),
                     SizedBox(
                       height: 34,
@@ -671,7 +816,14 @@ class _CatChip extends StatelessWidget {
 class _SearchField extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onSubmitted;
-  const _SearchField({required this.controller, required this.onSubmitted});
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  const _SearchField({
+    required this.controller,
+    required this.onSubmitted,
+    required this.onChanged,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -699,6 +851,7 @@ class _SearchField extends StatelessWidget {
               controller: controller,
               textInputAction: TextInputAction.search,
               onSubmitted: onSubmitted,
+              onChanged: onChanged,
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               decoration: const InputDecoration(
                 isCollapsed: true,
@@ -708,6 +861,19 @@ class _SearchField extends StatelessWidget {
                     TextStyle(color: AppColors.textTertiary, fontSize: 14),
               ),
             ),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (_, value, _) => value.text.isEmpty
+                ? const SizedBox.shrink()
+                : GestureDetector(
+                    onTap: onClear,
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Icon(Icons.close,
+                          color: AppColors.textTertiary, size: 20),
+                    ),
+                  ),
           ),
         ],
       ),

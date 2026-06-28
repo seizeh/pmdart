@@ -366,18 +366,22 @@ class _MapTabState extends State<MapTab> {
   }
 
   /// 네이버 지도로 링크 아웃 — 영업시간 등 상세는 거기서 확인.
-  /// 상호 + 자치구만으로 검색한다. 공공데이터 주소는 번지가 ***로 마스킹돼 있어
-  /// 전체 주소로 검색하면 오히려 결과가 안 나온다.
+  /// 상호는 시간이 지나면 실제 플레이스명과 어긋날 수 있어(예: "○○샵"→"○○"),
+  /// 이름 대신 **정확한 좌표**로 연다. 네이버 지도 앱(nmap)이 있으면 좌표에 핀+라벨,
+  /// 없으면 좌표 중심 웹 지도로 폴백.
   Future<void> _openInNaverMap(Facility f) async {
-    final addr = f.address ?? '';
-    final gu = RegExp(r'\S+구').firstMatch(addr)?.group(0) ??
-        RegExp(r'\S+[시군]').firstMatch(addr)?.group(0) ??
-        '';
-    final query =
-        [f.name, gu].where((s) => s.isNotEmpty).join(' ').trim();
-    final uri = Uri.parse(
-        'https://map.naver.com/p/search/${Uri.encodeComponent(query)}');
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final name = Uri.encodeComponent(f.name);
+    final app = Uri.parse(
+        'nmap://place?lat=${f.lat}&lng=${f.lng}&name=$name&appname=com.example.pawmate');
+    final web = Uri.parse(
+        'https://map.naver.com/p/?c=${f.lng},${f.lat},17,0,0,0,dh');
+    try {
+      if (await canLaunchUrl(app) &&
+          await launchUrl(app, mode: LaunchMode.externalApplication)) {
+        return;
+      }
+    } catch (_) {/* 앱 없음 → 웹 폴백 */}
+    final ok = await launchUrl(web, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('네이버 지도를 열 수 없어요')),

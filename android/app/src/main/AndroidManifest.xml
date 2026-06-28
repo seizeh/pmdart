@@ -5,11 +5,15 @@
     <!-- 게시글 사진 실존 인증: 카메라 촬영 -->
     <uses-permission android:name="android.permission.CAMERA"/>
 
-    <!-- url_launcher: 외부 https(네이버 지도 등) 열기 (Android 11+ 패키지 가시성) -->
+    <!-- url_launcher: 외부 https / 네이버 지도 앱(nmap) 열기 (Android 11+ 패키지 가시성) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="nmap" />
         </intent>
     </queries>
 

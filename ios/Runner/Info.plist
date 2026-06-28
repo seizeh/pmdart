@@ -74,5 +74,10 @@
 	<string>반려동물 신원 인증 영상을 촬영하기 위해 마이크 접근이 필요합니다.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>지도에서 현재 위치를 표시하기 위해 위치 접근이 필요합니다.</string>
+	<!-- 시설을 네이버 지도 앱에서 열기(nmap) 위해 -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>nmap</string>
+	</array>
 </dict>
 </plist>

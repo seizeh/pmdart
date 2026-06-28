@@ -36,13 +36,18 @@ class CommunityRepository {
   SupabaseClient get _c => Supabase.instance.client;
   String? get _uid => SessionManager.instance.user?.id;
 
-  /// 게시글 피드. [category] 가 null 이면 전체.
-  Future<List<Post>> fetchFeed({String? category}) async {
-    var query = _c.from('v_post_feed').select();
+  /// 게시글 피드. [category] 가 null 이면 전체. [query] 가 있으면 제목/내용 검색.
+  Future<List<Post>> fetchFeed({String? category, String? query}) async {
+    var q = _c.from('v_post_feed').select();
     if (category != null) {
-      query = query.eq('category', category);
+      q = q.eq('category', category);
     }
-    final rows = await query.order('created_at', ascending: false).limit(100);
+    // or() 파서를 깨뜨릴 수 있는 문자 제거 후 제목/내용 ilike 검색.
+    final term = (query ?? '').replaceAll(RegExp(r'[,()%*]'), ' ').trim();
+    if (term.isNotEmpty) {
+      q = q.or('title.ilike.%$term%,content.ilike.%$term%');
+    }
+    final rows = await q.order('created_at', ascending: false).limit(100);
     return (rows as List)
         .map((r) => Post.fromJson(r as Map<String, dynamic>))
         .toList();

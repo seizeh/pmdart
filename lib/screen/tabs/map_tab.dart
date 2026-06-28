@@ -319,6 +319,8 @@ class _MapTabState extends State<MapTab> {
 
   /// 지도 이동이 멈췄을 때, 중심이 1km 이상 벗어났으면 재조회(디바운스).
   Future<void> _onCameraIdle() async {
+    // 지도를 움직였다는 건 입력 중이 아니란 뜻 → 키보드 내리기.
+    FocusManager.instance.primaryFocus?.unfocus();
     final c = _controller;
     if (c == null || _loadedCenter == null || _loadingFac) return;
     final cam = await c.getCameraPosition();
@@ -470,6 +472,10 @@ class _MapTabState extends State<MapTab> {
                 _initLoad();
               },
               onCameraIdle: _onCameraIdle,
+              // 지도는 네이티브 뷰라 루트 GestureDetector 가 탭을 못 받는다.
+              // 지도를 탭하면 검색창 포커스를 직접 해제(키보드 닫기).
+              onMapTapped: (_, _) =>
+                  FocusManager.instance.primaryFocus?.unfocus(),
               onCustomStyleLoadFailed: (e) {
                 debugPrint('커스텀 지도 스타일 로드 실패: $e');
                 if (mounted) {

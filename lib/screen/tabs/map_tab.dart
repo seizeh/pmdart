@@ -299,9 +299,17 @@ class _MapTabState extends State<MapTab> {
   }
 
   /// 네이버 지도로 링크 아웃 — 영업시간 등 상세는 거기서 확인.
+  /// 상호 + 자치구만으로 검색한다. 공공데이터 주소는 번지가 ***로 마스킹돼 있어
+  /// 전체 주소로 검색하면 오히려 결과가 안 나온다.
   Future<void> _openInNaverMap(Facility f) async {
-    final q = Uri.encodeComponent('${f.name} ${f.address ?? ''}'.trim());
-    final uri = Uri.parse('https://map.naver.com/p/search/$q');
+    final addr = f.address ?? '';
+    final gu = RegExp(r'\S+구').firstMatch(addr)?.group(0) ??
+        RegExp(r'\S+[시군]').firstMatch(addr)?.group(0) ??
+        '';
+    final query =
+        [f.name, gu].where((s) => s.isNotEmpty).join(' ').trim();
+    final uri = Uri.parse(
+        'https://map.naver.com/p/search/${Uri.encodeComponent(query)}');
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

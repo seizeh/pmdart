@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
+import '../services/keyboard_barrier.dart';
 import 'tabs/community_tab.dart';
 import 'tabs/map_tab.dart';
 import 'tabs/user_search_tab.dart';
@@ -56,12 +57,22 @@ class _MainScreenState extends State<MainScreen>
         icon: Icons.person_outline, activeIcon: Icons.person, label: '내정보'),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _syncKeyboardBarrier();
+  }
+
+  // 지도 탭(index 0)은 자동완성 제안 탭을 위해 전역 키보드 배리어를 끈다.
+  void _syncKeyboardBarrier() => keyboardBarrierEnabled.value = _index != 0;
+
   void _select(int i) {
     if (i == _index) return;
     setState(() {
       _direction = i > _index ? 1 : -1;
       _index = i;
     });
+    _syncKeyboardBarrier();
     _tab.forward(from: 0); // 새 탭이 방향에서 흘러 들어옴
   }
 

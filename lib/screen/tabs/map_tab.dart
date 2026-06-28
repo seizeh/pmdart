@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_colors.dart';
 import '../../services/facility_repository.dart';
 import '../../services/location_service.dart';
@@ -171,6 +172,18 @@ class _MapTabState extends State<MapTab> {
     if (_loadedCenter != null) _loadFacilities(_loadedCenter!);
   }
 
+  /// 네이버 지도로 링크 아웃 — 영업시간 등 상세는 거기서 확인.
+  Future<void> _openInNaverMap(Facility f) async {
+    final q = Uri.encodeComponent('${f.name} ${f.address ?? ''}'.trim());
+    final uri = Uri.parse('https://map.naver.com/p/search/$q');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('네이버 지도를 열 수 없어요')),
+      );
+    }
+  }
+
   void _showFacilitySheet(Facility f) {
     final color = _colorFor(f.category);
     final dist = f.distanceM < 1000
@@ -224,6 +237,20 @@ class _MapTabState extends State<MapTab> {
                 const SizedBox(height: 8),
                 _row(Icons.call_outlined, f.phone!),
               ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _openInNaverMap(f),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryDark,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('네이버 지도에서 보기 (영업시간 등)',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
             ],
           ),
         ),

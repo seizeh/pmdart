@@ -40,6 +40,7 @@ dependencies:
   google_fonts: ^6.2.1
   flutter_naver_map: ^1.4.4
   geolocator: ^13.0.0 # 동네 인증용 고정확도 좌표 + accuracy/isMocked (0017)
+  url_launcher: ^6.3.0 # 시설 → 네이버 지도 링크 아웃(영업시간 등) (0021)
 
 dev_dependencies:
   flutter_test:

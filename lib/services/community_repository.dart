@@ -83,6 +83,13 @@ class CommunityRepository {
         .toList();
   }
 
+  /// 행정동 중심좌표 보충(동 이름 지오코딩) — 멱등. 실패는 무시(폴백 동작).
+  Future<void> syncDongCentroids() async {
+    try {
+      await _c.functions.invoke('sync-dong-centroids', body: {});
+    } catch (_) {/* 비어있으면 posts_by_region 이 사용자 평균으로 폴백 */}
+  }
+
   /// 게시글 ID 목록으로 피드 행 조회 (클러스터 탭 → 그 지역 글 목록).
   Future<List<Post>> fetchPostsByIds(List<String> ids) async {
     if (ids.isEmpty) return const [];

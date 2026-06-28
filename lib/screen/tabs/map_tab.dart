@@ -79,6 +79,7 @@ class _MapTabState extends State<MapTab> {
   final Set<String> _selected = {for (final c in _facilityCats) c.$1};
   final Map<String, Facility> _byMarkerId = {};
   final Map<String, PostCluster> _clusterByMarkerId = {}; // 게시글 클러스터 마커
+  bool _dongSynced = false; // 세션당 1회 행정동 centroid 보충
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
 
   // 네이버 지도 커스텀 스타일(지도 스타일 에디터에서 발급한 ID).
@@ -118,9 +119,15 @@ class _MapTabState extends State<MapTab> {
           ),
       ];
       // 게시글 행정동 클러스터(현재 뷰포트 bbox 기준) — 별도 레이어.
-      final clusters = _selected.contains('posts')
-          ? await _loadClusters(c)
-          : const <PostCluster>[];
+      // 첫 진입 시 행정동 중심좌표를 1회 보충(지오코딩) 후 클러스터 조회.
+      List<PostCluster> clusters = const [];
+      if (_selected.contains('posts')) {
+        if (!_dongSynced) {
+          _dongSynced = true;
+          await CommunityRepository.instance.syncDongCentroids();
+        }
+        clusters = await _loadClusters(c);
+      }
 
       await c.clearOverlays(type: NOverlayType.marker);
       _byMarkerId.clear();

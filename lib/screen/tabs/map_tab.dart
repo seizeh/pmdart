@@ -359,10 +359,51 @@ class _MapTabState extends State<MapTab> {
   }
 
   void _toggleCategory(String code) {
-    setState(() {
-      if (!_selected.add(code)) _selected.remove(code);
-    });
-    if (_loadedCenter != null) _loadFacilities(_loadedCenter!);
+    final enabling = _selected.add(code);
+    if (!enabling) _selected.remove(code);
+    setState(() {});
+    final center = _loadedCenter;
+    if (center == null) return;
+    if (code == 'posts' && enabling) {
+      _enablePostsLayer(center);
+    } else {
+      _loadFacilities(center);
+    }
+  }
+
+  /// 게시글 레이어 ON: 현재 화면에 클러스터가 없으면 게시글이 있는 가장 가까운
+  /// 지역으로 카메라를 이동(내 글 포함). 게시글은 글쓴이 인증 지역에 모이므로
+  /// 다른 곳을 보고 있으면 화면 밖이라 안 보이던 문제를 해결.
+  Future<void> _enablePostsLayer(NLatLng center) async {
+    await _loadFacilities(center);
+    if (!mounted || _clusterByMarkerId.isNotEmpty) return;
+    final wide = await CommunityRepository.instance
+        .postsByRegion(minLng: 124, minLat: 33, maxLng: 132, maxLat: 39);
+    if (!mounted) return;
+    if (wide.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('아직 등록된 동네 게시글이 없어요')),
+      );
+      return;
+    }
+    wide.sort((a, b) => Geolocator.distanceBetween(
+            center.latitude, center.longitude, a.lat, a.lng)
+        .compareTo(Geolocator.distanceBetween(
+            center.latitude, center.longitude, b.lat, b.lng)));
+    final n = wide.first;
+    final c = _controller;
+    if (c == null) return;
+    await c.updateCamera(
+      NCameraUpdate.scrollAndZoomTo(target: NLatLng(n.lat, n.lng), zoom: 14)
+        ..setAnimation(
+            animation: NCameraAnimation.easing,
+            duration: const Duration(milliseconds: 500)),
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('게시글이 있는 지역으로 이동했어요')),
+      );
+    }
   }
 
   /// 네이버 지도로 링크 아웃 — 영업시간 등 상세는 거기서 확인.

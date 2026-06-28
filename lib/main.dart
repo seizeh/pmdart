@@ -51,24 +51,37 @@ class PawMateApp extends StatelessWidget {
       title: 'PawMate',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      // 전 화면 공통: 입력창/키보드 외 빈 곳 탭 또는 스크롤 시 포커스 해제
-      // → 키보드 내려가고 검색 등 입력이 중단된다.
-      //  · 탭: GestureDetector(translucent) — 버튼 등 자식 탭은 그대로 동작.
-      //  · 스크롤: 루트 NotificationListener 가 하위 스크롤뷰의 드래그 시작을 받아 해제
-      //    (return false 로 알림은 계속 전파, 프로그래매틱 스크롤은 제외).
-      builder: (context, child) => NotificationListener<ScrollNotification>(
-        onNotification: (n) {
-          if (n is ScrollStartNotification && n.dragDetails != null) {
-            FocusManager.instance.primaryFocus?.unfocus();
-          }
-          return false;
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-          child: child,
-        ),
-      ),
+      // 전 화면 공통 키보드 해제:
+      //  · 스크롤: 하위 스크롤뷰의 드래그 시작을 받아 해제(알림은 계속 전파).
+      //  · 탭: 키보드가 떠 있을 때만 전체 화면에 배리어를 깔아, 화면 탭을 '키보드 닫기'
+      //    로 흡수(opaque)한다. 이 탭은 아래 위젯(게시글 등)에 전달되지 않으므로
+      //    "키보드 닫으려다 게시글이 눌리는" 문제가 없다. 키보드가 없으면 배리어도
+      //    없어 평소 탭은 정상 동작.
+      builder: (context, child) {
+        final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
+        return NotificationListener<ScrollNotification>(
+          onNotification: (n) {
+            if (n is ScrollStartNotification && n.dragDetails != null) {
+              FocusManager.instance.primaryFocus?.unfocus();
+            }
+            return false;
+          },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              child ?? const SizedBox.shrink(),
+              if (keyboardUp)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
       home: !SessionManager.instance.isLoggedIn
           ? const WelcomeScreen()
           : SessionManager.instance.isAdmin

@@ -326,8 +326,8 @@ class _MapTabState extends State<MapTab> {
 
   /// 지도 이동이 멈췄을 때, 중심이 1km 이상 벗어났으면 재조회(디바운스).
   Future<void> _onCameraIdle() async {
-    // 지도를 움직였다는 건 입력 중이 아니란 뜻 → 키보드 내리기.
-    FocusManager.instance.primaryFocus?.unfocus();
+    // 주의: 여기서 unfocus 하면 검색창 탭 → 키보드가 뜰 때의 지도 리레이아웃이
+    // onCameraIdle 을 유발해 키보드가 바로 닫힌다. 키보드 해제는 onMapTapped/배리어가 담당.
     final c = _controller;
     if (c == null || _loadedCenter == null || _loadingFac) return;
     final cam = await c.getCameraPosition();

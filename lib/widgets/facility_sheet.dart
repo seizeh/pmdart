@@ -118,11 +118,15 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(title: Text(f.name, overflow: TextOverflow.ellipsis)),
-      // 지도 플랫폼뷰 위에서 push 시 라우트가 무한 너비 제약을 받는 경우가 있어
-      // 화면폭으로 고정(무한 너비 → Expanded/버튼 레이아웃 터짐 방지).
+      // 지도 플랫폼뷰 위에서 push 시 라우트가 무한 제약(너비·높이)을 받는 경우가 있어
+      // 화면 크기로 고정(무한 너비/높이 → Expanded·ListView 레이아웃 터짐 방지).
       body: SafeArea(
-        child: SizedBox(
-          width: MediaQuery.of(context).size.width,
+        child: LayoutBuilder(
+          builder: (lctx, cns) {
+            final mq = MediaQuery.of(lctx).size;
+            return SizedBox(
+          width: cns.maxWidth.isFinite ? cns.maxWidth : mq.width,
+          height: cns.maxHeight.isFinite ? cns.maxHeight : mq.height,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
@@ -230,6 +234,8 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
               for (final r in reviews) _ReviewItem(review: r),
             ],
           ),
+            );
+          },
         ),
       ),
     );

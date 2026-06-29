@@ -136,8 +136,12 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
         ],
       ),
       body: SafeArea(
-        child: SizedBox(
-          width: MediaQuery.of(context).size.width,
+        child: LayoutBuilder(
+          builder: (lctx, cns) {
+            final mq = MediaQuery.of(lctx).size;
+            return SizedBox(
+          width: cns.maxWidth.isFinite ? cns.maxWidth : mq.width,
+          height: cns.maxHeight.isFinite ? cns.maxHeight : mq.height,
           child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -272,6 +276,8 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
             ),
           ],
           ),
+            );
+          },
         ),
       ),
     );

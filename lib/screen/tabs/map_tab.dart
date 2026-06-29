@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -11,6 +12,7 @@ import '../../services/community_repository.dart';
 import '../../services/location_service.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/facility_sheet.dart';
+import '../../widgets/map_bottom_sheet.dart';
 import '../post_detail_screen.dart';
 
 // 게시글 행정동 클러스터 칩(시설과 별개) — 코드/라벨/색.
@@ -72,11 +74,27 @@ String _wrapCaption(String name) {
   return lines.join('\n');
 }
 
-class _MapTabState extends State<MapTab> {
+class _MapTabState extends State<MapTab>
+    with AutomaticKeepAliveClientMixin {
+  // pmdb 0023: 맵은 앱에 1개만 두고 살려둔다. 스왑(상세 표시)으로 잠시 빌드가 빠져도
+  // 탭 상태(_detailFacility/_lastCamera 등)는 keep-alive 로 유지.
+  @override
+  bool get wantKeepAlive => true;
+
   NaverMapController? _controller;
   final _searchController = TextEditingController();
   bool _locating = false;
   bool _loadingFac = false;
+
+  // 지도 위에 라우트·모달을 올리면 PlatformView 충돌로 본문이 깨진다(pmdart #28).
+  // 그래서 showSheetOverMap: 지도를 스냅샷으로 얼린 뒤(_mapSnapshot) 그 위에 커스텀
+  // 바텀시트(_sheetChild)를 올린다(라이브 지도는 트리에서 빠짐).
+  File? _mapSnapshot;
+  Widget? _sheetChild;
+  // 동네 게시글은 전용 화면 스왑(_detailCluster).
+  PostCluster? _detailCluster;
+  // 스왑/시트 후 지도 재생성 시 직전 카메라로 복원(현재위치 점프 방지).
+  NCameraPosition? _lastCamera;
 
   // 선택된 카테고리(기본 전체). 마커 id → Facility(탭 시 바텀시트용).
   // 카테고리는 단일 선택(한 번에 하나만 표시) — 사업 카테고리가 겹치기 때문.
@@ -271,19 +289,21 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
-  /// 클러스터 탭 → 그 행정동 게시글 목록 시트.
-  // 모달이 아닌 전용 화면으로(네이버 지도 플랫폼뷰 위 스크롤 모달 hit-test 충돌 회피).
+  /// 클러스터 탭 → 그 행정동 게시글 목록(지도 대신 탭 내 스왑으로 표시).
   void _showRegionPosts(PostCluster cl) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => _RegionPostsScreen(cluster: cl)),
-    );
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _detailCluster = cl);
   }
 
   /// 지도 준비 → 현재 위치로 이동 + 시설 조회. 위치 실패 시 서울 기준.
   Future<void> _initLoad() async {
     final c = _controller;
     if (c == null) return;
+    // 스왑 복귀로 지도가 재생성된 경우: 현재위치 점프 없이 직전 화면/마커만 복원.
+    if (_lastCamera != null) {
+      await _loadFacilities(_lastCamera!.target);
+      return;
+    }
     final loc = await LocationService.instance.getCurrentPosition();
     if (loc.status == LocationStatus.ok && loc.position != null) {
       final p = NLatLng(loc.position!.latitude, loc.position!.longitude);
@@ -337,6 +357,7 @@ class _MapTabState extends State<MapTab> {
     final c = _controller;
     if (c == null || _loadedCenter == null || _loadingFac) return;
     final cam = await c.getCameraPosition();
+    _lastCamera = cam; // 스왑 후 복원용
     final moved = Geolocator.distanceBetween(
       _loadedCenter!.latitude, _loadedCenter!.longitude,
       cam.target.latitude, cam.target.longitude,
@@ -464,14 +485,37 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
-  /// 시설 상세 시트(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
+  /// 시설 상세(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크) — 지도 위 바텀시트.
   void _showFacilitySheet(Facility f) {
-    showFacilitySheet(
-      context,
-      f,
+    showSheetOverMap(FacilityDetailContent(
+      facility: f,
       color: _colorFor(f.category),
       label: kFacilityLabels[f.category] ?? f.category,
-    );
+    ));
+  }
+
+  /// 지도 위에 안전하게 바텀시트를 띄운다(재사용): 라이브 지도를 스냅샷으로 얼린 뒤
+  /// 그 위에 [MapBottomSheet] 로 [content] 를 올린다(PlatformView 충돌 회피, #28).
+  /// content 는 너비-안전 위젯만(머티리얼 버튼/Spacer/Expanded 금지).
+  Future<void> showSheetOverMap(Widget content) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    File? snap;
+    try {
+      snap = await _controller?.takeSnapshot();
+    } catch (_) {/* 스냅샷 실패 시 회색 배경으로 폴백 */}
+    if (!mounted) return;
+    setState(() {
+      _mapSnapshot = snap;
+      _sheetChild = content;
+    });
+  }
+
+  void _closeSheetOverMap() {
+    setState(() {
+      _sheetChild = null;
+      _mapSnapshot = null;
+    });
+    // 지도 위젯이 다시 빌드되며 재생성됨 → onMapReady 에서 _lastCamera 로 복원.
   }
 
   /// 시설명 검색 → 가장 가까운 결과로 카메라 이동 + 상세 시트.
@@ -664,14 +708,62 @@ class _MapTabState extends State<MapTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // AutomaticKeepAlive 필수 호출
+
+    // 지도 위 바텀시트: 라이브 지도 대신 스냅샷 이미지 + MapBottomSheet 를 그린다
+    // (PlatformView 위 모달 충돌 회피, pmdart #28).
+    if (_sheetChild != null) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _closeSheetOverMap();
+        },
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          body: Stack(
+            children: [
+              if (_mapSnapshot != null)
+                Positioned.fill(
+                  child: Image.file(_mapSnapshot!, fit: BoxFit.cover),
+                )
+              else
+                const Positioned.fill(
+                    child: ColoredBox(color: Color(0xFFEAEAEA))),
+              Positioned.fill(
+                child: MapBottomSheet(
+                  onClose: _closeSheetOverMap,
+                  child: _sheetChild!,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    // 동네 게시글: 전용 화면 스왑(지도 트리에서 제거).
+    if (_detailCluster != null) {
+      final cl = _detailCluster!;
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) setState(() => _detailCluster = null);
+        },
+        child: _RegionPostsScreen(
+          cluster: cl,
+          onClose: () => setState(() => _detailCluster = null),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
           ClipRect(
             child: NaverMap(
-              options: const NaverMapViewOptions(
-                initialCameraPosition: _initialPosition,
+              options: NaverMapViewOptions(
+                // 스왑 복귀 시 직전 카메라로 복원(없으면 첫 진입 기본 위치).
+                initialCameraPosition: _lastCamera ?? _initialPosition,
                 customStyleId: _customStyleId,
                 locationButtonEnable: false,
                 consumeSymbolTapEvents: false,
@@ -939,21 +1031,20 @@ class _MyLocationButton extends StatelessWidget {
 /// 동네 게시글 목록 화면(클러스터 탭 → 그 동에서 작성된 게시글).
 class _RegionPostsScreen extends StatelessWidget {
   final PostCluster cluster;
-  const _RegionPostsScreen({required this.cluster});
+  final VoidCallback onClose;
+  const _RegionPostsScreen({required this.cluster, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: Text('이 동네 게시글 ${cluster.count}개')),
+      appBar: AppBar(
+        leading:
+            IconButton(icon: const Icon(Icons.arrow_back), onPressed: onClose),
+        title: Text('이 동네 게시글 ${cluster.count}개'),
+      ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (lctx, cns) {
-            final mq = MediaQuery.of(lctx).size;
-            return SizedBox(
-          width: cns.maxWidth.isFinite ? cns.maxWidth : mq.width,
-          height: cns.maxHeight.isFinite ? cns.maxHeight : mq.height,
-          child: FutureBuilder<List<Post>>(
+        child: FutureBuilder<List<Post>>(
           future: CommunityRepository.instance.fetchPostsByIds(cluster.postIds),
           builder: (ctx, snap) {
             if (snap.connectionState != ConnectionState.done) {
@@ -966,23 +1057,30 @@ class _RegionPostsScreen extends StatelessWidget {
                   child: Text('게시글을 불러오지 못했어요',
                       style: TextStyle(color: AppColors.textTertiary)));
             }
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: posts.length,
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: PostCard(
-                  post: posts[i],
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => PostDetailScreen(post: posts[i])),
+            // 이 화면도 탭 내 스왑(#28). Align 이 제약을 loosen → SizedBox 로 폭을
+            // 화면폭으로 고정 → 그 안 ListView(스크롤) 정상. PostCard 는 유한 폭을 받아
+            // 내부 Spacer/double.infinity 가 정상 동작.
+            final w = MediaQuery.of(context).size.width;
+            return Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: w,
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: posts.length,
+                  itemBuilder: (_, i) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: PostCard(
+                      post: posts[i],
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => PostDetailScreen(post: posts[i])),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            );
-          },
-          ),
             );
           },
         ),

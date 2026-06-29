@@ -7,39 +7,28 @@ import '../services/facility_review_repository.dart';
 import '../services/session.dart';
 import '../screen/facility_review_screen.dart';
 
-/// 시설 상세 화면을 연다(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
-/// 모달이 아니라 전용 라우트로 띄운다 — 네이버 지도 플랫폼뷰 위에 스크롤 모달을
-/// 겹치면 hit-test 레이아웃 충돌이 나기 때문.
-Future<void> showFacilitySheet(
-  BuildContext context,
-  Facility facility, {
-  required Color color,
-  required String label,
-}) {
-  return Navigator.push<void>(
-    context,
-    MaterialPageRoute(
-      builder: (_) =>
-          FacilityDetailScreen(facility: facility, color: color, label: label),
-    ),
-  );
-}
-
-class FacilityDetailScreen extends StatefulWidget {
+/// 시설 상세 콘텐츠(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
+///
+/// `MapTab.showSheetOverMap` 이 지도를 스냅샷으로 얼린 뒤 [MapBottomSheet] 안에 이
+/// 콘텐츠를 올린다(살아있는 PlatformView 위에 모달을 겹치지 않으려고, pmdart #28).
+/// 시트가 프레임(손잡이·스크림·드래그 닫기·폭 고정 Align>SizedBox)을 제공하므로 여기선
+/// 본문 ListView 만 반환한다. ⚠️ 무한 너비에서 죽는 위젯 금지(머티리얼 버튼/Spacer/Expanded
+/// 대신 Container 탭/Text).
+class FacilityDetailContent extends StatefulWidget {
   final Facility facility;
   final Color color;
   final String label;
-  const FacilityDetailScreen(
+  const FacilityDetailContent(
       {super.key,
       required this.facility,
       required this.color,
       required this.label});
 
   @override
-  State<FacilityDetailScreen> createState() => _FacilityDetailScreenState();
+  State<FacilityDetailContent> createState() => _FacilityDetailContentState();
 }
 
-class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
+class _FacilityDetailContentState extends State<FacilityDetailContent> {
   List<FacilityReview>? _reviews;
 
   @override
@@ -115,132 +104,141 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
         ? '${f.distanceM.round()}m'
         : '${(f.distanceM / 1000).toStringAsFixed(1)}km';
     final reviews = _reviews;
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(title: Text(f.name, overflow: TextOverflow.ellipsis)),
-      // 지도 플랫폼뷰 위에서 push 시 라우트가 무한 제약(너비·높이)을 받는 경우가 있어
-      // 화면 크기로 고정(무한 너비/높이 → Expanded·ListView 레이아웃 터짐 방지).
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (lctx, cns) {
-            final mq = MediaQuery.of(lctx).size;
-            return SizedBox(
-          width: cns.maxWidth.isFinite ? cns.maxWidth : mq.width,
-          height: cns.maxHeight.isFinite ? cns.maxHeight : mq.height,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+    // 폭은 MapBottomSheet 가 Align>SizedBox 로 고정해 준다. 여기선 본문 ListView 만.
+    // 무한 너비에서 죽는 위젯 금지(Container 탭/Text 만).
+    return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
-            Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: widget.color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Text(widget.label,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: widget.color)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: widget.color.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text(widget.label,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: widget.color)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(dist,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textTertiary)),
+                  ],
                 ),
-                const Spacer(),
-                Text(dist,
+                const SizedBox(height: 10),
+                Text(f.name,
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.textTertiary)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(f.name,
-                style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary)),
-            if (reviews != null && reviews.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Row(children: [
-                const Icon(Icons.star, size: 16, color: Color(0xFFFFB300)),
-                const SizedBox(width: 3),
-                Text(_avg.toStringAsFixed(1),
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary)),
-                const SizedBox(width: 4),
-                Text('· 후기 ${reviews.length}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textTertiary)),
-              ]),
-            ],
-            if (f.address != null && f.address!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _row(Icons.place_outlined, f.address!),
-            ],
-            if (f.phone != null && f.phone!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _row(Icons.call_outlined, f.phone!),
-            ],
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _writeReview,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.rate_review_outlined, size: 18),
-                  label: const Text('후기 쓰기',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
+                if (reviews != null && reviews.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    const Icon(Icons.star, size: 16, color: Color(0xFFFFB300)),
+                    const SizedBox(width: 3),
+                    Text(_avg.toStringAsFixed(1),
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
+                    const SizedBox(width: 4),
+                    Text('· 후기 ${reviews.length}',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textTertiary)),
+                  ]),
+                ],
+                if (f.address != null && f.address!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _row(Icons.place_outlined, f.address!),
+                ],
+                if (f.phone != null && f.phone!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _row(Icons.call_outlined, f.phone!),
+                ],
+                const SizedBox(height: 16),
+                // 머티리얼 버튼은 무한 너비에서 maximumSize(∞)로 채우려다 터진다(이
+                // 화면 본문은 너비 제약이 깨져 무한이 들어옴, #28). Container 는 intrinsic
+                // 크기라 무한에서도 안전 → GestureDetector+Container 로 버튼을 구성.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: _writeReview,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryDark,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.rate_review_outlined,
+                              size: 18, color: Colors.white),
+                          SizedBox(width: 6),
+                          Text('후기 쓰기',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700)),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _openInNaverMap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.map_outlined,
+                              size: 18, color: AppColors.textSecondary),
+                          SizedBox(width: 6),
+                          Text('네이버',
+                              style: TextStyle(color: AppColors.textSecondary)),
+                        ]),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: _openInNaverMap,
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  side: const BorderSide(color: AppColors.border),
-                ),
-                icon: const Icon(Icons.map_outlined, size: 18),
-                label: const Text('네이버'),
-              ),
-            ]),
-            const SizedBox(height: 18),
-            const Divider(height: 1, color: AppColors.border),
-            const SizedBox(height: 14),
-            const Text('후기',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary)),
-            const SizedBox(height: 10),
-            if (reviews == null)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child:
-                    Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
-              )
-            else if (reviews.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: Text('아직 후기가 없어요. 첫 후기를 남겨보세요!',
-                      style: TextStyle(color: AppColors.textTertiary)),
-                ),
-              )
-            else
-              for (final r in reviews) _ReviewItem(review: r),
+                const SizedBox(height: 18),
+                const Divider(height: 1, color: AppColors.border),
+                const SizedBox(height: 14),
+                const Text('후기',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 10),
+                if (reviews == null)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2.4)),
+                  )
+                else if (reviews.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text('아직 후기가 없어요. 첫 후기를 남겨보세요!',
+                          style: TextStyle(color: AppColors.textTertiary)),
+                    ),
+                  )
+                else
+                  for (final r in reviews) _ReviewItem(review: r),
             ],
-          ),
-            );
-          },
-        ),
-      ),
     );
   }
 
+  // 시트 본문은 폭이 유한(스냅샷 위)이라 Expanded 로 긴 주소를 줄바꿈해도 안전.
   Widget _row(IconData icon, String text) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -269,11 +267,15 @@ class _ReviewItem extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(review.authorNickname,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
+              // 긴 닉네임이 가로로 넘치지 않게 Flexible + ellipsis(폭 유한이라 안전).
+              Flexible(
+                child: Text(review.authorNickname,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary)),
+              ),
               if (review.isMine) ...[
                 const SizedBox(width: 4),
                 const Text('(내 후기)',
@@ -288,6 +290,7 @@ class _ReviewItem extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               for (var i = 1; i <= 5; i++)
                 Icon(i <= review.rating ? Icons.star : Icons.star_border,

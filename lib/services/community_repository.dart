@@ -37,7 +37,20 @@ class CommunityRepository {
   String? get _uid => SessionManager.instance.user?.id;
 
   /// 게시글 피드. [category] 가 null 이면 전체. [query] 가 있으면 제목/내용 검색.
+  /// 활동 범위가 설정돼 있으면 그 반경 안의 동네 게시글만 조회(서버가 region_code 산출).
   Future<List<Post>> fetchFeed({String? category, String? query}) async {
+    // 활동범위 내 동 코드들. null = 필터 없음(미인증/미설정), [] = 반경 내 게시글 없음.
+    List<String>? codes;
+    try {
+      final res = await _c.rpc('feed_region_codes');
+      if (res != null) {
+        codes = [for (final c in (res as List)) c as String];
+      }
+    } catch (_) {
+      codes = null;
+    }
+    if (codes != null && codes.isEmpty) return const [];
+
     var q = _c.from('v_post_feed').select();
     if (category != null) {
       q = q.eq('category', category);
@@ -46,6 +59,9 @@ class CommunityRepository {
     final term = (query ?? '').replaceAll(RegExp(r'[,()%*]'), ' ').trim();
     if (term.isNotEmpty) {
       q = q.or('title.ilike.%$term%,content.ilike.%$term%');
+    }
+    if (codes != null) {
+      q = q.inFilter('region_code', codes);
     }
     final rows = await q.order('created_at', ascending: false).limit(100);
     return (rows as List)

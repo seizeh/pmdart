@@ -6,11 +6,11 @@ import '../theme/app_colors.dart';
 /// 살아있는 네이버 지도(PlatformView) 위에 `showModalBottomSheet`/
 /// `DraggableScrollableSheet` 를 겹치면 합성·hit-test 충돌로 깨진다(pmdart #28). 그래서
 /// `MapTab.showSheetOverMap` 이 지도를 **스냅샷 이미지로 얼린 뒤** 이 시트를 그 위에 올린다
-/// (라이브 PlatformView 가 시트 밑에 없음 → 안전).
+/// (라이브 PlatformView 가 시트 밑에서 빠짐 → 안전).
 ///
-/// ⚠️ 콘텐츠 제약: 이 시트는 지도 탭의 위젯 트리 안에서 그려지므로, 본문에는 무한 너비에서
-/// 죽는 위젯을 쓰면 안 된다 — **머티리얼 버튼/`Spacer`/`Expanded` 금지**, 대신
-/// `GestureDetector`+`Container`/`Text`. 폭은 이 시트가 `SizedBox(화면폭)` 로 고정해 준다.
+/// 스냅샷-스왑이라 시트 밑엔 PlatformView 가 없어 본문은 **평범한 위젯 트리** —
+/// `Expanded`/`Spacer`/머티리얼 위젯 모두 안전하다. 폭은 이 시트가 `Align>SizedBox(화면폭)`
+/// 로 유한하게 고정해 준다(텍스트 줄바꿈/Expanded 정상).
 class MapBottomSheet extends StatefulWidget {
   final Widget child;
   final VoidCallback onClose;

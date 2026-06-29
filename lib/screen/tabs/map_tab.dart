@@ -6,14 +6,12 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../theme/app_colors.dart';
-import '../../models/community.dart';
 import '../../services/facility_repository.dart';
 import '../../services/community_repository.dart';
 import '../../services/location_service.dart';
-import '../../widgets/post_card.dart';
 import '../../widgets/facility_sheet.dart';
 import '../../widgets/map_bottom_sheet.dart';
-import '../post_detail_screen.dart';
+import '../../widgets/region_posts_sheet.dart';
 
 // 게시글 행정동 클러스터 칩(시설과 별개) — 코드/라벨/색.
 const _postsLayer = ('posts', '게시글', Color(0xFF26A69A));
@@ -91,8 +89,7 @@ class _MapTabState extends State<MapTab>
   // 바텀시트(_sheetChild)를 올린다(라이브 지도는 트리에서 빠짐).
   File? _mapSnapshot;
   Widget? _sheetChild;
-  // 동네 게시글은 전용 화면 스왑(_detailCluster).
-  PostCluster? _detailCluster;
+  double _sheetHeight = 0.6;
   // 스왑/시트 후 지도 재생성 시 직전 카메라로 복원(현재위치 점프 방지).
   NCameraPosition? _lastCamera;
 
@@ -289,10 +286,9 @@ class _MapTabState extends State<MapTab>
     }
   }
 
-  /// 클러스터 탭 → 그 행정동 게시글 목록(지도 대신 탭 내 스왑으로 표시).
+  /// 클러스터 탭 → 그 행정동 게시글 목록(지도 위 바텀시트).
   void _showRegionPosts(PostCluster cl) {
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _detailCluster = cl);
+    showSheetOverMap(RegionPostsContent(cluster: cl), heightFactor: 0.7);
   }
 
   /// 지도 준비 → 현재 위치로 이동 + 시설 조회. 위치 실패 시 서울 기준.
@@ -496,8 +492,10 @@ class _MapTabState extends State<MapTab>
 
   /// 지도 위에 안전하게 바텀시트를 띄운다(재사용): 라이브 지도를 스냅샷으로 얼린 뒤
   /// 그 위에 [MapBottomSheet] 로 [content] 를 올린다(PlatformView 충돌 회피, #28).
-  /// content 는 너비-안전 위젯만(머티리얼 버튼/Spacer/Expanded 금지).
-  Future<void> showSheetOverMap(Widget content) async {
+  /// 스냅샷-스왑이라 시트 밑엔 라이브 PlatformView 가 없어 [content] 는 일반 위젯
+  /// (Expanded/Spacer/머티리얼)도 안전. [heightFactor] 로 시트 높이 조절.
+  Future<void> showSheetOverMap(Widget content,
+      {double heightFactor = 0.6}) async {
     FocusManager.instance.primaryFocus?.unfocus();
     File? snap;
     try {
@@ -507,6 +505,7 @@ class _MapTabState extends State<MapTab>
     setState(() {
       _mapSnapshot = snap;
       _sheetChild = content;
+      _sheetHeight = heightFactor;
     });
   }
 
@@ -732,25 +731,12 @@ class _MapTabState extends State<MapTab>
               Positioned.fill(
                 child: MapBottomSheet(
                   onClose: _closeSheetOverMap,
+                  heightFactor: _sheetHeight,
                   child: _sheetChild!,
                 ),
               ),
             ],
           ),
-        ),
-      );
-    }
-    // 동네 게시글: 전용 화면 스왑(지도 트리에서 제거).
-    if (_detailCluster != null) {
-      final cl = _detailCluster!;
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) setState(() => _detailCluster = null);
-        },
-        child: _RegionPostsScreen(
-          cluster: cl,
-          onClose: () => setState(() => _detailCluster = null),
         ),
       );
     }
@@ -1022,67 +1008,6 @@ class _MyLocationButton extends StatelessWidget {
                 : const Icon(Icons.my_location,
                     color: AppColors.primaryDark, size: 24),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 동네 게시글 목록 화면(클러스터 탭 → 그 동에서 작성된 게시글).
-class _RegionPostsScreen extends StatelessWidget {
-  final PostCluster cluster;
-  final VoidCallback onClose;
-  const _RegionPostsScreen({required this.cluster, required this.onClose});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        leading:
-            IconButton(icon: const Icon(Icons.arrow_back), onPressed: onClose),
-        title: Text('이 동네 게시글 ${cluster.count}개'),
-      ),
-      body: SafeArea(
-        child: FutureBuilder<List<Post>>(
-          future: CommunityRepository.instance.fetchPostsByIds(cluster.postIds),
-          builder: (ctx, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2.4));
-            }
-            final posts = snap.data ?? const <Post>[];
-            if (posts.isEmpty) {
-              return const Center(
-                  child: Text('게시글을 불러오지 못했어요',
-                      style: TextStyle(color: AppColors.textTertiary)));
-            }
-            // 이 화면도 탭 내 스왑(#28). Align 이 제약을 loosen → SizedBox 로 폭을
-            // 화면폭으로 고정 → 그 안 ListView(스크롤) 정상. PostCard 는 유한 폭을 받아
-            // 내부 Spacer/double.infinity 가 정상 동작.
-            final w = MediaQuery.of(context).size.width;
-            return Align(
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: w,
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  itemCount: posts.length,
-                  itemBuilder: (_, i) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: PostCard(
-                      post: posts[i],
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => PostDetailScreen(post: posts[i])),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
         ),
       ),
     );

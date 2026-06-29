@@ -30,6 +30,7 @@ class Post {
   final String progressStatus;
   final bool hearted;
   final String? imageUrl;
+  final String? authorAddress; // 작성자의 현재 활동지역(주소) — 이동 경고 비교용
 
   const Post({
     required this.id,
@@ -48,7 +49,16 @@ class Post {
     required this.progressStatus,
     required this.hearted,
     this.imageUrl,
+    this.authorAddress,
   });
+
+  /// 글의 동(작성 당시)과 작성자 현재 동이 다르면 = 작성자가 다른 지역으로 이동.
+  bool get authorMoved {
+    final pa = authorAddress?.trim();
+    final loc = location?.trim();
+    if (pa == null || pa.isEmpty || loc == null || loc.isEmpty) return false;
+    return pa.split(RegExp(r'\s+')).last != loc;
+  }
 
   factory Post.fromJson(Map<String, dynamic> j) => Post(
         id: j['id'] as String,
@@ -67,6 +77,7 @@ class Post {
         progressStatus: (j['progress_status'] ?? 'recruiting') as String,
         hearted: j['hearted'] == true,
         imageUrl: j['image_url'] as String?,
+        authorAddress: j['author_address'] as String?,
       );
 
   /// 하트 토글·조회수 등 낙관적 업데이트용.
@@ -87,6 +98,7 @@ class Post {
         progressStatus: progressStatus,
         hearted: hearted ?? this.hearted,
         imageUrl: imageUrl,
+        authorAddress: authorAddress,
       );
 }
 

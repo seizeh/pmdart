@@ -138,6 +138,8 @@ class _MyInfoTabState extends State<MyInfoTab> {
                 _ActivitySection(
                     profile: profile, pendingInvites: _pendingInvites),
                 const SizedBox(height: 12),
+                _ActivityRangeSection(profile: profile),
+                const SizedBox(height: 12),
                 _InterestSection(profile: profile),
                 const SizedBox(height: 12),
                 _SettingsSection(profile: profile),
@@ -532,6 +534,125 @@ class _ItemRow extends StatelessWidget {
             const Icon(Icons.chevron_right,
                 size: 18, color: AppColors.textTertiary),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 활동 범위 설정 — 인증 동 기준 반경(최대 7km).
+class _ActivityRangeSection extends StatefulWidget {
+  final ProfileData profile;
+  const _ActivityRangeSection({required this.profile});
+
+  @override
+  State<_ActivityRangeSection> createState() => _ActivityRangeSectionState();
+}
+
+class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
+  static const _options = [1000, 2000, 3000, 5000, 7000]; // m, 최대 7km
+  late int? _radius = widget.profile.activityRadiusM;
+  bool _saving = false;
+
+  Future<void> _select(int m) async {
+    if (_saving || m == _radius) return;
+    final prev = _radius;
+    setState(() {
+      _radius = m;
+      _saving = true;
+    });
+    try {
+      await ProfileRepository.instance.setActivityRadius(m);
+    } catch (_) {
+      if (mounted) setState(() => _radius = prev);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('활동 범위를 저장하지 못했어요')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final verified = widget.profile.isLocationVerified;
+    final dong = widget.profile.regionName;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('활동 범위',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            Text(
+              verified
+                  ? '${dong ?? '내 동네'} 기준 반경 · 최대 7km'
+                  : '동네 인증을 먼저 완료하면 설정할 수 있어요',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textTertiary),
+            ),
+            if (verified) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final m in _options)
+                    _RadiusChip(
+                      label: '${m ~/ 1000}km',
+                      selected: _radius == m,
+                      onTap: () => _select(m),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RadiusChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _RadiusChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryDark : AppColors.surface,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+              color: selected ? AppColors.primaryDark : AppColors.border,
+              width: 0.5),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
+          ),
         ),
       ),
     );

@@ -107,9 +107,10 @@ class _MapTabState extends State<MapTab> {
     if (c == null) return;
     setState(() => _loadingFac = true);
     try {
-      // 공공데이터(DB) 카테고리 + 애견카페(실시간) 분리 조회 후 합친다.
-      final dbCats =
-          _selected.where((cat) => cat != 'pet_cafe').toList();
+      // 공공데이터(DB) 카테고리만 — 'pet_cafe'(실시간)·'posts'(게시글)는 제외.
+      final dbCats = _selected
+          .where((cat) => cat != 'pet_cafe' && cat != _postsLayer.$1)
+          .toList();
       final rows = <Facility>[
         if (dbCats.isNotEmpty)
           ...await FacilityRepository.instance.nearby(
@@ -157,14 +158,18 @@ class _MapTabState extends State<MapTab> {
       }
       for (final cl in clusters) {
         final id = 'cluster_${cl.regionCode}';
-        final m = NMarker(id: id, position: NLatLng(cl.lat, cl.lng))
-          ..setIconTintColor(_postsLayer.$3)
-          ..setCaption(NOverlayCaption(
+        // 동 중심에 게시글 수 배지(탭 시 그 동 게시글 목록). 없으면 캡션 폴백.
+        final badge = await _clusterBadge(cl.count);
+        final m = NMarker(id: id, position: NLatLng(cl.lat, cl.lng), icon: badge)
+          ..setAnchor(const NPoint(0.5, 0.5))
+          ..setOnTapListener((_) => _showRegionPosts(cl));
+        if (badge == null) {
+          m.setCaption(NOverlayCaption(
             text: '게시글 ${cl.count}',
             color: _postsLayer.$3,
             haloColor: Colors.white,
-          ))
-          ..setOnTapListener((_) => _showRegionPosts(cl));
+          ));
+        }
         _clusterByMarkerId[id] = cl;
         markers.add(m);
       }
@@ -185,10 +190,18 @@ class _MapTabState extends State<MapTab> {
       if (markers.isNotEmpty) await c.addOverlayAll(markers);
       _loadedCenter = center;
     } catch (_) {
+      // 오류가 나도 이전 마커는 제거(선택 해제한 카테고리 마커가 남지 않도록).
+      try {
+        await c.clearOverlays(type: NOverlayType.marker);
+      } catch (_) {/* 무시 */}
+      _byMarkerId.clear();
+      _clusterByMarkerId.clear();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('주변 시설을 불러오지 못했어요')),
-        );
+        final msg = _selected.contains(_postsLayer.$1) && _selected.length == 1
+            ? '게시글을 불러오지 못했어요'
+            : '주변 시설을 불러오지 못했어요';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
       }
     } finally {
       if (mounted) setState(() => _loadingFac = false);
@@ -207,6 +220,45 @@ class _MapTabState extends State<MapTab> {
       );
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// 동 중심에 표시할 게시글 수 배지(위젯 → 오버레이 이미지). 실패 시 null.
+  Future<NOverlayImage?> _clusterBadge(int count) async {
+    try {
+      return await NOverlayImage.fromWidget(
+        context: context,
+        widget: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: _postsLayer.$3,
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$count',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      height: 1.0)),
+              const Text('게시글',
+                  style: TextStyle(
+                      color: Colors.white, fontSize: 9, height: 1.3)),
+            ],
+          ),
+        ),
+      );
+    } catch (_) {
+      return null;
     }
   }
 
@@ -358,11 +410,41 @@ class _MapTabState extends State<MapTab> {
     if (moved > 1000) await _loadFacilities(cam.target);
   }
 
+  // 게시글 레이어는 시설 카테고리와 동시 표시 불가(배타). 게시글을 켜면 시설을 모두
+  // 끄고, 시설을 켜면 게시글을 끈다. 시설끼리는 다중 선택 유지.
   void _toggleCategory(String code) {
     setState(() {
-      if (!_selected.add(code)) _selected.remove(code);
+      final isPosts = code == _postsLayer.$1;
+      if (_selected.contains(code)) {
+        _selected.remove(code);
+      } else if (isPosts) {
+        _selected
+          ..clear()
+          ..add(code); // 게시글 단독
+      } else {
+        _selected.remove(_postsLayer.$1); // 시설 선택 → 게시글 끔
+        _selected.add(code);
+      }
     });
-    if (_loadedCenter != null) _loadFacilities(_loadedCenter!);
+    final center = _loadedCenter;
+    if (center == null) return;
+    if (code == _postsLayer.$1 && _selected.contains(code)) {
+      _loadPostsAndNotify(center);
+    } else {
+      _loadFacilities(center);
+    }
+  }
+
+  /// 게시글 레이어를 켤 때, 현재 화면에 조회된 게시글이 없으면 안내.
+  Future<void> _loadPostsAndNotify(NLatLng center) async {
+    await _loadFacilities(center);
+    if (mounted &&
+        _selected.contains(_postsLayer.$1) &&
+        _clusterByMarkerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이 지역에 조회된 게시글이 없어요')),
+      );
+    }
   }
 
   /// 네이버 지도로 링크 아웃 — 영업시간 등 상세는 거기서 확인.

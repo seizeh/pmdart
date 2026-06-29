@@ -34,6 +34,11 @@ class PostCard extends StatelessWidget {
             Row(
               children: [
                 _CategoryTag(category: post.category, color: color),
+                // 작성자 활동지역(동 단위) — 카테고리 옆에 표시
+                if (post.location != null && post.location!.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Flexible(child: _DongTag(label: post.location!)),
+                ],
                 const Spacer(),
                 Text(
                   timeAgo(post.createdAt),
@@ -82,21 +87,12 @@ class PostCard extends StatelessWidget {
                 ),
               ),
             ],
-            if (post.location != null || post.scheduledAt != null) ...[
+            if (post.scheduledAt != null) ...[
               const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  if (post.location != null)
-                    _MetaPill(icon: Icons.place_outlined, label: post.location!),
-                  if (post.scheduledAt != null)
-                    _MetaPill(
-                      icon: Icons.event_outlined,
-                      label:
-                          '${post.scheduledAt!.month}/${post.scheduledAt!.day} ${post.scheduledAt!.hour}시',
-                    ),
-                ],
+              _MetaPill(
+                icon: Icons.event_outlined,
+                label:
+                    '${post.scheduledAt!.month}/${post.scheduledAt!.day} ${post.scheduledAt!.hour}시',
               ),
             ],
             const SizedBox(height: 12),
@@ -171,6 +167,35 @@ class _CategoryTag extends StatelessWidget {
           color: color,
         ),
       ),
+    );
+  }
+}
+
+/// 작성자 활동지역(동 단위) 태그 — 카테고리 옆.
+class _DongTag extends StatelessWidget {
+  final String label;
+  const _DongTag({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.place_outlined, size: 13, color: AppColors.textTertiary),
+        const SizedBox(width: 2),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

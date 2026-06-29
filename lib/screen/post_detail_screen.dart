@@ -548,6 +548,26 @@ class _InfoBox extends StatelessWidget {
             const SizedBox(height: 12),
           if (post.location != null)
             _row(Icons.place_outlined, '위치', post.location!),
+          if (post.authorMoved) ...[
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info_outline,
+                    size: 16, color: AppColors.warning),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '작성자가 현재 다른 지역에 있어요.\n위 위치는 작성 당시 활동 동네예요.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: AppColors.warning),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

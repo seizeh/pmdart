@@ -37,7 +37,9 @@ class PostCard extends StatelessWidget {
                 // 작성자 활동지역(동 단위) — 카테고리 옆에 표시
                 if (post.location != null && post.location!.isNotEmpty) ...[
                   const SizedBox(width: 6),
-                  Flexible(child: _DongTag(label: post.location!)),
+                  Flexible(
+                      child: _DongTag(
+                          label: post.location!, moved: post.authorMoved)),
                 ],
                 const Spacer(),
                 Text(
@@ -172,26 +174,30 @@ class _CategoryTag extends StatelessWidget {
 }
 
 /// 작성자 활동지역(동 단위) 태그 — 카테고리 옆.
+/// [moved] = 작성자가 현재 다른 지역에 있음(작성 당시 동과 다름) → 경고색 + 아이콘.
 class _DongTag extends StatelessWidget {
   final String label;
-  const _DongTag({required this.label});
+  final bool moved;
+  const _DongTag({required this.label, this.moved = false});
 
   @override
   Widget build(BuildContext context) {
+    final color = moved ? AppColors.warning : AppColors.textSecondary;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.place_outlined, size: 13, color: AppColors.textTertiary),
+        Icon(moved ? Icons.info_outline : Icons.place_outlined,
+            size: 13, color: moved ? AppColors.warning : AppColors.textTertiary),
         const SizedBox(width: 2),
         Flexible(
           child: Text(
-            label,
+            moved ? '$label·이동' : label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+              color: color,
             ),
           ),
         ),

@@ -5,13 +5,12 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../theme/app_colors.dart';
-import '../../models/community.dart';
 import '../../services/facility_repository.dart';
 import '../../services/community_repository.dart';
 import '../../services/location_service.dart';
-import '../../widgets/post_card.dart';
 import '../../widgets/facility_sheet.dart';
-import '../post_detail_screen.dart';
+import '../../widgets/map_bottom_sheet.dart';
+import '../../widgets/region_posts_sheet.dart';
 
 // 게시글 행정동 클러스터 칩(시설과 별개) — 코드/라벨/색.
 const _postsLayer = ('posts', '게시글', Color(0xFF26A69A));
@@ -72,11 +71,26 @@ String _wrapCaption(String name) {
   return lines.join('\n');
 }
 
-class _MapTabState extends State<MapTab> {
+class _MapTabState extends State<MapTab>
+    with AutomaticKeepAliveClientMixin {
+  // pmdb 0023: 맵은 앱에 1개만 두고 살려둔다. 스왑(상세 표시)으로 잠시 빌드가 빠져도
+  // 탭 상태(_detailFacility/_lastCamera 등)는 keep-alive 로 유지.
+  @override
+  bool get wantKeepAlive => true;
+
   NaverMapController? _controller;
   final _searchController = TextEditingController();
   bool _locating = false;
   bool _loadingFac = false;
+
+  // 시설/게시글 시트는 지도를 트리에서 빼지 않고(= 재생성 없음) 라이브 지도 위에
+  // 그대로 올린다. 과거의 "PlatformView 위 모달 합성 충돌" 가설은 실제로는 본문의
+  // 무한너비 버그였고(#28), 그건 MapBottomSheet 의 Align>SizedBox 가 잡아준다.
+  // (스냅샷으로 얼리는 우회는 불필요 — 지도가 살아있어 닫을 때 재로딩이 없다.)
+  Widget? _sheetChild;
+  double _sheetHeight = 0.6;
+  // 첫 진입 시 카메라 기준(시트는 지도를 유지하므로 평소엔 재생성 안 됨).
+  NCameraPosition? _lastCamera;
 
   // 선택된 카테고리(기본 전체). 마커 id → Facility(탭 시 바텀시트용).
   // 카테고리는 단일 선택(한 번에 하나만 표시) — 사업 카테고리가 겹치기 때문.
@@ -271,19 +285,20 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
-  /// 클러스터 탭 → 그 행정동 게시글 목록 시트.
-  // 모달이 아닌 전용 화면으로(네이버 지도 플랫폼뷰 위 스크롤 모달 hit-test 충돌 회피).
+  /// 클러스터 탭 → 그 행정동 게시글 목록(지도 위 바텀시트).
   void _showRegionPosts(PostCluster cl) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => _RegionPostsScreen(cluster: cl)),
-    );
+    showSheetOverMap(RegionPostsContent(cluster: cl), heightFactor: 0.7);
   }
 
   /// 지도 준비 → 현재 위치로 이동 + 시설 조회. 위치 실패 시 서울 기준.
   Future<void> _initLoad() async {
     final c = _controller;
     if (c == null) return;
+    // 스왑 복귀로 지도가 재생성된 경우: 현재위치 점프 없이 직전 화면/마커만 복원.
+    if (_lastCamera != null) {
+      await _loadFacilities(_lastCamera!.target);
+      return;
+    }
     final loc = await LocationService.instance.getCurrentPosition();
     if (loc.status == LocationStatus.ok && loc.position != null) {
       final p = NLatLng(loc.position!.latitude, loc.position!.longitude);
@@ -337,6 +352,7 @@ class _MapTabState extends State<MapTab> {
     final c = _controller;
     if (c == null || _loadedCenter == null || _loadingFac) return;
     final cam = await c.getCameraPosition();
+    _lastCamera = cam; // 스왑 후 복원용
     final moved = Geolocator.distanceBetween(
       _loadedCenter!.latitude, _loadedCenter!.longitude,
       cam.target.latitude, cam.target.longitude,
@@ -464,14 +480,30 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
-  /// 시설 상세 시트(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
+  /// 시설 상세(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크) — 지도 위 바텀시트.
   void _showFacilitySheet(Facility f) {
-    showFacilitySheet(
-      context,
-      f,
+    showSheetOverMap(FacilityDetailContent(
+      facility: f,
       color: _colorFor(f.category),
       label: kFacilityLabels[f.category] ?? f.category,
-    );
+    ));
+  }
+
+  /// 라이브 지도 위에 [MapBottomSheet] 로 [content] 를 올린다(재사용).
+  /// 지도는 트리에 그대로 유지되므로 닫아도 재생성/재로딩이 없다(#28→#29 후속).
+  /// 시트가 폭을 Align>SizedBox 로 고정하므로 [content] 는 일반 위젯(Expanded/Spacer/
+  /// 머티리얼)도 안전. [heightFactor] 로 시트 높이 조절.
+  void showSheetOverMap(Widget content, {double heightFactor = 0.6}) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _sheetChild = content;
+      _sheetHeight = heightFactor;
+    });
+  }
+
+  void _closeSheetOverMap() {
+    setState(() => _sheetChild = null);
+    // 지도는 그대로 살아있어 즉시 다시 보인다(재로딩 없음).
   }
 
   /// 시설명 검색 → 가장 가까운 결과로 카메라 이동 + 상세 시트.
@@ -664,113 +696,141 @@ class _MapTabState extends State<MapTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          ClipRect(
-            child: NaverMap(
-              options: const NaverMapViewOptions(
-                initialCameraPosition: _initialPosition,
-                customStyleId: _customStyleId,
-                locationButtonEnable: false,
-                consumeSymbolTapEvents: false,
-              ),
-              onMapReady: (controller) {
-                _controller = controller;
-                _initLoad();
-              },
-              onCameraIdle: _onCameraIdle,
-              // 지도는 네이티브 뷰라 루트 GestureDetector 가 탭을 못 받는다.
-              // 지도를 탭하면 검색창 포커스를 직접 해제(키보드 닫기).
-              onMapTapped: (_, _) =>
-                  FocusManager.instance.primaryFocus?.unfocus(),
-              onCustomStyleLoadFailed: (e) {
-                debugPrint('커스텀 지도 스타일 로드 실패: $e');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('지도 스타일을 불러오지 못했어요')),
-                  );
-                }
-              },
-            ),
-          ),
+    super.build(context); // AutomaticKeepAlive 필수 호출
 
-          // 상단: 검색창 + 카테고리 필터칩
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Column(
-                  children: [
-                    _SearchField(
-                      controller: _searchController,
-                      onSubmitted: _onSearchSubmitted,
-                      onChanged: _onSuggestChanged,
-                      onClear: _clearSearch,
-                    ),
-                    if (_suggestions.isNotEmpty) _buildSuggestions(),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 34,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (final c in _facilityCats)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: _CatChip(
-                                label: c.$2,
-                                color: c.$3,
-                                selected: _selected.contains(c.$1),
-                                onTap: () => _toggleCategory(c.$1),
-                              ),
-                            ),
-                          // 게시글 클러스터 레이어(시설과 별개)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: _CatChip(
-                              label: _postsLayer.$2,
-                              color: _postsLayer.$3,
-                              selected: _selected.contains(_postsLayer.$1),
-                              onTap: () => _toggleCategory(_postsLayer.$1),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+    // 지도는 시트가 열려도 트리에 그대로 유지한다(dispose/재생성 안 함 → 닫을 때
+    // 타일·마커 재로딩 없이 즉시 복귀). 시트가 열리면 라이브 지도 위에 바로
+    // MapBottomSheet 를 올린다(스크림이 지도를 어둡게, 본문 폭은 시트의 Align>SizedBox
+    // 가 고정 → #28 무한너비 해결). 안드로이드 뒤로가기는 시트가 열려 있으면 닫기.
+    final sheetOpen = _sheetChild != null;
+    return PopScope(
+      canPop: !sheetOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && sheetOpen) _closeSheetOverMap();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Stack(
+          children: [
+            ClipRect(
+              child: NaverMap(
+                options: NaverMapViewOptions(
+                  initialCameraPosition: _lastCamera ?? _initialPosition,
+                  customStyleId: _customStyleId,
+                  locationButtonEnable: false,
+                  consumeSymbolTapEvents: false,
+                ),
+                onMapReady: (controller) {
+                  _controller = controller;
+                  _initLoad();
+                },
+                onCameraIdle: _onCameraIdle,
+                // 지도는 네이티브 뷰라 루트 GestureDetector 가 탭을 못 받는다.
+                // 지도를 탭하면 검색창 포커스를 직접 해제(키보드 닫기).
+                onMapTapped: (_, _) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
+                onCustomStyleLoadFailed: (e) {
+                  debugPrint('커스텀 지도 스타일 로드 실패: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('지도 스타일을 불러오지 못했어요')),
+                    );
+                  }
+                },
+              ),
+            ),
+
+            // 시트 오버레이: 라이브 지도 위에 바로(스크림이 지도를 어둡게 처리).
+            if (sheetOpen)
+              Positioned.fill(
+                child: MapBottomSheet(
+                  onClose: _closeSheetOverMap,
+                  heightFactor: _sheetHeight,
+                  child: _sheetChild!,
                 ),
               ),
-            ),
-          ),
 
-          if (_loadingFac)
-            const Positioned(
-              top: 0, left: 0, right: 0, bottom: 0,
-              child: IgnorePointer(
-                child: Align(
-                  alignment: Alignment.topCenter,
+            // 지도 UI(검색/칩/로딩/내위치) — 시트가 열리면 숨김.
+            if (!sheetOpen) ...[
+              // 상단: 검색창 + 카테고리 필터칩
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
                   child: Padding(
-                    padding: EdgeInsets.only(top: 120),
-                    child: SizedBox(
-                        width: 22, height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.4)),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Column(
+                      children: [
+                        _SearchField(
+                          controller: _searchController,
+                          onSubmitted: _onSearchSubmitted,
+                          onChanged: _onSuggestChanged,
+                          onClear: _clearSearch,
+                        ),
+                        if (_suggestions.isNotEmpty) _buildSuggestions(),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 34,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              for (final c in _facilityCats)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: _CatChip(
+                                    label: c.$2,
+                                    color: c.$3,
+                                    selected: _selected.contains(c.$1),
+                                    onTap: () => _toggleCategory(c.$1),
+                                  ),
+                                ),
+                              // 게시글 클러스터 레이어(시설과 별개)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: _CatChip(
+                                  label: _postsLayer.$2,
+                                  color: _postsLayer.$3,
+                                  selected: _selected.contains(_postsLayer.$1),
+                                  onTap: () => _toggleCategory(_postsLayer.$1),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-          Positioned(
-            right: 16,
-            bottom: 24,
-            child: _MyLocationButton(loading: _locating, onTap: _goToMyLocation),
-          ),
-        ],
+              if (_loadingFac)
+                const Positioned(
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  child: IgnorePointer(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 120),
+                        child: SizedBox(
+                            width: 22, height: 22,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2.4)),
+                      ),
+                    ),
+                  ),
+                ),
+
+              Positioned(
+                right: 16,
+                bottom: 24,
+                child: _MyLocationButton(
+                    loading: _locating, onTap: _goToMyLocation),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -930,61 +990,6 @@ class _MyLocationButton extends StatelessWidget {
                 : const Icon(Icons.my_location,
                     color: AppColors.primaryDark, size: 24),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 동네 게시글 목록 화면(클러스터 탭 → 그 동에서 작성된 게시글).
-class _RegionPostsScreen extends StatelessWidget {
-  final PostCluster cluster;
-  const _RegionPostsScreen({required this.cluster});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(title: Text('이 동네 게시글 ${cluster.count}개')),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (lctx, cns) {
-            final mq = MediaQuery.of(lctx).size;
-            return SizedBox(
-          width: cns.maxWidth.isFinite ? cns.maxWidth : mq.width,
-          height: cns.maxHeight.isFinite ? cns.maxHeight : mq.height,
-          child: FutureBuilder<List<Post>>(
-          future: CommunityRepository.instance.fetchPostsByIds(cluster.postIds),
-          builder: (ctx, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2.4));
-            }
-            final posts = snap.data ?? const <Post>[];
-            if (posts.isEmpty) {
-              return const Center(
-                  child: Text('게시글을 불러오지 못했어요',
-                      style: TextStyle(color: AppColors.textTertiary)));
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: posts.length,
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: PostCard(
-                  post: posts[i],
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => PostDetailScreen(post: posts[i])),
-                  ),
-                ),
-              ),
-            );
-          },
-          ),
-            );
-          },
         ),
       ),
     );

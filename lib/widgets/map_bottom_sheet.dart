@@ -3,14 +3,14 @@ import '../theme/app_colors.dart';
 
 /// 지도 위에 안전하게 띄우는 커스텀 바텀시트.
 ///
-/// 살아있는 네이버 지도(PlatformView) 위에 `showModalBottomSheet`/
-/// `DraggableScrollableSheet` 를 겹치면 합성·hit-test 충돌로 깨진다(pmdart #28). 그래서
-/// `MapTab.showSheetOverMap` 이 지도를 **스냅샷 이미지로 얼린 뒤** 이 시트를 그 위에 올린다
-/// (라이브 PlatformView 가 시트 밑에서 빠짐 → 안전).
+/// `MapTab.showSheetOverMap` 이 **라이브 네이버 지도 위에 바로** 이 시트를 올린다.
+/// 과거엔 "PlatformView 위 모달은 합성 충돌로 깨진다"고 보고 지도를 스냅샷으로 얼려
+/// 우회했지만, 실제 원인은 본문의 **무한 너비** 버그였다(pmdart #28). 그건 이 시트가
+/// 본문 폭을 `Align>SizedBox(화면폭)` 로 유한 고정해 해결한다(텍스트 줄바꿈/Expanded 정상).
 ///
-/// 스냅샷-스왑이라 시트 밑엔 PlatformView 가 없어 본문은 **평범한 위젯 트리** —
-/// `Expanded`/`Spacer`/머티리얼 위젯 모두 안전하다. 폭은 이 시트가 `Align>SizedBox(화면폭)`
-/// 로 유한하게 고정해 준다(텍스트 줄바꿈/Expanded 정상).
+/// 따라서 지도를 트리에서 빼거나 스냅샷으로 덮을 필요가 없다 → **닫아도 지도 재생성/재로딩
+/// 없음**(#29 후속, 실기기 검증). 스크림이 라이브 지도를 어둡게 덮어 진짜 바텀시트처럼 보인다.
+/// 본문엔 `Expanded`/`Spacer`/머티리얼 위젯 모두 안전.
 class MapBottomSheet extends StatefulWidget {
   final Widget child;
   final VoidCallback onClose;

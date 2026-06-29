@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -84,13 +83,13 @@ class _MapTabState extends State<MapTab>
   bool _locating = false;
   bool _loadingFac = false;
 
-  // 지도 위에 라우트·모달을 올리면 PlatformView 충돌로 본문이 깨진다(pmdart #28).
-  // 그래서 showSheetOverMap: 지도를 스냅샷으로 얼린 뒤(_mapSnapshot) 그 위에 커스텀
-  // 바텀시트(_sheetChild)를 올린다(라이브 지도는 트리에서 빠짐).
-  File? _mapSnapshot;
+  // 시설/게시글 시트는 지도를 트리에서 빼지 않고(= 재생성 없음) 라이브 지도 위에
+  // 그대로 올린다. 과거의 "PlatformView 위 모달 합성 충돌" 가설은 실제로는 본문의
+  // 무한너비 버그였고(#28), 그건 MapBottomSheet 의 Align>SizedBox 가 잡아준다.
+  // (스냅샷으로 얼리는 우회는 불필요 — 지도가 살아있어 닫을 때 재로딩이 없다.)
   Widget? _sheetChild;
   double _sheetHeight = 0.6;
-  // 스왑/시트 후 지도 재생성 시 직전 카메라로 복원(현재위치 점프 방지).
+  // 첫 진입 시 카메라 기준(시트는 지도를 유지하므로 평소엔 재생성 안 됨).
   NCameraPosition? _lastCamera;
 
   // 선택된 카테고리(기본 전체). 마커 id → Facility(탭 시 바텀시트용).
@@ -490,31 +489,21 @@ class _MapTabState extends State<MapTab>
     ));
   }
 
-  /// 지도 위에 안전하게 바텀시트를 띄운다(재사용): 라이브 지도를 스냅샷으로 얼린 뒤
-  /// 그 위에 [MapBottomSheet] 로 [content] 를 올린다(PlatformView 충돌 회피, #28).
-  /// 스냅샷-스왑이라 시트 밑엔 라이브 PlatformView 가 없어 [content] 는 일반 위젯
-  /// (Expanded/Spacer/머티리얼)도 안전. [heightFactor] 로 시트 높이 조절.
-  Future<void> showSheetOverMap(Widget content,
-      {double heightFactor = 0.6}) async {
+  /// 라이브 지도 위에 [MapBottomSheet] 로 [content] 를 올린다(재사용).
+  /// 지도는 트리에 그대로 유지되므로 닫아도 재생성/재로딩이 없다(#28→#29 후속).
+  /// 시트가 폭을 Align>SizedBox 로 고정하므로 [content] 는 일반 위젯(Expanded/Spacer/
+  /// 머티리얼)도 안전. [heightFactor] 로 시트 높이 조절.
+  void showSheetOverMap(Widget content, {double heightFactor = 0.6}) {
     FocusManager.instance.primaryFocus?.unfocus();
-    File? snap;
-    try {
-      snap = await _controller?.takeSnapshot();
-    } catch (_) {/* 스냅샷 실패 시 회색 배경으로 폴백 */}
-    if (!mounted) return;
     setState(() {
-      _mapSnapshot = snap;
       _sheetChild = content;
       _sheetHeight = heightFactor;
     });
   }
 
   void _closeSheetOverMap() {
-    setState(() {
-      _sheetChild = null;
-      _mapSnapshot = null;
-    });
-    // 지도 위젯이 다시 빌드되며 재생성됨 → onMapReady 에서 _lastCamera 로 복원.
+    setState(() => _sheetChild = null);
+    // 지도는 그대로 살아있어 즉시 다시 보인다(재로딩 없음).
   }
 
   /// 시설명 검색 → 가장 가까운 결과로 카메라 이동 + 상세 시트.
@@ -709,25 +698,50 @@ class _MapTabState extends State<MapTab>
   Widget build(BuildContext context) {
     super.build(context); // AutomaticKeepAlive 필수 호출
 
-    // 지도 위 바텀시트: 라이브 지도 대신 스냅샷 이미지 + MapBottomSheet 를 그린다
-    // (PlatformView 위 모달 충돌 회피, pmdart #28).
-    if (_sheetChild != null) {
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _closeSheetOverMap();
-        },
-        child: Scaffold(
-          backgroundColor: Colors.white,
-          body: Stack(
-            children: [
-              if (_mapSnapshot != null)
-                Positioned.fill(
-                  child: Image.file(_mapSnapshot!, fit: BoxFit.cover),
-                )
-              else
-                const Positioned.fill(
-                    child: ColoredBox(color: Color(0xFFEAEAEA))),
+    // 지도는 시트가 열려도 트리에 그대로 유지한다(dispose/재생성 안 함 → 닫을 때
+    // 타일·마커 재로딩 없이 즉시 복귀). 시트가 열리면 라이브 지도 위에 바로
+    // MapBottomSheet 를 올린다(스크림이 지도를 어둡게, 본문 폭은 시트의 Align>SizedBox
+    // 가 고정 → #28 무한너비 해결). 안드로이드 뒤로가기는 시트가 열려 있으면 닫기.
+    final sheetOpen = _sheetChild != null;
+    return PopScope(
+      canPop: !sheetOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && sheetOpen) _closeSheetOverMap();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Stack(
+          children: [
+            ClipRect(
+              child: NaverMap(
+                options: NaverMapViewOptions(
+                  initialCameraPosition: _lastCamera ?? _initialPosition,
+                  customStyleId: _customStyleId,
+                  locationButtonEnable: false,
+                  consumeSymbolTapEvents: false,
+                ),
+                onMapReady: (controller) {
+                  _controller = controller;
+                  _initLoad();
+                },
+                onCameraIdle: _onCameraIdle,
+                // 지도는 네이티브 뷰라 루트 GestureDetector 가 탭을 못 받는다.
+                // 지도를 탭하면 검색창 포커스를 직접 해제(키보드 닫기).
+                onMapTapped: (_, _) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
+                onCustomStyleLoadFailed: (e) {
+                  debugPrint('커스텀 지도 스타일 로드 실패: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('지도 스타일을 불러오지 못했어요')),
+                    );
+                  }
+                },
+              ),
+            ),
+
+            // 시트 오버레이: 라이브 지도 위에 바로(스크림이 지도를 어둡게 처리).
+            if (sheetOpen)
               Positioned.fill(
                 child: MapBottomSheet(
                   onClose: _closeSheetOverMap,
@@ -735,120 +749,88 @@ class _MapTabState extends State<MapTab>
                   child: _sheetChild!,
                 ),
               ),
-            ],
-          ),
-        ),
-      );
-    }
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          ClipRect(
-            child: NaverMap(
-              options: NaverMapViewOptions(
-                // 스왑 복귀 시 직전 카메라로 복원(없으면 첫 진입 기본 위치).
-                initialCameraPosition: _lastCamera ?? _initialPosition,
-                customStyleId: _customStyleId,
-                locationButtonEnable: false,
-                consumeSymbolTapEvents: false,
-              ),
-              onMapReady: (controller) {
-                _controller = controller;
-                _initLoad();
-              },
-              onCameraIdle: _onCameraIdle,
-              // 지도는 네이티브 뷰라 루트 GestureDetector 가 탭을 못 받는다.
-              // 지도를 탭하면 검색창 포커스를 직접 해제(키보드 닫기).
-              onMapTapped: (_, _) =>
-                  FocusManager.instance.primaryFocus?.unfocus(),
-              onCustomStyleLoadFailed: (e) {
-                debugPrint('커스텀 지도 스타일 로드 실패: $e');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('지도 스타일을 불러오지 못했어요')),
-                  );
-                }
-              },
-            ),
-          ),
-
-          // 상단: 검색창 + 카테고리 필터칩
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Column(
-                  children: [
-                    _SearchField(
-                      controller: _searchController,
-                      onSubmitted: _onSearchSubmitted,
-                      onChanged: _onSuggestChanged,
-                      onClear: _clearSearch,
-                    ),
-                    if (_suggestions.isNotEmpty) _buildSuggestions(),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 34,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (final c in _facilityCats)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: _CatChip(
-                                label: c.$2,
-                                color: c.$3,
-                                selected: _selected.contains(c.$1),
-                                onTap: () => _toggleCategory(c.$1),
-                              ),
-                            ),
-                          // 게시글 클러스터 레이어(시설과 별개)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: _CatChip(
-                              label: _postsLayer.$2,
-                              color: _postsLayer.$3,
-                              selected: _selected.contains(_postsLayer.$1),
-                              onTap: () => _toggleCategory(_postsLayer.$1),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          if (_loadingFac)
-            const Positioned(
-              top: 0, left: 0, right: 0, bottom: 0,
-              child: IgnorePointer(
-                child: Align(
-                  alignment: Alignment.topCenter,
+            // 지도 UI(검색/칩/로딩/내위치) — 시트가 열리면 숨김.
+            if (!sheetOpen) ...[
+              // 상단: 검색창 + 카테고리 필터칩
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
                   child: Padding(
-                    padding: EdgeInsets.only(top: 120),
-                    child: SizedBox(
-                        width: 22, height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.4)),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Column(
+                      children: [
+                        _SearchField(
+                          controller: _searchController,
+                          onSubmitted: _onSearchSubmitted,
+                          onChanged: _onSuggestChanged,
+                          onClear: _clearSearch,
+                        ),
+                        if (_suggestions.isNotEmpty) _buildSuggestions(),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 34,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              for (final c in _facilityCats)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: _CatChip(
+                                    label: c.$2,
+                                    color: c.$3,
+                                    selected: _selected.contains(c.$1),
+                                    onTap: () => _toggleCategory(c.$1),
+                                  ),
+                                ),
+                              // 게시글 클러스터 레이어(시설과 별개)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: _CatChip(
+                                  label: _postsLayer.$2,
+                                  color: _postsLayer.$3,
+                                  selected: _selected.contains(_postsLayer.$1),
+                                  onTap: () => _toggleCategory(_postsLayer.$1),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-          Positioned(
-            right: 16,
-            bottom: 24,
-            child: _MyLocationButton(loading: _locating, onTap: _goToMyLocation),
-          ),
-        ],
+              if (_loadingFac)
+                const Positioned(
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  child: IgnorePointer(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 120),
+                        child: SizedBox(
+                            width: 22, height: 22,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2.4)),
+                      ),
+                    ),
+                  ),
+                ),
+
+              Positioned(
+                right: 16,
+                bottom: 24,
+                child: _MyLocationButton(
+                    loading: _locating, onTap: _goToMyLocation),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

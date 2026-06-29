@@ -108,16 +108,14 @@ class _FacilitySheetState extends State<_FacilitySheet> {
         ? '${f.distanceM.round()}m'
         : '${(f.distanceM / 1000).toStringAsFixed(1)}km';
     final reviews = _reviews;
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
               Center(
                 child: Container(
                   width: 40,
@@ -228,8 +226,7 @@ class _FacilitySheetState extends State<_FacilitySheet> {
             )
           else
             for (final r in reviews) _ReviewItem(review: r),
-            ],
-          ),
+          ],
         ),
       ),
     );

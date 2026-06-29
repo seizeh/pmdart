@@ -275,84 +275,94 @@ class _MapTabState extends State<MapTab> {
   void _showRegionPosts(PostCluster cl) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.92,
-        builder: (ctx, scrollCtrl) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(100),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.forum_outlined, size: 18, color: _postsLayer.$3),
-                  const SizedBox(width: 8),
-                  Text('이 동네 게시글 ${cl.count}개',
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary)),
-                ],
-              ),
-            ),
-            Expanded(
-              child: FutureBuilder<List<Post>>(
-                future:
-                    CommunityRepository.instance.fetchPostsByIds(cl.postIds),
-                builder: (fctx, snap) {
-                  if (snap.connectionState != ConnectionState.done) {
-                    return const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2.4));
-                  }
-                  final posts = snap.data ?? const <Post>[];
-                  if (posts.isEmpty) {
-                    return const Center(
-                        child: Text('게시글을 불러오지 못했어요',
-                            style: TextStyle(color: AppColors.textTertiary)));
-                  }
-                  return ListView.builder(
-                    controller: scrollCtrl,
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    itemCount: posts.length,
-                    itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: PostCard(
-                        post: posts[i],
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  PostDetailScreen(post: posts[i]),
-                            ),
-                          );
-                        },
-                      ),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(100),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.forum_outlined,
+                          size: 18, color: _postsLayer.$3),
+                      const SizedBox(width: 8),
+                      Text('이 동네 게시글 ${cl.count}개',
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary)),
+                    ],
+                  ),
+                ),
+                FutureBuilder<List<Post>>(
+                  future:
+                      CommunityRepository.instance.fetchPostsByIds(cl.postIds),
+                  builder: (fctx, snap) {
+                    if (snap.connectionState != ConnectionState.done) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2.4)),
+                      );
+                    }
+                    final posts = snap.data ?? const <Post>[];
+                    if (posts.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                            child: Text('게시글을 불러오지 못했어요',
+                                style: TextStyle(
+                                    color: AppColors.textTertiary))),
+                      );
+                    }
+                    return Column(
+                      children: [
+                        for (final p in posts)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: PostCard(
+                              post: p,
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PostDetailScreen(post: p),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
-          ],
           ),
         ),
       ),

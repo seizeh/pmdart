@@ -19,6 +19,7 @@ class ProfileData {
   // 활동 지역(동네 인증) — 0017.
   final String? address; // 예: "경기 화성시 동탄2동" (미인증이면 null)
   final bool isLocationVerified;
+  final int? activityRadiusM; // 활동 범위(인증 동 기준 반경, 0.5~7km). 미설정이면 null.
 
   const ProfileData({
     required this.nickname,
@@ -34,6 +35,7 @@ class ProfileData {
     required this.pets,
     this.address,
     this.isLocationVerified = false,
+    this.activityRadiusM,
   });
 
   /// 표시용 동네명(행정동) — address 의 마지막 토큰. 미인증이면 null.

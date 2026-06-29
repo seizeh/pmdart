@@ -19,7 +19,7 @@ class ProfileRepository {
     // 프로필 헤더(공개 프로필 뷰). 아이디(username)는 공개 뷰에 없으므로 세션에서 가져온다.
     final profile = await _c
         .from('public_profiles')
-        .select('nickname, user_type, address, is_location_verified')
+        .select('nickname, user_type, address, is_location_verified, activity_radius_m')
         .eq('id', uid)
         .maybeSingle();
 
@@ -50,7 +50,17 @@ class ProfileRepository {
       pets: pets,
       address: profile?['address'] as String?,
       isLocationVerified: profile?['is_location_verified'] == true,
+      activityRadiusM: (profile?['activity_radius_m'] as num?)?.toInt(),
     );
+  }
+
+  /// 활동 범위 설정(인증 동 기준 반경, 0.5~7km). 동네 인증 필수(서버 RPC 검증).
+  Future<void> setActivityRadius(int meters) async {
+    if (SessionManager.instance.user == null) {
+      throw StateError('로그인이 필요합니다');
+    }
+    await _c.rpc('set_activity_radius', params: {'p_m': meters});
+    AppEvents.instance.notifyProfile();
   }
 
   /// 활동 지역(동네 인증) 상태만 가볍게 조회 — 프로필 편집 화면의 즉시 갱신용.

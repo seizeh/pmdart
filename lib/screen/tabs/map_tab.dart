@@ -1,14 +1,16 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_colors.dart';
 import '../../models/community.dart';
 import '../../services/facility_repository.dart';
 import '../../services/community_repository.dart';
 import '../../services/location_service.dart';
 import '../../widgets/post_card.dart';
+import '../../widgets/facility_sheet.dart';
 import '../post_detail_screen.dart';
 
 // 게시글 행정동 클러스터 칩(시설과 별개) — 코드/라벨/색.
@@ -77,8 +79,10 @@ class _MapTabState extends State<MapTab> {
   bool _loadingFac = false;
 
   // 선택된 카테고리(기본 전체). 마커 id → Facility(탭 시 바텀시트용).
-  final Set<String> _selected = {for (final c in _facilityCats) c.$1};
+  // 카테고리는 단일 선택(한 번에 하나만 표시) — 사업 카테고리가 겹치기 때문.
+  final Set<String> _selected = {'animal_hospital'};
   final Map<String, Facility> _byMarkerId = {};
+  final Map<String, NOverlayImage?> _catIcons = {}; // 카테고리별 마커 아이콘 캐시
   final Map<String, PostCluster> _clusterByMarkerId = {}; // 게시글 클러스터 마커
   bool _dongSynced = false; // 세션당 1회 행정동 centroid 보충
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
@@ -142,8 +146,8 @@ class _MapTabState extends State<MapTab> {
       final markers = <NAddableOverlay>{};
       for (final f in rows) {
         final id = 'fac_${f.id}';
-        final m = NMarker(id: id, position: NLatLng(f.lat, f.lng))
-          ..setIconTintColor(_colorFor(f.category))
+        final icon = await _iconFor(f.category); // 카테고리 PNG 아이콘(캐시)
+        final m = NMarker(id: id, position: NLatLng(f.lat, f.lng), icon: icon)
           ..setIsHideCollidedMarkers(true)
           ..setCaption(NOverlayCaption(
             text: _wrapCaption(f.name),
@@ -153,6 +157,11 @@ class _MapTabState extends State<MapTab> {
           ))
           ..setIsHideCollidedCaptions(true)
           ..setOnTapListener((_) => _showFacilitySheet(f));
+        if (icon != null) {
+          m.setAnchor(const NPoint(0.5, 0.5)); // 원형 아이콘 → 중앙 앵커
+        } else {
+          m.setIconTintColor(_colorFor(f.category)); // 아이콘 로드 실패 시 폴백
+        }
         _byMarkerId[id] = f;
         markers.add(m);
       }
@@ -410,20 +419,15 @@ class _MapTabState extends State<MapTab> {
     if (moved > 1000) await _loadFacilities(cam.target);
   }
 
-  // 게시글 레이어는 시설 카테고리와 동시 표시 불가(배타). 게시글을 켜면 시설을 모두
-  // 끄고, 시설을 켜면 게시글을 끈다. 시설끼리는 다중 선택 유지.
+  // 카테고리 단일 선택(게시글 포함 한 번에 하나만). 같은 칩을 다시 누르면 해제.
   void _toggleCategory(String code) {
     setState(() {
-      final isPosts = code == _postsLayer.$1;
       if (_selected.contains(code)) {
-        _selected.remove(code);
-      } else if (isPosts) {
+        _selected.clear();
+      } else {
         _selected
           ..clear()
-          ..add(code); // 게시글 단독
-      } else {
-        _selected.remove(_postsLayer.$1); // 시설 선택 → 게시글 끔
-        _selected.add(code);
+          ..add(code);
       }
     });
     final center = _loadedCenter;
@@ -433,6 +437,94 @@ class _MapTabState extends State<MapTab> {
     } else {
       _loadFacilities(center);
     }
+  }
+
+  /// 카테고리 마커 아이콘(캐시). PNG 를 흰 원형 핀에 합성해 일관/또렷하게.
+  Future<NOverlayImage?> _iconFor(String category) async {
+    if (_catIcons.containsKey(category)) return _catIcons[category];
+    NOverlayImage? out;
+    try {
+      out = await _renderMarkerIcon(category);
+    } catch (_) {
+      out = null;
+    }
+    _catIcons[category] = out;
+    return out;
+  }
+
+  static const _markerAssets = <String, String>{
+    'animal_hospital': 'assets/images/hospital.png',
+    'grooming': 'assets/images/scissors.png',
+    'pet_hotel': 'assets/images/school.png',
+    'pet_cafe': 'assets/images/cup-soda.png',
+    'pet_sales': 'assets/images/IMG_4.png',
+  };
+
+  /// 이미지의 불투명 픽셀 경계상자(투명 여백 제외). 불투명 픽셀이 없으면 전체.
+  Future<Rect> _opaqueBounds(ui.Image img) async {
+    final w = img.width, h = img.height;
+    final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (data == null) return Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble());
+    final px = data.buffer.asUint8List();
+    int minX = w, minY = h, maxX = -1, maxY = -1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (px[(y * w + x) * 4 + 3] > 16) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < minX) return Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble());
+    return Rect.fromLTRB(
+        minX.toDouble(), minY.toDouble(), (maxX + 1).toDouble(), (maxY + 1).toDouble());
+  }
+
+  Future<NOverlayImage?> _renderMarkerIcon(String category) async {
+    final asset = _markerAssets[category];
+    if (asset == null) return null;
+    const target = 96.0;
+    final color = _colorFor(category);
+    final data = await rootBundle.load(asset);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    final img = frame.image;
+    // 투명 여백 제거: 불투명 픽셀의 경계상자(없으면 전체). IMG_4 처럼 여백이 큰
+    // 이미지가 작게 보이는 문제 해결.
+    final src = await _opaqueBounds(img);
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    const c = target / 2;
+    canvas.drawCircle(const Offset(c, c), c - 1, Paint()..color = Colors.white);
+    canvas.drawCircle(
+        const Offset(c, c),
+        c - 2,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..color = color);
+    // 잘라낸 아이콘을 원 안에 contain 으로 배치.
+    final box = target * 0.6;
+    final s = box / (src.width > src.height ? src.width : src.height);
+    final dw = src.width * s, dh = src.height * s;
+    final dx = (target - dw) / 2, dy = (target - dh) / 2;
+    canvas.drawImageRect(
+      img,
+      src,
+      Rect.fromLTWH(dx, dy, dw, dh),
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    img.dispose();
+
+    final image =
+        await recorder.endRecording().toImage(target.toInt(), target.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (bytes == null) return null;
+    return NOverlayImage.fromByteArray(bytes.buffer.asUint8List());
   }
 
   /// 게시글 레이어를 켤 때, 현재 화면에 조회된 게시글이 없으면 안내.
@@ -447,116 +539,15 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
-  /// 네이버 지도로 링크 아웃 — 영업시간 등 상세는 거기서 확인.
-  /// 상호는 시간이 지나면 실제 플레이스명과 어긋날 수 있어(예: "○○샵"→"○○"),
-  /// 이름 대신 **정확한 좌표**로 연다. 네이버 지도 앱(nmap)이 있으면 좌표에 핀+라벨,
-  /// 없으면 좌표 중심 웹 지도로 폴백.
-  Future<void> _openInNaverMap(Facility f) async {
-    final name = Uri.encodeComponent(f.name);
-    final app = Uri.parse(
-        'nmap://place?lat=${f.lat}&lng=${f.lng}&name=$name&appname=com.example.pawmate');
-    final web = Uri.parse(
-        'https://map.naver.com/p/?c=${f.lng},${f.lat},17,0,0,0,dh');
-    try {
-      if (await canLaunchUrl(app) &&
-          await launchUrl(app, mode: LaunchMode.externalApplication)) {
-        return;
-      }
-    } catch (_) {/* 앱 없음 → 웹 폴백 */}
-    final ok = await launchUrl(web, mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('네이버 지도를 열 수 없어요')),
-      );
-    }
-  }
-
+  /// 시설 상세 시트(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
   void _showFacilitySheet(Facility f) {
-    final color = _colorFor(f.category);
-    final dist = f.distanceM < 1000
-        ? '${f.distanceM.round()}m'
-        : '${(f.distanceM / 1000).toStringAsFixed(1)}km';
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Text(kFacilityLabels[f.category] ?? f.category,
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: color)),
-                  ),
-                  const Spacer(),
-                  Text(dist,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textTertiary)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(f.name,
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary)),
-              if (f.address != null && f.address!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                _row(Icons.place_outlined, f.address!),
-              ],
-              if (f.phone != null && f.phone!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _row(Icons.call_outlined, f.phone!),
-              ],
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _openInNaverMap(f),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  icon: const Icon(Icons.map_outlined, size: 18),
-                  label: const Text('네이버 지도에서 보기 (영업시간 등)',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    showFacilitySheet(
+      context,
+      f,
+      color: _colorFor(f.category),
+      label: kFacilityLabels[f.category] ?? f.category,
     );
   }
-
-  Widget _row(IconData icon, String text) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textSecondary, height: 1.4)),
-          ),
-        ],
-      );
 
   /// 시설명 검색 → 가장 가까운 결과로 카메라 이동 + 상세 시트.
   Future<void> _onSearchSubmitted(String query) async {

@@ -20,6 +20,12 @@ class StorageService {
         imageQuality: 85,
       );
 
+  /// 갤러리에서 여러 장 선택(후기용 — 미리 찍은 사진 허용).
+  Future<List<XFile>> pickImages() => _picker.pickMultiImage(
+        maxWidth: 1600,
+        imageQuality: 85,
+      );
+
   /// 신원 인증용: 카메라 영상만(갤러리 진입 불가). 무작위 임무 수행 영상(~11초).
   Future<XFile?> capturePetVideo() => _picker.pickVideo(
         source: ImageSource.camera,

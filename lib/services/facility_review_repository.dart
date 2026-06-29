@@ -2,7 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/facility_review.dart';
 import 'session.dart';
 
-/// 시설 후기 조회/작성/삭제. 시설당 1인 1후기(upsert).
+/// 시설 후기 (0022) — 모든 쓰기는 SECURITY DEFINER RPC 경유.
+/// 애견카페는 DB row 가 없어, 후기 작성 직전 ensure_naver_facility 로 승격한다.
 class FacilityReviewRepository {
   FacilityReviewRepository._();
   static final FacilityReviewRepository instance =
@@ -11,47 +12,62 @@ class FacilityReviewRepository {
   SupabaseClient get _c => Supabase.instance.client;
   String? get _uid => SessionManager.instance.user?.id;
 
-  /// 시설의 후기 목록(최신순).
+  /// 네이버 카페의 facility_id 해석(없으면 null, 생성 안 함) — 조회용.
+  Future<String?> naverFacilityId(String name, String? address) async {
+    final r = await _c.rpc('naver_facility_id',
+        params: {'p_name': name, 'p_address': address});
+    return r as String?;
+  }
+
+  /// 카페 승격(없으면 생성) → facility_id. 작성 직전 사용.
+  Future<String> ensureNaverFacility({
+    required String name,
+    String? address,
+    String? phone,
+    required double lng,
+    required double lat,
+  }) async {
+    final r = await _c.rpc('ensure_naver_facility', params: {
+      'p_name': name,
+      'p_address': address,
+      'p_phone': phone,
+      'p_lng': lng,
+      'p_lat': lat,
+    });
+    return r as String;
+  }
+
+  /// 시설 후기 목록(최신순).
   Future<List<FacilityReview>> fetchReviews(String facilityId) async {
-    final rows = await _c
-        .from('v_facility_reviews')
-        .select()
-        .eq('facility_id', facilityId)
-        .order('created_at', ascending: false)
-        .limit(100);
+    final rows = await _c.rpc('facility_reviews_of',
+        params: {'p_facility': facilityId, 'p_limit': 50});
     return (rows as List)
         .map((r) => FacilityReview.fromJson(r as Map<String, dynamic>))
         .toList();
   }
 
-  /// 후기 작성/수정(시설당 1인 1건 upsert).
-  Future<void> submit({
+  /// 후기 작성/수정(1인 1시설 1후기 upsert).
+  Future<void> addReview({
     required String facilityId,
     required int rating,
-    String? content,
+    String? body,
+    List<String> photoPaths = const [],
     List<String> photoUrls = const [],
   }) async {
-    final uid = _uid;
-    if (uid == null) throw StateError('로그인이 필요합니다');
-    final c = (content ?? '').trim();
-    await _c.from('facility_reviews').upsert({
-      'facility_id': facilityId,
-      'user_id': uid,
-      'rating': rating,
-      'content': c.isEmpty ? null : c,
-      'photo_urls': photoUrls,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'facility_id,user_id');
+    if (_uid == null) throw StateError('로그인이 필요합니다');
+    final b = (body ?? '').trim();
+    await _c.rpc('add_facility_review', params: {
+      'p_facility': facilityId,
+      'p_rating': rating,
+      'p_body': b.isEmpty ? null : b,
+      'p_paths': photoPaths,
+      'p_urls': photoUrls,
+    });
   }
 
-  /// 내 후기 삭제.
+  /// 내 후기 삭제(소프트).
   Future<void> deleteMine(String facilityId) async {
-    final uid = _uid;
-    if (uid == null) throw StateError('로그인이 필요합니다');
-    await _c
-        .from('facility_reviews')
-        .delete()
-        .eq('facility_id', facilityId)
-        .eq('user_id', uid);
+    if (_uid == null) throw StateError('로그인이 필요합니다');
+    await _c.rpc('delete_facility_review', params: {'p_facility': facilityId});
   }
 }

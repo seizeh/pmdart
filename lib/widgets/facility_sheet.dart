@@ -50,8 +50,15 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
 
   Future<void> _load() async {
     try {
-      final r = await FacilityReviewRepository.instance
-          .fetchReviews(widget.facility.id);
+      final f = widget.facility;
+      // 카페는 마커 id 가 가짜라, 승격된 실제 facility_id 를 해석(없으면 후기 0).
+      final fid = f.isNaver
+          ? await FacilityReviewRepository.instance
+              .naverFacilityId(f.name, f.address)
+          : f.id;
+      final r = fid == null
+          ? const <FacilityReview>[]
+          : await FacilityReviewRepository.instance.fetchReviews(fid);
       if (mounted) setState(() => _reviews = r);
     } catch (_) {
       if (mounted) setState(() => _reviews = const []);
@@ -78,11 +85,8 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
     final ok = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => FacilityReviewScreen(
-          facilityId: widget.facility.id,
-          facilityName: widget.facility.name,
-          existing: mine,
-        ),
+        builder: (_) =>
+            FacilityReviewScreen(facility: widget.facility, existing: mine),
       ),
     );
     if (ok == true) _load();

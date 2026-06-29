@@ -18,7 +18,8 @@ class ReportRepository {
   static const targetUser = 'user';
 
   /// 신고 사유 — DB CHECK(reports_categories_allowed)와 일치해야 한다.
-  /// '기타' 선택 시 [extraDescription] 필수(reports_extra_required).
+  /// '기타'류 선택 시 [extraDescription] 필수(reports_extra_required).
+  /// 일반(댓글/사용자/채팅)용 사유.
   static const categories = <String>[
     '욕설비방',
     '허위정보',
@@ -27,7 +28,21 @@ class ReportRepository {
     '약속불이행',
     '기타',
   ];
+
+  /// 게시글 전용 신고 사유.
+  static const postCategories = <String>[
+    '카테고리와 무관해요',
+    '실제 반려동물이 아니에요',
+    '기타(직접작성)',
+  ];
   static const categoryEtc = '기타';
+
+  /// 대상 타입에 맞는 신고 사유 목록.
+  static List<String> categoriesFor(String targetType) =>
+      targetType == targetPost ? postCategories : categories;
+
+  /// 상세설명이 필수인 '기타'류 사유인지.
+  static bool isEtc(String category) => category.startsWith('기타');
 
   /// 신고 접수. 카테고리 1개 이상 필수, '기타' 포함 시 설명 필수.
   Future<void> submit({
@@ -42,8 +57,7 @@ class ReportRepository {
       throw ArgumentError('신고 사유를 1개 이상 선택해주세요');
     }
     final desc = extraDescription?.trim();
-    if (selectedCategories.contains(categoryEtc) &&
-        (desc == null || desc.isEmpty)) {
+    if (selectedCategories.any(isEtc) && (desc == null || desc.isEmpty)) {
       throw ArgumentError("'기타' 선택 시 상세 설명이 필요해요");
     }
     try {

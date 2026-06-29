@@ -286,7 +286,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               tooltip: '채팅하기',
               onPressed: _startChat,
             ),
-          IconButton(icon: const Icon(Icons.share_outlined), onPressed: () {}),
           if (!_isMyPost)
             IconButton(
                 icon: const Icon(Icons.report_outlined),

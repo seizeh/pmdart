@@ -108,15 +108,25 @@ class _FacilitySheetState extends State<_FacilitySheet> {
         ? '${f.distanceM.round()}m'
         : '${(f.distanceM / 1000).toStringAsFixed(1)}km';
     final reviews = _reviews;
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.92,
-      builder: (_, scrollCtrl) => ListView(
-        controller: scrollCtrl,
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-        children: [
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                ),
+              ),
           Row(
             children: [
               Container(
@@ -216,7 +226,8 @@ class _FacilitySheetState extends State<_FacilitySheet> {
             )
           else
             for (final r in reviews) _ReviewItem(review: r),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -51,8 +51,7 @@ class _ReportSheetState extends State<_ReportSheet> {
   final _descCtrl = TextEditingController();
   bool _submitting = false;
 
-  bool get _etcSelected =>
-      _selected.contains(ReportRepository.categoryEtc);
+  bool get _etcSelected => _selected.any(ReportRepository.isEtc);
   bool get _canSubmit =>
       !_submitting &&
       _selected.isNotEmpty &&
@@ -147,7 +146,8 @@ class _ReportSheetState extends State<_ReportSheet> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: ReportRepository.categories.map((c) {
+                children:
+                    ReportRepository.categoriesFor(widget.targetType).map((c) {
                   final on = _selected.contains(c);
                   return GestureDetector(
                     onTap: () => setState(() {

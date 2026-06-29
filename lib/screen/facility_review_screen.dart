@@ -1,0 +1,258 @@
+import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+import '../models/facility_review.dart';
+import '../services/facility_review_repository.dart';
+import '../services/storage_service.dart';
+
+/// 시설 후기 작성/수정. 저장 성공 시 true 를 pop 한다.
+class FacilityReviewScreen extends StatefulWidget {
+  final String facilityId;
+  final String facilityName;
+  final FacilityReview? existing; // 있으면 수정 모드
+  const FacilityReviewScreen({
+    super.key,
+    required this.facilityId,
+    required this.facilityName,
+    this.existing,
+  });
+
+  @override
+  State<FacilityReviewScreen> createState() => _FacilityReviewScreenState();
+}
+
+class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
+  late int _rating = widget.existing?.rating ?? 5;
+  late final _contentCtrl =
+      TextEditingController(text: widget.existing?.content ?? '');
+  late final List<String> _photos = [...?widget.existing?.photoUrls];
+  bool _uploading = false;
+  bool _submitting = false;
+
+  static const _maxPhotos = 3;
+
+  @override
+  void dispose() {
+    _contentCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+  }
+
+  Future<void> _addPhoto() async {
+    if (_photos.length >= _maxPhotos || _uploading) return;
+    final file = await StorageService.instance.pickImage();
+    if (file == null) return;
+    setState(() => _uploading = true);
+    try {
+      final up = await StorageService.instance
+          .upload(file, category: 'facility_reviews');
+      if (!mounted) return;
+      setState(() => _photos.add(up.url));
+    } catch (_) {
+      _toast('사진 업로드에 실패했어요');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    setState(() => _submitting = true);
+    try {
+      await FacilityReviewRepository.instance.submit(
+        facilityId: widget.facilityId,
+        rating: _rating,
+        content: _contentCtrl.text,
+        photoUrls: _photos,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _toast('후기 저장에 실패했어요');
+    }
+  }
+
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('후기 삭제'),
+        content: const Text('이 후기를 삭제할까요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('삭제')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _submitting = true);
+    try {
+      await FacilityReviewRepository.instance.deleteMine(widget.facilityId);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _toast('삭제에 실패했어요');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final editing = widget.existing != null;
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: Text(editing ? '후기 수정' : '후기 작성'),
+        actions: [
+          if (editing)
+            IconButton(
+                icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+                onPressed: _submitting ? null : _delete),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(widget.facilityName,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 16),
+            const Text('별점',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                for (var i = 1; i <= 5; i++)
+                  GestureDetector(
+                    onTap: () => setState(() => _rating = i),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(
+                        i <= _rating ? Icons.star : Icons.star_border,
+                        size: 34,
+                        color: i <= _rating
+                            ? const Color(0xFFFFB300)
+                            : AppColors.border,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text('후기',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _contentCtrl,
+              minLines: 3,
+              maxLines: 8,
+              maxLength: 1000,
+              decoration: InputDecoration(
+                hintText: '시설에 대한 후기를 남겨주세요',
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
+                contentPadding: const EdgeInsets.all(14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text('사진',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                for (var i = 0; i < _photos.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(_photos[i],
+                              width: 72, height: 72, fit: BoxFit.cover),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _photos.removeAt(i)),
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                  color: Colors.black54, shape: BoxShape.circle),
+                              child: const Icon(Icons.close,
+                                  size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_photos.length < _maxPhotos)
+                  GestureDetector(
+                    onTap: _addPhoto,
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: _uploading
+                          ? const Center(
+                              child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2)))
+                          : const Icon(Icons.add_a_photo_outlined,
+                              color: AppColors.textTertiary),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _submitting ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryDark,
+                foregroundColor: AppColors.textOnPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: _submitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : Text(editing ? '수정하기' : '등록하기',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

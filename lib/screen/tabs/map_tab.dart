@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_colors.dart';
 import '../../models/community.dart';
 import '../../services/facility_repository.dart';
 import '../../services/community_repository.dart';
 import '../../services/location_service.dart';
 import '../../widgets/post_card.dart';
+import '../../widgets/facility_sheet.dart';
 import '../post_detail_screen.dart';
 
 // 게시글 행정동 클러스터 칩(시설과 별개) — 코드/라벨/색.
@@ -539,116 +539,15 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
-  /// 네이버 지도로 링크 아웃 — 영업시간 등 상세는 거기서 확인.
-  /// 상호는 시간이 지나면 실제 플레이스명과 어긋날 수 있어(예: "○○샵"→"○○"),
-  /// 이름 대신 **정확한 좌표**로 연다. 네이버 지도 앱(nmap)이 있으면 좌표에 핀+라벨,
-  /// 없으면 좌표 중심 웹 지도로 폴백.
-  Future<void> _openInNaverMap(Facility f) async {
-    final name = Uri.encodeComponent(f.name);
-    final app = Uri.parse(
-        'nmap://place?lat=${f.lat}&lng=${f.lng}&name=$name&appname=com.example.pawmate');
-    final web = Uri.parse(
-        'https://map.naver.com/p/?c=${f.lng},${f.lat},17,0,0,0,dh');
-    try {
-      if (await canLaunchUrl(app) &&
-          await launchUrl(app, mode: LaunchMode.externalApplication)) {
-        return;
-      }
-    } catch (_) {/* 앱 없음 → 웹 폴백 */}
-    final ok = await launchUrl(web, mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('네이버 지도를 열 수 없어요')),
-      );
-    }
-  }
-
+  /// 시설 상세 시트(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
   void _showFacilitySheet(Facility f) {
-    final color = _colorFor(f.category);
-    final dist = f.distanceM < 1000
-        ? '${f.distanceM.round()}m'
-        : '${(f.distanceM / 1000).toStringAsFixed(1)}km';
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Text(kFacilityLabels[f.category] ?? f.category,
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: color)),
-                  ),
-                  const Spacer(),
-                  Text(dist,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textTertiary)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(f.name,
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary)),
-              if (f.address != null && f.address!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                _row(Icons.place_outlined, f.address!),
-              ],
-              if (f.phone != null && f.phone!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _row(Icons.call_outlined, f.phone!),
-              ],
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _openInNaverMap(f),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  icon: const Icon(Icons.map_outlined, size: 18),
-                  label: const Text('네이버 지도에서 보기 (영업시간 등)',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    showFacilitySheet(
+      context,
+      f,
+      color: _colorFor(f.category),
+      label: kFacilityLabels[f.category] ?? f.category,
     );
   }
-
-  Widget _row(IconData icon, String text) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textSecondary, height: 1.4)),
-          ),
-        ],
-      );
 
   /// 시설명 검색 → 가장 가까운 결과로 카메라 이동 + 상세 시트.
   Future<void> _onSearchSubmitted(String query) async {

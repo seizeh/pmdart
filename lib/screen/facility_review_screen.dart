@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../models/facility_review.dart';
+import '../services/facility_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/storage_service.dart';
 
-/// 시설 후기 작성/수정. 저장 성공 시 true 를 pop 한다.
+/// 시설 후기 작성/수정 (0022). 갤러리 다중 사진 허용. 카페는 작성 시 승격.
+/// 저장 성공 시 true 를 pop.
 class FacilityReviewScreen extends StatefulWidget {
-  final String facilityId;
-  final String facilityName;
-  final FacilityReview? existing; // 있으면 수정 모드
-  const FacilityReviewScreen({
-    super.key,
-    required this.facilityId,
-    required this.facilityName,
-    this.existing,
-  });
+  final Facility facility;
+  final FacilityReview? existing; // 있으면 수정
+  const FacilityReviewScreen({super.key, required this.facility, this.existing});
 
   @override
   State<FacilityReviewScreen> createState() => _FacilityReviewScreenState();
@@ -28,7 +24,8 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
   bool _uploading = false;
   bool _submitting = false;
 
-  static const _maxPhotos = 3;
+  static const _maxPhotos = 5;
+  final _repo = FacilityReviewRepository.instance;
 
   @override
   void dispose() {
@@ -38,20 +35,23 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
   }
 
-  Future<void> _addPhoto() async {
+  Future<void> _addPhotos() async {
     if (_photos.length >= _maxPhotos || _uploading) return;
-    final file = await StorageService.instance.pickImage();
-    if (file == null) return;
+    final files = await StorageService.instance.pickImages();
+    if (files.isEmpty) return;
     setState(() => _uploading = true);
     try {
-      final up = await StorageService.instance
-          .upload(file, category: 'facility_reviews');
-      if (!mounted) return;
-      setState(() => _photos.add(up.url));
+      for (final f in files) {
+        if (_photos.length >= _maxPhotos) break;
+        final up = await StorageService.instance
+            .upload(f, category: 'facility_review');
+        _photos.add(up.url);
+      }
+      if (mounted) setState(() {});
     } catch (_) {
       _toast('사진 업로드에 실패했어요');
     } finally {
@@ -59,13 +59,27 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     }
   }
 
+  /// 후기를 매달 facility_id (카페는 승격해서 확보).
+  Future<String> _resolveFacilityId() async {
+    final f = widget.facility;
+    if (!f.isNaver) return f.id;
+    return _repo.ensureNaverFacility(
+      name: f.name,
+      address: f.address,
+      phone: f.phone,
+      lng: f.lng,
+      lat: f.lat,
+    );
+  }
+
   Future<void> _submit() async {
     setState(() => _submitting = true);
     try {
-      await FacilityReviewRepository.instance.submit(
-        facilityId: widget.facilityId,
+      final fid = await _resolveFacilityId();
+      await _repo.addReview(
+        facilityId: fid,
         rating: _rating,
-        content: _contentCtrl.text,
+        body: _contentCtrl.text,
         photoUrls: _photos,
       );
       if (!mounted) return;
@@ -84,15 +98,20 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
         title: const Text('후기 삭제'),
         content: const Text('이 후기를 삭제할까요?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('삭제')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('삭제')),
         ],
       ),
     );
     if (ok != true) return;
     setState(() => _submitting = true);
     try {
-      await FacilityReviewRepository.instance.deleteMine(widget.facilityId);
+      final fid = await _resolveFacilityId();
+      await _repo.deleteMine(fid);
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (_) {
@@ -120,7 +139,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Text(widget.facilityName,
+            Text(widget.facility.name,
                 style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -174,43 +193,42 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const Text('사진',
-                style: TextStyle(
+            Text('사진 (${_photos.length}/$_maxPhotos)',
+                style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textSecondary)),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 for (var i = 0; i < _photos.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.network(_photos[i],
-                              width: 72, height: 72, fit: BoxFit.cover),
-                        ),
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: GestureDetector(
-                            onTap: () => setState(() => _photos.removeAt(i)),
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                  color: Colors.black54, shape: BoxShape.circle),
-                              child: const Icon(Icons.close,
-                                  size: 16, color: Colors.white),
-                            ),
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(_photos[i],
+                            width: 72, height: 72, fit: BoxFit.cover),
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _photos.removeAt(i)),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                                color: Colors.black54, shape: BoxShape.circle),
+                            child: const Icon(Icons.close,
+                                size: 16, color: Colors.white),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 if (_photos.length < _maxPhotos)
                   GestureDetector(
-                    onTap: _addPhoto,
+                    onTap: _addPhotos,
                     child: Container(
                       width: 72,
                       height: 72,
@@ -224,8 +242,8 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                               child: SizedBox(
                                   width: 20,
                                   height: 20,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2)))
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2)))
                           : const Icon(Icons.add_a_photo_outlined,
                               color: AppColors.textTertiary),
                     ),

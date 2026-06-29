@@ -272,100 +272,11 @@ class _MapTabState extends State<MapTab> {
   }
 
   /// 클러스터 탭 → 그 행정동 게시글 목록 시트.
+  // 모달이 아닌 전용 화면으로(네이버 지도 플랫폼뷰 위 스크롤 모달 hit-test 충돌 회피).
   void _showRegionPosts(PostCluster cl) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: ConstrainedBox(
-          constraints:
-              BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-                  child: Row(
-                    children: [
-                      Icon(Icons.forum_outlined,
-                          size: 18, color: _postsLayer.$3),
-                      const SizedBox(width: 8),
-                      Text('이 동네 게시글 ${cl.count}개',
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary)),
-                    ],
-                  ),
-                ),
-                FutureBuilder<List<Post>>(
-                  future:
-                      CommunityRepository.instance.fetchPostsByIds(cl.postIds),
-                  builder: (fctx, snap) {
-                    if (snap.connectionState != ConnectionState.done) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                            child:
-                                CircularProgressIndicator(strokeWidth: 2.4)),
-                      );
-                    }
-                    final posts = snap.data ?? const <Post>[];
-                    if (posts.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                            child: Text('게시글을 불러오지 못했어요',
-                                style: TextStyle(
-                                    color: AppColors.textTertiary))),
-                      );
-                    }
-                    return Column(
-                      children: [
-                        for (final p in posts)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: PostCard(
-                              post: p,
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => PostDetailScreen(post: p),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => _RegionPostsScreen(cluster: cl)),
     );
   }
 
@@ -1019,6 +930,52 @@ class _MyLocationButton extends StatelessWidget {
                 : const Icon(Icons.my_location,
                     color: AppColors.primaryDark, size: 24),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 동네 게시글 목록 화면(클러스터 탭 → 그 동에서 작성된 게시글).
+class _RegionPostsScreen extends StatelessWidget {
+  final PostCluster cluster;
+  const _RegionPostsScreen({required this.cluster});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(title: Text('이 동네 게시글 ${cluster.count}개')),
+      body: SafeArea(
+        child: FutureBuilder<List<Post>>(
+          future: CommunityRepository.instance.fetchPostsByIds(cluster.postIds),
+          builder: (ctx, snap) {
+            if (snap.connectionState != ConnectionState.done) {
+              return const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2.4));
+            }
+            final posts = snap.data ?? const <Post>[];
+            if (posts.isEmpty) {
+              return const Center(
+                  child: Text('게시글을 불러오지 못했어요',
+                      style: TextStyle(color: AppColors.textTertiary)));
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              itemCount: posts.length,
+              itemBuilder: (_, i) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: PostCard(
+                  post: posts[i],
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => PostDetailScreen(post: posts[i])),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

@@ -12,7 +12,7 @@ class FacilityReview {
 
   const FacilityReview({
     required this.id,
-    required this.facilityId,
+    this.facilityId = '',
     required this.userId,
     required this.authorNickname,
     required this.rating,

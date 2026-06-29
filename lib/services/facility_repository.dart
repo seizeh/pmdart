@@ -12,6 +12,9 @@ class Facility {
   final double lat;
   final double lng;
   final double distanceM;
+  final String source; // localdata | naver
+  final double avgRating; // 평균 별점(캐시, 0이면 후기 없음/미승격)
+  final int reviewCount;
 
   const Facility({
     required this.id,
@@ -23,7 +26,12 @@ class Facility {
     required this.lat,
     required this.lng,
     required this.distanceM,
+    this.source = 'localdata',
+    this.avgRating = 0,
+    this.reviewCount = 0,
   });
+
+  bool get isNaver => source == 'naver';
 
   factory Facility.fromJson(Map<String, dynamic> j) => Facility(
         id: j['id'] as String,
@@ -35,6 +43,9 @@ class Facility {
         lat: (j['lat'] as num).toDouble(),
         lng: (j['lng'] as num).toDouble(),
         distanceM: (j['distance_m'] as num?)?.toDouble() ?? 0,
+        source: (j['source'] ?? 'localdata') as String,
+        avgRating: (j['avg_rating'] as num?)?.toDouble() ?? 0,
+        reviewCount: (j['review_count'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -123,6 +134,7 @@ class FacilityRepository {
           lat: clat,
           lng: clng,
           distanceM: dist,
+          source: 'naver', // DB 미적재 — 후기 작성 시 ensure_naver_facility 로 승격
         ));
       }
       out.sort((a, b) => a.distanceM.compareTo(b.distanceM));

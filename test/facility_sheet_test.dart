@@ -40,8 +40,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(const Duration(milliseconds: 600));
 
-    // 시트 콘텐츠가 실제로 그려졌는지(블랭크 아님) + 인터랙션 요소 존재.
-    expect(find.text('테스트동물병원'), findsOneWidget);
+    // 화면 콘텐츠가 실제로 그려졌는지(블랭크 아님) + 인터랙션 요소 존재.
+    // 이름은 앱바 + 본문에 표시되어 2곳.
+    expect(find.text('테스트동물병원'), findsWidgets);
     expect(find.text('후기 쓰기'), findsOneWidget);
     expect(find.text('동물병원'), findsOneWidget);
   });

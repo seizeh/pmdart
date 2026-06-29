@@ -136,6 +136,7 @@ class _MapTabState extends State<MapTab> {
       }
 
       await c.clearOverlays(type: NOverlayType.marker);
+      await c.clearOverlays(type: NOverlayType.circleOverlay);
       _byMarkerId.clear();
       _clusterByMarkerId.clear();
       final markers = <NAddableOverlay>{};
@@ -157,14 +158,27 @@ class _MapTabState extends State<MapTab> {
       }
       for (final cl in clusters) {
         final id = 'cluster_${cl.regionCode}';
-        final m = NMarker(id: id, position: NLatLng(cl.lat, cl.lng))
-          ..setIconTintColor(_postsLayer.$3)
-          ..setCaption(NOverlayCaption(
+        // 동 경계(근사: 중심 기준 원). 추후 행정동 경계 GeoJSON 으로 교체 가능.
+        markers.add(NCircleOverlay(
+          id: 'circle_${cl.regionCode}',
+          center: NLatLng(cl.lat, cl.lng),
+          radius: 700,
+          color: _postsLayer.$3.withValues(alpha: 0.12),
+          outlineColor: _postsLayer.$3,
+          outlineWidth: 2,
+        )..setOnTapListener((_) => _showRegionPosts(cl)));
+        // 동 중심에 게시글 수 배지(없으면 캡션으로 폴백).
+        final badge = await _clusterBadge(cl.count);
+        final m = NMarker(id: id, position: NLatLng(cl.lat, cl.lng), icon: badge)
+          ..setAnchor(const NPoint(0.5, 0.5))
+          ..setOnTapListener((_) => _showRegionPosts(cl));
+        if (badge == null) {
+          m.setCaption(NOverlayCaption(
             text: '게시글 ${cl.count}',
             color: _postsLayer.$3,
             haloColor: Colors.white,
-          ))
-          ..setOnTapListener((_) => _showRegionPosts(cl));
+          ));
+        }
         _clusterByMarkerId[id] = cl;
         markers.add(m);
       }
@@ -207,6 +221,45 @@ class _MapTabState extends State<MapTab> {
       );
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// 동 중심에 표시할 게시글 수 배지(위젯 → 오버레이 이미지). 실패 시 null.
+  Future<NOverlayImage?> _clusterBadge(int count) async {
+    try {
+      return await NOverlayImage.fromWidget(
+        context: context,
+        widget: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: _postsLayer.$3,
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$count',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      height: 1.0)),
+              const Text('게시글',
+                  style: TextStyle(
+                      color: Colors.white, fontSize: 9, height: 1.3)),
+            ],
+          ),
+        ),
+      );
+    } catch (_) {
+      return null;
     }
   }
 
@@ -358,9 +411,21 @@ class _MapTabState extends State<MapTab> {
     if (moved > 1000) await _loadFacilities(cam.target);
   }
 
+  // 게시글 레이어는 시설 카테고리와 동시 표시 불가(배타). 게시글을 켜면 시설을 모두
+  // 끄고, 시설을 켜면 게시글을 끈다. 시설끼리는 다중 선택 유지.
   void _toggleCategory(String code) {
     setState(() {
-      if (!_selected.add(code)) _selected.remove(code);
+      final isPosts = code == _postsLayer.$1;
+      if (_selected.contains(code)) {
+        _selected.remove(code);
+      } else if (isPosts) {
+        _selected
+          ..clear()
+          ..add(code); // 게시글 단독
+      } else {
+        _selected.remove(_postsLayer.$1); // 시설 선택 → 게시글 끔
+        _selected.add(code);
+      }
     });
     if (_loadedCenter != null) _loadFacilities(_loadedCenter!);
   }

@@ -947,7 +947,9 @@ class _RegionPostsScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       appBar: AppBar(title: Text('이 동네 게시글 ${cluster.count}개')),
       body: SafeArea(
-        child: FutureBuilder<List<Post>>(
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          child: FutureBuilder<List<Post>>(
           future: CommunityRepository.instance.fetchPostsByIds(cluster.postIds),
           builder: (ctx, snap) {
             if (snap.connectionState != ConnectionState.done) {
@@ -976,6 +978,7 @@ class _RegionPostsScreen extends StatelessWidget {
               ),
             );
           },
+          ),
         ),
       ),
     );

@@ -136,7 +136,9 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
         ],
       ),
       body: SafeArea(
-        child: ListView(
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             Text(widget.facility.name,
@@ -269,6 +271,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                           fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ],
+          ),
         ),
       ),
     );

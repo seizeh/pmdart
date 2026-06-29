@@ -275,18 +275,21 @@ class _MapTabState extends State<MapTab> {
   void _showRegionPosts(PostCluster cl) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (_) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.6,
         minChildSize: 0.4,
         maxChildSize: 0.92,
-        builder: (ctx, scrollCtrl) => Column(
-          children: [
+        builder: (ctx, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
             const SizedBox(height: 12),
             Container(
               width: 40,
@@ -350,6 +353,7 @@ class _MapTabState extends State<MapTab> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

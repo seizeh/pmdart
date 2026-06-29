@@ -107,9 +107,10 @@ class _MapTabState extends State<MapTab> {
     if (c == null) return;
     setState(() => _loadingFac = true);
     try {
-      // 공공데이터(DB) 카테고리 + 애견카페(실시간) 분리 조회 후 합친다.
-      final dbCats =
-          _selected.where((cat) => cat != 'pet_cafe').toList();
+      // 공공데이터(DB) 카테고리만 — 'pet_cafe'(실시간)·'posts'(게시글)는 제외.
+      final dbCats = _selected
+          .where((cat) => cat != 'pet_cafe' && cat != _postsLayer.$1)
+          .toList();
       final rows = <Facility>[
         if (dbCats.isNotEmpty)
           ...await FacilityRepository.instance.nearby(
@@ -190,9 +191,11 @@ class _MapTabState extends State<MapTab> {
       _loadedCenter = center;
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('주변 시설을 불러오지 못했어요')),
-        );
+        final msg = _selected.contains(_postsLayer.$1) && _selected.length == 1
+            ? '게시글을 불러오지 못했어요'
+            : '주변 시설을 불러오지 못했어요';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
       }
     } finally {
       if (mounted) setState(() => _loadingFac = false);
@@ -417,7 +420,25 @@ class _MapTabState extends State<MapTab> {
         _selected.add(code);
       }
     });
-    if (_loadedCenter != null) _loadFacilities(_loadedCenter!);
+    final center = _loadedCenter;
+    if (center == null) return;
+    if (code == _postsLayer.$1 && _selected.contains(code)) {
+      _loadPostsAndNotify(center);
+    } else {
+      _loadFacilities(center);
+    }
+  }
+
+  /// 게시글 레이어를 켤 때, 현재 화면에 조회된 게시글이 없으면 안내.
+  Future<void> _loadPostsAndNotify(NLatLng center) async {
+    await _loadFacilities(center);
+    if (mounted &&
+        _selected.contains(_postsLayer.$1) &&
+        _clusterByMarkerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이 지역에 조회된 게시글이 없어요')),
+      );
+    }
   }
 
   /// 네이버 지도로 링크 아웃 — 영업시간 등 상세는 거기서 확인.

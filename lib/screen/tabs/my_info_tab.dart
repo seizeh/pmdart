@@ -550,7 +550,7 @@ class _ActivityRangeSection extends StatefulWidget {
 }
 
 class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
-  static const _options = [1000, 2000, 3000, 5000, 7000]; // m, 최대 7km
+  static const _options = [5000, 7000, 10000, 15000]; // m, 5~15km
   late int? _radius = widget.profile.activityRadiusM;
   bool _saving = false;
 
@@ -599,7 +599,7 @@ class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
             const SizedBox(height: 6),
             Text(
               verified
-                  ? '${dong ?? '내 동네'} 기준 반경 · 최대 7km'
+                  ? '${dong ?? '내 동네'} 기준 반경 (5~15km) · 이 범위의 게시글만 보여요'
                   : '동네 인증을 먼저 완료하면 설정할 수 있어요',
               style: const TextStyle(
                   fontSize: 12, color: AppColors.textTertiary),

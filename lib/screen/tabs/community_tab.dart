@@ -47,10 +47,17 @@ class _CommunityTabState extends State<CommunityTab> {
   void initState() {
     super.initState();
     _load();
+    AppEvents.instance.feed.addListener(_onFeedEvent);
+  }
+
+  // 활동 범위 등 피드 영향 변경 시 즉시 재조회.
+  void _onFeedEvent() {
+    if (mounted) _load();
   }
 
   @override
   void dispose() {
+    AppEvents.instance.feed.removeListener(_onFeedEvent);
     _debounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();

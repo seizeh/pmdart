@@ -19,8 +19,12 @@ class AppEvents {
   /// 알림 읽음/변경 — 벨 배지 새로고침 트리거.
   final ValueNotifier<int> notification = ValueNotifier(0);
 
+  /// 게시글 피드에 영향 주는 변경(활동 범위 등) — 커뮤니티 피드 새로고침 트리거.
+  final ValueNotifier<int> feed = ValueNotifier(0);
+
   void notifySocial() => social.value++;
   void notifyChat() => chat.value++;
   void notifyProfile() => profile.value++;
   void notifyNotification() => notification.value++;
+  void notifyFeed() => feed.value++;
 }

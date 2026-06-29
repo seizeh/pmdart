@@ -73,6 +73,7 @@ class ProfileRepository {
     }
     await _c.rpc('set_activity_radius', params: {'p_m': meters});
     AppEvents.instance.notifyProfile();
+    AppEvents.instance.notifyFeed(); // 활동범위 변경 → 피드 즉시 갱신
   }
 
   /// 활동 지역(동네 인증) 상태만 가볍게 조회 — 프로필 편집 화면의 즉시 갱신용.

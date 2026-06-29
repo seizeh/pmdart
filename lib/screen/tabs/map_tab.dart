@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -77,8 +79,10 @@ class _MapTabState extends State<MapTab> {
   bool _loadingFac = false;
 
   // 선택된 카테고리(기본 전체). 마커 id → Facility(탭 시 바텀시트용).
-  final Set<String> _selected = {for (final c in _facilityCats) c.$1};
+  // 카테고리는 단일 선택(한 번에 하나만 표시) — 사업 카테고리가 겹치기 때문.
+  final Set<String> _selected = {'animal_hospital'};
   final Map<String, Facility> _byMarkerId = {};
+  final Map<String, NOverlayImage?> _catIcons = {}; // 카테고리별 마커 아이콘 캐시
   final Map<String, PostCluster> _clusterByMarkerId = {}; // 게시글 클러스터 마커
   bool _dongSynced = false; // 세션당 1회 행정동 centroid 보충
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
@@ -142,8 +146,8 @@ class _MapTabState extends State<MapTab> {
       final markers = <NAddableOverlay>{};
       for (final f in rows) {
         final id = 'fac_${f.id}';
-        final m = NMarker(id: id, position: NLatLng(f.lat, f.lng))
-          ..setIconTintColor(_colorFor(f.category))
+        final icon = await _iconFor(f.category); // 카테고리 PNG 아이콘(캐시)
+        final m = NMarker(id: id, position: NLatLng(f.lat, f.lng), icon: icon)
           ..setIsHideCollidedMarkers(true)
           ..setCaption(NOverlayCaption(
             text: _wrapCaption(f.name),
@@ -153,6 +157,11 @@ class _MapTabState extends State<MapTab> {
           ))
           ..setIsHideCollidedCaptions(true)
           ..setOnTapListener((_) => _showFacilitySheet(f));
+        if (icon != null) {
+          m.setAnchor(const NPoint(0.5, 0.5)); // 원형 아이콘 → 중앙 앵커
+        } else {
+          m.setIconTintColor(_colorFor(f.category)); // 아이콘 로드 실패 시 폴백
+        }
         _byMarkerId[id] = f;
         markers.add(m);
       }
@@ -410,20 +419,15 @@ class _MapTabState extends State<MapTab> {
     if (moved > 1000) await _loadFacilities(cam.target);
   }
 
-  // 게시글 레이어는 시설 카테고리와 동시 표시 불가(배타). 게시글을 켜면 시설을 모두
-  // 끄고, 시설을 켜면 게시글을 끈다. 시설끼리는 다중 선택 유지.
+  // 카테고리 단일 선택(게시글 포함 한 번에 하나만). 같은 칩을 다시 누르면 해제.
   void _toggleCategory(String code) {
     setState(() {
-      final isPosts = code == _postsLayer.$1;
       if (_selected.contains(code)) {
-        _selected.remove(code);
-      } else if (isPosts) {
+        _selected.clear();
+      } else {
         _selected
           ..clear()
-          ..add(code); // 게시글 단독
-      } else {
-        _selected.remove(_postsLayer.$1); // 시설 선택 → 게시글 끔
-        _selected.add(code);
+          ..add(code);
       }
     });
     final center = _loadedCenter;
@@ -433,6 +437,70 @@ class _MapTabState extends State<MapTab> {
     } else {
       _loadFacilities(center);
     }
+  }
+
+  /// 카테고리 마커 아이콘(캐시). PNG 를 흰 원형 핀에 합성해 일관/또렷하게.
+  Future<NOverlayImage?> _iconFor(String category) async {
+    if (_catIcons.containsKey(category)) return _catIcons[category];
+    NOverlayImage? out;
+    try {
+      out = await _renderMarkerIcon(category);
+    } catch (_) {
+      out = null;
+    }
+    _catIcons[category] = out;
+    return out;
+  }
+
+  static const _markerAssets = <String, String>{
+    'animal_hospital': 'assets/images/hospital.png',
+    'grooming': 'assets/images/scissors.png',
+    'pet_hotel': 'assets/images/school.png',
+    'pet_cafe': 'assets/images/cup-soda.png',
+    'pet_sales': 'assets/images/IMG_4.png',
+  };
+
+  Future<NOverlayImage?> _renderMarkerIcon(String category) async {
+    final asset = _markerAssets[category];
+    if (asset == null) return null;
+    const target = 96.0;
+    final color = _colorFor(category);
+    final data = await rootBundle.load(asset);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    final img = frame.image;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    const c = target / 2;
+    canvas.drawCircle(const Offset(c, c), c - 1, Paint()..color = Colors.white);
+    canvas.drawCircle(
+        const Offset(c, c),
+        c - 2,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..color = color);
+    // 아이콘을 원 안에 contain 으로 배치.
+    final box = target * 0.56;
+    final iw = img.width.toDouble(), ih = img.height.toDouble();
+    final s = box / (iw > ih ? iw : ih);
+    final dw = iw * s, dh = ih * s;
+    final dx = (target - dw) / 2, dy = (target - dh) / 2;
+    canvas.drawImageRect(
+      img,
+      Rect.fromLTWH(0, 0, iw, ih),
+      Rect.fromLTWH(dx, dy, dw, dh),
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    img.dispose();
+
+    final image =
+        await recorder.endRecording().toImage(target.toInt(), target.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (bytes == null) return null;
+    return NOverlayImage.fromByteArray(bytes.buffer.asUint8List());
   }
 
   /// 게시글 레이어를 켤 때, 현재 화면에 조회된 게시글이 없으면 안내.

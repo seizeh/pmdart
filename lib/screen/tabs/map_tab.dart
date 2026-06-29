@@ -190,6 +190,12 @@ class _MapTabState extends State<MapTab> {
       if (markers.isNotEmpty) await c.addOverlayAll(markers);
       _loadedCenter = center;
     } catch (_) {
+      // 오류가 나도 이전 마커는 제거(선택 해제한 카테고리 마커가 남지 않도록).
+      try {
+        await c.clearOverlays(type: NOverlayType.marker);
+      } catch (_) {/* 무시 */}
+      _byMarkerId.clear();
+      _clusterByMarkerId.clear();
       if (mounted) {
         final msg = _selected.contains(_postsLayer.$1) && _selected.length == 1
             ? '게시글을 불러오지 못했어요'

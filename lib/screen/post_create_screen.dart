@@ -3,8 +3,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../models/community.dart';
+import '../models/profile.dart';
 import '../services/community_repository.dart';
 import '../services/photo_verify_repository.dart';
+import '../services/profile_repository.dart';
+import '../services/location_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/role_badge.dart';
 import 'image_crop_screen.dart';
@@ -59,10 +62,38 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   // 자유게시글(free)·입양게시글(adoption)을 제외한 게시글은 사진 등록이 필수.
   bool get _needsPhoto => !['free', 'adoption'].contains(_category);
 
+  // 현재 위치가 인증 동네와 다를 때 경고 — 게시글은 인증 동네 기준으로 등록됨.
+  String? _currentDong; // 지금 있는 동
+  String? _verifiedDong; // 인증한 동
+  bool get _regionMismatch =>
+      _currentDong != null &&
+      _verifiedDong != null &&
+      _currentDong != _verifiedDong;
+
   @override
   void initState() {
     super.initState();
     _loadPets();
+    _checkRegion();
+  }
+
+  /// 현재 위치 동 vs 인증 동 비교(베스트에포트). 위치 없으면 경고 안 함.
+  Future<void> _checkRegion() async {
+    try {
+      final reg = await ProfileRepository.instance.fetchRegion();
+      final verified = ProfileData.regionNameFromAddress(reg.address,
+          verified: reg.verified);
+      if (verified == null) return; // 미인증이면 비교 의미 없음
+      final loc = await LocationService.instance.getCurrentPosition();
+      if (loc.status != LocationStatus.ok || loc.position == null) return;
+      final cur = await ProfileRepository.instance
+          .regionNameAt(loc.position!.latitude, loc.position!.longitude);
+      if (!mounted || cur == null) return;
+      setState(() {
+        _verifiedDong = verified;
+        _currentDong = cur;
+      });
+    } catch (_) {/* 베스트에포트 — 실패 시 경고 없음 */}
   }
 
   Future<void> _loadPets() async {
@@ -254,6 +285,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_regionMismatch) ...[
+                _RegionWarning(current: _currentDong!, verified: _verifiedDong!),
+                const SizedBox(height: 16),
+              ],
               const _SectionLabel('카테고리'),
               Wrap(
                 spacing: 8,
@@ -550,6 +585,43 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       return s.substring(idx).split('\n').first.replaceFirst('posts:', '').trim();
     }
     return '게시글 등록에 실패했어요';
+  }
+}
+
+/// 현재 위치가 인증 동네와 다를 때 경고 배너.
+class _RegionWarning extends StatelessWidget {
+  final String current;
+  final String verified;
+  const _RegionWarning({required this.current, required this.verified});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.5), width: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 18, color: AppColors.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '지금 계신 곳($current)이 인증 동네($verified)와 달라요.\n'
+              '이 게시글은 인증 동네($verified) 기준으로 등록됩니다.',
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

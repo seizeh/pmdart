@@ -54,6 +54,18 @@ class ProfileRepository {
     );
   }
 
+  /// 좌표 → 현재 행정동 이름(역지오코딩). 실패/해상 등은 null. 부수효과 없음.
+  Future<String?> regionNameAt(double lat, double lng) async {
+    try {
+      final res = await _c.functions
+          .invoke('resolve-region', body: {'lat': lat, 'lng': lng});
+      final data = (res.data as Map?) ?? const {};
+      return data['regionName'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// 활동 범위 설정(인증 동 기준 반경, 0.5~7km). 동네 인증 필수(서버 RPC 검증).
   Future<void> setActivityRadius(int meters) async {
     if (SessionManager.instance.user == null) {

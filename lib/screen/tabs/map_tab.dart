@@ -136,7 +136,6 @@ class _MapTabState extends State<MapTab> {
       }
 
       await c.clearOverlays(type: NOverlayType.marker);
-      await c.clearOverlays(type: NOverlayType.circleOverlay);
       _byMarkerId.clear();
       _clusterByMarkerId.clear();
       final markers = <NAddableOverlay>{};
@@ -158,16 +157,7 @@ class _MapTabState extends State<MapTab> {
       }
       for (final cl in clusters) {
         final id = 'cluster_${cl.regionCode}';
-        // 동 경계(근사: 중심 기준 원). 추후 행정동 경계 GeoJSON 으로 교체 가능.
-        markers.add(NCircleOverlay(
-          id: 'circle_${cl.regionCode}',
-          center: NLatLng(cl.lat, cl.lng),
-          radius: 700,
-          color: _postsLayer.$3.withValues(alpha: 0.12),
-          outlineColor: _postsLayer.$3,
-          outlineWidth: 2,
-        )..setOnTapListener((_) => _showRegionPosts(cl)));
-        // 동 중심에 게시글 수 배지(없으면 캡션으로 폴백).
+        // 동 중심에 게시글 수 배지(탭 시 그 동 게시글 목록). 없으면 캡션 폴백.
         final badge = await _clusterBadge(cl.count);
         final m = NMarker(id: id, position: NLatLng(cl.lat, cl.lng), icon: badge)
           ..setAnchor(const NPoint(0.5, 0.5))

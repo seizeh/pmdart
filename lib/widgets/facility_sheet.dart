@@ -16,8 +16,11 @@ Future<void> showFacilitySheet(
 }) {
   return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: Colors.transparent,
+    backgroundColor: Colors.white,
     isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
     builder: (_) => _FacilitySheet(facility: facility, color: color, label: label),
   );
 }
@@ -105,32 +108,27 @@ class _FacilitySheetState extends State<_FacilitySheet> {
         ? '${f.distanceM.round()}m'
         : '${(f.distanceM / 1000).toStringAsFixed(1)}km';
     final reviews = _reviews;
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.92,
-      builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: ListView(
-          controller: scrollCtrl,
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85),
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(100),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
                 ),
               ),
-            ),
           Row(
             children: [
               Container(
@@ -230,7 +228,8 @@ class _FacilitySheetState extends State<_FacilitySheet> {
             )
           else
             for (final r in reviews) _ReviewItem(review: r),
-          ],
+            ],
+          ),
         ),
       ),
     );

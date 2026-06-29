@@ -460,6 +460,28 @@ class _MapTabState extends State<MapTab> {
     'pet_sales': 'assets/images/IMG_4.png',
   };
 
+  /// 이미지의 불투명 픽셀 경계상자(투명 여백 제외). 불투명 픽셀이 없으면 전체.
+  Future<Rect> _opaqueBounds(ui.Image img) async {
+    final w = img.width, h = img.height;
+    final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (data == null) return Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble());
+    final px = data.buffer.asUint8List();
+    int minX = w, minY = h, maxX = -1, maxY = -1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (px[(y * w + x) * 4 + 3] > 16) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < minX) return Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble());
+    return Rect.fromLTRB(
+        minX.toDouble(), minY.toDouble(), (maxX + 1).toDouble(), (maxY + 1).toDouble());
+  }
+
   Future<NOverlayImage?> _renderMarkerIcon(String category) async {
     final asset = _markerAssets[category];
     if (asset == null) return null;
@@ -469,6 +491,9 @@ class _MapTabState extends State<MapTab> {
     final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
     final frame = await codec.getNextFrame();
     final img = frame.image;
+    // 투명 여백 제거: 불투명 픽셀의 경계상자(없으면 전체). IMG_4 처럼 여백이 큰
+    // 이미지가 작게 보이는 문제 해결.
+    final src = await _opaqueBounds(img);
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -481,15 +506,14 @@ class _MapTabState extends State<MapTab> {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4
           ..color = color);
-    // 아이콘을 원 안에 contain 으로 배치.
-    final box = target * 0.56;
-    final iw = img.width.toDouble(), ih = img.height.toDouble();
-    final s = box / (iw > ih ? iw : ih);
-    final dw = iw * s, dh = ih * s;
+    // 잘라낸 아이콘을 원 안에 contain 으로 배치.
+    final box = target * 0.6;
+    final s = box / (src.width > src.height ? src.width : src.height);
+    final dw = src.width * s, dh = src.height * s;
     final dx = (target - dw) / 2, dy = (target - dh) / 2;
     canvas.drawImageRect(
       img,
-      Rect.fromLTWH(0, 0, iw, ih),
+      src,
       Rect.fromLTWH(dx, dy, dw, dh),
       Paint()..filterQuality = FilterQuality.high,
     );

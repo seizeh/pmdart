@@ -137,6 +137,10 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary)),
+                if (evaluatePetSales(f) case final s?) ...[
+                  const SizedBox(height: 12),
+                  _PetSalesTrustCard(score: s),
+                ],
                 if (reviews != null && reviews.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Row(children: [
@@ -250,6 +254,105 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                     fontSize: 14, color: AppColors.textSecondary, height: 1.4)),
           ),
         ],
+      );
+}
+
+/// 분양(반려동물판매업) 신뢰도 안내 카드.
+/// 사업자 업종만 판매업으로 등록하고 실제론 분양과 무관한 업장이 섞여 있어,
+/// 상호명 키워드 점수로 추정해 사용자에게 경고/안내한다(확정 아님).
+class _PetSalesTrustCard extends StatelessWidget {
+  final PetSalesScore score;
+  const _PetSalesTrustCard({required this.score});
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg, icon, title) = switch (score.level) {
+      PetSalesTrust.likely => (
+          const Color(0xFFE8F5E9),
+          const Color(0xFF2E7D32),
+          Icons.verified_outlined,
+          '분양 전문점으로 보여요',
+        ),
+      PetSalesTrust.unclear => (
+          const Color(0xFFFFF8E1),
+          const Color(0xFFF57F17),
+          Icons.help_outline,
+          '분양 전문 여부가 불분명해요',
+        ),
+      PetSalesTrust.caution => (
+          const Color(0xFFFFEBEE),
+          const Color(0xFFC62828),
+          Icons.warning_amber_rounded,
+          '분양 전문점이 아닐 수 있어요',
+        ),
+    };
+    final pts = score.score > 0 ? '+${score.score}' : '${score.score}';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: fg),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(title,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: fg)),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: fg.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text('신뢰도 $pts',
+                    style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w800, color: fg)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "사업자 업종은 '반려동물판매업'이지만, 상호명으로 추정한 점수예요. 실제 분양 여부는 직접 확인하세요.",
+            style: TextStyle(
+                fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+          ),
+          if (score.positives.isNotEmpty || score.negatives.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final w in score.positives)
+                  _kwChip('+$w', const Color(0xFF2E7D32)),
+                for (final w in score.negatives)
+                  _kwChip('-$w', const Color(0xFFC62828)),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _kwChip(String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w700, color: color)),
       );
 }
 

@@ -102,6 +102,7 @@ class _MapTabState extends State<MapTab>
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
 
   Facility? _searchResult; // 검색으로 선택된 시설(강조 마커, 재조회에도 유지)
+  NOverlayImage? _searchIcon; // 검색 강조 마커 아이콘(IMG_3 핀, 캐시)
   List<Facility> _suggestions = const []; // 자동완성 후보
   Timer? _suggestDebounce;
 
@@ -159,12 +160,17 @@ class _MapTabState extends State<MapTab>
       _clusterByMarkerId.clear();
       final markers = <NAddableOverlay>{};
       for (final f in rows) {
+        // 분양 신뢰도가 너무 낮으면(점수 ≤ -2) 비분양 추정이 강해 지도에서 제외.
+        // -1 은 남기되 캡션에 ⚠ 로 경고만 한다.
+        if (isLowTrustHidden(f)) continue;
+        final sales = evaluatePetSales(f);
         final id = 'fac_${f.id}';
         final icon = await _iconFor(f.category); // 카테고리 PNG 아이콘(캐시)
+        final warn = sales?.level == PetSalesTrust.caution;
         final m = NMarker(id: id, position: NLatLng(f.lat, f.lng), icon: icon)
           ..setIsHideCollidedMarkers(true)
           ..setCaption(NOverlayCaption(
-            text: _wrapCaption(f.name),
+            text: warn ? '⚠ ${_wrapCaption(f.name)}' : _wrapCaption(f.name),
             textSize: 11,
             color: AppColors.textPrimary,
             haloColor: Colors.white,
@@ -198,18 +204,7 @@ class _MapTabState extends State<MapTab>
       }
       // 검색으로 선택된 시설 강조 마커(카테고리/반경과 무관하게 항상 표시).
       final sr = _searchResult;
-      if (sr != null) {
-        markers.add(NMarker(id: 'search', position: NLatLng(sr.lat, sr.lng))
-          ..setIconTintColor(AppColors.primaryDark)
-          ..setGlobalZIndex(1000000)
-          ..setCaption(NOverlayCaption(
-            text: _wrapCaption(sr.name),
-            textSize: 13,
-            color: AppColors.primaryDark,
-            haloColor: Colors.white,
-          ))
-          ..setOnTapListener((_) => _showFacilitySheet(sr)));
-      }
+      if (sr != null) markers.add(await _buildSearchMarker(sr));
       if (markers.isNotEmpty) await c.addOverlayAll(markers);
       _loadedCenter = center;
     } catch (_) {
@@ -468,6 +463,62 @@ class _MapTabState extends State<MapTab>
     return NOverlayImage.fromByteArray(bytes.buffer.asUint8List());
   }
 
+  /// 검색 강조 마커 아이콘(IMG_3 핀). 투명 여백을 잘라 적당한 크기로 렌더(캐시).
+  Future<NOverlayImage?> _loadSearchIcon() async {
+    if (_searchIcon != null) return _searchIcon;
+    try {
+      const targetH = 120.0; // 핀 높이(px) — 너무 크지도 작지도 않은 크기.
+      final data = await rootBundle.load('assets/images/IMG_3.png');
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+      final frame = await codec.getNextFrame();
+      final img = frame.image;
+      final src = await _opaqueBounds(img); // 투명 여백 제거(원본 여백이 큼)
+      final scale = targetH / src.height;
+      final w = (src.width * scale).round();
+      final h = targetH.round();
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawImageRect(
+        img,
+        src,
+        Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+        Paint()..filterQuality = FilterQuality.high,
+      );
+      img.dispose();
+      final image = await recorder.endRecording().toImage(w, h);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (bytes != null) {
+        _searchIcon =
+            await NOverlayImage.fromByteArray(bytes.buffer.asUint8List());
+      }
+    } catch (_) {
+      _searchIcon = null;
+    }
+    return _searchIcon;
+  }
+
+  /// 검색 강조 마커 1건(id 'search'). 카테고리/반경과 무관하게 항상 최상단.
+  /// 핀(IMG_3)은 끝이 아래를 향하므로 앵커는 하단 중앙. 로드 실패 시 기본 핀 폴백.
+  Future<NMarker> _buildSearchMarker(Facility sr) async {
+    final icon = await _loadSearchIcon();
+    final m = NMarker(id: 'search', position: NLatLng(sr.lat, sr.lng), icon: icon)
+      ..setGlobalZIndex(1000000)
+      ..setCaption(NOverlayCaption(
+        text: _wrapCaption(sr.name),
+        textSize: 13,
+        color: AppColors.primaryDark,
+        haloColor: Colors.white,
+      ))
+      ..setOnTapListener((_) => _showFacilitySheet(sr));
+    if (icon != null) {
+      m.setAnchor(const NPoint(0.5, 1.0)); // 핀 끝(아래)이 좌표를 가리키게
+    } else {
+      m.setIconTintColor(AppColors.primaryDark);
+    }
+    return m;
+  }
+
   /// 게시글 레이어를 켤 때, 현재 화면에 조회된 게시글이 없으면 안내.
   Future<void> _loadPostsAndNotify(NLatLng center) async {
     await _loadFacilities(center);
@@ -583,6 +634,18 @@ class _MapTabState extends State<MapTab>
     });
   }
 
+  /// 지도 빈 공간 탭 → 검색 강조 마커(표시목) 즉시 제거. 검색창 텍스트는 유지.
+  Future<void> _clearSearchHighlight() async {
+    if (_searchResult == null) return;
+    setState(() => _searchResult = null);
+    final c = _controller;
+    if (c == null) return;
+    try {
+      await c.deleteOverlay(
+          const NOverlayInfo(type: NOverlayType.marker, id: 'search'));
+    } catch (_) {/* 이미 없으면 무시 */}
+  }
+
   void _clearSearch() {
     _suggestDebounce?.cancel();
     _searchController.clear();
@@ -604,13 +667,22 @@ class _MapTabState extends State<MapTab>
     });
     _searchController.text = f.name;
     FocusManager.instance.primaryFocus?.unfocus();
+    // 강조 마커를 즉시 올린다. onCameraIdle 재조회는 중심이 1km 이상 움직여야만
+    // 일어나서, 가까운 곳을 탭하면 마커가 안 뜨던 문제를 직접 추가로 해결.
+    try {
+      await c.deleteOverlay(
+          const NOverlayInfo(type: NOverlayType.marker, id: 'search'));
+    } catch (_) {/* 직전 강조 마커 없음 */}
+    try {
+      await c.addOverlay(await _buildSearchMarker(f));
+    } catch (_) {/* 마커 추가 실패는 무시 */}
     await c.updateCamera(
       NCameraUpdate.scrollAndZoomTo(target: NLatLng(f.lat, f.lng), zoom: 16)
         ..setAnimation(
             animation: NCameraAnimation.easing,
             duration: const Duration(milliseconds: 400)),
     );
-    // 카메라 이동 → onCameraIdle 가 마커 재로드(강조 마커 포함). 상세 즉시 표시.
+    // 상세 시트 즉시 표시(마커는 위에서 이미 추가됨).
     if (mounted) _showFacilitySheet(f);
   }
 
@@ -726,9 +798,12 @@ class _MapTabState extends State<MapTab>
                 },
                 onCameraIdle: _onCameraIdle,
                 // 지도는 네이티브 뷰라 루트 GestureDetector 가 탭을 못 받는다.
-                // 지도를 탭하면 검색창 포커스를 직접 해제(키보드 닫기).
-                onMapTapped: (_, _) =>
-                    FocusManager.instance.primaryFocus?.unfocus(),
+                // 지도 빈 공간 탭 → 키보드 닫기 + 검색 강조 마커(표시목) 제거.
+                // (마커 아이콘 탭은 onMapTapped 가 아니라 마커 onTap → 상세 시트.)
+                onMapTapped: (_, _) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  _clearSearchHighlight();
+                },
                 onCustomStyleLoadFailed: (e) {
                   debugPrint('커스텀 지도 스타일 로드 실패: $e');
                   if (mounted) {

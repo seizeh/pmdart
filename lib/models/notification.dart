@@ -50,6 +50,7 @@ class AppNotification {
         'review_received' => '새 평가를 받았어요',
         'system_notice' => '공지',
         'location_expired' => '지역 인증이 만료됐어요',
+        'security_login' => '새 기기에서 로그인되었어요',
         _ => '알림',
       };
 
@@ -63,6 +64,7 @@ class AppNotification {
         'guardian_invite' => Icons.mail_outline,
         'review_received' => Icons.star_border,
         'location_expired' => Icons.location_off_outlined,
+        'security_login' => Icons.phonelink_lock_outlined,
         _ => Icons.notifications_outlined,
       };
 }

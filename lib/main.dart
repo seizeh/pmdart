@@ -11,6 +11,7 @@ import 'screen/admin/admin_home_screen.dart';
 import 'screen/notifications_screen.dart';
 import 'services/session.dart';
 import 'services/push_service.dart';
+import 'services/realtime_service.dart';
 import 'services/keyboard_barrier.dart';
 
 /// 강제 로그아웃(세션 무효화) 시 라우팅·안내를 위한 전역 키.
@@ -58,6 +59,9 @@ Future<void> main() async {
       return s.token;
     },
   );
+
+  // 로그인 상태면 realtime 재인증 + 알림 실시간 구독(벨/목록/채팅 목록 라이브 갱신).
+  if (SessionManager.instance.isLoggedIn) RealtimeService.instance.start();
 
   runApp(const PawMateApp());
 
@@ -124,6 +128,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
   }
 
   void _handleInvalidated() {
+    RealtimeService.instance.stop();
     PushService.instance.clearToken(); // 무효화된 기기의 FCM 토큰도 삭제
     navigatorKey.currentState?.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const WelcomeScreen()),

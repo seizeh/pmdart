@@ -34,10 +34,19 @@ Future<void> main() async {
   // publishableKey(공개 키)만 클라이언트에 둔다. service_role 키는 절대 포함 금지.
   // accessToken: 로그인 시 발급된 커스텀 JWT 를 모든 요청 Authorization 에 첨부 →
   // RLS 의 app.uid() 가 JWT 의 sub(user_id)를 읽는다. 비로그인 시 null → anon 으로 동작.
+  // 매 요청 전 호출되므로 access 만료 임박 시 여기서 refresh 로 무중단 갱신(단일비행).
+  //  · isRefreshing 중엔 재진입 금지 — refresh 엔드포인트 호출도 이 콜백을 거치므로
+  //    무한재귀/데드락을 막는다(refresh 는 verify_jwt=false 라 stale access 로도 무해).
   await Supabase.initialize(
     url: 'https://vyatppuxmpulqtxevfpk.supabase.co',
     publishableKey: 'sb_publishable_T3dPO3-WMtkFDF_z5VIBBw_NKHwi-ZZ',
-    accessToken: () async => SessionManager.instance.token,
+    accessToken: () async {
+      final s = SessionManager.instance;
+      if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
+        await s.refreshOnce();
+      }
+      return s.token;
+    },
   );
 
   runApp(const PawMateApp());

@@ -258,10 +258,9 @@ class ProfileRepository {
     if (profileImageUrl != null) data['profile_image_url'] = profileImageUrl;
     if (data.isEmpty) return;
     await _c.from('users').update(data).eq('id', user.id);
-    // 세션의 닉네임도 갱신
+    // 세션의 닉네임도 갱신(토큰 유지 — setSession 은 refresh 를 지우므로 updateUser 사용).
     if (nickname != null) {
-      await SessionManager.instance.setSession(
-        SessionManager.instance.token!,
+      await SessionManager.instance.updateUser(
         AuthUser(
           id: user.id,
           username: user.username,

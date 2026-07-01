@@ -40,7 +40,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         _loading = false;
       });
       _markRead();
-      _scrollToBottom(animate: false);
+      // reverse:true 리스트라 첫 프레임부터 맨 아래(최신)에 고정 — 별도 스크롤 점프 불필요.
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -160,7 +160,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _scrollToBottom({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
-      final pos = _scroll.position.maxScrollExtent;
+      final pos = _scroll.position.minScrollExtent; // reverse:true → 0.0 이 맨 아래(최신)
       if (animate) {
         _scroll.animateTo(pos,
             duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
@@ -222,12 +222,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ),
       );
     }
+    // reverse:true — 최신 메시지를 맨 아래에 두고 그 위치에서 렌더 시작(진입 시 점프 없음).
+    // 데이터는 오래된→최신 순이라, 표시 인덱스는 뒤에서부터 읽는다.
     return ListView.builder(
       controller: _scroll,
+      reverse: true,
       padding: const EdgeInsets.all(16),
       itemCount: _messages.length,
       itemBuilder: (_, i) => _MessageBubble(
-        message: _messages[i],
+        message: _messages[_messages.length - 1 - i],
         onReport: _reportMessage,
       ),
     );

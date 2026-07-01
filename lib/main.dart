@@ -1,11 +1,17 @@
+import 'dart:async';
+import 'firebase_options.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'screen/welcome_screen.dart';
 import 'screen/main_screen.dart';
 import 'screen/admin/admin_home_screen.dart';
+import 'screen/notifications_screen.dart';
 import 'services/session.dart';
+import 'services/push_service.dart';
+import 'services/realtime_service.dart';
 import 'services/keyboard_barrier.dart';
 
 /// 강제 로그아웃(세션 무효화) 시 라우팅·안내를 위한 전역 키.
@@ -54,7 +60,37 @@ Future<void> main() async {
     },
   );
 
+  // 로그인 상태면 realtime 재인증 + 알림 실시간 구독(벨/목록/채팅 목록 라이브 갱신).
+  if (SessionManager.instance.isLoggedIn) RealtimeService.instance.start();
+
   runApp(const PawMateApp());
+
+  // OS 푸시(FCM) 초기화는 앱 시작(runApp)을 막지 않도록 백그라운드로.
+  // (init 이 iOS 권한 다이얼로그 응답 대기 + APNs 미설정 getToken 에서 블록될 수 있어,
+  //  await 하면 흰 화면에서 멈춘다.)
+  unawaited(_setupPush());
+}
+
+Future<void> _setupPush() async {
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    PushService.instance.onOpen = (type, resourceType, resourceId) {
+      // 알림 탭 → 알림 목록으로(세부 리소스 라우팅은 후속).
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+      );
+    };
+    PushService.instance.onForeground = (title, body) {
+      final text = [title, body].where((e) => e != null && e.isNotEmpty).join(' · ');
+      if (text.isNotEmpty) {
+        messengerKey.currentState?.showSnackBar(SnackBar(
+          content: Text(text), behavior: SnackBarBehavior.floating));
+      }
+    };
+    await PushService.instance.init();
+  } catch (e) {
+    debugPrint('푸시 초기화 건너뜀(Firebase/APNs 미설정?): $e');
+  }
 }
 
 class PawMateApp extends StatefulWidget {
@@ -92,6 +128,8 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
   }
 
   void _handleInvalidated() {
+    RealtimeService.instance.stop();
+    PushService.instance.clearToken(); // 무효화된 기기의 FCM 토큰도 삭제
     navigatorKey.currentState?.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,

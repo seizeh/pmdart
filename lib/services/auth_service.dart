@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import 'session.dart';
+import 'push_service.dart';
+import 'realtime_service.dart';
 
 /// 로그인/로그아웃. 성공 시 [SessionManager] 에 JWT 세션을 저장한다.
 class AuthService {
@@ -24,6 +26,8 @@ class AuthService {
           AuthUser.fromJson(data['user'] as Map),
           refresh: data['refresh_token'] as String?,
         );
+        await PushService.instance.registerToken(); // FCM 토큰 등록
+        RealtimeService.instance.start(); // realtime 재인증 + 알림 구독
         return const AuthResult(ok: true);
       }
       return const AuthResult(ok: false, errorCode: 'login_failed');
@@ -38,6 +42,8 @@ class AuthService {
 
   /// 로그아웃. 서버에서 이 기기 refresh family 를 회수 후 로컬 세션 clear.
   Future<void> logout() async {
+    RealtimeService.instance.stop(); // 알림 realtime 구독 해제
+    await PushService.instance.clearToken(); // FCM 토큰 삭제(타 사용자 푸시 방지)
     final r = SessionManager.instance.refresh;
     if (r != null) {
       try {

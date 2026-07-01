@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <!-- 게시글 사진 실존 인증: 카메라 촬영 -->
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- OS 푸시(FCM) 알림 표시: Android 13+ 필수(없으면 OS 가 알림을 조용히 버림) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- url_launcher: 외부 https / 네이버 지도 앱(nmap) 열기 (Android 11+ 패키지 가시성) -->
     <queries>

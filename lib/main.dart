@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -58,11 +59,17 @@ Future<void> main() async {
     },
   );
 
-  // OS 푸시(FCM) 초기화. flutterfire 가 생성한 DefaultFirebaseOptions 사용.
-  // 실패해도 앱은 정상 동작하도록 try/catch(iOS APNs 미설정 등 대비 — 푸시만 비활성).
+  runApp(const PawMateApp());
+
+  // OS 푸시(FCM) 초기화는 앱 시작(runApp)을 막지 않도록 백그라운드로.
+  // (init 이 iOS 권한 다이얼로그 응답 대기 + APNs 미설정 getToken 에서 블록될 수 있어,
+  //  await 하면 흰 화면에서 멈춘다.)
+  unawaited(_setupPush());
+}
+
+Future<void> _setupPush() async {
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await PushService.instance.init();
     PushService.instance.onOpen = (type, resourceType, resourceId) {
       // 알림 탭 → 알림 목록으로(세부 리소스 라우팅은 후속).
       navigatorKey.currentState?.push(
@@ -76,11 +83,10 @@ Future<void> main() async {
           content: Text(text), behavior: SnackBarBehavior.floating));
       }
     };
+    await PushService.instance.init();
   } catch (e) {
-    debugPrint('푸시 초기화 건너뜀(Firebase 미설정?): $e');
+    debugPrint('푸시 초기화 건너뜀(Firebase/APNs 미설정?): $e');
   }
-
-  runApp(const PawMateApp());
 }
 
 class PawMateApp extends StatefulWidget {

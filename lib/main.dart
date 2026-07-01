@@ -1,3 +1,4 @@
+import 'firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
@@ -57,10 +58,10 @@ Future<void> main() async {
     },
   );
 
-  // OS 푸시(FCM) 초기화. Firebase config(google-services.json/GoogleService-Info.plist)가
-  // 없으면 실패하므로 try/catch — 미설정 환경에서도 앱은 정상 동작(푸시만 비활성).
+  // OS 푸시(FCM) 초기화. flutterfire 가 생성한 DefaultFirebaseOptions 사용.
+  // 실패해도 앱은 정상 동작하도록 try/catch(iOS APNs 미설정 등 대비 — 푸시만 비활성).
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     await PushService.instance.init();
     PushService.instance.onOpen = (type, resourceType, resourceId) {
       // 알림 탭 → 알림 목록으로(세부 리소스 라우팅은 후속).

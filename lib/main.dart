@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'screen/welcome_screen.dart';
 import 'screen/main_screen.dart';
 import 'screen/admin/admin_home_screen.dart';
+import 'screen/notifications_screen.dart';
 import 'services/session.dart';
+import 'services/push_service.dart';
 import 'services/keyboard_barrier.dart';
 
 /// 강제 로그아웃(세션 무효화) 시 라우팅·안내를 위한 전역 키.
@@ -54,6 +57,28 @@ Future<void> main() async {
     },
   );
 
+  // OS 푸시(FCM) 초기화. Firebase config(google-services.json/GoogleService-Info.plist)가
+  // 없으면 실패하므로 try/catch — 미설정 환경에서도 앱은 정상 동작(푸시만 비활성).
+  try {
+    await Firebase.initializeApp();
+    await PushService.instance.init();
+    PushService.instance.onOpen = (type, resourceType, resourceId) {
+      // 알림 탭 → 알림 목록으로(세부 리소스 라우팅은 후속).
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+      );
+    };
+    PushService.instance.onForeground = (title, body) {
+      final text = [title, body].where((e) => e != null && e.isNotEmpty).join(' · ');
+      if (text.isNotEmpty) {
+        messengerKey.currentState?.showSnackBar(SnackBar(
+          content: Text(text), behavior: SnackBarBehavior.floating));
+      }
+    };
+  } catch (e) {
+    debugPrint('푸시 초기화 건너뜀(Firebase 미설정?): $e');
+  }
+
   runApp(const PawMateApp());
 }
 
@@ -92,6 +117,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
   }
 
   void _handleInvalidated() {
+    PushService.instance.clearToken(); // 무효화된 기기의 FCM 토큰도 삭제
     navigatorKey.currentState?.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,

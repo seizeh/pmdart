@@ -83,6 +83,28 @@ class PhoneAuthService {
     }
   }
 
+  /// 비밀번호 재설정. 전화 OTP(purpose='password_reset') 인증 완료 후 호출.
+  /// 서버가 번호로 계정을 찾아 비번 갱신 + 전 세션 무효화. 성공 시 [ResetPasswordResult.ok].
+  Future<ResetPasswordResult> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {
+    try {
+      final res = await _client.functions.invoke(
+        'reset-password',
+        body: {'phone': phone, 'new_password': newPassword},
+      );
+      final data = (res.data as Map?) ?? const {};
+      return ResetPasswordResult(ok: data['ok'] == true);
+    } on FunctionException catch (e) {
+      final detail = e.details;
+      final code = detail is Map ? detail['error'] as String? : null;
+      return ResetPasswordResult(ok: false, errorCode: code ?? 'reset_failed');
+    } catch (_) {
+      return const ResetPasswordResult(ok: false, errorCode: 'network_error');
+    }
+  }
+
   /// 인증코드 검증. 성공 시 [PhoneVerifyResult.verified] == true.
   Future<PhoneVerifyResult> verifyCode(
     String phone,
@@ -185,6 +207,24 @@ class PhoneVerifyResult {
         'network_error' => '네트워크 연결을 확인해주세요',
         null => '인증되었어요',
         _ => '인증에 실패했어요',
+      };
+}
+
+/// 비밀번호 재설정 결과.
+class ResetPasswordResult {
+  final bool ok;
+  final String? errorCode;
+
+  const ResetPasswordResult({required this.ok, this.errorCode});
+
+  String get message => switch (errorCode) {
+        'invalid_phone' => '전화번호 형식이 올바르지 않아요',
+        'invalid_password' => '비밀번호는 영문과 숫자를 포함해 8자 이상이어야 해요',
+        'phone_not_verified' => '전화번호 인증을 먼저 완료해주세요',
+        'user_not_found' => '해당 번호로 가입된 계정이 없어요',
+        'network_error' => '네트워크 연결을 확인해주세요',
+        null => '비밀번호가 변경됐어요',
+        _ => '비밀번호 재설정에 실패했어요',
       };
 }
 

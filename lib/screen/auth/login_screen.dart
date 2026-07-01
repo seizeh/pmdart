@@ -5,6 +5,7 @@ import '../../services/session.dart';
 import '../main_screen.dart';
 import '../admin/admin_home_screen.dart';
 import 'signup_phone_screen.dart';
+import 'reset_password_screen.dart';
 
 /// 로그인 — 아이디/비밀번호 기반.
 class LoginScreen extends StatefulWidget {
@@ -124,7 +125,11 @@ class _LoginScreenState extends State<LoginScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ResetPasswordScreen()),
+                  ),
                   child: const Text('비밀번호를 잊으셨나요?'),
                 ),
               ),

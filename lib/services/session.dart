@@ -57,6 +57,10 @@ class SessionManager extends ChangeNotifier {
   AuthUser? _user;
   Future<void>? _refreshing; // 단일비행 갱신 진행 중 Future
 
+  /// 세션이 서버에서 무효화되어 강제 로그아웃됐을 때 호출(앱이 로그인 화면으로 라우팅).
+  /// 타 기기 비번변경/정지·refresh 회수 감지 시. main.dart 가 세팅한다.
+  void Function()? onInvalidated;
+
   /// main.dart accessToken 콜백 호환(기존 이름 유지) = 현재 access.
   String? get token => _access;
   String? get access => _access;
@@ -167,13 +171,35 @@ class SessionManager extends ChangeNotifier {
         }
         // notifyListeners 안 함 — 로그인 상태 변화 없음(토큰만 교체, 리빌드 불필요).
       } else {
-        await clear(); // 예상 밖 응답 → 세션 만료 처리
+        await _invalidate(); // 예상 밖 응답 → 세션 만료 처리
       }
     } on FunctionException catch (_) {
-      await clear(); // 401 invalid_refresh 등 → 재로그인 필요
+      await _invalidate(); // 401 invalid_refresh 등 → 강제 로그아웃
     } catch (_) {
       // 네트워크 오류: 세션 유지(다음 요청에서 재시도). 기존 access 로 계속 시도.
     }
+  }
+
+  /// 로그인 상태면 서버에 세션 유효성 확인(session_alive). 무효면 강제 로그아웃 후 true 반환.
+  /// 앱 시작/포그라운드 복귀 시 호출 → 타 기기 비번변경·정지로 무효화된 세션 감지.
+  Future<bool> checkAliveAndClearIfDead() async {
+    if (!isLoggedIn) return false;
+    try {
+      final res = await Supabase.instance.client.rpc('session_alive');
+      if (res == false) {
+        await _invalidate();
+        return true;
+      }
+    } catch (_) {
+      // 네트워크/일시 오류: 무효로 단정하지 않음(오탐 로그아웃 방지).
+    }
+    return false;
+  }
+
+  /// 세션 무효화 → 저장소 clear + onInvalidated(앱 라우팅) 호출.
+  Future<void> _invalidate() async {
+    await clear();
+    onInvalidated?.call();
   }
 
   int? _jwtExp(String jwt) {

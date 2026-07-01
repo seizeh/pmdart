@@ -8,6 +8,11 @@ import 'screen/admin/admin_home_screen.dart';
 import 'services/session.dart';
 import 'services/keyboard_barrier.dart';
 
+/// 강제 로그아웃(세션 무효화) 시 라우팅·안내를 위한 전역 키.
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<ScaffoldMessengerState> messengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
 Future<void> main() async {
   // Flutter 엔진 초기화
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,21 +39,74 @@ Future<void> main() async {
   // publishableKey(공개 키)만 클라이언트에 둔다. service_role 키는 절대 포함 금지.
   // accessToken: 로그인 시 발급된 커스텀 JWT 를 모든 요청 Authorization 에 첨부 →
   // RLS 의 app.uid() 가 JWT 의 sub(user_id)를 읽는다. 비로그인 시 null → anon 으로 동작.
+  // 매 요청 전 호출되므로 access 만료 임박 시 여기서 refresh 로 무중단 갱신(단일비행).
+  //  · isRefreshing 중엔 재진입 금지 — refresh 엔드포인트 호출도 이 콜백을 거치므로
+  //    무한재귀/데드락을 막는다(refresh 는 verify_jwt=false 라 stale access 로도 무해).
   await Supabase.initialize(
     url: 'https://vyatppuxmpulqtxevfpk.supabase.co',
     publishableKey: 'sb_publishable_T3dPO3-WMtkFDF_z5VIBBw_NKHwi-ZZ',
-    accessToken: () async => SessionManager.instance.token,
+    accessToken: () async {
+      final s = SessionManager.instance;
+      if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
+        await s.refreshOnce();
+      }
+      return s.token;
+    },
   );
 
   runApp(const PawMateApp());
 }
 
-class PawMateApp extends StatelessWidget {
+class PawMateApp extends StatefulWidget {
   const PawMateApp({super.key});
+
+  @override
+  State<PawMateApp> createState() => _PawMateAppState();
+}
+
+class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // 세션이 서버에서 무효화(타 기기 비번변경/정지·refresh 회수)되면 강제 로그아웃 라우팅.
+    SessionManager.instance.onInvalidated = _handleInvalidated;
+    // 시작 시 1회 세션 유효성 확인.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SessionManager.instance.checkAliveAndClearIfDead();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 포그라운드 복귀 시 세션 유효성 재확인 → 무효면 즉시 로그아웃.
+    if (state == AppLifecycleState.resumed) {
+      SessionManager.instance.checkAliveAndClearIfDead();
+    }
+  }
+
+  void _handleInvalidated() {
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      (route) => false,
+    );
+    messengerKey.currentState?.showSnackBar(const SnackBar(
+      content: Text('다른 기기에서 로그인하거나 비밀번호가 변경되어 로그아웃되었어요. 다시 로그인해주세요.'),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
+      scaffoldMessengerKey: messengerKey,
       title: 'PawMate',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),

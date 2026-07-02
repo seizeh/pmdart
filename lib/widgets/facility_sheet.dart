@@ -30,6 +30,7 @@ class FacilityDetailContent extends StatefulWidget {
 
 class _FacilityDetailContentState extends State<FacilityDetailContent> {
   List<FacilityReview>? _reviews;
+  List<String>? _categories; // 같은 업체의 겹치는 카테고리 전부(로드되면 헤더에 모두 표기)
 
   @override
   void initState() {
@@ -37,7 +38,22 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     _load();
   }
 
+  /// 겹치는 업종(병원+위탁 등)을 전부 표기하도록, 자기 카테고리 우선 + 나머지.
+  List<String> get _displayCategories {
+    final own = widget.facility.category;
+    final loaded = _categories;
+    if (loaded == null || loaded.isEmpty) return [own];
+    return [own, ...loaded.where((c) => c != own)];
+  }
+
   Future<void> _load() async {
+    final fac = widget.facility;
+    // 같은 업체의 전체 카테고리(DB 시설만; Naver 카페는 단일). 리뷰와 병렬로.
+    if (!fac.isNaver) {
+      FacilityRepository.instance.allCategories(fac.id).then((cats) {
+        if (mounted && cats.isNotEmpty) setState(() => _categories = cats);
+      });
+    }
     try {
       final f = widget.facility;
       // 카페는 마커 id 가 가짜라, 승격된 실제 facility_id 를 해석(없으면 후기 0).
@@ -109,23 +125,26 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     return ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: widget.color.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(100),
+                    // 겹치는 업종 전부(예: 동물병원 · 위탁·호텔 · 미용) 칩으로 표기.
+                    for (final cat in _displayCategories)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: widget.color.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(kFacilityLabels[cat] ?? cat,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: widget.color)),
                       ),
-                      child: Text(widget.label,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: widget.color)),
-                    ),
-                    const SizedBox(width: 8),
                     Text(dist,
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textTertiary)),

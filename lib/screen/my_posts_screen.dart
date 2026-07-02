@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../models/community.dart';
-import '../motion/app_motion.dart';
 import '../services/community_repository.dart';
 import '../services/session.dart';
 import '../widgets/post_card.dart';
@@ -85,7 +85,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
   Future<void> _openDetail(Post post) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => PostDetailScreen(post: post)),
+      AppPageRoute(builder: (_) => PostDetailScreen(post: post)),
     );
     _load();
   }

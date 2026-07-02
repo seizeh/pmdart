@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'motion/motion.dart';
 import 'firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -77,7 +78,7 @@ Future<void> _setupPush() async {
     PushService.instance.onOpen = (type, resourceType, resourceId) {
       // 알림 탭 → 알림 목록으로(세부 리소스 라우팅은 후속).
       navigatorKey.currentState?.push(
-        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        AppPageRoute(builder: (_) => const NotificationsScreen()),
       );
     };
     PushService.instance.onForeground = (title, body) {
@@ -131,7 +132,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
     RealtimeService.instance.stop();
     PushService.instance.clearToken(); // 무효화된 기기의 FCM 토큰도 삭제
     navigatorKey.currentState?.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      AppPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,
     );
     messengerKey.currentState?.showSnackBar(const SnackBar(

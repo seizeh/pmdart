@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../models/profile.dart';
 import '../services/profile_repository.dart';
@@ -355,7 +356,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   pet: pet,
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => PetDetailScreen(pet: pet)),
+                    AppPageRoute(builder: (_) => PetDetailScreen(pet: pet)),
                   ),
                 ),
               ),

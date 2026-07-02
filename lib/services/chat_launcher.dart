@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../screen/chat_room_screen.dart';
 import 'chat_repository.dart';
 
@@ -16,7 +17,7 @@ Future<void> openDirectChat(BuildContext context, String otherUserId) async {
     Navigator.pop(context); // 로딩 닫기
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ChatRoomScreen(room: room)),
+      AppPageRoute(builder: (_) => ChatRoomScreen(room: room)),
     );
   } catch (_) {
     if (!context.mounted) return;

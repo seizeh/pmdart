@@ -23,38 +23,54 @@ class _MainScreenState extends State<MainScreen>
   int _index = 2; // 기본 = 커뮤니티
   int _direction = 0; // 마지막 탭 이동 방향(+1 오른쪽, -1 왼쪽)
 
+  // 하단 네비게이션 바 표시 여부. 커뮤니티에서 아래로 스크롤 시 숨고 위로 올리면 복귀.
+  final _navVisible = ValueNotifier<bool>(true);
+
   // 탭 전환 시 콘텐츠가 이동 방향에서 흘러 들어오는 짧은 모션.
   late final AnimationController _tab = AnimationController(
     vsync: this,
     duration: MotionDurations.base,
     value: 1,
   );
-  late final Animation<double> _tabAnim =
-      CurvedAnimation(parent: _tab, curve: SpringCurve.standard);
+  late final Animation<double> _tabAnim = CurvedAnimation(
+    parent: _tab,
+    curve: SpringCurve.standard,
+  );
 
   late final List<Widget> _tabs = [
     const MapTab(),
     const UserSearchTab(),
-    CommunityTab(isGuest: widget.isGuest),
+    CommunityTab(isGuest: widget.isGuest, chromeVisible: _navVisible),
     ChatTab(isGuest: widget.isGuest),
     MyInfoTab(isGuest: widget.isGuest),
   ];
 
   static const _navItems = [
     SpringyNavItem(
-        icon: Icons.map_outlined, activeIcon: Icons.map, label: '지도'),
+      icon: Icons.map_outlined,
+      activeIcon: Icons.map,
+      label: '지도',
+    ),
     SpringyNavItem(
-        icon: Icons.person_search_outlined,
-        activeIcon: Icons.person_search,
-        label: '검색'),
+      icon: Icons.person_search_outlined,
+      activeIcon: Icons.person_search,
+      label: '검색',
+    ),
     SpringyNavItem(
-        icon: Icons.home_outlined, activeIcon: Icons.home, label: '커뮤니티'),
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home,
+      label: '커뮤니티',
+    ),
     SpringyNavItem(
-        icon: Icons.chat_bubble_outline,
-        activeIcon: Icons.chat_bubble,
-        label: '채팅'),
+      icon: Icons.chat_bubble_outline,
+      activeIcon: Icons.chat_bubble,
+      label: '채팅',
+    ),
     SpringyNavItem(
-        icon: Icons.person_outline, activeIcon: Icons.person, label: '내정보'),
+      icon: Icons.person_outline,
+      activeIcon: Icons.person,
+      label: '내정보',
+    ),
   ];
 
   @override
@@ -72,6 +88,7 @@ class _MainScreenState extends State<MainScreen>
       _direction = i > _index ? 1 : -1;
       _index = i;
     });
+    _navVisible.value = true; // 탭 전환 시 바는 항상 보이게 복귀
     _syncKeyboardBarrier();
     _tab.forward(from: 0); // 새 탭이 방향에서 흘러 들어옴
   }
@@ -79,6 +96,7 @@ class _MainScreenState extends State<MainScreen>
   @override
   void dispose() {
     _tab.dispose();
+    _navVisible.dispose();
     super.dispose();
   }
 
@@ -86,6 +104,9 @@ class _MainScreenState extends State<MainScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      // body 를 하단 바 뒤까지 확장 → 바가 숨을 때 콘텐츠가 화면 끝까지 차서
+      // 흰 여백이 생기지 않는다(각 탭은 바 높이만큼 하단 패딩으로 가림 방지).
+      extendBody: true,
       // IndexedStack 으로 각 탭 상태는 보존하고, 전환 순간에만 방향성 있게 흘려 보낸다.
       body: AnimatedBuilder(
         animation: _tabAnim,
@@ -101,10 +122,20 @@ class _MainScreenState extends State<MainScreen>
         },
         child: IndexedStack(index: _index, children: _tabs),
       ),
-      bottomNavigationBar: SpringyNavBar(
-        currentIndex: _index,
-        onTap: _select,
-        items: _navItems,
+      // 아래로 스크롤 시 바가 아래로 슬라이드되어 숨고, 위로 올리면 스프링으로 복귀.
+      bottomNavigationBar: ValueListenableBuilder<bool>(
+        valueListenable: _navVisible,
+        builder: (context, shown, child) => AnimatedSlide(
+          offset: shown ? Offset.zero : const Offset(0, 1),
+          duration: MotionDurations.base,
+          curve: SpringCurve.standard,
+          child: child,
+        ),
+        child: SpringyNavBar(
+          currentIndex: _index,
+          onTap: _select,
+          items: _navItems,
+        ),
       ),
     );
   }

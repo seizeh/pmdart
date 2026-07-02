@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../motion/motion.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo, categoryLabel;
@@ -169,7 +170,7 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
           onSetVisibility: (v) => _setVisibility(_items[i], v),
           onComments: () => Navigator.push(
             context,
-            MaterialPageRoute(
+            AppPageRoute(
                 builder: (_) => AdminPostCommentsScreen(
                     postId: _items[i].id, postTitle: _items[i].title)),
           ),

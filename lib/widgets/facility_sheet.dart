@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_colors.dart';
 import '../models/facility_review.dart';
@@ -89,7 +90,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     }
     final ok = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
+      AppPageRoute(
         builder: (_) =>
             FacilityReviewScreen(facility: widget.facility, existing: mine),
       ),

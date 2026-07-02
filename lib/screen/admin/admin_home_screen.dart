@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import '../../services/admin_repository.dart';
 import '../../services/auth_service.dart';
@@ -73,13 +74,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     await AuthService.instance.logout();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      AppPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,
     );
   }
 
   void _open(Widget screen) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    Navigator.push(context, AppPageRoute(builder: (_) => screen));
   }
 
   @override

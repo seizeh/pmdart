@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../motion/motion.dart';
 
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
@@ -208,7 +209,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     // 보여질 영역 조정 화면(취소하면 첨부 중단).
     final cropped = await Navigator.push<Uint8List>(
       context,
-      MaterialPageRoute(
+      AppPageRoute(
         fullscreenDialog: true,
         builder: (_) => ImageCropScreen(bytes: raw),
       ),

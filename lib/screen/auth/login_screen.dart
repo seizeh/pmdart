@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../services/session.dart';
@@ -44,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final isAdmin = SessionManager.instance.isAdmin;
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
+        AppPageRoute(
             builder: (_) =>
                 isAdmin ? const AdminHomeScreen() : const MainScreen()),
         (route) => false,
@@ -127,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: TextButton(
                   onPressed: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
+                    AppPageRoute(
                         builder: (_) => const ResetPasswordScreen()),
                   ),
                   child: const Text('비밀번호를 잊으셨나요?'),
@@ -161,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextButton(
                     onPressed: () => Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(
+                      AppPageRoute(
                           builder: (_) => const SignupPhoneScreen()),
                     ),
                     child: const Text('회원가입'),

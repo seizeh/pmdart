@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../models/chat.dart';
@@ -120,7 +121,7 @@ class _ChatTabState extends State<ChatTab> {
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => ChatRoomScreen(room: _rooms[i])),
+              AppPageRoute(builder: (_) => ChatRoomScreen(room: _rooms[i])),
             );
             _load(silent: true); // 읽음/새 메시지 반영
           },

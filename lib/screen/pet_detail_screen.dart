@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show MockPet;
 import '../services/pet_repository.dart';
@@ -126,7 +127,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 Navigator.pop(sheetCtx);
                 final changed = await Navigator.push<bool>(
                   context,
-                  MaterialPageRoute(
+                  AppPageRoute(
                       builder: (_) => PetEditScreen(pet: _pet)),
                 );
                 if (changed == true) _reloadPet();

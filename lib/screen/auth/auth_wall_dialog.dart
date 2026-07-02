@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import 'login_screen.dart';
 
@@ -70,7 +71,7 @@ class AuthWallDialog extends StatelessWidget {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    AppPageRoute(builder: (_) => const LoginScreen()),
                   );
                 },
                 child: const Text('로그인 할래요'),

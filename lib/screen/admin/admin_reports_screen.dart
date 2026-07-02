@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
@@ -147,7 +148,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(
+              AppPageRoute(
                   builder: (_) =>
                       AdminReportDetailScreen(report: _items[i])),
             );

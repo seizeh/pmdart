@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
@@ -65,7 +66,7 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
       }
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => ChatRoomScreen(room: room)),
+        AppPageRoute(builder: (_) => ChatRoomScreen(room: room)),
       );
       if (mounted) _load();
     } catch (_) {

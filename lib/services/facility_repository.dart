@@ -159,6 +159,17 @@ class FacilityRepository {
         .toList();
   }
 
+  /// 같은 업체(이름+주소 동일)의 전체 카테고리 코드. 겹치는 업종(병원+위탁 등)을
+  /// 상세에서 모두 표기하기 위함. 매칭 없거나 실패 시 빈 목록.
+  Future<List<String>> allCategories(String facilityId) async {
+    try {
+      final res =
+          await _c.rpc('facility_all_categories', params: {'p_id': facilityId});
+      if (res is List) return res.map((e) => e.toString()).toList();
+    } catch (_) {/* 네트워크/미매칭 — 단일 카테고리로 폴백 */}
+    return const [];
+  }
+
   /// 시설명 검색(지도 검색창). [lat]/[lng] 주면 가까운 순 정렬. 최대 30건.
   Future<List<Facility>> searchByName(
     String query, {

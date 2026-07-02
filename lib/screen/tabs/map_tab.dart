@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../theme/app_colors.dart';
+import '../../motion/motion.dart';
 import '../../services/facility_repository.dart';
 import '../../services/community_repository.dart';
 import '../../services/location_service.dart';
@@ -39,6 +40,32 @@ Color _colorFor(String category) {
   }
   return AppColors.primaryDark;
 }
+
+// 카테고리 칩 통일 색(선택 배경) + 마커 아이콘 색(진한 브라운).
+const _catAccent = Color(0xFFAC9466);
+const _markerIconColor = Color(0xFF5A4E38);
+
+IconData _iconForCat(String code) => switch (code) {
+      'animal_hospital' => Icons.local_hospital_outlined,
+      'grooming' => Icons.content_cut,
+      'pet_hotel' => Icons.hotel_outlined,
+      'pet_sales' => Icons.storefront_outlined,
+      'pet_cafe' => Icons.local_cafe_outlined,
+      'posts' => Icons.article_outlined,
+      _ => Icons.place_outlined,
+    };
+
+// 지도 마커 전용: 속이 채워진(filled) 변형으로 가독성↑. 단, 가위·침대는 채운 변형이
+// 없거나 어색해 예외로 라인 아이콘 유지.
+IconData _markerIconForCat(String code) => switch (code) {
+      'animal_hospital' => Icons.local_hospital,
+      'grooming' => Icons.content_cut, // 예외(라인 유지)
+      'pet_hotel' => Icons.hotel, // 예외(라인 유지)
+      'pet_sales' => Icons.storefront,
+      'pet_cafe' => Icons.local_cafe,
+      'posts' => Icons.article,
+      _ => Icons.place,
+    };
 
 /// 마커 캡션 줄바꿈: 한 줄 최대 8글자.
 /// 공백이 있으면 단어 단위로 끊되, 한 줄이 8자를 넘어도 단어는 안 자른다.
@@ -165,10 +192,12 @@ class _MapTabState extends State<MapTab>
         if (isLowTrustHidden(f)) continue;
         final sales = evaluatePetSales(f);
         final id = 'fac_${f.id}';
-        final icon = await _iconFor(f.category); // 카테고리 PNG 아이콘(캐시)
+        final icon = await _iconFor(f.category); // 카테고리 아이콘(칩과 동일, 캐시)
         final warn = sales?.level == PetSalesTrust.caution;
         final m = NMarker(id: id, position: NLatLng(f.lat, f.lng), icon: icon)
           ..setIsHideCollidedMarkers(true)
+          // 겹치는 네이버 기본 POI 심볼(아파트 상호명 등)은 숨겨 앱 카테고리 마커를 우선.
+          ..setHideCollidedSymbols(true)
           ..setCaption(NOverlayCaption(
             text: warn ? '⚠ ${_wrapCaption(f.name)}' : _wrapCaption(f.name),
             textSize: 11,
@@ -180,7 +209,7 @@ class _MapTabState extends State<MapTab>
         if (icon != null) {
           m.setAnchor(const NPoint(0.5, 0.5)); // 원형 아이콘 → 중앙 앵커
         } else {
-          m.setIconTintColor(_colorFor(f.category)); // 아이콘 로드 실패 시 폴백
+          m.setIconTintColor(_catAccent); // 아이콘 로드 실패 시 폴백(통일색)
         }
         _byMarkerId[id] = f;
         markers.add(m);
@@ -388,14 +417,6 @@ class _MapTabState extends State<MapTab>
     return out;
   }
 
-  static const _markerAssets = <String, String>{
-    'animal_hospital': 'assets/images/hospital.png',
-    'grooming': 'assets/images/scissors.png',
-    'pet_hotel': 'assets/images/school.png',
-    'pet_cafe': 'assets/images/cup-soda.png',
-    'pet_sales': 'assets/images/IMG_4.png',
-  };
-
   /// 이미지의 불투명 픽셀 경계상자(투명 여백 제외). 불투명 픽셀이 없으면 전체.
   Future<Rect> _opaqueBounds(ui.Image img) async {
     final w = img.width, h = img.height;
@@ -418,42 +439,59 @@ class _MapTabState extends State<MapTab>
         minX.toDouble(), minY.toDouble(), (maxX + 1).toDouble(), (maxY + 1).toDouble());
   }
 
+  /// 마커 아이콘: 분양은 IMG_4.png, 나머지는 채운 Material 아이콘을 #5a4e38 로 렌더.
+  /// 흰 배경 없음. 가독성용 흰 외곽선은 블러 없이 오프셋으로 그려 Impeller 안전.
   Future<NOverlayImage?> _renderMarkerIcon(String category) async {
-    final asset = _markerAssets[category];
-    if (asset == null) return null;
-    const target = 96.0;
-    final color = _colorFor(category);
-    final data = await rootBundle.load(asset);
-    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
-    final frame = await codec.getNextFrame();
-    final img = frame.image;
-    // 투명 여백 제거: 불투명 픽셀의 경계상자(없으면 전체). IMG_4 처럼 여백이 큰
-    // 이미지가 작게 보이는 문제 해결.
-    final src = await _opaqueBounds(img);
-
+    const iconSize = 88.0;
+    const pad = 8.0;
+    const target = iconSize + pad * 2;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    const c = target / 2;
-    canvas.drawCircle(const Offset(c, c), c - 1, Paint()..color = Colors.white);
-    canvas.drawCircle(
-        const Offset(c, c),
-        c - 2,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4
-          ..color = color);
-    // 잘라낸 아이콘을 원 안에 contain 으로 배치.
-    final box = target * 0.6;
-    final s = box / (src.width > src.height ? src.width : src.height);
-    final dw = src.width * s, dh = src.height * s;
-    final dx = (target - dw) / 2, dy = (target - dh) / 2;
-    canvas.drawImageRect(
-      img,
-      src,
-      Rect.fromLTWH(dx, dy, dw, dh),
-      Paint()..filterQuality = FilterQuality.high,
-    );
-    img.dispose();
+
+    if (category == 'pet_sales') {
+      // 분양: IMG_4.png 를 투명 여백 잘라 중앙 배치.
+      final data = await rootBundle.load('assets/images/IMG_4.png');
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+      final frame = await codec.getNextFrame();
+      final img = frame.image;
+      final src = await _opaqueBounds(img);
+      final s = iconSize / (src.width > src.height ? src.width : src.height);
+      final dw = src.width * s, dh = src.height * s;
+      final dx = (target - dw) / 2, dy = (target - dh) / 2;
+      canvas.drawImageRect(img, src, Rect.fromLTWH(dx, dy, dw, dh),
+          Paint()..filterQuality = FilterQuality.high);
+      img.dispose();
+    } else {
+      final iconData = _markerIconForCat(category);
+      final ch = String.fromCharCode(iconData.codePoint);
+      TextPainter glyph(Color color) {
+        return TextPainter(textDirection: TextDirection.ltr)
+          ..text = TextSpan(
+            text: ch,
+            style: TextStyle(
+              fontSize: iconSize,
+              fontFamily: iconData.fontFamily,
+              package: iconData.fontPackage,
+              color: color,
+            ),
+          )
+          ..layout();
+      }
+
+      final base = glyph(_markerIconColor);
+      final origin =
+          Offset((target - base.width) / 2, (target - base.height) / 2);
+      // 흰 외곽선(8방향 오프셋, 블러 없음) → 지도 배경과 대비.
+      final stroke = glyph(Colors.white);
+      const o = 2.0;
+      for (final d in const [
+        Offset(-o, 0), Offset(o, 0), Offset(0, -o), Offset(0, o),
+        Offset(-o, -o), Offset(o, -o), Offset(-o, o), Offset(o, o),
+      ]) {
+        stroke.paint(canvas, origin + d);
+      }
+      base.paint(canvas, origin);
+    }
 
     final image =
         await recorder.endRecording().toImage(target.toInt(), target.toInt());
@@ -504,6 +542,7 @@ class _MapTabState extends State<MapTab>
     final icon = await _loadSearchIcon();
     final m = NMarker(id: 'search', position: NLatLng(sr.lat, sr.lng), icon: icon)
       ..setGlobalZIndex(1000000)
+      ..setHideCollidedSymbols(true) // 겹치는 네이티브 심볼 숨김(강조 마커 우선)
       ..setCaption(NOverlayCaption(
         text: _wrapCaption(sr.name),
         textSize: 13,
@@ -851,24 +890,32 @@ class _MapTabState extends State<MapTab>
                           child: ListView(
                             scrollDirection: Axis.horizontal,
                             children: [
-                              for (final c in _facilityCats)
+                              for (final (i, c) in _facilityCats.indexed)
                                 Padding(
                                   padding: const EdgeInsets.only(right: 8),
-                                  child: _CatChip(
-                                    label: c.$2,
-                                    color: c.$3,
-                                    selected: _selected.contains(c.$1),
-                                    onTap: () => _toggleCategory(c.$1),
+                                  child: Entrance(
+                                    index: i,
+                                    offsetY: 6,
+                                    child: _CatChip(
+                                      label: c.$2,
+                                      icon: _iconForCat(c.$1),
+                                      selected: _selected.contains(c.$1),
+                                      onTap: () => _toggleCategory(c.$1),
+                                    ),
                                   ),
                                 ),
                               // 게시글 클러스터 레이어(시설과 별개)
                               Padding(
                                 padding: const EdgeInsets.only(right: 8),
-                                child: _CatChip(
-                                  label: _postsLayer.$2,
-                                  color: _postsLayer.$3,
-                                  selected: _selected.contains(_postsLayer.$1),
-                                  onTap: () => _toggleCategory(_postsLayer.$1),
+                                child: Entrance(
+                                  index: _facilityCats.length,
+                                  offsetY: 6,
+                                  child: _CatChip(
+                                    label: _postsLayer.$2,
+                                    icon: _iconForCat(_postsLayer.$1),
+                                    selected: _selected.contains(_postsLayer.$1),
+                                    onTap: () => _toggleCategory(_postsLayer.$1),
+                                  ),
                                 ),
                               ),
                             ],
@@ -912,53 +959,90 @@ class _MapTabState extends State<MapTab>
 }
 
 /// 카테고리 필터 칩.
-class _CatChip extends StatelessWidget {
+class _CatChip extends StatefulWidget {
   final String label;
-  final Color color;
+  final IconData icon;
   final bool selected;
   final VoidCallback onTap;
   const _CatChip(
       {required this.label,
-      required this.color,
+      required this.icon,
       required this.selected,
       required this.onTap});
 
   @override
+  State<_CatChip> createState() => _CatChipState();
+}
+
+class _CatChipState extends State<_CatChip>
+    with SingleTickerProviderStateMixin {
+  // 선택 상태 0↔1 을 스프링으로 전환 — 색/스케일이 물리적으로 이어진다(오버슈트 팝).
+  late final AnimationController _sel =
+      AnimationController.unbounded(vsync: this, value: widget.selected ? 1 : 0);
+
+  @override
+  void didUpdateWidget(covariant _CatChip old) {
+    super.didUpdateWidget(old);
+    if (old.selected != widget.selected) {
+      _sel.springTo(widget.selected ? 1 : 0,
+          spring:
+              widget.selected ? MotionSprings.bounce : MotionSprings.standard);
+    }
+  }
+
+  @override
+  void dispose() {
+    _sel.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? color : AppColors.surface,
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-              color: selected ? color : AppColors.border, width: 0.5),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2)),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 8, height: 8,
+    return Pressable(
+      onTap: widget.onTap,
+      scaleTo: 0.93,
+      enableTilt: false, // 작은 알약이라 틸트 대신 스케일 피드백만
+      borderRadius: BorderRadius.circular(100),
+      child: AnimatedBuilder(
+        animation: _sel,
+        builder: (context, _) {
+          final raw = _sel.value; // bounce 로 1 을 살짝 넘겼다 안착(팝)
+          final t = raw.clamp(0.0, 1.0);
+          final bg = Color.lerp(AppColors.surface, _catAccent, t)!;
+          final border = Color.lerp(AppColors.border, _catAccent, t)!;
+          final fg = Color.lerp(AppColors.textPrimary, Colors.white, t)!;
+          final iconColor = Color.lerp(_catAccent, Colors.white, t)!;
+          return Transform.scale(
+            scale: 1 + 0.06 * raw, // 선택 시 살짝 커지며 오버슈트
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: selected ? Colors.white : color),
+                color: bg,
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(color: border, width: 0.5),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2)),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(widget.icon, size: 15, color: iconColor),
+                  const SizedBox(width: 6),
+                  Text(widget.label,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: fg)),
+                ],
+              ),
             ),
-            const SizedBox(width: 6),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : AppColors.textPrimary)),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

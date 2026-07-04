@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../models/profile.dart';
 import '../services/profile_repository.dart';
@@ -86,7 +87,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   Future<void> _verifyRegion() async {
     final changed = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
+      AppPageRoute(
         builder: (_) => LocationVerifyScreen(currentRegion: _regionName),
       ),
     );

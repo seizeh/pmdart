@@ -1066,7 +1066,8 @@ class _SearchField extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        // 사용자 검색과 동일한 단일 톤(surfaceMuted). 지도 위라 그림자는 유지.
+        color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border, width: 0.5),
         boxShadow: [
@@ -1090,7 +1091,11 @@ class _SearchField extends StatelessWidget {
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               decoration: const InputDecoration(
                 isCollapsed: true,
+                // 테마의 filled/테두리를 모두 끔(안쪽 이중 경계선 제거).
+                filled: false,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 hintText: '시설·장소 검색...',
                 hintStyle:
                     TextStyle(color: AppColors.textTertiary, fontSize: 14),

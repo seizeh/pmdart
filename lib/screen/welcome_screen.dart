@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import 'auth/login_screen.dart';
@@ -43,7 +44,7 @@ class WelcomeScreen extends StatelessWidget {
               ElevatedButton(
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const SignupPhoneScreen()),
+                  AppPageRoute(builder: (_) => const SignupPhoneScreen()),
                 ),
                 child: const Text('전화번호로 시작하기'),
               ),
@@ -51,7 +52,7 @@ class WelcomeScreen extends StatelessWidget {
               OutlinedButton(
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  AppPageRoute(builder: (_) => const LoginScreen()),
                 ),
                 child: const Text('로그인'),
               ),
@@ -59,7 +60,7 @@ class WelcomeScreen extends StatelessWidget {
               TextButton(
                 onPressed: () => Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
+                  AppPageRoute(
                     builder: (_) => const MainScreen(isGuest: true),
                   ),
                 ),

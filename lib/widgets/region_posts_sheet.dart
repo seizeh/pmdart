@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
@@ -44,7 +45,7 @@ class _RegionPostsContentState extends State<RegionPostsContent> {
   void _openPost(Post p) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => PostDetailScreen(post: p)),
+      AppPageRoute(builder: (_) => PostDetailScreen(post: p)),
     );
   }
 

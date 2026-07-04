@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show MockPet;
 import '../services/pet_repository.dart';
@@ -51,7 +52,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
   Future<bool> _openEnroll(String petId, String petName) async {
     final ok = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
+      AppPageRoute(
         builder: (_) => PetIdentityEnrollScreen(petId: petId, petName: petName),
       ),
     );

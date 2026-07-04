@@ -38,12 +38,17 @@ class PostCard extends StatelessWidget {
                 if (post.location != null && post.location!.isNotEmpty) ...[
                   const SizedBox(width: 6),
                   Flexible(
-                      child: _DongTag(
-                          label: post.location!, moved: post.authorMoved)),
+                    child: _DongTag(
+                      label: post.location!,
+                      moved: post.authorMoved,
+                    ),
+                  ),
                 ],
                 const Spacer(),
                 Text(
-                  timeAgo(post.createdAt),
+                  post.isEdited
+                      ? '${timeAgo(post.createdAt)} · 수정됨'
+                      : timeAgo(post.createdAt),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textTertiary,
@@ -186,8 +191,11 @@ class _DongTag extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(moved ? Icons.info_outline : Icons.place_outlined,
-            size: 13, color: moved ? AppColors.warning : AppColors.textTertiary),
+        Icon(
+          moved ? Icons.info_outline : Icons.place_outlined,
+          size: 13,
+          color: moved ? AppColors.warning : AppColors.textTertiary,
+        ),
         const SizedBox(width: 2),
         Flexible(
           child: Text(
@@ -243,11 +251,7 @@ class _Stat extends StatelessWidget {
   final IconData icon;
   final int value;
   final Color color;
-  const _Stat({
-    required this.icon,
-    required this.value,
-    required this.color,
-  });
+  const _Stat({required this.icon, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {

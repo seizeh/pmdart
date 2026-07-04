@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../motion/motion.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../models/social.dart';
@@ -212,7 +213,7 @@ class PetSearchTile extends StatelessWidget {
     return InkWell(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
+        AppPageRoute(
           builder: (_) => PetProfileScreen(petId: pet.id, preview: pet),
         ),
       ),

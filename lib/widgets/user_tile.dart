@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../models/social.dart';
 import '../services/social_repository.dart';
@@ -53,7 +54,7 @@ class _UserTileState extends State<UserTile> {
     return InkWell(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
+        AppPageRoute(
           builder: (_) => UserProfileScreen(
               userId: c.userId, previewNickname: c.nickname),
         ),

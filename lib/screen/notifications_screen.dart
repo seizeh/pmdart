@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../models/notification.dart';
@@ -75,7 +76,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // 공동보호자 초대 알림은 리소스 없이 초대함으로 이동
     if (n.type == 'guardian_invite') {
       Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const GuardianInvitesScreen()));
+          AppPageRoute(builder: (_) => const GuardianInvitesScreen()));
       return;
     }
     if (n.resourceId == null) return;
@@ -84,12 +85,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         final post = await CommunityRepository.instance.fetchPost(n.resourceId!);
         if (!mounted || post == null) return;
         Navigator.push(context,
-            MaterialPageRoute(builder: (_) => PostDetailScreen(post: post)));
+            AppPageRoute(builder: (_) => PostDetailScreen(post: post)));
       } else if (n.resourceType == 'chat_room') {
         final room = await ChatRepository.instance.fetchRoom(n.resourceId!);
         if (!mounted || room == null) return;
         Navigator.push(context,
-            MaterialPageRoute(builder: (_) => ChatRoomScreen(room: room)));
+            AppPageRoute(builder: (_) => ChatRoomScreen(room: room)));
       }
     } catch (_) {
       // 이동 실패는 조용히 무시 (읽음 처리는 이미 됨)

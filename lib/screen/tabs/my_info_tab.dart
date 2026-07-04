@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show MockPet;
 import '../../models/profile.dart';
@@ -23,7 +24,7 @@ import '../welcome_screen.dart';
 
 /// 화면 이동 공용 헬퍼.
 void _push(BuildContext context, Widget screen) {
-  Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  Navigator.push(context, AppPageRoute(builder: (_) => screen));
 }
 
 /// 내정보 탭 — 프로필 헤더 / 내 반려동물(N:M) / 내 활동 / 관심 / 설정.
@@ -200,7 +201,7 @@ class _GuestMyInfo extends StatelessWidget {
               ElevatedButton(
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
+                  AppPageRoute(
                       builder: (_) => const SignupPhoneScreen()),
                 ),
                 child: const Text('전화번호로 시작하기'),
@@ -209,7 +210,7 @@ class _GuestMyInfo extends StatelessWidget {
               OutlinedButton(
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  AppPageRoute(builder: (_) => const LoginScreen()),
                 ),
                 child: const Text('로그인'),
               ),
@@ -307,7 +308,7 @@ class _ProfileHeader extends StatelessWidget {
                     color: AppColors.textOnPrimary),
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
+                  AppPageRoute(
                     builder: (_) => ProfileEditScreen(
                       initialNickname: profile.nickname,
                       initialAddress: profile.address,
@@ -425,7 +426,7 @@ class _PetSection extends StatelessWidget {
                 pet: p,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
+                  AppPageRoute(
                       builder: (_) => PetDetailScreen(pet: p)),
                 ),
               ),
@@ -441,7 +442,7 @@ class _PetSection extends StatelessWidget {
   void _openPetEditor(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PetEditScreen()),
+      AppPageRoute(builder: (_) => const PetEditScreen()),
     );
   }
 }
@@ -722,7 +723,7 @@ class _InterestSection extends StatelessWidget {
           trailing: '${profile.pawingCount}',
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(
+            AppPageRoute(
                 builder: (_) => const ConnectionsScreen(initialIndex: 0)),
           ),
         ),
@@ -732,7 +733,7 @@ class _InterestSection extends StatelessWidget {
           trailing: '${profile.pawmateCount}',
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(
+            AppPageRoute(
                 builder: (_) => const ConnectionsScreen(initialIndex: 1)),
           ),
         ),
@@ -788,7 +789,7 @@ class _SettingsSection extends StatelessWidget {
               await AuthService.instance.logout();
               if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                AppPageRoute(builder: (_) => const WelcomeScreen()),
                 (route) => false,
               );
             },

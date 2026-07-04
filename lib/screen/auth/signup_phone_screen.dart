@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import 'package:flutter/services.dart';
 import '../../theme/app_colors.dart';
 import '../../services/phone_auth_service.dart';
@@ -414,7 +415,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
         // 세션 발급 성공 → 메인으로.
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const MainScreen()),
+          AppPageRoute(builder: (_) => const MainScreen()),
           (route) => false,
         );
       } else {
@@ -423,7 +424,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
         _toast('가입이 완료됐어요. 로그인해주세요.');
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          AppPageRoute(builder: (_) => const LoginScreen()),
           (route) => false,
         );
       }

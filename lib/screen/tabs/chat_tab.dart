@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../models/chat.dart';
@@ -110,20 +111,19 @@ class _ChatTabState extends State<ChatTab> {
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _rooms.length,
-        separatorBuilder: (_, _) => const Divider(
-          height: 1,
-          indent: 64,
-          color: AppColors.border,
-        ),
-        itemBuilder: (_, i) => _ChatRoomTile(
-          room: _rooms[i],
-          onTap: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ChatRoomScreen(room: _rooms[i])),
-            );
-            _load(silent: true); // 읽음/새 메시지 반영
-          },
+        separatorBuilder: (_, _) =>
+            const Divider(height: 1, indent: 64, color: AppColors.border),
+        itemBuilder: (_, i) => RepaintBoundary(
+          child: _ChatRoomTile(
+            room: _rooms[i],
+            onTap: () async {
+              await Navigator.push(
+                context,
+                AppPageRoute(builder: (_) => ChatRoomScreen(room: _rooms[i])),
+              );
+              _load(silent: true); // 읽음/새 메시지 반영
+            },
+          ),
         ),
       ),
     );
@@ -137,8 +137,9 @@ class _ChatRoomTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial =
-        room.otherNickname.isEmpty ? '?' : room.otherNickname.characters.first;
+    final initial = room.otherNickname.isEmpty
+        ? '?'
+        : room.otherNickname.characters.first;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -237,8 +238,11 @@ class _MessageState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.chat_bubble_outline,
-                size: 48, color: AppColors.textTertiary),
+            const Icon(
+              Icons.chat_bubble_outline,
+              size: 48,
+              color: AppColors.textTertiary,
+            ),
             const SizedBox(height: 12),
             Text(
               message,
@@ -281,8 +285,11 @@ class _GuestChat extends StatelessWidget {
                     color: AppColors.primarySoft,
                     borderRadius: BorderRadius.circular(32),
                   ),
-                  child: const Icon(Icons.chat_bubble_outline,
-                      size: 48, color: AppColors.primaryDark),
+                  child: const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 48,
+                    color: AppColors.primaryDark,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 const Text(

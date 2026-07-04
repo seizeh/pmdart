@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../motion/motion.dart';
 
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
@@ -59,8 +60,18 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   bool get _needsPet =>
       ['walk_together', 'walk_proxy', 'care', 'give_away'].contains(_category);
   bool get _giveAway => _category == 'give_away';
-  // 자유게시글(free)·입양게시글(adoption)을 제외한 게시글은 사진 등록이 필수.
-  bool get _needsPhoto => !['free', 'adoption'].contains(_category);
+
+  // 자유(free)·입양(adoption)을 제외한 카테고리는 사진 촬영 인증 대상.
+  bool get _isPhotoCategory => !['free', 'adoption'].contains(_category);
+
+  // 현재 선택(연결)한 반려동물들.
+  List<MyPet> get _selectedPets =>
+      _pets.where((p) => _selectedPetIds.contains(p.id)).toList();
+
+  // 촬영 인증이 필요한지 — 신뢰도는 펫별. 선택한 펫 중 미인증(trust<3)이 있을 때만 필요.
+  // 선택한 펫이 모두 신뢰도 3 이상이면 사진 인증 생략(사진은 선택적 첨부만).
+  bool get _needsPhoto =>
+      _isPhotoCategory && _selectedPets.any((p) => !p.isTrusted);
 
   // 현재 위치가 인증 동네와 다를 때 경고 — 게시글은 인증 동네 기준으로 등록됨.
   String? _currentDong; // 지금 있는 동
@@ -81,19 +92,25 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   Future<void> _checkRegion() async {
     try {
       final reg = await ProfileRepository.instance.fetchRegion();
-      final verified = ProfileData.regionNameFromAddress(reg.address,
-          verified: reg.verified);
+      final verified = ProfileData.regionNameFromAddress(
+        reg.address,
+        verified: reg.verified,
+      );
       if (verified == null) return; // 미인증이면 비교 의미 없음
       final loc = await LocationService.instance.getCurrentPosition();
       if (loc.status != LocationStatus.ok || loc.position == null) return;
-      final cur = await ProfileRepository.instance
-          .regionNameAt(loc.position!.latitude, loc.position!.longitude);
+      final cur = await ProfileRepository.instance.regionNameAt(
+        loc.position!.latitude,
+        loc.position!.longitude,
+      );
       if (!mounted || cur == null) return;
       setState(() {
         _verifiedDong = verified;
         _currentDong = cur;
       });
-    } catch (_) {/* 베스트에포트 — 실패 시 경고 없음 */}
+    } catch (_) {
+      /* 베스트에포트 — 실패 시 경고 없음 */
+    }
   }
 
   Future<void> _loadPets() async {
@@ -110,9 +127,67 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     }
   }
 
-  /// 사진 영역 탭. 사진 필수 카테고리는 카메라 촬영→서버 검증, 그 외는 갤러리 업로드.
-  Future<void> _onPhotoTap() =>
-      _needsPhoto ? _captureAndVerify() : _pickFromGallery();
+  /// 사진 영역 탭 분기.
+  ///  · 자유/입양: 갤러리 자유 업로드.
+  ///  · 사진 인증 카테고리: 반려동물을 먼저 선택해야 함(선택 전엔 갤러리 못 엶).
+  ///    - 선택 펫 중 미인증(trust<3) 포함 → 직접 촬영(서버 검증)만.
+  ///    - 선택 펫이 모두 인증(신뢰) → 직접 촬영 / 갤러리 불러오기 선택.
+  Future<void> _onPhotoTap() async {
+    if (!_isPhotoCategory) {
+      return _pickAndUpload(fromCamera: false);
+    }
+    if (_selectedPets.isEmpty) {
+      _toast('먼저 인증할 반려동물을 선택해주세요');
+      return;
+    }
+    if (_selectedPets.any((p) => !p.isTrusted)) {
+      return _captureAndVerify(); // 미인증 펫 포함 → 촬영 인증 필수
+    }
+    return _choosePhotoSource(); // 모두 인증된 펫 → 촬영/갤러리 선택
+  }
+
+  /// 인증된(신뢰) 펫만 선택된 경우 — 촬영/갤러리 소스 선택 시트.
+  Future<void> _choosePhotoSource() async {
+    final src = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '사진 추가',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: AppColors.primaryDark,
+              ),
+              title: const Text('직접 촬영'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: AppColors.primaryDark,
+              ),
+              title: const Text('갤러리에서 불러오기'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (src == 'camera') return _pickAndUpload(fromCamera: true);
+    if (src == 'gallery') return _pickAndUpload(fromCamera: false);
+  }
 
   void _toast(String message) {
     if (!mounted) return;
@@ -124,11 +199,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   /// 사진 필수 카테고리(walk/care/give_away): 촬영 대상 펫 결정 → 카메라 촬영 →
   /// 위치·AI 실존 + 등록 펫 개체 대조. 통과 시 서버 URL/토큰 보관.
   Future<void> _captureAndVerify() async {
-    // 1) 촬영 대상 펫 결정(연결한 펫 중에서)
-    final candidates =
-        _pets.where((p) => _selectedPetIds.contains(p.id)).toList();
+    // 1) 촬영 대상 펫 결정 — 연결한 펫 중 '미인증(trust<3)' 펫만(인증된 펫은 촬영 불필요).
+    final candidates = _selectedPets.where((p) => !p.isTrusted).toList();
     if (candidates.isEmpty) {
-      _toast('먼저 연결할 반려동물을 선택해주세요');
+      _toast('먼저 인증이 필요한 반려동물을 선택해주세요');
       return;
     }
     final target = candidates.length == 1
@@ -151,8 +225,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       _photoPetId = null;
       _uploadingImage = true;
     });
-    final res = await PhotoVerifyRepository.instance
-        .verifyPostPhoto(shot, petId: target.id);
+    final res = await PhotoVerifyRepository.instance.verifyPostPhoto(
+      shot,
+      petId: target.id,
+    );
     if (!mounted) return;
     if (res.pass && res.imageUrl != null && res.token != null) {
       setState(() {
@@ -181,17 +257,26 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('사진 속 반려동물을 선택하세요',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              child: Text(
+                '사진 속 반려동물을 선택하세요',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
             ),
-            ...candidates.map((p) => ListTile(
-                  title: Text('${p.name}  ·  ${p.species}'),
-                  subtitle: p.isIdentityVerified
-                      ? null
-                      : const Text('신원 인증 필요',
-                          style: TextStyle(color: AppColors.warning, fontSize: 12)),
-                  onTap: () => Navigator.pop(ctx, p),
-                )),
+            ...candidates.map(
+              (p) => ListTile(
+                title: Text('${p.name}  ·  ${p.species}'),
+                subtitle: p.isIdentityVerified
+                    ? null
+                    : const Text(
+                        '신원 인증 필요',
+                        style: TextStyle(
+                          color: AppColors.warning,
+                          fontSize: 12,
+                        ),
+                      ),
+                onTap: () => Navigator.pop(ctx, p),
+              ),
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -199,16 +284,19 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     );
   }
 
-  /// free/adoption: 갤러리 선택 → 표시 비율(3:4)에 맞게 영역 조정(크롭) → 업로드(검증 없음).
-  Future<void> _pickFromGallery() async {
-    final file = await StorageService.instance.pickImage();
+  /// 검증 없는 사진 첨부(자유/입양, 또는 인증된 펫의 선택 촬영/갤러리).
+  /// [fromCamera] 면 카메라 촬영, 아니면 갤러리 선택 → 표시 비율 크롭 → 업로드.
+  Future<void> _pickAndUpload({required bool fromCamera}) async {
+    final file = fromCamera
+        ? await StorageService.instance.capturePostPhoto()
+        : await StorageService.instance.pickImage();
     if (file == null) return;
     final raw = await file.readAsBytes();
     if (!mounted) return;
     // 보여질 영역 조정 화면(취소하면 첨부 중단).
     final cropped = await Navigator.push<Uint8List>(
       context,
-      MaterialPageRoute(
+      AppPageRoute(
         fullscreenDialog: true,
         builder: (_) => ImageCropScreen(bytes: raw),
       ),
@@ -220,8 +308,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       _uploadingImage = true;
     });
     try {
-      final up = await StorageService.instance
-          .uploadBytes(cropped, category: 'posts', ext: 'png', mime: 'image/png');
+      final up = await StorageService.instance.uploadBytes(
+        cropped,
+        category: 'posts',
+        ext: 'png',
+        mime: 'image/png',
+      );
       if (!mounted) return;
       setState(() {
         _uploadedImage = up;
@@ -286,7 +378,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_regionMismatch) ...[
-                _RegionWarning(current: _currentDong!, verified: _verifiedDong!),
+                _RegionWarning(
+                  current: _currentDong!,
+                  verified: _verifiedDong!,
+                ),
                 const SizedBox(height: 16),
               ],
               const _SectionLabel('카테고리'),
@@ -294,20 +389,22 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: _categories
-                    .map((c) => CategoryChip(
-                  category: c,
-                  selected: _category == c,
-                  onTap: () => setState(() {
-                    _category = c;
-                    _selectedPetIds.clear();
-                    if (!_allowsSchedule) _scheduledAt = null;
-                    // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
-                    _uploadedImage = null;
-                    _photoToken = null;
-                    _photoPetId = null;
-                    _uploadingImage = false;
-                  }),
-                ))
+                    .map(
+                      (c) => CategoryChip(
+                        category: c,
+                        selected: _category == c,
+                        onTap: () => setState(() {
+                          _category = c;
+                          _selectedPetIds.clear();
+                          if (!_allowsSchedule) _scheduledAt = null;
+                          // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
+                          _uploadedImage = null;
+                          _photoToken = null;
+                          _photoPetId = null;
+                          _uploadingImage = false;
+                        }),
+                      ),
+                    )
                     .toList(),
               ),
               const SizedBox(height: 24),
@@ -324,9 +421,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               TextField(
                 controller: _contentCtrl,
                 maxLines: 8,
-                decoration: const InputDecoration(
-                  hintText: '자세한 내용을 적어주세요',
-                ),
+                decoration: const InputDecoration(hintText: '자세한 내용을 적어주세요'),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 20),
@@ -337,7 +432,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                   child: Text(
                     '아래에서 반려동물을 먼저 선택한 뒤, 그 아이를 카메라로 촬영하세요. '
                     '등록된 인증 사진과 대조해 실제 반려동물인지 확인합니다.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
                   ),
                 ),
               _PhotoPicker(
@@ -354,8 +453,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                   onTap: _pickDateTime,
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted,
                       borderRadius: BorderRadius.circular(16),
@@ -363,8 +464,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.event,
-                            color: AppColors.primaryDark, size: 20),
+                        const Icon(
+                          Icons.event,
+                          color: AppColors.primaryDark,
+                          size: 20,
+                        ),
                         const SizedBox(width: 10),
                         Text(
                           _scheduledAt == null
@@ -390,7 +494,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Center(child: CircularProgressIndicator()),
                   )
-                else if (_pets.where((p) => !_giveAway || p.role == 'owner').isEmpty)
+                else if (_pets
+                    .where((p) => !_giveAway || p.role == 'owner')
+                    .isEmpty)
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -402,80 +508,90 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                           ? '분양은 본인이 소유자인 반려동물이 있어야 작성할 수 있어요'
                           : '연결할 반려동물이 없어요. 먼저 반려동물을 등록해주세요',
                       style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary, height: 1.5),
-                    ),
-                  ),
-                ..._pets.where((p) {
-                  if (_giveAway) return p.role == 'owner';
-                  return true;
-                }).map((p) {
-                  final selected = _selectedPetIds.contains(p.id);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () => setState(() {
-                        if (_giveAway) {
-                          _selectedPetIds
-                            ..clear()
-                            ..add(p.id);
-                        } else {
-                          if (selected) {
-                            _selectedPetIds.remove(p.id);
-                          } else {
-                            _selectedPetIds.add(p.id);
-                          }
-                        }
-                        // 검증 사진이 묶인 펫이 선택 해제되면 사진을 무효화한다.
-                        if (_photoPetId != null &&
-                            !_selectedPetIds.contains(_photoPetId)) {
-                          _uploadedImage = null;
-                          _photoToken = null;
-                          _photoPetId = null;
-                        }
-                      }),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? AppColors.primarySoft.withValues(alpha: 0.3)
-                              : AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: selected
-                                ? AppColors.primary
-                                : AppColors.border,
-                            width: selected ? 1.5 : 0.5,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              selected
-                                  ? Icons.check_circle
-                                  : Icons.radio_button_off,
-                              color: selected
-                                  ? AppColors.primary
-                                  : AppColors.textTertiary,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                '${p.name}  ·  ${p.species}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            RoleBadge(role: p.role, compact: true),
-                          ],
-                        ),
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        height: 1.5,
                       ),
                     ),
-                  );
-                }),
+                  ),
+                ..._pets
+                    .where((p) {
+                      if (_giveAway) return p.role == 'owner';
+                      return true;
+                    })
+                    .map((p) {
+                      final selected = _selectedPetIds.contains(p.id);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => setState(() {
+                            if (_giveAway) {
+                              _selectedPetIds
+                                ..clear()
+                                ..add(p.id);
+                            } else {
+                              if (selected) {
+                                _selectedPetIds.remove(p.id);
+                              } else {
+                                _selectedPetIds.add(p.id);
+                              }
+                            }
+                            // 검증 사진이 묶인 펫이 선택 해제되면 사진을 무효화한다.
+                            if (_photoPetId != null &&
+                                !_selectedPetIds.contains(_photoPetId)) {
+                              _uploadedImage = null;
+                              _photoToken = null;
+                              _photoPetId = null;
+                            }
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? AppColors.primarySoft.withValues(alpha: 0.3)
+                                  : AppColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: selected
+                                    ? AppColors.primary
+                                    : AppColors.border,
+                                width: selected ? 1.5 : 0.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  selected
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_off,
+                                  color: selected
+                                      ? AppColors.primary
+                                      : AppColors.textTertiary,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    '${p.name}  ·  ${p.species}',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                // 신뢰도 3 이상 — 사진 인증 없이 게시 가능.
+                                if (p.isTrusted && _isPhotoCategory) ...[
+                                  const _TrustBadge(),
+                                  const SizedBox(width: 6),
+                                ],
+                                RoleBadge(role: p.role, compact: true),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
                 if (_giveAway)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
@@ -487,8 +603,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.info_outline,
-                            size: 16, color: AppColors.warning),
+                        const Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: AppColors.warning,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -539,7 +658,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     if (time == null) return;
     setState(() {
       _scheduledAt = DateTime(
-          date.year, date.month, date.day, time.hour, time.minute);
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 
@@ -582,7 +706,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     final s = e.toString();
     final idx = s.indexOf('posts:');
     if (idx >= 0) {
-      return s.substring(idx).split('\n').first.replaceFirst('posts:', '').trim();
+      return s
+          .substring(idx)
+          .split('\n')
+          .first
+          .replaceFirst('posts:', '')
+          .trim();
     }
     return '게시글 등록에 실패했어요';
   }
@@ -601,7 +730,10 @@ class _RegionWarning extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.warning.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.5), width: 0.5),
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.5),
+          width: 0.5,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -617,6 +749,37 @@ class _RegionWarning extends StatelessWidget {
                 height: 1.45,
                 color: AppColors.textSecondary,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 신뢰 펫 배지 — 약속·평가로 신뢰도 3 이상 달성 → 사진 인증 면제 표시.
+class _TrustBadge extends StatelessWidget {
+  const _TrustBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified_outlined, size: 13, color: AppColors.primaryDark),
+          SizedBox(width: 3),
+          Text(
+            '인증 면제',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryDark,
             ),
           ),
         ],
@@ -679,9 +842,13 @@ class _PhotoPicker extends StatelessWidget {
               const CircularProgressIndicator(),
               if (requireCamera) ...[
                 const SizedBox(height: 12),
-                const Text('사진을 인증하는 중이에요',
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
+                const Text(
+                  '사진을 인증하는 중이에요',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ],
             ],
           ),
@@ -704,15 +871,20 @@ class _PhotoPicker extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                  requireCamera
-                      ? Icons.photo_camera_outlined
-                      : Icons.add_a_photo_outlined,
-                  color: AppColors.primaryDark,
-                  size: 26),
+                requireCamera
+                    ? Icons.photo_camera_outlined
+                    : Icons.add_a_photo_outlined,
+                color: AppColors.primaryDark,
+                size: 26,
+              ),
               const SizedBox(height: 6),
-              Text(requireCamera ? '사진 촬영' : '사진 추가',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary)),
+              Text(
+                requireCamera ? '사진 촬영' : '사진 추가',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ],
           ),
         ),

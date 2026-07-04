@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../data/review_categories.dart';
@@ -289,7 +290,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     final otherId = _otherId(a);
     final done = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
+      AppPageRoute(
         builder: (_) => ReviewWriteScreen(
           appointmentId: a['id'] as String,
           revieweeId: otherId,

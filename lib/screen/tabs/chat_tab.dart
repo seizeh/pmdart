@@ -23,6 +23,39 @@ class _ChatTabState extends State<ChatTab> {
   bool _loading = true;
   String? _error;
 
+  // 채팅 타일별 GlobalKey — 탭 시 타일 위치를 캡처해 그 자리에서 펼치고 축소하는 데 사용.
+  final _roomKeys = <String, GlobalKey>{};
+
+  // 상세로 열려있는 방 id — 그 타일은 열린 동안 투명(빈자리)으로 두어 축소가 겹침 없이 안착.
+  String? _openedRoomId;
+
+  // 타일의 현재 화면상 사각형(축소 도착 지점). 못 찾으면 null.
+  Rect? _roomRect(String id) {
+    final box = _roomKeys[id]?.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  Future<void> _openRoom(ChatRoomSummary room) async {
+    final rect = _roomRect(room.id);
+    if (rect != null) setState(() => _openedRoomId = room.id); // 빈자리로
+    await Navigator.push(
+      context,
+      rect == null
+          ? AppPageRoute(builder: (_) => ChatRoomScreen(room: room))
+          : CollapseRoute(
+              builder: (_) => ChatRoomScreen(
+                room: room,
+                originRect: rect,
+                cardBuilder: (_) => _ChatRoomTile(room: room, onTap: () {}),
+              ),
+            ),
+    );
+    if (!mounted) return;
+    setState(() => _openedRoomId = null); // 타일 복원
+    _load(silent: true); // 읽음/새 메시지 반영
+  }
+
   @override
   void initState() {
     super.initState();
@@ -113,18 +146,19 @@ class _ChatTabState extends State<ChatTab> {
         itemCount: _rooms.length,
         separatorBuilder: (_, _) =>
             const Divider(height: 1, indent: 64, color: AppColors.border),
-        itemBuilder: (_, i) => RepaintBoundary(
-          child: _ChatRoomTile(
-            room: _rooms[i],
-            onTap: () async {
-              await Navigator.push(
-                context,
-                AppPageRoute(builder: (_) => ChatRoomScreen(room: _rooms[i])),
-              );
-              _load(silent: true); // 읽음/새 메시지 반영
-            },
-          ),
-        ),
+        itemBuilder: (_, i) {
+          final room = _rooms[i];
+          final key = _roomKeys.putIfAbsent(room.id, () => GlobalKey());
+          return KeyedSubtree(
+            key: key,
+            child: Opacity(
+              opacity: room.id == _openedRoomId ? 0.0 : 1.0,
+              child: RepaintBoundary(
+                child: _ChatRoomTile(room: room, onTap: () => _openRoom(room)),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

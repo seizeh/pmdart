@@ -46,6 +46,10 @@ class _CommunityTabState extends State<CommunityTab>
   // 펼치고, 아래로 당기면 그 자리로 축소시키는 CollapseRoute 에 넘긴다.
   final _cardKeys = <String, GlobalKey>{};
 
+  // 상세보기로 열려있는 카드 id — 그 카드는 상세가 열린 동안 투명(빈자리)으로 두어,
+  // 축소 애니메이션이 실제 카드와 겹치지 않고 빈 슬롯으로 깔끔히 안착하게 한다.
+  String? _openedPostId;
+
   // 글쓰기 FAB 위치 캡처용 — 버튼에서 펼쳐지고 버튼으로 축소되는 전환에 사용.
   final _fabKey = GlobalKey();
 
@@ -201,6 +205,8 @@ class _CommunityTabState extends State<CommunityTab>
       originRect: rect,
       cardBuilder: rect == null ? null : (_) => PostCard(post: post),
     );
+    // 카드 확장/축소 동안 원본 카드를 빈자리로(축소가 겹침 없이 안착).
+    if (rect != null) setState(() => _openedPostId = post.id);
     await Navigator.push<void>(
       context,
       rect == null
@@ -208,6 +214,7 @@ class _CommunityTabState extends State<CommunityTab>
           : CollapseRoute<void>(builder: (_) => page),
     );
     if (!mounted) return;
+    setState(() => _openedPostId = null); // 상세 닫힘 → 원본 카드 복원
     _revealHeaderIfAtTop(); // 최상단이면 헤더 복귀(흰 공백 방지)
     _load(silent: true); // 스크롤 유지한 채 하트/댓글 변동만 반영
   }
@@ -493,15 +500,19 @@ class _CommunityTabState extends State<CommunityTab>
           final key = _cardKeys.putIfAbsent(post.id, () => GlobalKey());
           return KeyedSubtree(
             key: key,
-            // RepaintBoundary 로 각 카드 리페인트를 격리(헤더 블러/애니메이션·이웃 카드
-            // 하트 토글이 다른 카드를 다시 그리지 않게 함).
-            child: RepaintBoundary(
-              child: Entrance(
-                index: i,
-                child: PostCard(
-                  post: post,
-                  onTap: () => _openPost(post),
-                  onHeart: () => _toggleHeart(i),
+            // 상세로 열려있으면 투명(빈자리)으로 — 레이아웃/크기는 유지해 슬롯 그대로.
+            child: Opacity(
+              opacity: post.id == _openedPostId ? 0.0 : 1.0,
+              // RepaintBoundary 로 각 카드 리페인트를 격리(헤더 블러/애니메이션·이웃 카드
+              // 하트 토글이 다른 카드를 다시 그리지 않게 함).
+              child: RepaintBoundary(
+                child: Entrance(
+                  index: i,
+                  child: PostCard(
+                    post: post,
+                    onTap: () => _openPost(post),
+                    onHeart: () => _toggleHeart(i),
+                  ),
                 ),
               ),
             ),

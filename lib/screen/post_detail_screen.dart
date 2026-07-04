@@ -12,6 +12,7 @@ import '../widgets/role_badge.dart';
 import '../widgets/report_sheet.dart';
 import 'auth/auth_wall_dialog.dart';
 import 'applicants_screen.dart';
+import 'post_edit_screen.dart';
 
 /// 신고 액션 시트의 한 항목.
 class _ReportAction {
@@ -310,6 +311,18 @@ class _PostDetailScreenState extends State<PostDetailScreen>
     );
   }
 
+  /// 내 게시글 수정 → 저장되면 최신 내용으로 다시 불러온다.
+  Future<void> _openEdit() async {
+    final saved = await Navigator.push<bool>(
+      context,
+      AppPageRoute(builder: (_) => PostEditScreen(post: _post)),
+    );
+    if (saved == true) {
+      final fresh = await _repo.fetchPost(_post.id);
+      if (fresh != null && mounted) setState(() => _post = fresh);
+    }
+  }
+
   void _toast(String m) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -411,6 +424,12 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       backgroundColor: Colors.white,
       appBar: AppBar(
         actions: [
+          if (_isMyPost)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: '수정',
+              onPressed: _openEdit,
+            ),
           if (!_isMyPost)
             IconButton(
               icon: const Icon(Icons.chat_bubble_outline),
@@ -579,7 +598,9 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       child: AnimatedBuilder(
         animation: _cc,
         builder: (context, child) => _wrapCollapse(context, child!, cardWidget),
-        child: scaffold,
+        // RepaintBoundary 로 상세 화면 페인트를 캐시 → 축소 스케일 매 프레임에
+        // 전체를 다시 그리지 않고 캐시 레이어를 재사용(버벅임 감소).
+        child: RepaintBoundary(child: scaffold),
       ),
     );
   }
@@ -702,7 +723,7 @@ class _AuthorRow extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '${timeAgo(post.createdAt)} · 조회 ${post.viewCount}',
+              '${timeAgo(post.createdAt)} · 조회 ${post.viewCount}${post.isEdited ? ' · 수정됨' : ''}',
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textTertiary,

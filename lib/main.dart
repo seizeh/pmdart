@@ -35,8 +35,8 @@ Future<void> main() async {
         case NQuotaExceededException(:final message):
           debugPrint('네이버 지도 사용량 초과: $message');
         case NUnauthorizedClientException() ||
-              NClientUnspecifiedException() ||
-              NAnotherAuthFailedException():
+            NClientUnspecifiedException() ||
+            NAnotherAuthFailedException():
           debugPrint('네이버 지도 인증 실패: $ex');
       }
     },
@@ -74,7 +74,9 @@ Future<void> main() async {
 
 Future<void> _setupPush() async {
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     PushService.instance.onOpen = (type, resourceType, resourceId) {
       // 알림 탭 → 알림 목록으로(세부 리소스 라우팅은 후속).
       navigatorKey.currentState?.push(
@@ -82,10 +84,14 @@ Future<void> _setupPush() async {
       );
     };
     PushService.instance.onForeground = (title, body) {
-      final text = [title, body].where((e) => e != null && e.isNotEmpty).join(' · ');
+      final text = [
+        title,
+        body,
+      ].where((e) => e != null && e.isNotEmpty).join(' · ');
       if (text.isNotEmpty) {
-        messengerKey.currentState?.showSnackBar(SnackBar(
-          content: Text(text), behavior: SnackBarBehavior.floating));
+        messengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
+        );
       }
     };
     await PushService.instance.init();
@@ -122,9 +128,14 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 포그라운드 복귀 시 세션 유효성 재확인 → 무효면 즉시 로그아웃.
     if (state == AppLifecycleState.resumed) {
+      // 포그라운드 복귀 시 세션 유효성 재확인 → 무효면 즉시 로그아웃.
       SessionManager.instance.checkAliveAndClearIfDead();
+      // 실시간 소켓 재개(백그라운드 알림은 FCM 이 담당하므로 손실 없음).
+      if (SessionManager.instance.isLoggedIn) RealtimeService.instance.start();
+    } else if (state == AppLifecycleState.paused) {
+      // 백그라운드에선 실시간 소켓을 끊는다 → 배터리 절약 + OEM 강제종료 회피.
+      RealtimeService.instance.stop();
     }
   }
 
@@ -135,10 +146,12 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
       AppPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,
     );
-    messengerKey.currentState?.showSnackBar(const SnackBar(
-      content: Text('다른 기기에서 로그인하거나 비밀번호가 변경되어 로그아웃되었어요. 다시 로그인해주세요.'),
-      behavior: SnackBarBehavior.floating,
-    ));
+    messengerKey.currentState?.showSnackBar(
+      const SnackBar(
+        content: Text('다른 기기에서 로그인하거나 비밀번호가 변경되어 로그아웃되었어요. 다시 로그인해주세요.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -187,8 +200,8 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
       home: !SessionManager.instance.isLoggedIn
           ? const WelcomeScreen()
           : SessionManager.instance.isAdmin
-              ? const AdminHomeScreen()
-              : const MainScreen(),
+          ? const AdminHomeScreen()
+          : const MainScreen(),
     );
   }
 }

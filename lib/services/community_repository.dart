@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/community.dart';
 import 'session.dart';
+import 'storage_service.dart' show UploadedImage;
 
 /// 행정동별 게시글 클러스터(지도용). posts_by_region RPC 결과 (0021 §6).
 class PostCluster {
@@ -19,12 +20,14 @@ class PostCluster {
   });
 
   factory PostCluster.fromJson(Map<String, dynamic> j) => PostCluster(
-        regionCode: (j['region_code'] ?? '') as String,
-        count: (j['post_count'] as num?)?.toInt() ?? 0,
-        lat: (j['lat'] as num).toDouble(),
-        lng: (j['lng'] as num).toDouble(),
-        postIds: [for (final id in (j['post_ids'] as List? ?? const [])) id as String],
-      );
+    regionCode: (j['region_code'] ?? '') as String,
+    count: (j['post_count'] as num?)?.toInt() ?? 0,
+    lat: (j['lat'] as num).toDouble(),
+    lng: (j['lng'] as num).toDouble(),
+    postIds: [
+      for (final id in (j['post_ids'] as List? ?? const [])) id as String,
+    ],
+  );
 }
 
 /// 커뮤니티(게시글/하트/댓글/지원) 데이터 접근.
@@ -88,12 +91,15 @@ class CommunityRepository {
     required double maxLng,
     required double maxLat,
   }) async {
-    final rows = await _c.rpc('posts_by_region', params: {
-      'p_min_lng': minLng,
-      'p_min_lat': minLat,
-      'p_max_lng': maxLng,
-      'p_max_lat': maxLat,
-    });
+    final rows = await _c.rpc(
+      'posts_by_region',
+      params: {
+        'p_min_lng': minLng,
+        'p_min_lat': minLat,
+        'p_max_lng': maxLng,
+        'p_max_lat': maxLat,
+      },
+    );
     return (rows as List)
         .map((r) => PostCluster.fromJson(r as Map<String, dynamic>))
         .toList();
@@ -103,7 +109,9 @@ class CommunityRepository {
   Future<void> syncDongCentroids() async {
     try {
       await _c.functions.invoke('sync-dong-centroids', body: {});
-    } catch (_) {/* 비어있으면 posts_by_region 이 사용자 평균으로 폴백 */}
+    } catch (_) {
+      /* 비어있으면 posts_by_region 이 사용자 평균으로 폴백 */
+    }
   }
 
   /// 게시글 ID 목록으로 피드 행 조회 (클러스터 탭 → 그 지역 글 목록).
@@ -121,16 +129,21 @@ class CommunityRepository {
 
   /// 단일 게시글 조회 (알림 등에서 이동용). 없으면 null.
   Future<Post?> fetchPost(String postId) async {
-    final row =
-        await _c.from('v_post_feed').select().eq('id', postId).maybeSingle();
+    final row = await _c
+        .from('v_post_feed')
+        .select()
+        .eq('id', postId)
+        .maybeSingle();
     return row == null ? null : Post.fromJson(row);
   }
 
   /// 내가 하트한 게시글.
   Future<List<Post>> fetchHeartedPosts() async {
     final uid = _requireUid();
-    final hearts =
-        await _c.from('post_hearts').select('post_id').eq('user_id', uid);
+    final hearts = await _c
+        .from('post_hearts')
+        .select('post_id')
+        .eq('user_id', uid);
     final ids = [for (final h in hearts as List) h['post_id'] as String];
     if (ids.isEmpty) return const [];
     final rows = await _c
@@ -176,18 +189,50 @@ class CommunityRepository {
     String? photoToken,
   }) async {
     _requireUid();
-    final postId = await _c.rpc('create_post_verified', params: {
-      'p_category': category,
-      'p_title': title,
-      'p_content': content,
-      'p_scheduled_at': scheduledAt?.toUtc().toIso8601String(),
-      'p_pet_ids': petIds.isEmpty ? null : petIds,
-      'p_image_url': imageUrl,
-      'p_image_mime': imageMime,
-      'p_image_size': imageSize,
-      'p_photo_token': photoToken,
-    });
+    final postId = await _c.rpc(
+      'create_post_verified',
+      params: {
+        'p_category': category,
+        'p_title': title,
+        'p_content': content,
+        'p_scheduled_at': scheduledAt?.toUtc().toIso8601String(),
+        'p_pet_ids': petIds.isEmpty ? null : petIds,
+        'p_image_url': imageUrl,
+        'p_image_mime': imageMime,
+        'p_image_size': imageSize,
+        'p_photo_token': photoToken,
+      },
+    );
     return postId as String;
+  }
+
+  /// 내 게시글 제목·내용·약속일정·(자유/입양 한정)사진 수정 — update_my_post RPC.
+  /// 일정이 실제로 바뀌면 진행 중 지원자에게 알림/푸시가 서버에서 발송된다.
+  /// 카메라 인증 게시글의 검증 사진·카테고리·펫은 편집 대상이 아니다(서버가 무시).
+  /// [scheduledAt] 은 일정 게시글이면 현재/변경 값, 아니면 null.
+  /// [editImage] 가 true 면 자유/입양 게시글의 사진을 [image] 값으로 교체(null=제거).
+  Future<void> updatePost(
+    String postId, {
+    required String title,
+    required String content,
+    DateTime? scheduledAt,
+    bool editImage = false,
+    UploadedImage? image,
+  }) async {
+    _requireUid();
+    await _c.rpc(
+      'update_my_post',
+      params: {
+        'p_post': postId,
+        'p_title': title,
+        'p_content': content,
+        'p_scheduled_at': scheduledAt?.toUtc().toIso8601String(),
+        'p_edit_image': editImage,
+        'p_image_url': image?.url,
+        'p_image_mime': image?.mime,
+        'p_image_size': image?.size,
+      },
+    );
   }
 
   /// 내 게시글 삭제(소프트) — delete_my_post RPC.
@@ -243,8 +288,10 @@ class CommunityRepository {
   Future<bool> canManageApplicants(String postId) async {
     if (_uid == null) return false;
     try {
-      final res =
-          await _c.rpc('can_manage_post_applicants', params: {'p_post': postId});
+      final res = await _c.rpc(
+        'can_manage_post_applicants',
+        params: {'p_post': postId},
+      );
       return res == true;
     } catch (_) {
       return false;
@@ -259,8 +306,12 @@ class CommunityRepository {
     final uid = _uid;
     if (uid == null) return false; // 비로그인은 RLS상 기록 불가
     final now = DateTime.now().toUtc();
-    final bucket =
-        DateTime.utc(now.year, now.month, now.day, now.hour).toIso8601String();
+    final bucket = DateTime.utc(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+    ).toIso8601String();
     try {
       await _c.from('post_views').insert({
         'post_id': postId,
@@ -283,21 +334,25 @@ class CommunityRepository {
     final rows = await _c
         .from('pet_guardians')
         .select(
-            'role, pets(id, name, species, pet_status, identity_verified, pet_match_count)')
+          'role, pets(id, name, species, pet_status, identity_verified, pet_match_count, trust_score)',
+        )
         .eq('user_id', uid);
     final result = <MyPet>[];
     for (final r in rows as List) {
       final pet = r['pets'] as Map<String, dynamic>?;
       if (pet == null) continue;
       if (pet['pet_status'] != 'active') continue;
-      result.add(MyPet(
-        id: pet['id'] as String,
-        name: (pet['name'] ?? '') as String,
-        species: (pet['species'] ?? '') as String,
-        role: (r['role'] ?? 'co_guardian') as String,
-        isIdentityVerified: pet['identity_verified'] == true,
-        matchCount: (pet['pet_match_count'] ?? 0) as int,
-      ));
+      result.add(
+        MyPet(
+          id: pet['id'] as String,
+          name: (pet['name'] ?? '') as String,
+          species: (pet['species'] ?? '') as String,
+          role: (r['role'] ?? 'co_guardian') as String,
+          isIdentityVerified: pet['identity_verified'] == true,
+          matchCount: (pet['pet_match_count'] ?? 0) as int,
+          trustScore: (pet['trust_score'] ?? 0) as int,
+        ),
+      );
     }
     return result;
   }

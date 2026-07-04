@@ -159,7 +159,9 @@ class _OriginExpand extends StatelessWidget {
           );
     return AnimatedBuilder(
       animation: animation,
-      child: child,
+      // RepaintBoundary 로 작성 화면 페인트를 캐시 → 확장/축소 스케일 매 프레임에
+      // 전체 재페인트 대신 캐시 레이어 재사용.
+      child: RepaintBoundary(child: child),
       builder: (context, child) {
         final p = animation.value.clamp(0.0, 1.0);
         final t = 1 - p;

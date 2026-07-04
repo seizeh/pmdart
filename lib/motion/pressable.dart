@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'app_motion.dart';
 
 /// 누를 수 있는 모든 표면을 감싸는 **피드백(feedback) + 방향성(direction)** 래퍼.
@@ -18,7 +17,6 @@ class Pressable extends StatefulWidget {
     this.scaleTo = 0.96,
     this.maxTilt = 0.05,
     this.enableTilt = true,
-    this.haptic = true,
     this.borderRadius,
   });
 
@@ -32,7 +30,6 @@ class Pressable extends StatefulWidget {
   /// 손가락 위치 방향으로 기우는 최대 각도(rad).
   final double maxTilt;
   final bool enableTilt;
-  final bool haptic;
   final BorderRadius? borderRadius;
 
   @override
@@ -41,8 +38,10 @@ class Pressable extends StatefulWidget {
 
 class _PressableState extends State<Pressable>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController.unbounded(vsync: this, value: 0);
+  late final AnimationController _c = AnimationController.unbounded(
+    vsync: this,
+    value: 0,
+  );
 
   // -1..1 범위로 정규화된, 카드 중심 대비 터치 위치(틸트 방향).
   Offset _dir = Offset.zero;
@@ -78,18 +77,8 @@ class _PressableState extends State<Pressable>
       },
       onTapUp: (_) => _release(),
       onTapCancel: _release,
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (widget.haptic) HapticFeedback.lightImpact();
-              widget.onTap!();
-            },
-      onLongPress: widget.onLongPress == null
-          ? null
-          : () {
-              if (widget.haptic) HapticFeedback.mediumImpact();
-              widget.onLongPress!();
-            },
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       child: AnimatedBuilder(
         animation: _c,
         child: widget.borderRadius != null

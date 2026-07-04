@@ -49,8 +49,9 @@ class _CommunityTabState extends State<CommunityTab>
   // 글쓰기 FAB 위치 캡처용 — 버튼에서 펼쳐지고 버튼으로 축소되는 전환에 사용.
   final _fabKey = GlobalKey();
 
-  // 헤더 그라데이션 블러 슬라이스 수(많을수록 띠 경계가 부드러움).
-  static const _headerBlurSlices = 20;
+  // 헤더 그라데이션 블러 슬라이스 수. 각 슬라이스가 BackdropFilter(saveLayer+블러)라
+  // 스크롤 매 프레임 비용이 크다 → 육안 차이 거의 없는 6개로 축소(성능 최적화).
+  static const _headerBlurSlices = 6;
 
   // 헤더 두 섹션 높이(오버레이+애니메이션): 파란(제목+검색) / 빨간(카테고리 칩).
   static const _searchSectionH = 116.0;
@@ -492,12 +493,16 @@ class _CommunityTabState extends State<CommunityTab>
           final key = _cardKeys.putIfAbsent(post.id, () => GlobalKey());
           return KeyedSubtree(
             key: key,
-            child: Entrance(
-              index: i,
-              child: PostCard(
-                post: post,
-                onTap: () => _openPost(post),
-                onHeart: () => _toggleHeart(i),
+            // RepaintBoundary 로 각 카드 리페인트를 격리(헤더 블러/애니메이션·이웃 카드
+            // 하트 토글이 다른 카드를 다시 그리지 않게 함).
+            child: RepaintBoundary(
+              child: Entrance(
+                index: i,
+                child: PostCard(
+                  post: post,
+                  onTap: () => _openPost(post),
+                  onHeart: () => _toggleHeart(i),
+                ),
               ),
             ),
           );
@@ -673,9 +678,9 @@ class _SearchBar extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        // 단일 톤(surfaceMuted). 프로스트 헤더 위라 테두리 없이 채우기만.
+        color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Row(
         children: [
@@ -692,7 +697,11 @@ class _SearchBar extends StatelessWidget {
               ),
               decoration: const InputDecoration(
                 isCollapsed: true,
+                // 테마의 filled/enabled/focused 테두리를 모두 끔(안쪽 이중 경계선 제거).
+                filled: false,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 hintText: '게시글 검색...',
                 hintStyle: TextStyle(
                   color: AppColors.textTertiary,

@@ -96,12 +96,7 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
         Navigator.pop(context, true);
         return;
       }
-      // 진단용(임시): 서버가 준 stage/detail 이 있으면 함께 노출해 원인 파악.
-      _toast(
-        res.detail == null
-            ? res.message
-            : '${res.message}\n[${res.errorCode}] ${res.detail}',
-      );
+      _toast(res.message);
     } catch (_) {
       if (!mounted) return;
       setState(() {

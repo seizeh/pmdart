@@ -8,15 +8,11 @@ class PetEnrollResult {
   final bool enrolled;
   final List<String> warnings; // species_kind / breed 소프트 경고
   final String? errorCode;
-  final String? detail; // 진단용(임시): 서버가 준 상세 사유
-  final int? videoKb; // 진단용(임시): 전송 영상 크기
 
   const PetEnrollResult({
     required this.enrolled,
     this.warnings = const [],
     this.errorCode,
-    this.detail,
-    this.videoKb,
   });
 
   /// 실패 사유 한글 메시지.
@@ -77,22 +73,13 @@ class PetEnrollRepository {
       return PetEnrollResult(
         enrolled: false,
         errorCode: data['reason'] as String?,
-        detail: data['detail'] as String?,
-        videoKb: data['videoKb'] is num
-            ? (data['videoKb'] as num).toInt()
-            : null,
       );
     } on FunctionException catch (e) {
-      // 500(internal_error) 등 non-2xx 는 여기로 온다. 서버가 넣은 진단(stage/detail)도 함께 꺼낸다.
       final d = e.details;
       final code = d is Map ? (d['reason'] ?? d['error']) : null;
-      final diag = d is Map
-          ? [d['stage'], d['detail']].where((x) => x != null).join(' | ')
-          : null;
       return PetEnrollResult(
         enrolled: false,
         errorCode: code as String? ?? 'enroll_failed',
-        detail: (diag != null && diag.isNotEmpty) ? diag : null,
       );
     } catch (_) {
       return const PetEnrollResult(enrolled: false, errorCode: 'network_error');

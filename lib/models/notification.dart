@@ -24,6 +24,18 @@ class AppNotification {
     required this.aggregatedCount,
   });
 
+  AppNotification copyWith({bool? isRead}) => AppNotification(
+    id: id,
+    type: type,
+    title: title,
+    body: body,
+    isRead: isRead ?? this.isRead,
+    createdAt: createdAt,
+    resourceType: resourceType,
+    resourceId: resourceId,
+    aggregatedCount: aggregatedCount,
+  );
+
   factory AppNotification.fromJson(Map<String, dynamic> j) => AppNotification(
     id: j['id'] as String,
     type: (j['notification_type'] ?? 'system_notice') as String,

@@ -5,6 +5,7 @@ import '../../data/mock_data.dart' show timeAgo;
 import '../../models/chat.dart';
 import '../../services/chat_repository.dart';
 import '../../services/app_events.dart';
+import '../../widgets/gradient_header.dart';
 import '../auth/auth_wall_dialog.dart';
 import '../chat_room_screen.dart';
 
@@ -103,14 +104,17 @@ class _ChatTabState extends State<ChatTab> {
   Widget build(BuildContext context) {
     if (widget.isGuest) return const _GuestChat();
 
+    final topInset = MediaQuery.of(context).padding.top;
+    // 메인(커뮤니티)과 동일하게: 리스트가 상단 그라데이션 헤더 아래로 스크롤되며 페이드.
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+      body: Stack(
+        children: [
+          Positioned.fill(child: _buildBody(topInset + 56)),
+          GradientHeader(
+            topInset: topInset,
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Text(
                 '채팅',
                 style: TextStyle(
@@ -120,14 +124,13 @@ class _ChatTabState extends State<ChatTab> {
                 ),
               ),
             ),
-            Expanded(child: _buildBody()),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(double topPad) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -141,8 +144,9 @@ class _ChatTabState extends State<ChatTab> {
     }
     return RefreshIndicator(
       onRefresh: _load,
+      edgeOffset: topPad,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: EdgeInsets.only(left: 20, right: 20, top: topPad),
         itemCount: _rooms.length,
         separatorBuilder: (_, _) =>
             const Divider(height: 1, indent: 64, color: AppColors.border),

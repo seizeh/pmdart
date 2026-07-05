@@ -74,7 +74,8 @@ class _SpringyNavBarState extends State<SpringyNavBar>
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
+        // 흰색 셀로판지(반투명) — 뒤 콘텐츠가 선명하게 비치며 덮인다(상단 헤더와 동일 효과).
+        color: Color(0xCCFFFFFF), // 흰색 alpha ≈ 0.8 (= AppColors.frostFilm)
         // 상단 좌우 모서리를 둥글게 — 각진 느낌 제거.
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         // 하드 보더 대신 위로 번지는 부드러운 그림자로 본문과 분리.
@@ -127,8 +128,7 @@ class _SpringyNavBarState extends State<SpringyNavBar>
                       // 아이콘 + 라벨
                       Row(
                         children: [
-                          for (var i = 0; i < n; i++)
-                            _buildItem(i, pos, itemW),
+                          for (var i = 0; i < n; i++) _buildItem(i, pos, itemW),
                         ],
                       ),
                     ],
@@ -146,7 +146,11 @@ class _SpringyNavBarState extends State<SpringyNavBar>
     final item = widget.items[i];
     // 알약과의 근접도(0~1): 가까울수록 활성에 가깝게 보간된다.
     final proximity = (1 - (pos - i).abs()).clamp(0.0, 1.0);
-    final color = Color.lerp(widget.inactiveColor, widget.activeColor, proximity)!;
+    final color = Color.lerp(
+      widget.inactiveColor,
+      widget.activeColor,
+      proximity,
+    )!;
     final lift = -3.0 * proximity; // 떠오름
     final iconScale = 1 + 0.12 * proximity; // 확대
     final selected = proximity > 0.5;

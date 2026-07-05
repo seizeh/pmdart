@@ -6,6 +6,7 @@ import '../../models/social.dart';
 import '../../models/pet_search.dart';
 import '../../services/social_repository.dart';
 import '../../widgets/user_tile.dart';
+import '../../widgets/gradient_header.dart';
 import '../pet_profile_screen.dart';
 
 /// 사용자 검색 탭 — 닉네임 또는 반려동물 이름으로 검색(입력 즉시).
@@ -91,65 +92,79 @@ class _UserSearchTabState extends State<UserSearchTab> {
 
   @override
   Widget build(BuildContext context) {
+    final topInset = MediaQuery.of(context).padding.top;
+    // 메인(커뮤니티)과 동일하게: 결과 리스트가 상단 그라데이션 헤더 아래로 스크롤되며 페이드.
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '사용자 검색',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark,
-                ),
+      body: Stack(
+        children: [
+          Positioned.fill(child: _buildBody(topInset + 126)),
+          GradientHeader(
+            topInset: topInset,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '사용자 검색',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _ctrl,
+                    autofocus: true,
+                    textInputAction: TextInputAction.search,
+                    onChanged: _onChanged,
+                    onSubmitted: (v) {
+                      final q = v.trim();
+                      if (q.isNotEmpty) _runSearch(q);
+                    },
+                    decoration: InputDecoration(
+                      hintText: '닉네임이나 반려동물의 이름으로 검색',
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.textSecondary,
+                      ),
+                      suffixIcon: _ctrl.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: AppColors.textTertiary,
+                              ),
+                              onPressed: _clear,
+                            ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _ctrl,
-                autofocus: true,
-                textInputAction: TextInputAction.search,
-                onChanged: _onChanged,
-                onSubmitted: (v) {
-                  final q = v.trim();
-                  if (q.isNotEmpty) _runSearch(q);
-                },
-                decoration: InputDecoration(
-                  hintText: '닉네임이나 반려동물의 이름으로 검색',
-                  prefixIcon: const Icon(Icons.search,
-                      color: AppColors.textSecondary),
-                  suffixIcon: _ctrl.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.close,
-                              color: AppColors.textTertiary),
-                          onPressed: _clear,
-                        ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(child: _buildBody()),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(double topPad) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Padding(
+        padding: EdgeInsets.only(top: topPad),
+        child: const Center(child: CircularProgressIndicator()),
+      );
     }
     if (!_searched) {
-      return _hint('닉네임이나 반려동물 이름을 입력해\n보호자를 찾아보세요');
+      return _hint('닉네임이나 반려동물 이름을 입력해\n보호자를 찾아보세요', topPad);
     }
     if (_results.isEmpty && _petResults.isEmpty) {
-      return _hint('검색 결과가 없어요');
+      return _hint('검색 결과가 없어요', topPad);
     }
     return ListView(
+      padding: EdgeInsets.only(top: topPad, left: 20, right: 20, bottom: 20),
       children: [
         if (_petResults.isNotEmpty) ...[
           _sectionHeader('반려동물'),
@@ -164,35 +179,41 @@ class _UserSearchTabState extends State<UserSearchTab> {
   }
 
   Widget _sectionHeader(String label) => Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 4),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(top: 12, bottom: 4),
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textSecondary,
+      ),
+    ),
+  );
 
-  Widget _hint(String msg) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.person_search_outlined,
-              size: 56, color: AppColors.textTertiary),
-          const SizedBox(height: 12),
-          Text(
-            msg,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-              height: 1.5,
+  Widget _hint(String msg, double topPad) {
+    return Padding(
+      padding: EdgeInsets.only(top: topPad),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.person_search_outlined,
+              size: 56,
+              color: AppColors.textTertiary,
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              msg,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -229,12 +250,17 @@ class PetSearchTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 image: pet.imageUrl != null
                     ? DecorationImage(
-                        image: NetworkImage(pet.imageUrl!), fit: BoxFit.cover)
+                        image: NetworkImage(pet.imageUrl!),
+                        fit: BoxFit.cover,
+                      )
                     : null,
               ),
               child: pet.imageUrl == null
-                  ? const Icon(Icons.pets,
-                      color: AppColors.primaryDark, size: 22)
+                  ? const Icon(
+                      Icons.pets,
+                      color: AppColors.primaryDark,
+                      size: 22,
+                    )
                   : null,
             ),
             const SizedBox(width: 12),

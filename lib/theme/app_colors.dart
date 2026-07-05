@@ -17,7 +17,7 @@ class AppColors {
   static const Color surfaceMuted = Color(0xFFFAF6EC); // 살짝 톤 다운된 카드
 
   // 흰색 셀로판지 필름(반투명) — 상단 헤더·하단 바가 뒤 콘텐츠를 선명하게 비치며 덮는다.
-  static const Color frostFilm = Color(0xCCFFFFFF); // 흰색 alpha ≈ 0.8
+  static const Color frostFilm = Color(0xEBFFFFFF); // 흰색 alpha ≈ 0.92 (덜 투명)
 
   // 텍스트
   static const Color textPrimary = Color(0xFF5A4E3A); // 본문/제목

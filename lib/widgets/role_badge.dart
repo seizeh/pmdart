@@ -63,16 +63,19 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = categoryColor(category);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? color : AppColors.surface,
+          // 선택칩 색은 '전체' 칩과 동일하게 primaryDark 로 통일(카테고리별 색 안 씀).
+          // 채우기만 투명(테두리·글씨는 불투명 유지 → 가독성).
+          color: selected
+              ? AppColors.primaryDark.withValues(alpha: 0.7)
+              : Colors.white.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-            color: selected ? color : AppColors.border,
+            color: selected ? AppColors.primaryDark : AppColors.border,
           ),
         ),
         child: Text(

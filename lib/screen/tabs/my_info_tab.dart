@@ -7,6 +7,7 @@ import '../../services/profile_repository.dart';
 import '../../services/pet_repository.dart';
 import '../../services/app_events.dart';
 import '../../widgets/pet_card.dart';
+import '../../widgets/role_badge.dart';
 import '../../services/auth_service.dart';
 import '../pet_detail_screen.dart';
 import '../pet_edit_screen.dart';
@@ -110,8 +111,10 @@ class _MyInfoTabState extends State<MyInfoTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error ?? '프로필을 불러오지 못했어요',
-                  style: const TextStyle(color: AppColors.textSecondary)),
+              Text(
+                _error ?? '프로필을 불러오지 못했어요',
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
               const SizedBox(height: 12),
               TextButton(onPressed: _load, child: const Text('다시 시도')),
             ],
@@ -132,12 +135,17 @@ class _MyInfoTabState extends State<MyInfoTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _ProfileHeader(profile: profile),
-                const SizedBox(height: 24),
-                _PetSection(pets: profile.pets),
-                const SizedBox(height: 24),
+                // 반려동물이 주인공 — 큰 히어로 카드/캐러셀을 최상단에.
+                const SizedBox(height: 8),
+                _PetHero(pets: profile.pets),
+                const SizedBox(height: 20),
+                // 유저 정보는 작은 카드로 축소(보조).
+                _UserStrip(profile: profile),
+                const SizedBox(height: 20),
                 _ActivitySection(
-                    profile: profile, pendingInvites: _pendingInvites),
+                  profile: profile,
+                  pendingInvites: _pendingInvites,
+                ),
                 const SizedBox(height: 12),
                 _ActivityRangeSection(profile: profile),
                 const SizedBox(height: 12),
@@ -174,8 +182,11 @@ class _GuestMyInfo extends StatelessWidget {
                   color: AppColors.primarySoft,
                   borderRadius: BorderRadius.circular(32),
                 ),
-                child: const Icon(Icons.person_outline,
-                    size: 48, color: AppColors.primaryDark),
+                child: const Icon(
+                  Icons.person_outline,
+                  size: 48,
+                  color: AppColors.primaryDark,
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -201,8 +212,7 @@ class _GuestMyInfo extends StatelessWidget {
               ElevatedButton(
                 onPressed: () => Navigator.push(
                   context,
-                  AppPageRoute(
-                      builder: (_) => const SignupPhoneScreen()),
+                  AppPageRoute(builder: (_) => const SignupPhoneScreen()),
                 ),
                 child: const Text('전화번호로 시작하기'),
               ),
@@ -232,48 +242,304 @@ class _GuestFooter extends StatelessWidget {
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 20,
-      children: [
-        _link('이용약관'),
-        _link('개인정보 처리방침'),
-        _link('고객센터'),
-      ],
+      children: [_link('이용약관'), _link('개인정보 처리방침'), _link('고객센터')],
     );
   }
 
   Widget _link(String s) => Text(
     s,
-    style: const TextStyle(
-        fontSize: 12, color: AppColors.textTertiary),
+    style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
   );
 }
 
-class _ProfileHeader extends StatelessWidget {
+/// 반려동물 히어로 — 내정보 최상단의 주인공. 큰 사진 카드(여러 마리면 캐러셀).
+class _PetHero extends StatefulWidget {
+  final List<MockPet> pets;
+  const _PetHero({required this.pets});
+
+  @override
+  State<_PetHero> createState() => _PetHeroState();
+}
+
+class _PetHeroState extends State<_PetHero> {
+  final _pc = PageController(viewportFraction: 0.9);
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _pc.dispose();
+    super.dispose();
+  }
+
+  void _openEditor() => _push(context, const PetEditScreen());
+
+  @override
+  Widget build(BuildContext context) {
+    final pets = widget.pets;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
+          child: Row(
+            children: [
+              const Text(
+                '내 반려동물',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (pets.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '${pets.length}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              TextButton.icon(
+                onPressed: _openEditor,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('등록'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (pets.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: EmptyPetCard(onTap: _openEditor),
+          )
+        else ...[
+          SizedBox(
+            height: 320,
+            child: PageView.builder(
+              controller: _pc,
+              padEnds: pets.length > 1,
+              itemCount: pets.length,
+              onPageChanged: (i) => setState(() => _page = i),
+              itemBuilder: (_, i) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: _PetHeroCard(
+                  pet: pets[i],
+                  onTap: () => _push(context, PetDetailScreen(pet: pets[i])),
+                ),
+              ),
+            ),
+          ),
+          if (pets.length > 1) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < pets.length; i++)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == _page ? 20 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: i == _page
+                          ? AppColors.primaryDark
+                          : AppColors.border,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+}
+
+/// 반려동물 히어로 카드 — 큰 사진 위에 이름/종·나이/인증 배지를 오버레이(포스터형).
+class _PetHeroCard extends StatelessWidget {
+  final MockPet pet;
+  final VoidCallback onTap;
+  const _PetHeroCard({required this.pet, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final age = pet.birthDate == null
+        ? null
+        : '${DateTime.now().year - pet.birthDate!.year}살';
+    final genderKo = switch (pet.gender) {
+      'male' => '남아',
+      'female' => '여아',
+      _ => null,
+    };
+    final subtitle = [
+      pet.species,
+      if (age != null) age,
+      if (genderKo != null) genderKo,
+    ].join('  ·  ');
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: AppColors.primarySoft,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 사진(없으면 발바닥 플레이스홀더)
+            if (pet.imageUrl != null)
+              Image.network(
+                pet.imageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const _PetHeroPlaceholder(),
+              )
+            else
+              const _PetHeroPlaceholder(),
+            // 하단 어둡게 — 흰 글씨 가독성.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                height: 150,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x00000000), Color(0xB3000000)],
+                  ),
+                ),
+              ),
+            ),
+            // 상단 우측: 역할 + 인증 배지
+            Positioned(
+              top: 14,
+              right: 14,
+              child: Row(
+                children: [
+                  if (pet.isIdentityVerified) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.verified,
+                            size: 13,
+                            color: AppColors.primaryDark,
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            '인증',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  RoleBadge(role: pet.role, compact: true),
+                ],
+              ),
+            ),
+            // 하단 좌측: 이름 + 종·나이·성별
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 18,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pet.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xF2FFFFFF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PetHeroPlaceholder extends StatelessWidget {
+  const _PetHeroPlaceholder();
+  @override
+  Widget build(BuildContext context) => const ColoredBox(
+    color: AppColors.primarySoft,
+    child: Center(
+      child: Icon(Icons.pets, size: 72, color: AppColors.primaryDark),
+    ),
+  );
+}
+
+/// 유저 정보(축소) — 반려동물이 주인공이므로 작은 카드로 보조 표시.
+class _UserStrip extends StatelessWidget {
   final ProfileData profile;
-  const _ProfileHeader({required this.profile});
+  const _UserStrip({required this.profile});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primaryDark,
-        borderRadius: BorderRadius.circular(24),
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               CircleAvatar(
-                radius: 28,
+                radius: 22,
                 backgroundColor: AppColors.primarySoft,
                 child: Text(
                   profile.nickname.isEmpty
                       ? '?'
                       : profile.nickname.characters.first,
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: AppColors.primaryDark,
                   ),
@@ -287,25 +553,27 @@ class _ProfileHeader extends StatelessWidget {
                     Text(
                       profile.nickname,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textOnPrimary,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       '@${profile.username}  ·  ${_userTypeLabel(profile.userType)}',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Color(0xFFD9CBA8),
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.edit_outlined,
-                    color: AppColors.textOnPrimary),
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  color: AppColors.textSecondary,
+                ),
                 onPressed: () => Navigator.push(
                   context,
                   AppPageRoute(
@@ -319,25 +587,22 @@ class _ProfileHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                  child: _statCol('받은 평가', profile.reviewCount.toString())),
-              Container(
-                width: 1,
-                height: 32,
-                color: const Color(0x33D9CBA8),
+                child: _statCol('받은 평가', profile.reviewCount.toString()),
               ),
+              Container(width: 1, height: 26, color: AppColors.border),
               Expanded(
-                  child: _statCol('Pawing', profile.pawingCount.toString())),
-              Container(
-                width: 1,
-                height: 32,
-                color: const Color(0x33D9CBA8),
+                child: _statCol('Pawing', profile.pawingCount.toString()),
               ),
+              Container(width: 1, height: 26, color: AppColors.border),
               Expanded(
-                  child: _statCol('Pawmate', profile.pawmateCount.toString())),
+                child: _statCol('Pawmate', profile.pawmateCount.toString()),
+              ),
             ],
           ),
         ],
@@ -350,15 +615,15 @@ class _ProfileHeader extends StatelessWidget {
       Text(
         value,
         style: const TextStyle(
-          fontSize: 20,
+          fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: AppColors.textOnPrimary,
+          color: AppColors.textPrimary,
         ),
       ),
       const SizedBox(height: 2),
       Text(
         label,
-        style: const TextStyle(fontSize: 11, color: Color(0xFFD9CBA8)),
+        style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
       ),
     ],
   );
@@ -370,81 +635,6 @@ class _ProfileHeader extends StatelessWidget {
     'admin' => '관리자',
     _ => t,
   };
-}
-
-class _PetSection extends StatelessWidget {
-  final List<MockPet> pets;
-  const _PetSection({required this.pets});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Text(
-                '내 반려동물',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: const Text(
-                  '공동보호자',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryDark,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => _openPetEditor(context),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('등록'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...pets.map(
-                (p) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: PetCard(
-                pet: p,
-                onTap: () => Navigator.push(
-                  context,
-                  AppPageRoute(
-                      builder: (_) => PetDetailScreen(pet: p)),
-                ),
-              ),
-            ),
-          ),
-          if (pets.isEmpty)
-            EmptyPetCard(onTap: () => _openPetEditor(context)),
-        ],
-      ),
-    );
-  }
-
-  void _openPetEditor(BuildContext context) {
-    Navigator.push(
-      context,
-      AppPageRoute(builder: (_) => const PetEditScreen()),
-    );
-  }
 }
 
 class _SectionCard extends StatelessWidget {
@@ -480,7 +670,10 @@ class _SectionCard extends StatelessWidget {
               yield _ItemRow(item: it);
               if (it != items.last) {
                 yield const Divider(
-                    height: 1, indent: 56, color: AppColors.border);
+                  height: 1,
+                  indent: 56,
+                  color: AppColors.border,
+                );
               }
             }),
             const SizedBox(height: 4),
@@ -496,7 +689,12 @@ class _Item {
   final String label;
   final String? trailing;
   final VoidCallback? onTap;
-  const _Item({required this.icon, required this.label, this.trailing, this.onTap});
+  const _Item({
+    required this.icon,
+    required this.label,
+    this.trailing,
+    this.onTap,
+  });
 }
 
 class _ItemRow extends StatelessWidget {
@@ -532,8 +730,11 @@ class _ItemRow extends StatelessWidget {
                 ),
               ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right,
-                size: 18, color: AppColors.textTertiary),
+            const Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: AppColors.textTertiary,
+            ),
           ],
         ),
       ),
@@ -567,9 +768,9 @@ class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
     } catch (_) {
       if (mounted) setState(() => _radius = prev);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('활동 범위를 저장하지 못했어요')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('활동 범위를 저장하지 못했어요')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -592,18 +793,23 @@ class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('활동 범위',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary)),
+            const Text(
+              '활동 범위',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               verified
                   ? '${dong ?? '내 동네'} 기준 반경 (5~15km) · 이 범위의 게시글만 보여요'
                   : '동네 인증을 먼저 완료하면 설정할 수 있어요',
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.textTertiary),
+                fontSize: 12,
+                color: AppColors.textTertiary,
+              ),
             ),
             if (verified) ...[
               const SizedBox(height: 12),
@@ -631,8 +837,11 @@ class _RadiusChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _RadiusChip(
-      {required this.label, required this.selected, required this.onTap});
+  const _RadiusChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -644,8 +853,9 @@ class _RadiusChip extends StatelessWidget {
           color: selected ? AppColors.primaryDark : AppColors.surface,
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-              color: selected ? AppColors.primaryDark : AppColors.border,
-              width: 0.5),
+            color: selected ? AppColors.primaryDark : AppColors.border,
+            width: 0.5,
+          ),
         ),
         child: Text(
           label,
@@ -663,8 +873,7 @@ class _RadiusChip extends StatelessWidget {
 class _ActivitySection extends StatelessWidget {
   final ProfileData profile;
   final int pendingInvites;
-  const _ActivitySection(
-      {required this.profile, required this.pendingInvites});
+  const _ActivitySection({required this.profile, required this.pendingInvites});
 
   @override
   Widget build(BuildContext context) {
@@ -672,31 +881,36 @@ class _ActivitySection extends StatelessWidget {
       title: '내 활동',
       items: [
         _Item(
-            icon: Icons.mail_outline,
-            label: '받은 보호자 초대',
-            trailing: pendingInvites > 0 ? '$pendingInvites' : null,
-            onTap: () => _push(context, const GuardianInvitesScreen())),
+          icon: Icons.mail_outline,
+          label: '받은 보호자 초대',
+          trailing: pendingInvites > 0 ? '$pendingInvites' : null,
+          onTap: () => _push(context, const GuardianInvitesScreen()),
+        ),
         _Item(
-            icon: Icons.article_outlined,
-            label: '내 게시글',
-            trailing: '${profile.postCount}',
-            onTap: () => _push(context,
-                const MyPostsScreen(mode: PostListMode.mine))),
+          icon: Icons.article_outlined,
+          label: '내 게시글',
+          trailing: '${profile.postCount}',
+          onTap: () =>
+              _push(context, const MyPostsScreen(mode: PostListMode.mine)),
+        ),
         _Item(
-            icon: Icons.send_outlined,
-            label: '내 지원 내역',
-            trailing: '${profile.applicationCount}',
-            onTap: () => _push(context, const MyApplicationsScreen())),
+          icon: Icons.send_outlined,
+          label: '내 지원 내역',
+          trailing: '${profile.applicationCount}',
+          onTap: () => _push(context, const MyApplicationsScreen()),
+        ),
         _Item(
-            icon: Icons.event_available_outlined,
-            label: '약속',
-            trailing: '${profile.appointmentCount} 진행 중',
-            onTap: () => _push(context, const MyAppointmentsScreen())),
+          icon: Icons.event_available_outlined,
+          label: '약속',
+          trailing: '${profile.appointmentCount} 진행 중',
+          onTap: () => _push(context, const MyAppointmentsScreen()),
+        ),
         _Item(
-            icon: Icons.star_border,
-            label: '받은 평가',
-            trailing: '${profile.reviewCount}',
-            onTap: () => _push(context, const MyReviewsScreen())),
+          icon: Icons.star_border,
+          label: '받은 평가',
+          trailing: '${profile.reviewCount}',
+          onTap: () => _push(context, const MyReviewsScreen()),
+        ),
       ],
     );
   }
@@ -712,11 +926,12 @@ class _InterestSection extends StatelessWidget {
       title: '관심',
       items: [
         _Item(
-            icon: Icons.favorite_border,
-            label: '하트한 게시글',
-            trailing: '${profile.heartCount}',
-            onTap: () => _push(context,
-                const MyPostsScreen(mode: PostListMode.hearted))),
+          icon: Icons.favorite_border,
+          label: '하트한 게시글',
+          trailing: '${profile.heartCount}',
+          onTap: () =>
+              _push(context, const MyPostsScreen(mode: PostListMode.hearted)),
+        ),
         _Item(
           icon: Icons.handshake_outlined,
           label: 'Pawing (내가 팔로우)',
@@ -724,7 +939,8 @@ class _InterestSection extends StatelessWidget {
           onTap: () => Navigator.push(
             context,
             AppPageRoute(
-                builder: (_) => const ConnectionsScreen(initialIndex: 0)),
+              builder: (_) => const ConnectionsScreen(initialIndex: 0),
+            ),
           ),
         ),
         _Item(
@@ -734,7 +950,8 @@ class _InterestSection extends StatelessWidget {
           onTap: () => Navigator.push(
             context,
             AppPageRoute(
-                builder: (_) => const ConnectionsScreen(initialIndex: 1)),
+              builder: (_) => const ConnectionsScreen(initialIndex: 1),
+            ),
           ),
         ),
       ],
@@ -752,17 +969,20 @@ class _SettingsSection extends StatelessWidget {
       title: '설정',
       items: [
         _Item(
-            icon: Icons.notifications_outlined,
-            label: '알림 설정',
-            onTap: () => _push(context, const NotificationSettingsScreen())),
+          icon: Icons.notifications_outlined,
+          label: '알림 설정',
+          onTap: () => _push(context, const NotificationSettingsScreen()),
+        ),
         _Item(
-            icon: Icons.lock_outline,
-            label: '비밀번호 변경',
-            onTap: () => _push(context, const ChangePasswordScreen())),
+          icon: Icons.lock_outline,
+          label: '비밀번호 변경',
+          onTap: () => _push(context, const ChangePasswordScreen()),
+        ),
         _Item(
-            icon: Icons.block_outlined,
-            label: '차단 사용자 관리',
-            onTap: () => _push(context, const BlockedUsersScreen())),
+          icon: Icons.block_outlined,
+          label: '차단 사용자 관리',
+          onTap: () => _push(context, const BlockedUsersScreen()),
+        ),
         _Item(
           icon: Icons.logout,
           label: '로그아웃',

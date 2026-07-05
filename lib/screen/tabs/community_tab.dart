@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../../theme/app_colors.dart';
@@ -14,6 +13,7 @@ import '../auth/auth_wall_dialog.dart';
 import '../post_detail_screen.dart';
 import '../post_create_screen.dart';
 import '../notifications_screen.dart';
+import '../notification_panel.dart';
 
 /// 커뮤니티 탭 — 게시글 목록(실데이터) + 카테고리 필터 + 검색.
 class CommunityTab extends StatefulWidget {
@@ -46,29 +46,17 @@ class _CommunityTabState extends State<CommunityTab>
   // 펼치고, 아래로 당기면 그 자리로 축소시키는 CollapseRoute 에 넘긴다.
   final _cardKeys = <String, GlobalKey>{};
 
+  // 상세보기로 열려있는 카드 id — 그 카드는 상세가 열린 동안 투명(빈자리)으로 두어,
+  // 축소 애니메이션이 실제 카드와 겹치지 않고 빈 슬롯으로 깔끔히 안착하게 한다.
+  String? _openedPostId;
+
   // 글쓰기 FAB 위치 캡처용 — 버튼에서 펼쳐지고 버튼으로 축소되는 전환에 사용.
   final _fabKey = GlobalKey();
 
-  // 헤더 그라데이션 블러 슬라이스 수. 각 슬라이스가 BackdropFilter(saveLayer+블러)라
-  // 스크롤 매 프레임 비용이 크다 → 육안 차이 거의 없는 6개로 축소(성능 최적화).
-  static const _headerBlurSlices = 6;
-
-  // 헤더 두 섹션 높이(오버레이+애니메이션): 파란(제목+검색) / 빨간(카테고리 칩).
+  // 헤더 두 섹션 높이(오버레이+애니메이션): 제목+검색 / 카테고리 칩.
   static const _searchSectionH = 116.0;
   static const _chipsSectionH = 52.0;
   static const _headerH = _searchSectionH + _chipsSectionH;
-
-  // 프로스트 영역 내 i번째 띠의 블러 sigma: 상단 12 → 하단 0 (선형).
-  double _sliceSigma(int i) => 12.0 * (1 - i / (_headerBlurSlices - 1));
-
-  // 슬라이스 1개: sigma 가 충분히 작으면 블러 생략(0 블러/불필요 레이어 방지).
-  Widget _sliceBlur(double sigma) {
-    if (sigma < 0.5) return const SizedBox.expand();
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-      child: const SizedBox.expand(),
-    );
-  }
 
   // 크롬(FAB + 하단 네비 바) 표시 상태 변경을 한곳에서 처리.
   void _setChromeShown(bool show, {required SpringDescription spring}) {
@@ -201,6 +189,8 @@ class _CommunityTabState extends State<CommunityTab>
       originRect: rect,
       cardBuilder: rect == null ? null : (_) => PostCard(post: post),
     );
+    // 카드 확장/축소 동안 원본 카드를 빈자리로(축소가 겹침 없이 안착).
+    if (rect != null) setState(() => _openedPostId = post.id);
     await Navigator.push<void>(
       context,
       rect == null
@@ -208,6 +198,7 @@ class _CommunityTabState extends State<CommunityTab>
           : CollapseRoute<void>(builder: (_) => page),
     );
     if (!mounted) return;
+    setState(() => _openedPostId = null); // 상세 닫힘 → 원본 카드 복원
     _revealHeaderIfAtTop(); // 최상단이면 헤더 복귀(흰 공백 방지)
     _load(silent: true); // 스크롤 유지한 채 하트/댓글 변동만 반영
   }
@@ -367,34 +358,12 @@ class _CommunityTabState extends State<CommunityTab>
     return Stack(
       fit: StackFit.expand,
       children: [
+        // 실험: 흰색 셀로판지 — 블러 없이(뒤 피드 선명) 균일 흰색 반투명 필름만 덮는다.
         ClipRRect(
-          // 하단 경계선 양끝을 검색창과 같은 곡률로 둥글게(프로스트가 카드처럼 떨어짐).
           borderRadius: const BorderRadius.vertical(
             bottom: Radius.circular(32),
           ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Column(
-                children: [
-                  for (int i = 0; i < _headerBlurSlices; i++)
-                    Expanded(child: _sliceBlur(_sliceSigma(i))),
-                ],
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: 3.2),
-                      Colors.white.withValues(alpha: 0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: const ColoredBox(color: AppColors.frostFilm),
         ),
         Padding(
           padding: EdgeInsets.only(top: topInset),
@@ -493,15 +462,19 @@ class _CommunityTabState extends State<CommunityTab>
           final key = _cardKeys.putIfAbsent(post.id, () => GlobalKey());
           return KeyedSubtree(
             key: key,
-            // RepaintBoundary 로 각 카드 리페인트를 격리(헤더 블러/애니메이션·이웃 카드
-            // 하트 토글이 다른 카드를 다시 그리지 않게 함).
-            child: RepaintBoundary(
-              child: Entrance(
-                index: i,
-                child: PostCard(
-                  post: post,
-                  onTap: () => _openPost(post),
-                  onHeart: () => _toggleHeart(i),
+            // 상세로 열려있으면 투명(빈자리)으로 — 레이아웃/크기는 유지해 슬롯 그대로.
+            child: Opacity(
+              opacity: post.id == _openedPostId ? 0.0 : 1.0,
+              // RepaintBoundary 로 각 카드 리페인트를 격리(헤더 블러/애니메이션·이웃 카드
+              // 하트 토글이 다른 카드를 다시 그리지 않게 함).
+              child: RepaintBoundary(
+                child: Entrance(
+                  index: i,
+                  child: PostCard(
+                    post: post,
+                    onTap: () => _openPost(post),
+                    onHeart: () => _toggleHeart(i),
+                  ),
                 ),
               ),
             ),
@@ -609,11 +582,31 @@ class _NotificationBellState extends State<_NotificationBell> {
     } catch (_) {}
   }
 
+  final _bellKey = GlobalKey();
+
   Future<void> _open() async {
     if (widget.isGuest) {
       AuthWallDialog.show(context);
       return;
     }
+    // 벨 위치를 앵커로 그 아래로 펼쳐지는 알림 패널을 연다(Slack 헤더-메뉴 스펠).
+    // 목록을 먼저 받아 넘겨 첫 프레임부터 실제 크기로 확장되게 한다(로딩 중 크기 튐 방지).
+    final box = _bellKey.currentContext?.findRenderObject() as RenderBox?;
+    final anchor = (box != null && box.hasSize)
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    if (anchor != null) {
+      try {
+        final items = await NotificationRepository.instance.fetch();
+        if (!mounted) return;
+        await showNotificationPanel(context, anchor, items);
+        _loadCount();
+        return;
+      } catch (_) {
+        /* 실패 시 전체화면으로 폴백 */
+      }
+    }
+    if (!mounted) return;
     await Navigator.push(
       context,
       AppPageRoute(builder: (_) => const NotificationsScreen()),
@@ -624,6 +617,7 @@ class _NotificationBellState extends State<_NotificationBell> {
   @override
   Widget build(BuildContext context) {
     return IconButton(
+      key: _bellKey,
       onPressed: _open,
       icon: Stack(
         clipBehavior: Clip.none,

@@ -226,3 +226,250 @@ class _OriginExpand extends StatelessWidget {
     );
   }
 }
+
+/// 카드에서 펼쳐지고(등장)·아래로 당기면 카드로 축소되어 닫히는 상세 화면 래퍼.
+///
+/// [PostDetailScreen]·[ChatRoomScreen] 등이 공유. 스크롤이 최상단일 때 아래로 당기면
+/// 화면 전체가 균일 축소되며 원본 카드([originRect])로 인계된다. 라우트 컨트롤러가
+/// 아니라 **로컬 컨트롤러**로 구동하므로 축소 완주(=0) 시에도 먹통이 없다.
+///
+/// [builder] 는 스크롤 리스트에 물릴 [ScrollPhysics] 를 받아 화면(Scaffold)을 만든다.
+/// (드래그 중 스크롤을 잠그기 위해 반드시 이 physics 를 리스트에 전달해야 한다.)
+/// [originRect] 가 null 이면 축소 없이 [builder] 결과만 그대로 보여준다.
+class CollapsibleView extends StatefulWidget {
+  const CollapsibleView({
+    super.key,
+    required this.originRect,
+    required this.card,
+    required this.scrollController,
+    required this.builder,
+  });
+
+  final Rect? originRect;
+  final WidgetBuilder? card; // 축소 도착 시 크로스페이드할 실제 카드
+  final ScrollController scrollController;
+  final Widget Function(BuildContext context, ScrollPhysics physics) builder;
+
+  @override
+  State<CollapsibleView> createState() => _CollapsibleViewState();
+}
+
+class _CollapsibleViewState extends State<CollapsibleView>
+    with SingleTickerProviderStateMixin {
+  bool get _collapsible => widget.originRect != null;
+
+  bool _dragging = false; // 축소 드래그 중(이 동안 스크롤 잠금)
+  bool _settling = false; // 손 뗌→축소 완주 중(추가 입력 무시, 곧 pop)
+  Offset _dragStart = Offset.zero;
+  Offset _drag = Offset.zero; // 축소 UI 이동량(손가락 따라)
+
+  // 로컬 축소 컨트롤러(1=풀스크린, 0=카드).
+  late final AnimationController _cc = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 440),
+    value: _collapsible ? 0 : 1,
+  );
+
+  // 드래그 중엔 스크롤 오프셋만 0으로 무력화(클래스는 유지 → 취소/재진입 루프 없음).
+  late final ScrollPhysics _physics = _LockableScrollPhysics(
+    locked: () => _dragging,
+    parent: const AlwaysScrollableScrollPhysics(
+      parent: ClampingScrollPhysics(),
+    ),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (_collapsible) {
+      _cc.animateTo(
+        1,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _cc.dispose();
+    super.dispose();
+  }
+
+  bool get _atTop =>
+      !widget.scrollController.hasClients ||
+      widget.scrollController.position.pixels <= 0;
+
+  void _onPointerDown(PointerDownEvent e) {
+    if (_settling) return;
+    _dragStart = e.position;
+  }
+
+  void _onPointerMove(PointerMoveEvent e) {
+    if (!mounted || _settling || !_collapsible) return;
+    if (!_dragging) {
+      final d = e.position - _dragStart;
+      // 최상단에서 아래로(세로 우세) 끌기 시작할 때만 축소 진입.
+      if (_atTop && d.dy > 8 && d.dy > d.dx.abs()) {
+        _dragStart = e.position;
+        _dragging = true; // 물리가 live 로 읽음(rebuild 불필요)
+      }
+      return;
+    }
+    final d = e.position - _dragStart;
+    final vh = MediaQuery.of(context).size.height;
+    final pull = d.dy.clamp(0.0, vh);
+    _drag = d;
+    _cc.value = 1 - (pull / (vh * 0.4)).clamp(0.0, 1.0); // 40% 당기면 카드
+  }
+
+  void _onPointerUp([_]) {
+    if (!mounted || _settling || !_dragging) return;
+    _dragging = false;
+    if (_cc.value < 0.97) {
+      _startDismiss();
+    } else {
+      _drag = Offset.zero;
+      _cc.animateTo(
+        1,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _startDismiss() {
+    if (_settling) return;
+    setState(() => _settling = true);
+    final dur = Duration(milliseconds: (260 + 300 * _cc.value).round());
+    _cc.animateTo(0, duration: dur, curve: Curves.easeOutCubic).whenComplete(
+      () {
+        if (mounted) Navigator.of(context).pop();
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final content = widget.builder(context, _physics);
+    if (!_collapsible) return content;
+
+    final origin = widget.originRect!;
+    final cardWidget = Material(
+      type: MaterialType.transparency,
+      child: SizedBox(
+        width: origin.width,
+        height: origin.height,
+        child: widget.card!(context),
+      ),
+    );
+    return PopScope(
+      canPop: _settling,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _startDismiss();
+      },
+      child: Listener(
+        onPointerDown: _onPointerDown,
+        onPointerMove: _onPointerMove,
+        onPointerUp: _onPointerUp,
+        onPointerCancel: _onPointerUp,
+        child: AnimatedBuilder(
+          animation: _cc,
+          builder: (context, child) =>
+              _wrapCollapse(context, child!, cardWidget),
+          child: RepaintBoundary(child: content),
+        ),
+      ),
+    );
+  }
+
+  /// 풀스크린 콘텐츠를 _cc 에 따라 카드로 균일 축소·클립하고, 카드 크기에서 실제 카드로
+  /// 크로스페이드(피드 카드와 동일). 게시글 상세와 완전히 동일한 시각 언어.
+  Widget _wrapCollapse(BuildContext context, Widget child, Widget cardWidget) {
+    final origin = widget.originRect!;
+    final size = MediaQuery.of(context).size;
+    final w = size.width;
+    final h = size.height;
+    final p = _cc.value.clamp(0.0, 1.0);
+    final t = 1 - p;
+
+    final win = Rect.lerp(Offset.zero & size, origin, t)!.shift(_drag * p);
+    final scale = win.width / w;
+    final radius = 20.0 * (t * 2).clamp(0.0, 1.0);
+    final scrim = 0.32 * p;
+    final cardFade = ((t - 0.5) / 0.5).clamp(0.0, 1.0);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (scrim > 0.001)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ColoredBox(color: Colors.black.withValues(alpha: scrim)),
+            ),
+          ),
+        Positioned.fromRect(
+          rect: win,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (cardFade < 1)
+                  Opacity(
+                    opacity: 1 - cardFade,
+                    child: OverflowBox(
+                      alignment: Alignment.topLeft,
+                      minWidth: w,
+                      maxWidth: w,
+                      minHeight: h,
+                      maxHeight: h,
+                      child: Transform.scale(
+                        scale: scale,
+                        alignment: Alignment.topLeft,
+                        filterQuality: FilterQuality.low,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                if (cardFade > 0)
+                  Opacity(
+                    opacity: cardFade,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: Transform.scale(
+                        scale: win.width / origin.width,
+                        alignment: Alignment.topLeft,
+                        filterQuality: FilterQuality.low,
+                        child: cardWidget,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 잠겼을 때 사용자 스크롤 오프셋을 0으로 무력화(클래스는 유지 → 드래그 취소 없음).
+class _LockableScrollPhysics extends ScrollPhysics {
+  final ValueGetter<bool> locked;
+  const _LockableScrollPhysics({required this.locked, super.parent});
+
+  @override
+  _LockableScrollPhysics applyTo(ScrollPhysics? ancestor) =>
+      _LockableScrollPhysics(locked: locked, parent: buildParent(ancestor));
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) =>
+      locked() ? 0.0 : super.applyPhysicsToUserOffset(position, offset);
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) => locked() ? null : super.createBallisticSimulation(position, velocity);
+}

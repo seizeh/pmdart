@@ -830,6 +830,11 @@ class _MapTabState extends State<MapTab>
                   customStyleId: _customStyleId,
                   locationButtonEnable: false,
                   consumeSymbolTapEvents: false,
+                  // 네이버 로고를 하단 메뉴바 바로 위로 올린다(내 위치 버튼과 같은 높이).
+                  logoMargin: EdgeInsets.only(
+                    left: 12,
+                    bottom: 20 + MediaQuery.of(context).padding.bottom,
+                  ),
                 ),
                 onMapReady: (controller) {
                   _controller = controller;
@@ -946,7 +951,8 @@ class _MapTabState extends State<MapTab>
 
               Positioned(
                 right: 16,
-                bottom: 24,
+                // 하단 바(약 62)+안전영역 바로 위에 붙도록(가려지지 않는 선에서 최대한 내림).
+                bottom: 58 + MediaQuery.of(context).padding.bottom,
                 child: _MyLocationButton(
                     loading: _locating, onTap: _goToMyLocation),
               ),

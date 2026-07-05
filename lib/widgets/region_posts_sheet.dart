@@ -34,19 +34,44 @@ class _RegionPostsContentState extends State<RegionPostsContent> {
 
   Future<void> _load() async {
     try {
-      final p = await CommunityRepository.instance
-          .fetchPostsByIds(widget.cluster.postIds);
+      final p = await CommunityRepository.instance.fetchPostsByIds(
+        widget.cluster.postIds,
+      );
       if (mounted) setState(() => _posts = p);
     } catch (_) {
       if (mounted) setState(() => _posts = const []);
     }
   }
 
-  void _openPost(Post p) {
-    Navigator.push(
+  // 게시글 행별 GlobalKey — 탭 시 행 위치를 캡처해 그 자리에서 펼치고/축소한다.
+  final _rowKeys = <String, GlobalKey>{};
+
+  // 상세로 열려있는 행 id — 열린 동안 투명(빈자리)으로 두어 축소가 겹침 없이 안착.
+  String? _openedId;
+
+  Rect? _rowRect(String id) {
+    final box = _rowKeys[id]?.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  Future<void> _openPost(Post p) async {
+    final rect = _rowRect(p.id);
+    // 행에서 펼쳐지고/아래로 당기면 그 자리로 축소되는 상세(게시글 상세와 동일 언어).
+    if (rect != null) setState(() => _openedId = p.id); // 빈자리로
+    await Navigator.push(
       context,
-      AppPageRoute(builder: (_) => PostDetailScreen(post: p)),
+      rect == null
+          ? AppPageRoute(builder: (_) => PostDetailScreen(post: p))
+          : CollapseRoute(
+              builder: (_) => PostDetailScreen(
+                post: p,
+                originRect: rect,
+                cardBuilder: (_) => _PostRow(post: p, onTap: () {}),
+              ),
+            ),
     );
+    if (mounted) setState(() => _openedId = null); // 행 복원
   }
 
   @override
@@ -55,11 +80,14 @@ class _RegionPostsContentState extends State<RegionPostsContent> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        Text('이 동네 게시글 ${widget.cluster.count}개',
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary)),
+        Text(
+          '이 동네 게시글 ${widget.cluster.count}개',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
         const SizedBox(height: 12),
         if (posts == null)
           const Padding(
@@ -70,12 +98,21 @@ class _RegionPostsContentState extends State<RegionPostsContent> {
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(
-              child: Text('게시글을 불러오지 못했어요',
-                  style: TextStyle(color: AppColors.textTertiary)),
+              child: Text(
+                '게시글을 불러오지 못했어요',
+                style: TextStyle(color: AppColors.textTertiary),
+              ),
             ),
           )
         else
-          for (final p in posts) _PostRow(post: p, onTap: () => _openPost(p)),
+          for (final p in posts)
+            KeyedSubtree(
+              key: _rowKeys.putIfAbsent(p.id, () => GlobalKey()),
+              child: Opacity(
+                opacity: p.id == _openedId ? 0.0 : 1.0,
+                child: _PostRow(post: p, onTap: () => _openPost(p)),
+              ),
+            ),
       ],
     );
   }
@@ -112,55 +149,84 @@ class _PostRow extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(100),
                         ),
-                        child: Text(categoryLabel(post.category),
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: color)),
+                        child: Text(
+                          categoryLabel(post.category),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 6),
-                      Text(timeAgo(post.createdAt),
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.textTertiary)),
+                      Text(
+                        timeAgo(post.createdAt),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Text(post.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
+                  Text(
+                    post.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 3),
-                  Text(post.content,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          height: 1.4)),
+                  Text(
+                    post.content,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.favorite_border,
-                          size: 14, color: AppColors.textTertiary),
+                      const Icon(
+                        Icons.favorite_border,
+                        size: 14,
+                        color: AppColors.textTertiary,
+                      ),
                       const SizedBox(width: 3),
-                      Text('${post.heartCount}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        '${post.heartCount}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      const Icon(Icons.chat_bubble_outline,
-                          size: 14, color: AppColors.textTertiary),
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        size: 14,
+                        color: AppColors.textTertiary,
+                      ),
                       const SizedBox(width: 3),
-                      Text('${post.commentCount}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        '${post.commentCount}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ],
                   ),
                 ],

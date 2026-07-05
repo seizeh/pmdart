@@ -55,11 +55,14 @@ class _MapBottomSheetState extends State<MapBottomSheet>
     if (_closing) return;
     _closing = true;
     _slide
-        .animateTo(0,
-            duration: const Duration(milliseconds: 220), curve: Curves.easeIn)
+        .animateTo(
+          0,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeIn,
+        )
         .whenComplete(() {
-      if (mounted) widget.onClose();
-    });
+          if (mounted) widget.onClose();
+        });
   }
 
   void _onDragUpdate(DragUpdateDetails d) {
@@ -73,8 +76,11 @@ class _MapBottomSheetState extends State<MapBottomSheet>
     if (_slide.value < 0.6 || v > 700) {
       _dismiss();
     } else {
-      _slide.animateTo(1,
-          duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+      _slide.animateTo(
+        1,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -82,8 +88,10 @@ class _MapBottomSheetState extends State<MapBottomSheet>
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final w = media.size.width;
-    final available = (media.size.height - media.viewInsets.bottom)
-        .clamp(0.0, media.size.height);
+    final available = (media.size.height - media.viewInsets.bottom).clamp(
+      0.0,
+      media.size.height,
+    );
     final h = (available * widget.heightFactor).clamp(0.0, available);
     _panelH = h;
 
@@ -98,8 +106,9 @@ class _MapBottomSheetState extends State<MapBottomSheet>
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _dismiss,
-                child:
-                    ColoredBox(color: Colors.black.withValues(alpha: 0.4 * t)),
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.4 * t),
+                ),
               ),
             ),
             // 패널(아래 고정, 키보드 위로). bottom 값을 애니메이션해 서랍처럼 슬라이드
@@ -124,7 +133,10 @@ class _MapBottomSheetState extends State<MapBottomSheet>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-              color: Color(0x22000000), blurRadius: 16, offset: Offset(0, -2)),
+            color: Color(0x22000000),
+            blurRadius: 16,
+            offset: Offset(0, -2),
+          ),
         ],
       ),
       child: Material(
@@ -149,10 +161,19 @@ class _MapBottomSheetState extends State<MapBottomSheet>
               ),
             ),
             // 본문 — Align 이 제약을 loosen, SizedBox 가 폭을 화면폭으로 고정(#28 우회).
+            // 지도 탭은 MainScreen extendBody 로 하단 바 뒤까지 확장되므로, 키보드가 없을 때
+            // 하단 바 위로 살짝만 올라오게 여백을 준다(리스트 자체 하단 패딩이 버퍼 역할).
             Expanded(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: SizedBox(width: w, child: widget.child),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom > 0
+                      ? 0
+                      : 1 + MediaQuery.of(context).padding.bottom,
+                ),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(width: w, child: widget.child),
+                ),
               ),
             ),
           ],

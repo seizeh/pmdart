@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../models/chat.dart';
 import '../services/chat_repository.dart';
@@ -9,7 +10,19 @@ import '../widgets/report_sheet.dart';
 /// 채팅방 — 메시지 목록(실데이터) + 전송 + 실시간 수신.
 class ChatRoomScreen extends StatefulWidget {
   final ChatRoomSummary room;
-  const ChatRoomScreen({super.key, required this.room});
+
+  /// 채팅 목록 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 인터랙션용. null 이면 일반 화면.
+  final Rect? originRect;
+
+  /// 축소 시 크로스페이드로 나타날 실제 채팅 타일(목록과 동일 위젯).
+  final WidgetBuilder? cardBuilder;
+
+  const ChatRoomScreen({
+    super.key,
+    required this.room,
+    this.originRect,
+    this.cardBuilder,
+  });
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
@@ -130,8 +143,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               title: const Text('사용자 신고'),
               onTap: () {
                 Navigator.pop(sheetCtx);
-                _report(ReportRepository.targetUser, otherId, '사용자',
-                    widget.room.otherNickname);
+                _report(
+                  ReportRepository.targetUser,
+                  otherId,
+                  '사용자',
+                  widget.room.otherNickname,
+                );
               },
             ),
           ],
@@ -146,7 +163,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Future<void> _report(
-      String type, String id, String label, String title) async {
+    String type,
+    String id,
+    String label,
+    String title,
+  ) async {
     final ok = await showReportSheet(
       context,
       targetType: type,
@@ -160,10 +181,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _scrollToBottom({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
-      final pos = _scroll.position.minScrollExtent; // reverse:true → 0.0 이 맨 아래(최신)
+      final pos =
+          _scroll.position.minScrollExtent; // reverse:true → 0.0 이 맨 아래(최신)
       if (animate) {
-        _scroll.animateTo(pos,
-            duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+        _scroll.animateTo(
+          pos,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
       } else {
         _scroll.jumpTo(pos);
       }
@@ -175,42 +200,50 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final initial = widget.room.otherNickname.isEmpty
         ? '?'
         : widget.room.otherNickname.characters.first;
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.primarySoft,
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark,
+    // 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 공통 래퍼(게시글 상세와 동일 언어).
+    return CollapsibleView(
+      originRect: widget.originRect,
+      card: widget.cardBuilder,
+      scrollController: _scroll,
+      builder: (context, physics) => Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: AppColors.primarySoft,
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryDark,
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
+              Text(widget.room.otherNickname),
+            ],
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.more_horiz),
+              onPressed: _openRoomMenu,
             ),
-            const SizedBox(width: 10),
-            Text(widget.room.otherNickname),
           ],
         ),
-        actions: [
-          IconButton(
-              icon: const Icon(Icons.more_horiz), onPressed: _openRoomMenu),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(child: _buildMessages()),
-          _Composer(controller: _ctrl, sending: _sending, onSend: _send),
-        ],
+        body: Column(
+          children: [
+            Expanded(child: _buildMessages(physics)),
+            _Composer(controller: _ctrl, sending: _sending, onSend: _send),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildMessages() {
+  Widget _buildMessages(ScrollPhysics physics) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -226,6 +259,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     // 데이터는 오래된→최신 순이라, 표시 인덱스는 뒤에서부터 읽는다.
     return ListView.builder(
       controller: _scroll,
+      physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
       reverse: true,
       padding: const EdgeInsets.all(16),
       itemCount: _messages.length,
@@ -261,8 +295,10 @@ class _Composer extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             IconButton(
-              icon: const Icon(Icons.add_photo_alternate_outlined,
-                  color: AppColors.primaryDark),
+              icon: const Icon(
+                Icons.add_photo_alternate_outlined,
+                color: AppColors.primaryDark,
+              ),
               onPressed: () {},
             ),
             Expanded(
@@ -276,15 +312,19 @@ class _Composer extends StatelessWidget {
                     filled: true,
                     fillColor: AppColors.surfaceMuted,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(100),
                       borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(100),
-                      borderSide:
-                          const BorderSide(color: AppColors.primary, width: 1.2),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.2,
+                      ),
                     ),
                   ),
                 ),
@@ -306,8 +346,10 @@ class _Composer extends StatelessWidget {
                           color: AppColors.textOnPrimary,
                         ),
                       )
-                    : const Icon(Icons.arrow_upward,
-                        color: AppColors.textOnPrimary),
+                    : const Icon(
+                        Icons.arrow_upward,
+                        color: AppColors.textOnPrimary,
+                      ),
                 onPressed: sending ? null : onSend,
               ),
             ),
@@ -334,13 +376,19 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: mine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (mine) ...[
-            Text(timeStr,
-                style: const TextStyle(
-                    fontSize: 10, color: AppColors.textTertiary)),
+            Text(
+              timeStr,
+              style: const TextStyle(
+                fontSize: 10,
+                color: AppColors.textTertiary,
+              ),
+            ),
             const SizedBox(width: 6),
           ],
           ConstrainedBox(
@@ -350,36 +398,45 @@ class _MessageBubble extends StatelessWidget {
             child: GestureDetector(
               onLongPress: mine ? null : () => onReport(message),
               child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: mine ? AppColors.primaryDark : AppColors.surface,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(18),
-                  topRight: const Radius.circular(18),
-                  bottomLeft: Radius.circular(mine ? 18 : 4),
-                  bottomRight: Radius.circular(mine ? 4 : 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
                 ),
-                border: Border.all(
-                  color: mine ? AppColors.primaryDark : AppColors.border,
-                  width: 0.5,
+                decoration: BoxDecoration(
+                  color: mine ? AppColors.primaryDark : AppColors.surface,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(mine ? 18 : 4),
+                    bottomRight: Radius.circular(mine ? 4 : 18),
+                  ),
+                  border: Border.all(
+                    color: mine ? AppColors.primaryDark : AppColors.border,
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  message.content,
+                  style: TextStyle(
+                    color: mine
+                        ? AppColors.textOnPrimary
+                        : AppColors.textPrimary,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
                 ),
               ),
-              child: Text(
-                message.content,
-                style: TextStyle(
-                  color: mine ? AppColors.textOnPrimary : AppColors.textPrimary,
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-              ),
-            ),
             ),
           ),
           if (!mine) ...[
             const SizedBox(width: 6),
-            Text(timeStr,
-                style: const TextStyle(
-                    fontSize: 10, color: AppColors.textTertiary)),
+            Text(
+              timeStr,
+              style: const TextStyle(
+                fontSize: 10,
+                color: AppColors.textTertiary,
+              ),
+            ),
           ],
         ],
       ),

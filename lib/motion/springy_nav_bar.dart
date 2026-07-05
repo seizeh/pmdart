@@ -75,7 +75,7 @@ class _SpringyNavBarState extends State<SpringyNavBar>
     return Container(
       decoration: const BoxDecoration(
         // 흰색 셀로판지(반투명) — 뒤 콘텐츠가 선명하게 비치며 덮인다(상단 헤더와 동일 효과).
-        color: Color(0xCCFFFFFF), // 흰색 alpha ≈ 0.8 (= AppColors.frostFilm)
+        color: Color(0xEBFFFFFF), // 흰색 alpha ≈ 0.92 (= AppColors.frostFilm)
         // 상단 좌우 모서리를 둥글게 — 각진 느낌 제거.
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         // 하드 보더 대신 위로 번지는 부드러운 그림자로 본문과 분리.

@@ -340,7 +340,8 @@ class _CommunityTabState extends State<CommunityTab>
         child: FloatingActionButton.extended(
           key: _fabKey,
           onPressed: _openCreate,
-          backgroundColor: AppColors.primaryDark,
+          // 카테고리 칩(0.7)이 아닌 상단 필름과 동일한 투명도(0.92) 적용.
+          backgroundColor: AppColors.primaryDark.withValues(alpha: 0.92),
           foregroundColor: AppColors.textOnPrimary,
           elevation: 0,
           icon: const Icon(Icons.edit_outlined),
@@ -743,7 +744,10 @@ class _FilterChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primaryDark : AppColors.surface,
+          // 채우기만 투명(테두리·글씨는 불투명 유지). CategoryChip 과 동일 값으로 통일.
+          color: selected
+              ? AppColors.primaryDark.withValues(alpha: 0.7)
+              : Colors.white.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: selected ? AppColors.primaryDark : AppColors.border,

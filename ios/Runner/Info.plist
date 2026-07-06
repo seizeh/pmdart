@@ -79,5 +79,10 @@
 	<array>
 		<string>nmap</string>
 	</array>
+	<!-- 백그라운드 원격 푸시(FCM data 메시지) 수신 -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

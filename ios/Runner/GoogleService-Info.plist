@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.pawmate</string>
+	<string>com.seizeh.pawmate</string>
 	<key>PROJECT_ID</key>
 	<string>pawmate-7e881</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:451837752323:ios:6e8fa8620283ef255f0a36</string>
+	<string>1:451837752323:ios:7d413ad98c5266c55f0a36</string>
 </dict>
 </plist>

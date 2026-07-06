@@ -102,7 +102,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     final f = widget.facility;
     final name = Uri.encodeComponent(f.name);
     final app = Uri.parse(
-        'nmap://place?lat=${f.lat}&lng=${f.lng}&name=$name&appname=com.example.pawmate');
+        'nmap://place?lat=${f.lat}&lng=${f.lng}&name=$name&appname=com.seizeh.pawmate');
     final web =
         Uri.parse('https://map.naver.com/p/?c=${f.lng},${f.lat},17,0,0,0,dh');
     try {

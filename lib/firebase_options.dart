@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyC6cjm9UdXcbB88i8D5HP8MEiP8QF8V8rc',
-    appId: '1:451837752323:android:7436b113b433ecb55f0a36',
+    appId: '1:451837752323:android:551bfa9e5b969bbc5f0a36',
     messagingSenderId: '451837752323',
     projectId: 'pawmate-7e881',
     storageBucket: 'pawmate-7e881.firebasestorage.app',
@@ -60,20 +60,20 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBsa-xRuC-B_bqNvP3Eo_sKx9Zz_opVGJQ',
-    appId: '1:451837752323:ios:6e8fa8620283ef255f0a36',
+    appId: '1:451837752323:ios:7d413ad98c5266c55f0a36',
     messagingSenderId: '451837752323',
     projectId: 'pawmate-7e881',
     storageBucket: 'pawmate-7e881.firebasestorage.app',
-    iosBundleId: 'com.example.pawmate',
+    iosBundleId: 'com.seizeh.pawmate',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBsa-xRuC-B_bqNvP3Eo_sKx9Zz_opVGJQ',
-    appId: '1:451837752323:ios:6e8fa8620283ef255f0a36',
+    appId: '1:451837752323:ios:7d413ad98c5266c55f0a36',
     messagingSenderId: '451837752323',
     projectId: 'pawmate-7e881',
     storageBucket: 'pawmate-7e881.firebasestorage.app',
-    iosBundleId: 'com.example.pawmate',
+    iosBundleId: 'com.seizeh.pawmate',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

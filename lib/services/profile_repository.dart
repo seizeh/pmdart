@@ -111,6 +111,7 @@ class ProfileRepository {
     ]);
 
     final pets = await _fetchPublicPets(userId);
+    final reviewTags = await _fetchReviewTags(userId);
 
     return PublicProfileData(
       userId: userId,
@@ -124,7 +125,29 @@ class ProfileRepository {
       pawmateCount: counts[2],
       postCount: counts[3],
       pets: pets,
+      reviewTags: reviewTags,
     );
+  }
+
+  /// 받은 평가 태그 집계(공개) — review_category_counts, 많은 순.
+  Future<List<ReviewTag>> _fetchReviewTags(String userId) async {
+    try {
+      final rows = await _c
+          .from('review_category_counts')
+          .select('category, count')
+          .eq('user_id', userId)
+          .gt('count', 0)
+          .order('count', ascending: false);
+      return [
+        for (final r in (rows as List).cast<Map<String, dynamic>>())
+          ReviewTag(
+            category: (r['category'] ?? '') as String,
+            count: (r['count'] ?? 0) as int,
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// 타 사용자의 반려동물 — pet_guardians 는 타인 조회가 막혀 있어

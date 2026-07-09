@@ -18,6 +18,23 @@ class PetHit {
   });
 }
 
+/// 공개 펫 프로필의 보호자 1명 (pet_guardians_of RPC).
+class PetGuardian {
+  final String userId;
+  final String nickname;
+  final String? profileImageUrl;
+  final String role; // owner / co_guardian
+
+  const PetGuardian({
+    required this.userId,
+    required this.nickname,
+    required this.profileImageUrl,
+    required this.role,
+  });
+
+  bool get isOwner => role == 'owner';
+}
+
 /// 공개 펫 프로필 (read-only 조회용).
 class PetProfile {
   final String id;

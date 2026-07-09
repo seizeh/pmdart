@@ -10,7 +10,12 @@ import '../screen/user_profile_screen.dart';
 /// 연결 목록 / 사용자 검색에서 재사용.
 class UserTile extends StatefulWidget {
   final Connection connection;
-  const UserTile({super.key, required this.connection});
+
+  /// 탭 동작 재정의(선택) — 검색 탭이 타일 자리에서 펼쳐지는 전환을 걸 때 사용.
+  /// null 이면 기본(표준 라우트로 프로필 이동).
+  final VoidCallback? onTap;
+
+  const UserTile({super.key, required this.connection, this.onTap});
 
   @override
   State<UserTile> createState() => _UserTileState();
@@ -52,13 +57,14 @@ class _UserTileState extends State<UserTile> {
     final c = widget.connection;
     final initial = c.nickname.isEmpty ? '?' : c.nickname.characters.first;
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        AppPageRoute(
-          builder: (_) => UserProfileScreen(
-              userId: c.userId, previewNickname: c.nickname),
-        ),
-      ),
+      onTap: widget.onTap ??
+          () => Navigator.push(
+                context,
+                AppPageRoute(
+                  builder: (_) => UserProfileScreen(
+                      userId: c.userId, previewNickname: c.nickname),
+                ),
+              ),
       child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(

@@ -52,6 +52,13 @@ class ProfileData {
   }
 }
 
+/// 받은 평가 태그 집계 1건 (review_category_counts).
+class ReviewTag {
+  final String category; // 예: '친절해요'
+  final int count;
+  const ReviewTag({required this.category, required this.count});
+}
+
 /// 타 사용자 공개 프로필 조회용 데이터 (사용자 검색 → 프로필).
 class PublicProfileData {
   final String userId;
@@ -69,6 +76,7 @@ class PublicProfileData {
   final int postCount; // 게시글 수
 
   final List<MockPet> pets;
+  final List<ReviewTag> reviewTags; // 받은 평가 태그 집계(많은 순)
 
   const PublicProfileData({
     required this.userId,
@@ -82,6 +90,7 @@ class PublicProfileData {
     required this.pawmateCount,
     required this.postCount,
     required this.pets,
+    this.reviewTags = const [],
   });
 
   /// 표시용 동네명(행정동) — address 의 마지막 토큰. 미인증이면 null.

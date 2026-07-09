@@ -29,7 +29,7 @@ class CommunityTab extends StatefulWidget {
 }
 
 class _CommunityTabState extends State<CommunityTab>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _repo = CommunityRepository.instance;
 
   // 글쓰기 FAB 표시 스프링(1=보임, 0=숨김). 아래로 스크롤 시 숨고 위로 올리면 다시 팝.
@@ -38,6 +38,15 @@ class _CommunityTabState extends State<CommunityTab>
     value: 1,
   );
   bool _fabShown = true;
+
+  // 카테고리 칩 표시 스프링(1=보임, 0=숨김).
+  // 규칙: 최상단이거나 검색이 활성(포커스 또는 검색어 존재)일 때만 보인다.
+  late final AnimationController _chipsCtrl = AnimationController.unbounded(
+    vsync: this,
+    value: 1,
+  );
+  bool _chipsShown = true;
+  final _searchFocus = FocusNode();
 
   // 스크롤 위치 조회용(상세 복귀 시 최상단 여부 판단).
   final _scrollCtrl = ScrollController();
@@ -104,6 +113,21 @@ class _CommunityTabState extends State<CommunityTab>
     super.initState();
     _load();
     AppEvents.instance.feed.addListener(_onFeedEvent);
+    _searchFocus.addListener(_updateChipsVisible);
+    _scrollCtrl.addListener(_updateChipsVisible);
+  }
+
+  /// 카테고리 칩 표시 갱신 — 최상단 || 검색 활성(포커스/검색어)일 때만.
+  void _updateChipsVisible() {
+    final atTop = !_scrollCtrl.hasClients || _scrollCtrl.offset <= 2;
+    final searchActive = _searchFocus.hasFocus || _query.isNotEmpty;
+    final show = atTop || searchActive;
+    if (show == _chipsShown) return;
+    _chipsShown = show;
+    _chipsCtrl.springTo(
+      show ? 1 : 0,
+      spring: show ? MotionSprings.bounce : MotionSprings.standard,
+    );
   }
 
   // 활동 범위 등 피드 영향 변경 시 즉시 재조회.
@@ -116,7 +140,9 @@ class _CommunityTabState extends State<CommunityTab>
     AppEvents.instance.feed.removeListener(_onFeedEvent);
     _debounce?.cancel();
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     _fabCtrl.dispose();
+    _chipsCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
@@ -124,6 +150,7 @@ class _CommunityTabState extends State<CommunityTab>
   /// 검색어 변경 → 디바운스 후 재조회.
   void _onSearchChanged(String v) {
     _query = v;
+    _updateChipsVisible();
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), _load);
   }
@@ -132,6 +159,9 @@ class _CommunityTabState extends State<CommunityTab>
     _debounce?.cancel();
     _searchCtrl.clear();
     _query = '';
+    // 검색 취소 → 포커스도 내려 칩이 함께 사라지게(최상단이면 유지).
+    _searchFocus.unfocus();
+    _updateChipsVisible();
     _load();
   }
 
@@ -307,8 +337,28 @@ class _CommunityTabState extends State<CommunityTab>
                         height: topInset + _searchSectionH,
                         child: _searchSection(topInset),
                       ),
-                      // 빨간 섹션: 카테고리 칩 (완전 투명 → 게시글이 뒤로 비침)
-                      SizedBox(height: _chipsSectionH, child: _chipsSection()),
+                      // 빨간 섹션: 카테고리 칩 (완전 투명 → 게시글이 뒤로 비침).
+                      // 평소엔 숨고, 최상단이거나 검색 활성일 때 제자리에서 스프링으로 등장.
+                      SizedBox(
+                        height: _chipsSectionH,
+                        child: AnimatedBuilder(
+                          animation: _chipsCtrl,
+                          builder: (context, child) {
+                            final v = _chipsCtrl.value.clamp(0.0, 1.0);
+                            return IgnorePointer(
+                              ignoring: v < 0.5,
+                              child: Opacity(
+                                opacity: v,
+                                child: Transform.translate(
+                                  offset: Offset(0, -10 * (1 - v)),
+                                  child: child,
+                                ),
+                              ),
+                            );
+                          },
+                          child: _chipsSection(),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -393,6 +443,7 @@ class _CommunityTabState extends State<CommunityTab>
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: _SearchBar(
                   controller: _searchCtrl,
+                  focusNode: _searchFocus,
                   onChanged: _onSearchChanged,
                   onClear: _clearSearch,
                 ),
@@ -659,10 +710,12 @@ class _NotificationBellState extends State<_NotificationBell> {
 
 class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
   const _SearchBar({
     required this.controller,
+    this.focusNode,
     required this.onChanged,
     required this.onClear,
   });
@@ -684,6 +737,7 @@ class _SearchBar extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              focusNode: focusNode,
               onChanged: onChanged,
               textInputAction: TextInputAction.search,
               style: const TextStyle(

@@ -5,13 +5,15 @@ import '../../theme/app_colors.dart';
 import '../../services/phone_auth_service.dart';
 import '../../services/auth_service.dart';
 import '../main_screen.dart';
+import '../terms_screen.dart';
 import 'login_screen.dart';
 
 /// 회원가입 — 전화 OTP 기반 다단계 흐름.
-/// 1) 전화번호 입력 → SMS 코드 발송 (phone_verifications.purpose='signup')
-/// 2) 6자리 코드 검증
-/// 3) 아이디·비밀번호·닉네임
-/// 4) 사용자 유형 + 펫 등록 (선택, pet_owner 인 경우)
+/// 1) 약관 동의 (필수 전부 동의해야 다음 진행 가능)
+/// 2) 전화번호 입력 → SMS 코드 발송 (phone_verifications.purpose='signup')
+/// 3) 6자리 코드 검증
+/// 4) 아이디·비밀번호·닉네임
+/// 5) 사용자 유형 + 펫 등록 (선택, pet_owner 인 경우)
 class SignupPhoneScreen extends StatefulWidget {
   const SignupPhoneScreen({super.key});
 
@@ -20,7 +22,7 @@ class SignupPhoneScreen extends StatefulWidget {
 }
 
 class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
-  int _step = 0; // 0: 전화 → 1: 코드 → 2: 정보 → 3: 유형/펫
+  int _step = 0; // 0: 동의 → 1: 전화 → 2: 코드 → 3: 정보 → 4: 유형/펫
   final _phoneCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
@@ -28,6 +30,22 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   final _nickCtrl = TextEditingController();
   String _userType = 'pet_owner';
   final List<TextEditingController> _coGuardianCtrls = [];
+
+  // 약관 동의 상태 — 필수 4개(연령·이용약관·위치약관·개인정보)가 모두 체크돼야
+  // 전화번호 인증 단계로 진행할 수 있다. 마케팅은 선택.
+  bool _agreeAge = false;
+  bool _agreeTos = false;
+  bool _agreeLbs = false;
+  bool _agreePrivacy = false;
+  bool _agreeMarketing = false;
+  // 문서형 약관은 끝까지 읽어야(뷰어에서 "동의합니다") 체크할 수 있다.
+  bool _readTos = false;
+  bool _readLbs = false;
+  bool _readPrivacy = false;
+
+  bool get _allRequiredAgreed =>
+      _agreeAge && _agreeTos && _agreeLbs && _agreePrivacy;
+  bool get _allAgreed => _allRequiredAgreed && _agreeMarketing;
 
   bool _loading = false; // 발송/검증 진행 중
 
@@ -68,7 +86,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             }
           },
         ),
-        title: Text('회원가입  ${_step + 1} / 4'),
+        title: Text('회원가입  ${_step + 1} / 5'),
       ),
       body: SafeArea(
         child: Padding(
@@ -76,11 +94,14 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _ProgressBar(step: _step, total: 4),
+              _ProgressBar(step: _step, total: 5),
               const SizedBox(height: 32),
               Expanded(child: _stepContent()),
               ElevatedButton(
-                onPressed: _loading ? null : _next,
+                onPressed:
+                    _loading || (_step == 0 && !_allRequiredAgreed)
+                        ? null
+                        : _next,
                 child: _loading
                     ? const SizedBox(
                         width: 22,
@@ -90,9 +111,12 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                           color: AppColors.textOnPrimary,
                         ),
                       )
-                    : Text(_step == 3
-                        ? '가입 완료'
-                        : (_step == 0 ? '인증번호 받기' : '다음')),
+                    : Text(switch (_step) {
+                        0 => '동의하고 계속하기',
+                        1 => '인증번호 받기',
+                        4 => '가입 완료',
+                        _ => '다음',
+                      }),
               ),
             ],
           ),
@@ -104,15 +128,205 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   Widget _stepContent() {
     switch (_step) {
       case 0:
-        return _phoneStep();
+        return _consentStep();
       case 1:
-        return _codeStep();
+        return _phoneStep();
       case 2:
-        return _profileStep();
+        return _codeStep();
       case 3:
+        return _profileStep();
+      case 4:
         return _petStep();
     }
     return const SizedBox.shrink();
+  }
+
+  // ── 0단계: 약관 동의 — 필수 전부 동의해야 전화번호 인증으로 진행 ──
+
+  Widget _consentStep() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '서비스 이용을 위해\n동의가 필요해요',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 24),
+          // 전체 동의 — 아직 안 읽은 약관은 순서대로 열어 끝까지 읽게 한다.
+          InkWell(
+            onTap: _toggleAll,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _allAgreed
+                    ? AppColors.primarySoft.withValues(alpha: 0.3)
+                    : AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _allAgreed ? AppColors.primary : AppColors.border,
+                  width: _allAgreed ? 1.5 : 0.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _allAgreed
+                        ? Icons.check_circle
+                        : Icons.check_circle_outline,
+                    color: _allAgreed
+                        ? AppColors.primary
+                        : AppColors.textTertiary,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    '전체 동의',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _ConsentRow(
+            checked: _agreeAge,
+            required_: true,
+            label: '만 14세 이상입니다',
+            onChanged: (v) => setState(() => _agreeAge = v),
+          ),
+          _ConsentRow(
+            checked: _agreeTos,
+            required_: true,
+            label: '서비스 이용약관 동의',
+            onChanged: (v) => _setDocAgree(_Doc.tos, v),
+            onView: () => _readDoc(_Doc.tos),
+          ),
+          _ConsentRow(
+            checked: _agreeLbs,
+            required_: true,
+            label: '위치기반서비스 이용약관 동의',
+            onChanged: (v) => _setDocAgree(_Doc.lbs, v),
+            onView: () => _readDoc(_Doc.lbs),
+          ),
+          _ConsentRow(
+            checked: _agreePrivacy,
+            required_: true,
+            label: '개인정보 수집·이용 동의',
+            onChanged: (v) => _setDocAgree(_Doc.privacy, v),
+            onView: () => _readDoc(_Doc.privacy),
+          ),
+          _ConsentRow(
+            checked: _agreeMarketing,
+            required_: false,
+            label: '마케팅 정보 수신 동의',
+            onChanged: (v) => setState(() => _agreeMarketing = v),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '필수 항목에 모두 동의해야 가입을 진행할 수 있어요.\n'
+            '약관은 끝까지 읽어야 동의할 수 있습니다.\n'
+            '마케팅 수신은 동의하지 않아도 이용에 제한이 없습니다.',
+            style: TextStyle(fontSize: 12, color: AppColors.textTertiary,
+                height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 문서형 약관 체크 토글. 해제는 자유, 체크는 끝까지 읽은 뒤에만.
+  void _setDocAgree(_Doc doc, bool v) {
+    if (!v) {
+      setState(() => _docState(doc).agree(false));
+      return;
+    }
+    if (_docState(doc).read) {
+      setState(() => _docState(doc).agree(true));
+    } else {
+      _readDoc(doc); // 아직 안 읽음 → 뷰어를 열어 끝까지 읽고 동의하게 한다
+    }
+  }
+
+  /// 약관 뷰어(읽기 게이트) 열기. "동의합니다"(끝까지 스크롤 후)로 닫으면
+  /// 읽음 + 동의 처리. 뒤로가기로 닫으면 아무 변화 없음.
+  Future<bool> _readDoc(_Doc doc) async {
+    final agreed = await Navigator.push<bool>(
+      context,
+      AppPageRoute(
+        builder: (_) => switch (doc) {
+          _Doc.tos => TermsScreen.service(agree: true),
+          _Doc.lbs => TermsScreen.location(agree: true),
+          _Doc.privacy => TermsScreen.privacy(agree: true),
+        },
+      ),
+    );
+    if (agreed == true && mounted) {
+      setState(() {
+        _docState(doc)
+          ..markRead()
+          ..agree(true);
+      });
+      return true;
+    }
+    return false;
+  }
+
+  ({bool read, void Function() markRead, void Function(bool) agree}) _docState(
+      _Doc doc) {
+    return switch (doc) {
+      _Doc.tos => (
+          read: _readTos,
+          markRead: () => _readTos = true,
+          agree: (v) => _agreeTos = v,
+        ),
+      _Doc.lbs => (
+          read: _readLbs,
+          markRead: () => _readLbs = true,
+          agree: (v) => _agreeLbs = v,
+        ),
+      _Doc.privacy => (
+          read: _readPrivacy,
+          markRead: () => _readPrivacy = true,
+          agree: (v) => _agreePrivacy = v,
+        ),
+    };
+  }
+
+  /// 전체 동의: 모두 켜져 있으면 전체 해제. 아니면 안 읽은 약관을 순서대로
+  /// 읽게 한 뒤(중간에 닫으면 중단) 나머지 항목까지 일괄 동의.
+  Future<void> _toggleAll() async {
+    if (_allAgreed) {
+      setState(() {
+        _agreeAge = false;
+        _agreeTos = false;
+        _agreeLbs = false;
+        _agreePrivacy = false;
+        _agreeMarketing = false;
+      });
+      return;
+    }
+    for (final doc in _Doc.values) {
+      if (_docState(doc).read) continue;
+      if (!await _readDoc(doc)) return; // 끝까지 안 읽고 나가면 중단
+      if (!mounted) return;
+    }
+    setState(() {
+      _agreeAge = true;
+      _agreeTos = true;
+      _agreeLbs = true;
+      _agreePrivacy = true;
+      _agreeMarketing = true;
+    });
   }
 
   Widget _phoneStep() {
@@ -382,18 +596,22 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   Future<void> _next() async {
     switch (_step) {
       case 0:
-        await _sendCode();
+        // 필수 동의 완료 → 전화번호 인증으로 (버튼 자체가 미동의 시 비활성).
+        if (!_allRequiredAgreed) return;
+        setState(() => _step = 1);
       case 1:
-        await _verifyCode();
+        await _sendCode();
       case 2:
-        if (!_validateProfile()) return;
-        setState(() => _step = 3);
+        await _verifyCode();
       case 3:
+        if (!_validateProfile()) return;
+        setState(() => _step = 4);
+      case 4:
         await _completeSignup();
     }
   }
 
-  /// 3단계 → 계정 생성(users INSERT) 후 메인으로.
+  /// 마지막 단계 → 계정 생성(users INSERT) 후 메인으로.
   Future<void> _completeSignup() async {
     setState(() => _loading = true);
     final result = await PhoneAuthService.instance.signUp(
@@ -402,6 +620,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       nickname: _nickCtrl.text.trim(),
       userType: _userType,
       phone: _phoneCtrl.text.trim(),
+      marketingOptIn: _agreeMarketing,
     );
     if (!mounted) return;
     setState(() => _loading = false);
@@ -436,7 +655,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           result.errorCode == 'invalid_username' ||
           result.errorCode == 'invalid_password' ||
           result.errorCode == 'invalid_nickname') {
-        setState(() => _step = 2);
+        setState(() => _step = 3);
       }
     }
   }
@@ -575,6 +794,80 @@ class _ProgressBar extends StatelessWidget {
           ),
         );
       }),
+    );
+  }
+}
+
+/// 동의 항목 한 줄 — 체크 + [필수/선택] 라벨 + (전문 보기).
+/// 읽기 게이트가 걸린 문서형 약관.
+enum _Doc { tos, lbs, privacy }
+
+class _ConsentRow extends StatelessWidget {
+  final bool checked;
+  final bool required_;
+  final String label;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback? onView;
+
+  const _ConsentRow({
+    required this.checked,
+    required this.required_,
+    required this.label,
+    required this.onChanged,
+    this.onView,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!checked),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              checked ? Icons.check_circle : Icons.check_circle_outline,
+              size: 22,
+              color: checked ? AppColors.primary : AppColors.textTertiary,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              required_ ? '[필수]' : '[선택]',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: required_ ? AppColors.primaryDark : AppColors.textTertiary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            if (onView != null)
+              GestureDetector(
+                onTap: onView,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    '보기',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

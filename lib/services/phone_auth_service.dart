@@ -57,6 +57,7 @@ class PhoneAuthService {
     required String nickname,
     required String userType,
     required String phone,
+    bool marketingOptIn = false,
   }) async {
     try {
       final res = await _client.functions.invoke(
@@ -67,6 +68,7 @@ class PhoneAuthService {
           'nickname': nickname,
           'user_type': userType,
           'phone': phone,
+          'marketing_opt_in': marketingOptIn,
         },
       );
       final data = (res.data as Map?) ?? const {};

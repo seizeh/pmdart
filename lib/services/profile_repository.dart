@@ -272,6 +272,15 @@ class ProfileRepository {
     }).toList();
   }
 
+  /// 회원 탈퇴 — 서버 RPC 가 개인정보 익명화(파기)·세션 무효화·관계 데이터
+  /// 정리를 원자적으로 처리한다. 성공 후 앱은 로컬 세션을 정리해야 한다.
+  Future<void> withdrawAccount() async {
+    if (SessionManager.instance.user == null) {
+      throw StateError('로그인이 필요합니다');
+    }
+    await _c.rpc('withdraw_account');
+  }
+
   /// 프로필 수정 (닉네임 등). RLS: users_update (id=app.uid()).
   Future<void> updateProfile({String? nickname, String? profileImageUrl}) async {
     final user = SessionManager.instance.user;

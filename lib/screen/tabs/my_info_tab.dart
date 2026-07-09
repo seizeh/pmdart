@@ -22,6 +22,7 @@ import '../blocked_users_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_phone_screen.dart';
 import '../welcome_screen.dart';
+import '../terms_screen.dart';
 
 /// 화면 이동 공용 헬퍼.
 void _push(BuildContext context, Widget screen) {
@@ -152,6 +153,9 @@ class _MyInfoTabState extends State<MyInfoTab> {
                 _InterestSection(profile: profile),
                 const SizedBox(height: 12),
                 _SettingsSection(profile: profile),
+                const SizedBox(height: 20),
+                // 약관·처리방침 상시 열람(게시 의무).
+                const _GuestFooter(),
               ],
             ),
           ),
@@ -242,14 +246,26 @@ class _GuestFooter extends StatelessWidget {
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 20,
-      children: [_link('이용약관'), _link('개인정보 처리방침'), _link('고객센터')],
+      children: [
+        _link(context, '이용약관', TermsScreen.service()),
+        _link(context, '위치기반서비스 약관', TermsScreen.location()),
+        _link(context, '개인정보 처리방침', TermsScreen.privacy()),
+      ],
     );
   }
 
-  Widget _link(String s) => Text(
-    s,
-    style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
-  );
+  Widget _link(BuildContext context, String s, Widget screen) =>
+      GestureDetector(
+        onTap: () => _push(context, screen),
+        child: Text(
+          s,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textTertiary,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      );
 }
 
 /// 반려동물 히어로 — 내정보 최상단의 주인공. 큰 사진 카드(여러 마리면 캐러셀).
@@ -988,6 +1004,11 @@ class _SettingsSection extends StatelessWidget {
           label: '로그아웃',
           onTap: () => _confirmLogout(context),
         ),
+        _Item(
+          icon: Icons.person_off_outlined,
+          label: '회원 탈퇴',
+          onTap: () => _confirmWithdraw(context),
+        ),
       ],
     );
   }
@@ -1017,6 +1038,66 @@ class _SettingsSection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// 회원 탈퇴 — 파기·잔존 안내 후 서버 RPC 로 즉시 처리(복구 불가).
+  void _confirmWithdraw(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('회원 탈퇴'),
+        content: const Text(
+          '탈퇴하면 되돌릴 수 없어요.\n\n'
+          '· 계정·프로필·전화번호 등 개인정보는 즉시 파기됩니다\n'
+          '  (부정이용 방지를 위해 아이디·전화번호만 30일 분리 보관 후 파기)\n'
+          '· 등록한 반려동물 정보가 삭제됩니다\n'
+          '· 작성한 게시글·채팅은 남지만 익명으로 표시됩니다\n'
+          '  (남기고 싶지 않다면 탈퇴 전에 직접 삭제해주세요)',
+          style: TextStyle(fontSize: 13.5, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => _withdraw(context, dialogCtx),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('탈퇴하기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _withdraw(BuildContext context, BuildContext dialogCtx) async {
+    Navigator.pop(dialogCtx);
+    try {
+      await ProfileRepository.instance.withdrawAccount();
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    // 서버에서 이미 세션이 무효화됨 — 로컬 세션 정리 후 시작 화면으로.
+    await AuthService.instance.logout();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('탈퇴가 완료되었어요. 그동안 이용해주셔서 감사합니다'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    Navigator.of(context).pushAndRemoveUntil(
+      AppPageRoute(builder: (_) => const WelcomeScreen()),
+      (route) => false,
     );
   }
 }

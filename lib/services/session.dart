@@ -154,21 +154,22 @@ class SessionManager extends ChangeNotifier {
     final r = _refresh;
     if (r == null) return;
     try {
-      final res = await Supabase.instance.client.functions
-          .invoke('refresh', body: {'refresh_token': r});
+      final res = await _invokeRefreshWithRetry(r);
       final data = (res.data as Map?) ?? const {};
       if (data['ok'] == true && data['token'] is String) {
+        // 새 refresh 를 access 보다 먼저 영속화 — 이 사이에 프로세스가 죽어도
+        // 다음 실행이 새 refresh 로 이어갈 수 있다(회전 응답 유실 창 최소화).
+        final nr = data['refresh_token'] as String?;
+        if (nr != null) {
+          await _secure.write(key: _kRefresh, value: nr);
+          _refresh = nr;
+        }
         _access = data['token'] as String;
         await _secure.write(key: _kAccess, value: _access!);
         // realtime(채팅) 연결도 새 토큰으로 재인증 — 안 하면 8h 후 만료로 끊길 수 있음.
         try {
           Supabase.instance.client.realtime.setAuth(_access);
         } catch (_) {/* realtime 미연결 등 */}
-        final nr = data['refresh_token'] as String?;
-        if (nr != null) {
-          _refresh = nr;
-          await _secure.write(key: _kRefresh, value: nr);
-        }
         // notifyListeners 안 함 — 로그인 상태 변화 없음(토큰만 교체, 리빌드 불필요).
       } else {
         await _invalidate(); // 예상 밖 응답 → 세션 만료 처리
@@ -177,6 +178,23 @@ class SessionManager extends ChangeNotifier {
       await _invalidate(); // 401 invalid_refresh 등 → 강제 로그아웃
     } catch (_) {
       // 네트워크 오류: 세션 유지(다음 요청에서 재시도). 기존 access 로 계속 시도.
+      // (서버가 이미 회전을 커밋했더라도 rt_rotate 의 유실 복구가 세션을 살린다.)
+    }
+  }
+
+  /// refresh 호출 — 일시 오류(타임아웃 등)는 1초 후 1회 즉시 재시도.
+  /// 서버가 회전을 커밋한 뒤 응답이 유실된 경우 grace(30초) 안에 재요청해야
+  /// 같은 패밀리로 매끄럽게 이어지므로, 다음 요청을 기다리지 않고 바로 재시도한다.
+  Future<FunctionResponse> _invokeRefreshWithRetry(String r) async {
+    try {
+      return await Supabase.instance.client.functions
+          .invoke('refresh', body: {'refresh_token': r});
+    } on FunctionException {
+      rethrow; // 401 등 명시적 거절은 재시도 대상 아님
+    } catch (_) {
+      await Future.delayed(const Duration(seconds: 1));
+      return await Supabase.instance.client.functions
+          .invoke('refresh', body: {'refresh_token': r});
     }
   }
 

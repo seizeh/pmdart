@@ -13,6 +13,9 @@ class ChatRoomSummary {
   final DateTime? lastMessageAt;
   final int unreadCount;
 
+  /// 상대가 방을 나갔는지 — true 면 새 메시지를 보낼 수 없다(서버도 차단).
+  final bool otherLeft;
+
   const ChatRoomSummary({
     required this.id,
     required this.otherNickname,
@@ -20,6 +23,7 @@ class ChatRoomSummary {
     required this.lastMessage,
     required this.lastMessageAt,
     required this.unreadCount,
+    this.otherLeft = false,
   });
 
   factory ChatRoomSummary.fromJson(Map<String, dynamic> j) => ChatRoomSummary(
@@ -31,23 +35,28 @@ class ChatRoomSummary {
             ? null
             : DateTime.parse(j['last_message_at'] as String).toLocal(),
         unreadCount: (j['unread_count'] as num?)?.toInt() ?? 0,
+        otherLeft: j['other_left'] == true,
       );
 }
 
-/// 채팅 메시지 (chat_messages).
+/// 채팅 메시지 (chat_messages). 텍스트 또는 사진(image_url) 메시지.
 class ChatMessage {
   final String id;
   final String roomId;
   final String senderId;
   final String content;
+  final String? imageUrl;
   final DateTime createdAt;
   final bool mine;
+
+  bool get isImage => imageUrl != null && imageUrl!.isNotEmpty;
 
   const ChatMessage({
     required this.id,
     required this.roomId,
     required this.senderId,
     required this.content,
+    this.imageUrl,
     required this.createdAt,
     required this.mine,
   });
@@ -58,6 +67,7 @@ class ChatMessage {
         roomId: (j['room_id'] ?? '') as String,
         senderId: (j['sender_id'] ?? '') as String,
         content: (j['content'] ?? '') as String,
+        imageUrl: j['image_url'] as String?,
         createdAt: _date(j['created_at']),
         mine: j['sender_id'] == myId,
       );

@@ -1,7 +1,9 @@
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/chat.dart';
 import 'app_events.dart';
 import 'session.dart';
+import 'storage_service.dart';
 
 /// 채팅(방 목록 / 메시지 / 전송 / 읽음 / 실시간) 데이터 접근.
 class ChatRepository {
@@ -44,12 +46,15 @@ class ChatRepository {
         .toList();
   }
 
+  static const _messageCols =
+      'id, room_id, sender_id, content, image_url, created_at';
+
   /// 방의 메시지 (오래된→최신).
   Future<List<ChatMessage>> fetchMessages(String roomId) async {
     final myId = _uid;
     final rows = await _c
         .from('chat_messages')
-        .select('id, room_id, sender_id, content, created_at')
+        .select(_messageCols)
         .eq('room_id', roomId)
         .eq('is_deleted', false)
         .order('created_at', ascending: true)
@@ -65,10 +70,37 @@ class ChatRepository {
     final row = await _c
         .from('chat_messages')
         .insert({'room_id': roomId, 'sender_id': myId, 'content': content})
-        .select('id, room_id, sender_id, content, created_at')
+        .select(_messageCols)
         .single();
     AppEvents.instance.notifyChat();
     return ChatMessage.fromJson(row, myId);
+  }
+
+  /// 사진 메시지 전송 — media 버킷(chat 카테고리)에 올린 뒤 image_url 로 삽입.
+  /// (서버 CHECK: content 또는 image_url 필수, 이미지 10MB 제한.)
+  Future<ChatMessage> sendImageMessage(String roomId, XFile file) async {
+    final myId = _uid;
+    final img = await StorageService.instance.upload(file, category: 'chat');
+    final row = await _c
+        .from('chat_messages')
+        .insert({
+          'room_id': roomId,
+          'sender_id': myId,
+          'image_url': img.url,
+          'image_mime_type': img.mime,
+          'image_file_size': img.size,
+        })
+        .select(_messageCols)
+        .single();
+    AppEvents.instance.notifyChat();
+    return ChatMessage.fromJson(row, myId);
+  }
+
+  /// 채팅방 나가기 — 내 목록에서 숨긴다(이력 유지). 상대가 새 메시지를 보내면
+  /// 다시 나타난다. 서버 RPC 가 읽음 커서 정리 + left_at 기록을 처리.
+  Future<void> leaveRoom(String roomId) async {
+    await _c.rpc('leave_chat_room', params: {'p_room': roomId});
+    AppEvents.instance.notifyChat();
   }
 
   /// 읽음 처리 — 내 멤버십의 last_read_message_id 갱신.

@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../models/chat.dart';
 import '../services/chat_repository.dart';
 import '../services/report_repository.dart';
+import '../services/storage_service.dart';
 import '../widgets/report_sheet.dart';
 
 /// 채팅방 — 메시지 목록(실데이터) + 전송 + 실시간 수신.
@@ -100,17 +101,70 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       });
       _markRead();
       _scrollToBottom();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('메시지 전송에 실패했어요'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+    } catch (e) {
+      _toast(_sendErrorMessage(e, '메시지 전송에 실패했어요'));
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// 서버가 한국어 사유를 준 경우(P0001, 예: 나간 방 잠금) 그대로 보여준다.
+  String _sendErrorMessage(Object e, String fallback) {
+    if (e is PostgrestException && e.code == 'P0001' && e.message.isNotEmpty) {
+      return e.message;
+    }
+    return fallback;
+  }
+
+  /// 사진 첨부 — 갤러리에서 선택해 업로드 후 사진 메시지로 전송.
+  Future<void> _sendImage() async {
+    if (_sending) return;
+    final file = await StorageService.instance.pickImage();
+    if (file == null || !mounted) return;
+    setState(() => _sending = true);
+    try {
+      final msg = await _repo.sendImageMessage(widget.room.id, file);
+      if (!mounted) return;
+      setState(() {
+        if (!_messages.any((m) => m.id == msg.id)) _messages.add(msg);
+      });
+      _markRead();
+      _scrollToBottom();
+    } catch (e) {
+      _toast(_sendErrorMessage(e, '사진 전송에 실패했어요'));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// 채팅방 나가기 — 확인 후 목록에서 숨기고 방을 닫는다.
+  Future<void> _leaveRoom() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('채팅방 나가기'),
+        content: const Text('나가면 채팅 목록에서 사라지고,\n'
+            '서로 새 메시지를 보낼 수 없어요.\n'
+            '내가 다시 채팅을 시작하면 대화가 이어져요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('나가기'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _repo.leaveRoom(widget.room.id);
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      _toast('나가기에 실패했어요. 잠시 후 다시 시도해주세요');
     }
   }
 
@@ -121,13 +175,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
-  /// 상단 메뉴 — 현재는 상대 사용자 신고.
+  /// 상단 메뉴 — 사용자 신고 / 채팅방 나가기.
   void _openRoomMenu() {
     final otherId = widget.room.otherUserId;
-    if (otherId == null) {
-      _toast('상대 정보를 불러오지 못했어요');
-      return;
-    }
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -138,17 +188,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (otherId != null)
+              ListTile(
+                leading:
+                    const Icon(Icons.flag_outlined, color: AppColors.danger),
+                title: const Text('사용자 신고'),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _report(
+                    ReportRepository.targetUser,
+                    otherId,
+                    '사용자',
+                    widget.room.otherNickname,
+                  );
+                },
+              ),
             ListTile(
-              leading: const Icon(Icons.flag_outlined, color: AppColors.danger),
-              title: const Text('사용자 신고'),
+              leading:
+                  const Icon(Icons.logout_outlined, color: AppColors.danger),
+              title: const Text('채팅방 나가기'),
               onTap: () {
                 Navigator.pop(sheetCtx);
-                _report(
-                  ReportRepository.targetUser,
-                  otherId,
-                  '사용자',
-                  widget.room.otherNickname,
-                );
+                _leaveRoom();
               },
             ),
           ],
@@ -236,7 +297,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         body: Column(
           children: [
             Expanded(child: _buildMessages(physics)),
-            _Composer(controller: _ctrl, sending: _sending, onSend: _send),
+            // 상대가 나간 방은 입력을 잠근다(서버도 INSERT 차단).
+            if (widget.room.otherLeft)
+              const _LockedBar()
+            else
+              _Composer(
+                controller: _ctrl,
+                sending: _sending,
+                onSend: _send,
+                onPickImage: _sendImage,
+              ),
           ],
         ),
       ),
@@ -271,14 +341,47 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 }
 
+/// 상대가 나간 방의 잠긴 입력줄 — 안내만 표시.
+class _LockedBar extends StatelessWidget {
+  const _LockedBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceMuted,
+          border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.block_outlined, size: 15, color: AppColors.textTertiary),
+            SizedBox(width: 6),
+            Text(
+              '상대가 채팅방을 나가 메시지를 보낼 수 없어요',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
+  final VoidCallback onPickImage;
   const _Composer({
     required this.controller,
     required this.sending,
     required this.onSend,
+    required this.onPickImage,
   });
 
   @override
@@ -299,7 +402,7 @@ class _Composer extends StatelessWidget {
                 Icons.add_photo_alternate_outlined,
                 color: AppColors.primaryDark,
               ),
-              onPressed: () {},
+              onPressed: sending ? null : onPickImage,
             ),
             Expanded(
               child: ConstrainedBox(
@@ -397,35 +500,8 @@ class _MessageBubble extends StatelessWidget {
             ),
             child: GestureDetector(
               onLongPress: mine ? null : () => onReport(message),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: mine ? AppColors.primaryDark : AppColors.surface,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(mine ? 18 : 4),
-                    bottomRight: Radius.circular(mine ? 4 : 18),
-                  ),
-                  border: Border.all(
-                    color: mine ? AppColors.primaryDark : AppColors.border,
-                    width: 0.5,
-                  ),
-                ),
-                child: Text(
-                  message.content,
-                  style: TextStyle(
-                    color: mine
-                        ? AppColors.textOnPrimary
-                        : AppColors.textPrimary,
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
-                ),
-              ),
+              onTap: message.isImage ? () => _openImage(context) : null,
+              child: message.isImage ? _imageBody() : _textBody(mine),
             ),
           ),
           if (!mine) ...[
@@ -439,6 +515,97 @@ class _MessageBubble extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// 텍스트 버블.
+  Widget _textBody(bool mine) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: mine ? AppColors.primaryDark : AppColors.surface,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(18),
+          topRight: const Radius.circular(18),
+          bottomLeft: Radius.circular(mine ? 18 : 4),
+          bottomRight: Radius.circular(mine ? 4 : 18),
+        ),
+        border: Border.all(
+          color: mine ? AppColors.primaryDark : AppColors.border,
+          width: 0.5,
+        ),
+      ),
+      child: Text(
+        message.content,
+        style: TextStyle(
+          color: mine ? AppColors.textOnPrimary : AppColors.textPrimary,
+          fontSize: 14,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+
+  /// 사진 메시지 — 버블 배경 없이 라운드 이미지만(카카오식). 탭하면 크게 보기.
+  Widget _imageBody() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 220, maxHeight: 280),
+        child: Image.network(
+          message.imageUrl!,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, progress) => progress == null
+              ? child
+              : Container(
+                  width: 200,
+                  height: 200,
+                  color: AppColors.surfaceMuted,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ),
+          errorBuilder: (_, _, _) => Container(
+            width: 200,
+            height: 140,
+            color: AppColors.surfaceMuted,
+            child: const Center(
+              child: Icon(Icons.broken_image_outlined,
+                  color: AppColors.textTertiary),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 전체화면 사진 보기 — 핀치 줌, 탭/뒤로가기로 닫기.
+  void _openImage(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (_, _, _) => GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Scaffold(
+            backgroundColor: Colors.black,
+            body: SafeArea(
+              child: Center(
+                child: InteractiveViewer(
+                  maxScale: 4,
+                  child: Image.network(message.imageUrl!, fit: BoxFit.contain),
+                ),
+              ),
+            ),
+          ),
+        ),
+        transitionsBuilder: (_, anim, _, child) =>
+            FadeTransition(opacity: anim, child: child),
       ),
     );
   }

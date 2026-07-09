@@ -38,6 +38,10 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   bool _agreeLbs = false;
   bool _agreePrivacy = false;
   bool _agreeMarketing = false;
+  // 문서형 약관은 끝까지 읽어야(뷰어에서 "동의합니다") 체크할 수 있다.
+  bool _readTos = false;
+  bool _readLbs = false;
+  bool _readPrivacy = false;
 
   bool get _allRequiredAgreed =>
       _agreeAge && _agreeTos && _agreeLbs && _agreePrivacy;
@@ -154,18 +158,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          // 전체 동의
+          // 전체 동의 — 아직 안 읽은 약관은 순서대로 열어 끝까지 읽게 한다.
           InkWell(
-            onTap: () {
-              final next = !_allAgreed;
-              setState(() {
-                _agreeAge = next;
-                _agreeTos = next;
-                _agreeLbs = next;
-                _agreePrivacy = next;
-                _agreeMarketing = next;
-              });
-            },
+            onTap: _toggleAll,
             borderRadius: BorderRadius.circular(16),
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -213,22 +208,22 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             checked: _agreeTos,
             required_: true,
             label: '서비스 이용약관 동의',
-            onChanged: (v) => setState(() => _agreeTos = v),
-            onView: () => _openTerms(TermsScreen.service()),
+            onChanged: (v) => _setDocAgree(_Doc.tos, v),
+            onView: () => _readDoc(_Doc.tos),
           ),
           _ConsentRow(
             checked: _agreeLbs,
             required_: true,
             label: '위치기반서비스 이용약관 동의',
-            onChanged: (v) => setState(() => _agreeLbs = v),
-            onView: () => _openTerms(TermsScreen.location()),
+            onChanged: (v) => _setDocAgree(_Doc.lbs, v),
+            onView: () => _readDoc(_Doc.lbs),
           ),
           _ConsentRow(
             checked: _agreePrivacy,
             required_: true,
             label: '개인정보 수집·이용 동의',
-            onChanged: (v) => setState(() => _agreePrivacy = v),
-            onView: () => _openTerms(TermsScreen.privacy()),
+            onChanged: (v) => _setDocAgree(_Doc.privacy, v),
+            onView: () => _readDoc(_Doc.privacy),
           ),
           _ConsentRow(
             checked: _agreeMarketing,
@@ -239,6 +234,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           const SizedBox(height: 8),
           const Text(
             '필수 항목에 모두 동의해야 가입을 진행할 수 있어요.\n'
+            '약관은 끝까지 읽어야 동의할 수 있습니다.\n'
             '마케팅 수신은 동의하지 않아도 이용에 제한이 없습니다.',
             style: TextStyle(fontSize: 12, color: AppColors.textTertiary,
                 height: 1.5),
@@ -248,8 +244,89 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     );
   }
 
-  void _openTerms(Widget screen) {
-    Navigator.push(context, AppPageRoute(builder: (_) => screen));
+  /// 문서형 약관 체크 토글. 해제는 자유, 체크는 끝까지 읽은 뒤에만.
+  void _setDocAgree(_Doc doc, bool v) {
+    if (!v) {
+      setState(() => _docState(doc).agree(false));
+      return;
+    }
+    if (_docState(doc).read) {
+      setState(() => _docState(doc).agree(true));
+    } else {
+      _readDoc(doc); // 아직 안 읽음 → 뷰어를 열어 끝까지 읽고 동의하게 한다
+    }
+  }
+
+  /// 약관 뷰어(읽기 게이트) 열기. "동의합니다"(끝까지 스크롤 후)로 닫으면
+  /// 읽음 + 동의 처리. 뒤로가기로 닫으면 아무 변화 없음.
+  Future<bool> _readDoc(_Doc doc) async {
+    final agreed = await Navigator.push<bool>(
+      context,
+      AppPageRoute(
+        builder: (_) => switch (doc) {
+          _Doc.tos => TermsScreen.service(agree: true),
+          _Doc.lbs => TermsScreen.location(agree: true),
+          _Doc.privacy => TermsScreen.privacy(agree: true),
+        },
+      ),
+    );
+    if (agreed == true && mounted) {
+      setState(() {
+        _docState(doc)
+          ..markRead()
+          ..agree(true);
+      });
+      return true;
+    }
+    return false;
+  }
+
+  ({bool read, void Function() markRead, void Function(bool) agree}) _docState(
+      _Doc doc) {
+    return switch (doc) {
+      _Doc.tos => (
+          read: _readTos,
+          markRead: () => _readTos = true,
+          agree: (v) => _agreeTos = v,
+        ),
+      _Doc.lbs => (
+          read: _readLbs,
+          markRead: () => _readLbs = true,
+          agree: (v) => _agreeLbs = v,
+        ),
+      _Doc.privacy => (
+          read: _readPrivacy,
+          markRead: () => _readPrivacy = true,
+          agree: (v) => _agreePrivacy = v,
+        ),
+    };
+  }
+
+  /// 전체 동의: 모두 켜져 있으면 전체 해제. 아니면 안 읽은 약관을 순서대로
+  /// 읽게 한 뒤(중간에 닫으면 중단) 나머지 항목까지 일괄 동의.
+  Future<void> _toggleAll() async {
+    if (_allAgreed) {
+      setState(() {
+        _agreeAge = false;
+        _agreeTos = false;
+        _agreeLbs = false;
+        _agreePrivacy = false;
+        _agreeMarketing = false;
+      });
+      return;
+    }
+    for (final doc in _Doc.values) {
+      if (_docState(doc).read) continue;
+      if (!await _readDoc(doc)) return; // 끝까지 안 읽고 나가면 중단
+      if (!mounted) return;
+    }
+    setState(() {
+      _agreeAge = true;
+      _agreeTos = true;
+      _agreeLbs = true;
+      _agreePrivacy = true;
+      _agreeMarketing = true;
+    });
   }
 
   Widget _phoneStep() {
@@ -722,6 +799,9 @@ class _ProgressBar extends StatelessWidget {
 }
 
 /// 동의 항목 한 줄 — 체크 + [필수/선택] 라벨 + (전문 보기).
+/// 읽기 게이트가 걸린 문서형 약관.
+enum _Doc { tos, lbs, privacy }
+
 class _ConsentRow extends StatelessWidget {
   final bool checked;
   final bool required_;

@@ -203,6 +203,25 @@ class PetRepository {
     );
   }
 
+  /// 공개 펫 프로필의 보호자 목록(공동보호자 포함) — 타인도 조회 가능.
+  /// pet_guardians 는 RLS 로 보호자만 읽을 수 있어 definer RPC(pet_guardians_of)를 쓴다.
+  Future<List<PetGuardian>> fetchPublicGuardians(String petId) async {
+    try {
+      final rows = await _c.rpc('pet_guardians_of', params: {'p_pet': petId});
+      return [
+        for (final r in (rows as List).cast<Map<String, dynamic>>())
+          PetGuardian(
+            userId: r['user_id'] as String,
+            nickname: (r['nickname'] ?? '알 수 없음') as String,
+            profileImageUrl: r['profile_image_url'] as String?,
+            role: (r['role'] ?? 'co_guardian') as String,
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// 펫 보호자 목록.
   Future<List<Guardian>> fetchGuardians(String petId) async {
     final uid = _uid;

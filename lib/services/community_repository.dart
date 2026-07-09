@@ -84,6 +84,20 @@ class CommunityRepository {
         .toList();
   }
 
+  /// 특정 펫이 연결된(태그된) 공개 게시글 — 펫 공개 프로필용.
+  /// post_pets RLS 가 visible 글만 통과시키므로 그대로 조회하면 된다.
+  Future<List<Post>> fetchPetPosts(String petId) async {
+    final links = await _c
+        .from('post_pets')
+        .select('post_id')
+        .eq('pet_id', petId);
+    final ids = [
+      for (final l in (links as List).cast<Map<String, dynamic>>())
+        l['post_id'] as String,
+    ];
+    return fetchPostsByIds(ids);
+  }
+
   /// 지도 bbox 내 행정동별 게시글 클러스터 (0021 §6).
   Future<List<PostCluster>> postsByRegion({
     required double minLng,

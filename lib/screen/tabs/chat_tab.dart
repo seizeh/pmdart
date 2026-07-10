@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
@@ -146,7 +147,7 @@ class _ChatTabState extends State<ChatTab> {
       onRefresh: _load,
       edgeOffset: topPad,
       child: ListView.separated(
-        padding: EdgeInsets.only(left: 20, right: 20, top: topPad),
+        padding: EdgeInsets.only(left: 20, right: 20, top: topPad + 14),
         itemCount: _rooms.length,
         separatorBuilder: (_, _) =>
             const Divider(height: 1, indent: 64, color: AppColors.border),
@@ -175,87 +176,117 @@ class _ChatRoomTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = room.otherNickname.isEmpty
-        ? '?'
-        : room.otherNickname.characters.first;
-    return InkWell(
+    final photo = room.otherProfileImageUrl;
+    // 고객센터는 전용 번들 이미지를 프로필처럼 사용.
+    final Widget? bgImage = photo != null
+        ? Image.network(
+            photo,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          )
+        : (room.otherNickname == '고객센터'
+            ? Image.asset('assets/images/cs_profile.png', fit: BoxFit.cover)
+            : null);
+    return Pressable(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+        child: Stack(
           children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.primarySoft,
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark,
+            // 상대 프로필 사진을 타일 전체 블러 배경으로(채팅방 헤더와 동일 문법).
+            if (bgImage != null)
+              Positioned.fill(
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(
+                    sigmaX: 18,
+                    sigmaY: 18,
+                    tileMode: ui.TileMode.clamp,
+                  ),
+                  child: bgImage,
                 ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // 가독용 밝은 스크림 — 텍스트 대비 확보.
+            if (bgImage != null)
+              const Positioned.fill(
+                child: ColoredBox(color: Color(0xB3FFFFFF)),
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+              child: Stack(
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        room.otherNickname,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          room.lastMessageAt == null
-                              ? ''
-                              : timeAgo(room.lastMessageAt!),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ),
-                    ],
+            // 본문 — 채팅방 상세 헤더(중앙 닉네임)와 축소 전환 형태가 이어지도록
+            // 아바타 없이 가운데 정렬로만 구성한다.
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 72),
+                  child: Text(
+                    room.otherNickname,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: Text(
                     room.lastMessage.isEmpty ? '대화를 시작해보세요' : room.lastMessage,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (room.unreadCount > 0) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: const BoxDecoration(
-                  color: AppColors.danger,
-                  borderRadius: BorderRadius.all(Radius.circular(100)),
                 ),
+              ],
+            ),
+            // 마지막 대화 시각 — 우측 상단.
+            if (room.lastMessageAt != null)
+              Positioned(
+                top: 0,
+                right: 0,
                 child: Text(
-                  '${room.unreadCount}',
+                  timeAgo(room.lastMessageAt!),
                   style: const TextStyle(
                     fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: AppColors.textTertiary,
                   ),
                 ),
               ),
-            ],
+            // 안읽음 뱃지 — 우측 하단.
+            if (room.unreadCount > 0)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: const BoxDecoration(
+                    color: AppColors.danger,
+                    borderRadius: BorderRadius.all(Radius.circular(100)),
+                  ),
+                  child: Text(
+                    '${room.unreadCount}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

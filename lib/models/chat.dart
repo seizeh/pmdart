@@ -16,6 +16,9 @@ class ChatRoomSummary {
   /// 상대가 방을 나갔는지 — true 면 새 메시지를 보낼 수 없다(서버도 차단).
   final bool otherLeft;
 
+  /// 상대 프로필 사진 — 목록 타일 블러 배경·채팅방 헤더에 사용.
+  final String? otherProfileImageUrl;
+
   const ChatRoomSummary({
     required this.id,
     required this.otherNickname,
@@ -24,6 +27,7 @@ class ChatRoomSummary {
     required this.lastMessageAt,
     required this.unreadCount,
     this.otherLeft = false,
+    this.otherProfileImageUrl,
   });
 
   factory ChatRoomSummary.fromJson(Map<String, dynamic> j) => ChatRoomSummary(
@@ -36,6 +40,7 @@ class ChatRoomSummary {
             : DateTime.parse(j['last_message_at'] as String).toLocal(),
         unreadCount: (j['unread_count'] as num?)?.toInt() ?? 0,
         otherLeft: j['other_left'] == true,
+        otherProfileImageUrl: j['other_profile_image_url'] as String?,
       );
 }
 

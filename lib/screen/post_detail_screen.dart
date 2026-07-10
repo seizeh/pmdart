@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import '../motion/motion.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
@@ -8,6 +9,8 @@ import '../services/social_repository.dart';
 import '../services/chat_launcher.dart';
 import '../services/report_repository.dart';
 import '../services/session.dart';
+import '../widgets/blob_background.dart';
+import '../widgets/overlay_icon_button.dart';
 import '../widgets/role_badge.dart';
 import '../widgets/report_sheet.dart';
 import 'auth/auth_wall_dialog.dart';
@@ -329,7 +332,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final color = categoryColor(_post.category);
+    final hasImage = _post.imageUrl != null;
 
     // 카드에서 펼쳐지고/아래로 당기면 카드로 축소되는 공통 래퍼. physics 를 리스트에 전달.
     return CollapsibleView(
@@ -338,35 +341,96 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,
+        // 히어로(사진 또는 블롭 본문)가 상태바까지 차오르도록 앱바를 투명 오버레이로.
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          // 사진은 어두울 수 있어 밝은 아이콘, 블롭 배경은 밝아서 어두운 아이콘.
+          systemOverlayStyle:
+              hasImage ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+          leading: OverlayIconButton(
+            icon: Icons.arrow_back,
+            tooltip: '뒤로',
+            onPressed: () => Navigator.maybePop(context),
+          ),
           actions: [
             if (_isMyPost)
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
+              OverlayIconButton(
+                icon: Icons.edit_outlined,
                 tooltip: '수정',
                 onPressed: _openEdit,
               ),
             if (!_isMyPost)
-              IconButton(
-                icon: const Icon(Icons.chat_bubble_outline),
+              OverlayIconButton(
+                icon: Icons.chat_bubble_outline,
                 tooltip: '채팅하기',
                 onPressed: _startChat,
               ),
             if (!_isMyPost)
-              IconButton(
-                icon: const Icon(Icons.report_outlined),
+              OverlayIconButton(
+                icon: Icons.report_outlined,
                 tooltip: '신고',
-                color: AppColors.danger,
+                color: const Color(0xFFFF8A80),
                 onPressed: _openPostMenu,
               ),
+            const SizedBox(width: 8),
           ],
         ),
-        body: SafeArea(
-          child: ListView(
-            controller: _scroll,
-            physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            children: [
+        body: ListView(
+          controller: _scroll,
+          physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            // 히어로 — 피드 카드와 동일 비율. 사진 글은 대표사진,
+            // 사진 없는 글은 카드와 같은 블롭 배경 + 본문(같은 위치/스타일)로
+            // 축소 전환 시 피드 카드와 그대로 겹쳐진다.
+            AspectRatio(
+              aspectRatio: kPostImageAspectRatio,
+              child: hasImage
+                  ? Image.network(
+                      _post.imageUrl!,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          const ColoredBox(color: AppColors.surfaceMuted),
+                    )
+                  : _BlobHero(post: _post),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _infoChildren(contentInHero: !hasImage),
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: _BottomBar(
+          post: _post,
+          controller: _commentCtrl,
+          sending: _sending,
+          onHeart: _toggleHeart,
+          onSend: _sendComment,
+        ),
+      ),
+    );
+  }
+
+  /// 히어로에 본문이 다 담겼는지(9줄·짧은 글). 넘치면 아래에 전문을 보여준다.
+  bool get _heroHoldsFullContent {
+    final c = _post.content;
+    return c.length <= 180 && '\n'.allMatches(c).length < 9;
+  }
+
+  /// 본문 정보 위젯들(카테고리 칩부터 댓글까지).
+  /// [contentInHero] 가 true(사진 없는 글)면 본문이 상단 히어로에 있으므로,
+  /// 히어로에서 잘리는 긴 글에만 전문을 아래에 덧붙인다.
+  List<Widget> _infoChildren({required bool contentInHero}) {
+    final color = categoryColor(_post.category);
+    final showContent = !contentInHero || !_heroHoldsFullContent;
+    return [
               Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
@@ -405,30 +469,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 following: _following,
                 onFollow: _toggleFollow,
               ),
-              const SizedBox(height: 20),
-              const Divider(height: 1, color: AppColors.border),
-              const SizedBox(height: 20),
-              Text(
-                _post.content,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: AppColors.textPrimary,
-                  height: 1.7,
-                ),
-              ),
-              if (_post.imageUrl != null) ...[
-                const SizedBox(height: 16),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: AspectRatio(
-                    aspectRatio: kPostImageAspectRatio, // 4284 : 5712
-                    child: Image.network(
-                      _post.imageUrl!,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          const ColoredBox(color: AppColors.surfaceMuted),
-                    ),
+              if (showContent) ...[
+                const SizedBox(height: 20),
+                const Divider(height: 1, color: AppColors.border),
+                const SizedBox(height: 20),
+                Text(
+                  _post.content,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: AppColors.textPrimary,
+                    height: 1.7,
                   ),
                 ),
               ],
@@ -475,18 +525,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 myUserId: SessionManager.instance.user?.id,
                 onReport: _openCommentMenu,
               ),
-            ],
-          ),
-        ),
-        bottomNavigationBar: _BottomBar(
-          post: _post,
-          controller: _commentCtrl,
-          sending: _sending,
-          onHeart: _toggleHeart,
-          onSend: _sendComment,
-        ),
-      ),
-    );
+    ];
   }
 }
 
@@ -504,24 +543,8 @@ class _AuthorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = post.authorNickname.isEmpty
-        ? '?'
-        : post.authorNickname.characters.first;
     return Row(
       children: [
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: AppColors.primarySoft,
-          child: Text(
-            initial,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryDark,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -718,9 +741,6 @@ class _CommentList extends StatelessWidget {
     }
     return Column(
       children: comments.map((c) {
-        final initial = c.authorNickname.isEmpty
-            ? '?'
-            : c.authorNickname.characters.first;
         final isMine = myUserId != null && c.userId == myUserId;
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
@@ -730,19 +750,6 @@ class _CommentList extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.primarySoft,
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryDark,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -896,3 +903,83 @@ class _BottomBar extends StatelessWidget {
     );
   }
 }
+
+/// 사진 없는 글의 상단 히어로 — 피드 카드와 동일한 블롭·본문 배치로 전환을 잇고,
+/// 확장이 끝나면 본문을 히어로 정중앙으로 살짝 내려 앉힌다. 축소(드래그/뒤로가기)가
+/// 시작되면 즉시 카드 위치(하단 정보 여백 170)로 되돌려 피드 카드와 겹치게 한다.
+class _BlobHero extends StatefulWidget {
+  final Post post;
+  const _BlobHero({required this.post});
+
+  @override
+  State<_BlobHero> createState() => _BlobHeroState();
+}
+
+class _BlobHeroState extends State<_BlobHero> {
+  Animation<double>? _progress;
+  bool _centered = false; // true=히어로 정중앙, false=피드 카드와 동일 배치
+  bool _initialized = false;
+
+  void _onTick() {
+    final want = (_progress?.value ?? 1) >= 1.0;
+    if (want != _centered && mounted) setState(() => _centered = want);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final p = CollapseProgress.of(context);
+    if (!identical(p, _progress)) {
+      _progress?.removeListener(_onTick);
+      _progress = p;
+      _progress?.addListener(_onTick);
+    }
+    if (!_initialized) {
+      _initialized = true;
+      // 전환 없이 열린 화면(비확장 진입)은 처음부터 중앙 정렬.
+      _centered = (p?.value ?? 1) >= 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _progress?.removeListener(_onTick);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        BlobBackground(
+          seed: widget.post.id,
+          color: categoryColor(widget.post.category),
+        ),
+        Positioned.fill(
+          child: AnimatedPadding(
+            // 내려앉기는 여유 있게, 축소 복귀는 전환이 끝나기 전에 빠르게.
+            duration: Duration(milliseconds: _centered ? 380 : 150),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.fromLTRB(22, 24, 22, _centered ? 24 : 170),
+            child: Center(
+              child: Text(
+                widget.post.content,
+                textAlign: TextAlign.center,
+                maxLines: 9,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                  height: 1.6,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

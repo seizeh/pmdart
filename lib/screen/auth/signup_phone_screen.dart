@@ -660,7 +660,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     }
   }
 
-  /// 0단계 → 인증코드 발송 후 1단계로.
+  /// 전화 단계(1) → 인증코드 발송 후 코드 입력 단계(2)로.
   Future<void> _sendCode() async {
     final phone = _phoneCtrl.text.trim();
     if (!_phoneRe.hasMatch(phone)) {
@@ -674,11 +674,11 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     _toast(result.message);
     if (result.ok) {
       _codeCtrl.clear();
-      setState(() => _step = 1);
+      setState(() => _step = 2);
     }
   }
 
-  /// 1단계 → 인증코드 검증 후 2단계로.
+  /// 코드 단계(2) → 인증코드 검증 후 정보 입력 단계(3)로.
   Future<void> _verifyCode() async {
     final code = _codeCtrl.text.trim();
     if (code.length != 6) {
@@ -691,7 +691,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (result.verified) {
-      setState(() => _step = 2);
+      setState(() => _step = 3);
     } else {
       _toast(result.message);
     }

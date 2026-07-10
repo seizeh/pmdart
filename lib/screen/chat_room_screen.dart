@@ -400,10 +400,12 @@ class _ChatHeaderState extends State<_ChatHeader> {
         ? Image.network(
             widget.imageUrl!,
             fit: BoxFit.cover,
+            cacheWidth: 500, // 블러 배경 — 저해상 디코딩으로 충분
             errorBuilder: (_, _, _) => _noPhotoBackground(),
           )
         : (widget.room.otherNickname == '고객센터'
-            ? Image.asset('assets/images/cs_profile.png', fit: BoxFit.cover)
+            ? Image.asset('assets/images/cs_profile.png',
+                fit: BoxFit.cover, cacheWidth: 500)
             : null);
     final hasPhoto = photoImage != null;
     // 사진 유무와 관계없이 동일한 컴팩트 바 — 사진은 전체 블러 배경으로만 쓴다.

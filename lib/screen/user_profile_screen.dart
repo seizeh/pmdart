@@ -32,12 +32,17 @@ class UserProfileScreen extends StatefulWidget {
   /// 축소 시 크로스페이드로 나타날 원본 타일(검색 결과와 동일 위젯).
   final WidgetBuilder? cardBuilder;
 
+  /// 이 화면으로 들어오기 직전에 보던 반려동물 id(있으면). 그 펫을 다시 열려 하면
+  /// 새 화면을 쌓지 않고 pop 으로 되돌아간다(A→펫→A 무한 스택 방지).
+  final String? fromPetId;
+
   const UserProfileScreen({
     super.key,
     required this.userId,
     this.previewNickname,
     this.originRect,
     this.cardBuilder,
+    this.fromPetId,
   });
 
   @override
@@ -59,6 +64,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   // 게시글 카드 → 상세 확장 전환용(커뮤니티와 동일 패턴).
   final _postKeys = <String, GlobalKey>{};
   String? _openedPostId;
+
+  // 반려동물 포스터 확장/축소 — 게시글 상세와 동일 전환.
+  String? _openedPetId;
 
   // 핀 스택용: 인라인 섹션 타이틀들의 위치 측정.
   final _titleKeys = List.generate(3, (_) => GlobalKey());
@@ -169,6 +177,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (!mounted) return;
     setState(() => _openedPostId = null);
     _load(silent: true); // 하트/댓글 변동 반영
+  }
+
+  Future<void> _openPet(MockPet pet, Rect? rect) async {
+    // 방금 거쳐온 펫이면 새로 쌓지 않고 되돌아간다(무한 왕복 방지).
+    if (pet.id == widget.fromPetId) {
+      // maybePop → CollapsibleView(PopScope)가 축소 애니메이션을 태운 뒤 팝.
+      Navigator.of(context).maybePop();
+      return;
+    }
+    final page = PetProfileScreen(
+      petId: pet.id,
+      fromUserId: widget.userId,
+      originRect: rect,
+      cardBuilder: rect == null ? null : (_) => PetPosterCard(pet: pet),
+    );
+    if (rect != null) setState(() => _openedPetId = pet.id);
+    await Navigator.push<void>(
+      context,
+      rect == null
+          ? AppPageRoute<void>(builder: (_) => page)
+          : CollapseRoute<void>(builder: (_) => page),
+    );
+    if (!mounted) return;
+    setState(() => _openedPetId = null);
   }
 
   @override
@@ -661,10 +693,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ? _emptyBox('등록된 반려동물이 없어요')
           : _PetPosterCarousel(
               pets: p.pets,
-              onTap: (pet) => Navigator.push(
-                context,
-                AppPageRoute(builder: (_) => PetProfileScreen(petId: pet.id)),
-              ),
+              openedPetId: _openedPetId,
+              onTap: _openPet,
             ),
     );
   }
@@ -853,8 +883,13 @@ class _ReviewTagChip extends StatelessWidget {
 /// 타인 프로필의 반려동물 포스터 캐러셀 — 내정보 펫 히어로와 동일한 시각 언어.
 class _PetPosterCarousel extends StatefulWidget {
   final List<MockPet> pets;
-  final void Function(MockPet pet) onTap;
-  const _PetPosterCarousel({required this.pets, required this.onTap});
+  final String? openedPetId; // 상세로 열린 펫 → 빈자리 처리
+  final void Function(MockPet pet, Rect? rect) onTap;
+  const _PetPosterCarousel({
+    required this.pets,
+    required this.onTap,
+    this.openedPetId,
+  });
 
   @override
   State<_PetPosterCarousel> createState() => _PetPosterCarouselState();
@@ -863,6 +898,14 @@ class _PetPosterCarousel extends StatefulWidget {
 class _PetPosterCarouselState extends State<_PetPosterCarousel> {
   final _pc = PageController(viewportFraction: 0.9);
   int _page = 0;
+  final _cardKeys = <String, GlobalKey>{};
+
+  Rect? _cardRect(String id) {
+    final ctx = _cardKeys[id]?.currentContext;
+    final box = ctx?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
 
   @override
   void dispose() {
@@ -882,13 +925,20 @@ class _PetPosterCarouselState extends State<_PetPosterCarousel> {
             padEnds: pets.length > 1,
             itemCount: pets.length,
             onPageChanged: (i) => setState(() => _page = i),
-            itemBuilder: (_, i) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: PetPosterCard(
-                pet: pets[i],
-                onTap: () => widget.onTap(pets[i]),
-              ),
-            ),
+            itemBuilder: (_, i) {
+              final pet = pets[i];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Opacity(
+                  key: _cardKeys.putIfAbsent(pet.id, GlobalKey.new),
+                  opacity: widget.openedPetId == pet.id ? 0 : 1,
+                  child: PetPosterCard(
+                    pet: pet,
+                    onTap: () => widget.onTap(pet, _cardRect(pet.id)),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         if (pets.length > 1) ...[

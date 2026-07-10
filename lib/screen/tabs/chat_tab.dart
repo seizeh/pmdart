@@ -182,10 +182,12 @@ class _ChatRoomTile extends StatelessWidget {
         ? Image.network(
             photo,
             fit: BoxFit.cover,
+            cacheWidth: 400, // 블러 배경 — 저해상 디코딩으로 충분(비용·메모리 절감)
             errorBuilder: (_, _, _) => const SizedBox.shrink(),
           )
         : (room.otherNickname == '고객센터'
-            ? Image.asset('assets/images/cs_profile.png', fit: BoxFit.cover)
+            ? Image.asset('assets/images/cs_profile.png',
+                fit: BoxFit.cover, cacheWidth: 400)
             : null);
     return Pressable(
       onTap: onTap,

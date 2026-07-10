@@ -48,6 +48,7 @@ class UserTile extends StatelessWidget {
                   child: Image.network(
                     photo,
                     fit: BoxFit.cover,
+                    cacheWidth: 400, // 블러 배경 — 저해상 디코딩
                     errorBuilder: (_, _, _) => const SizedBox.shrink(),
                   ),
                 ),

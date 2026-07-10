@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
 import '../theme/app_colors.dart';
@@ -5,11 +6,8 @@ import '../models/community.dart';
 import '../models/pet_search.dart';
 import '../services/community_repository.dart';
 import '../services/pet_repository.dart';
-import '../services/chat_launcher.dart';
-import '../services/session.dart';
 import '../widgets/pet_trust_badge.dart';
 import '../widgets/post_card.dart';
-import '../widgets/floating_back_button.dart';
 import 'post_detail_screen.dart';
 import 'user_profile_screen.dart';
 
@@ -29,12 +27,17 @@ class PetProfileScreen extends StatefulWidget {
   /// 축소 시 크로스페이드로 나타날 원본 타일(검색 결과와 동일 위젯).
   final WidgetBuilder? cardBuilder;
 
+  /// 이 화면으로 들어오기 직전에 보던 사용자 id(있으면). 그 보호자를 다시 열려 하면
+  /// 새 화면을 쌓지 않고 pop 으로 되돌아간다(사용자→펫→사용자 무한 스택 방지).
+  final String? fromUserId;
+
   const PetProfileScreen({
     super.key,
     required this.petId,
     this.preview,
     this.originRect,
     this.cardBuilder,
+    this.fromUserId,
   });
 
   @override
@@ -54,6 +57,10 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
   // 게시글 카드 → 상세 확장 전환용(커뮤니티와 동일 패턴).
   final _postKeys = <String, GlobalKey>{};
   String? _openedPostId;
+
+  // 보호자 타일 GlobalKey + 상세로 열린 보호자 — 게시글 카드와 동일한 확장/축소.
+  final _guardianKeys = <String, GlobalKey>{};
+  String? _openedGuardianId;
 
   @override
   void initState() {
@@ -122,27 +129,52 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
     _load(silent: true); // 하트/댓글 변동 반영
   }
 
+  Rect? _guardianRect(String userId) {
+    final ctx = _guardianKeys[userId]?.currentContext;
+    final box = ctx?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  Future<void> _openGuardian(PetGuardian g) async {
+    // 방금 거쳐온 보호자면 새로 쌓지 않고 되돌아간다(무한 왕복 방지).
+    if (g.userId == widget.fromUserId) {
+      // maybePop → CollapsibleView(PopScope)가 축소 애니메이션을 태운 뒤 팝.
+      Navigator.of(context).maybePop();
+      return;
+    }
+    final rect = _guardianRect(g.userId);
+    final page = UserProfileScreen(
+      userId: g.userId,
+      previewNickname: g.nickname,
+      fromPetId: widget.petId,
+      originRect: rect,
+      cardBuilder: rect == null ? null : (_) => _GuardianTile(guardian: g),
+    );
+    if (rect != null) setState(() => _openedGuardianId = g.userId);
+    await Navigator.push<void>(
+      context,
+      rect == null
+          ? AppPageRoute<void>(builder: (_) => page)
+          : CollapseRoute<void>(builder: (_) => page),
+    );
+    if (!mounted) return;
+    setState(() => _openedGuardianId = null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
     // 검색 타일에서 펼쳐지고/당기면 타일로 축소 — 게시글 상세와 동일 래퍼.
-    // 상단바 없이 콘텐츠가 최상단까지 차오르는 몰입형 + 떠 있는 뒤로가기.
+    // 상단바·뒤로가기 없이 콘텐츠가 최상단까지 차오르는 몰입형(당겨서 축소).
     return CollapsibleView(
       originRect: widget.originRect,
       card: widget.cardBuilder,
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,
-        body: Stack(
-          children: [
-            Positioned.fill(child: _body(physics, topInset)),
-            Positioned(
-              top: topInset + 8,
-              left: 16,
-              child: const FloatingBackButton(),
-            ),
-          ],
-        ),
+        // 뒤로가기 버튼 없음 — 아래로 당겨 축소(CollapsibleView) 또는 시스템 뒤로.
+        body: _body(physics, topInset),
       ),
     );
   }
@@ -352,21 +384,23 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
       children: [
         _sectionTitle('보호자', count: guardians.length),
         const SizedBox(height: 10),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border, width: 0.5),
-          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
-              for (var i = 0; i < guardians.length; i++) ...[
-                if (i > 0)
-                  const Divider(
-                      height: 0.5, thickness: 0.5, color: AppColors.border),
-                _GuardianRow(guardian: guardians[i]),
-              ],
+              for (final g in guardians)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  // 상세가 열린 보호자는 빈자리로 — 축소가 겹침 없이 안착.
+                  child: Opacity(
+                    key: _guardianKeys.putIfAbsent(g.userId, GlobalKey.new),
+                    opacity: _openedGuardianId == g.userId ? 0 : 1,
+                    child: _GuardianTile(
+                      guardian: g,
+                      onTap: () => _openGuardian(g),
+                    ),
+                  ),
+                ),
               if (guardians.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -458,60 +492,77 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
       );
 }
 
-/// 보호자 한 명 — 아바타 + 닉네임 + 역할, 탭하면 그 사용자 프로필로.
-class _GuardianRow extends StatelessWidget {
+/// 보호자 한 명 — 사용자 검색 타일(UserTile)과 동일한 프로스트 문법:
+/// 프로필 사진 블러 배경 + 중앙 닉네임(역할은 위에 작은 캡션). 탭하면 그 자리에서
+/// 사용자 프로필이 펼쳐지고 당기면 축소된다(게시글 상세와 동일).
+class _GuardianTile extends StatelessWidget {
   final PetGuardian guardian;
-  const _GuardianRow({required this.guardian});
+  final VoidCallback? onTap;
+  const _GuardianTile({required this.guardian, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final g = guardian;
-    final isMe = g.userId == SessionManager.instance.user?.id;
     final name = g.nickname.isEmpty ? '알 수 없음' : g.nickname;
+    final photo = g.profileImageUrl;
     return Pressable(
-      onTap: () => Navigator.push(
-        context,
-        AppPageRoute(
-          builder: (_) =>
-              UserProfileScreen(userId: g.userId, previewNickname: g.nickname),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+      onTap: onTap ??
+          () => Navigator.push(
+                context,
+                AppPageRoute(
+                  builder: (_) => UserProfileScreen(
+                      userId: g.userId, previewNickname: g.nickname),
+                ),
+              ),
+      child: Container(
+        width: double.infinity,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+        child: Stack(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primarySoft,
-              backgroundImage: g.profileImageUrl != null
-                  ? NetworkImage(g.profileImageUrl!)
-                  : null,
-              child: g.profileImageUrl == null
-                  ? Text(
-                      name.characters.first,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryDark,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
+            if (photo != null)
+              Positioned.fill(
+                // RepaintBoundary — Column 내 타일이라 블러 레이어를 격리(재래스터 방지).
+                child: RepaintBoundary(
+                  child: ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(
+                      sigmaX: 18,
+                      sigmaY: 18,
+                      tileMode: ui.TileMode.clamp,
+                    ),
+                    child: Image.network(
+                      photo,
+                      fit: BoxFit.cover,
+                      cacheWidth: 400, // 블러 배경 — 저해상 디코딩
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ),
+            if (photo != null)
+              const Positioned.fill(
+                child: ColoredBox(color: Color(0xB3FFFFFF)),
+              ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     g.isOwner ? '대표 보호자' : '공동보호자',
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.textTertiary),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
                     name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
@@ -519,13 +570,6 @@ class _GuardianRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (!isMe)
-              IconButton(
-                icon: const Icon(Icons.chat_bubble_outline,
-                    color: AppColors.primaryDark, size: 20),
-                tooltip: '채팅',
-                onPressed: () => openDirectChat(context, g.userId),
-              ),
           ],
         ),
       ),

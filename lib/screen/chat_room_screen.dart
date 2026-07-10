@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../motion/motion.dart';
@@ -6,6 +7,7 @@ import '../models/chat.dart';
 import '../services/chat_repository.dart';
 import '../services/report_repository.dart';
 import '../services/storage_service.dart';
+import '../widgets/overlay_icon_button.dart';
 import '../widgets/report_sheet.dart';
 
 /// 채팅방 — 메시지 목록(실데이터) + 전송 + 실시간 수신.
@@ -39,9 +41,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   bool _sending = false;
   RealtimeChannel? _channel;
 
+  // 상대 프로필 사진(히어로 헤더용) — 없으면 닉네임 중앙 표시.
+  late String? _otherImageUrl = widget.room.otherProfileImageUrl;
+
+  Future<void> _loadOtherProfile() async {
+    final uid = widget.room.otherUserId;
+    if (uid == null) return;
+    try {
+      final row = await Supabase.instance.client
+          .from('public_profiles')
+          .select('profile_image_url')
+          .eq('id', uid)
+          .maybeSingle();
+      if (mounted) {
+        setState(() => _otherImageUrl = row?['profile_image_url'] as String?);
+      }
+    } catch (_) {/* 실패 시 무사진 헤더 유지 */}
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadOtherProfile();
     _init();
   }
 
@@ -258,9 +279,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final initial = widget.room.otherNickname.isEmpty
-        ? '?'
-        : widget.room.otherNickname.characters.first;
     // 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 공통 래퍼(게시글 상세와 동일 언어).
     return CollapsibleView(
       originRect: widget.originRect,
@@ -268,34 +286,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.primarySoft,
-                child: Text(
-                  initial,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryDark,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(widget.room.otherNickname),
-            ],
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.more_horiz),
-              onPressed: _openRoomMenu,
-            ),
-          ],
-        ),
         body: Column(
           children: [
+            // 블롭 헤더 히어로 — 게시글 상세와 동일한 디자인 언어(상태바까지 채움,
+            // 오버레이 원형 버튼, 확장 완료 시 내려앉는 정착 애니메이션).
+            _ChatHeader(
+              room: widget.room,
+              imageUrl: _otherImageUrl,
+              onBack: () => Navigator.maybePop(context),
+              onMenu: _openRoomMenu,
+            ),
             Expanded(child: _buildMessages(physics)),
             // 상대가 나간 방은 입력을 잠근다(서버도 INSERT 차단).
             if (widget.room.otherLeft)
@@ -336,6 +336,173 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       itemBuilder: (_, i) => _MessageBubble(
         message: _messages[_messages.length - 1 - i],
         onReport: _reportMessage,
+      ),
+    );
+  }
+}
+
+/// 채팅방 상단 히어로 헤더 — 타사용자 프로필 상세와 동일한 문법.
+/// 프로필 사진이 있으면 사진 + 하단 점진 블러(경계선 없는 am 스타일),
+/// 없으면 primaryDark 배경에 닉네임을 중앙 정렬. 뒤로가기·메뉴는 오버레이
+/// 원형 버튼, 확장 완료 시 닉네임이 살짝 내려앉는 정착 모션(CollapseProgress).
+class _ChatHeader extends StatefulWidget {
+  final ChatRoomSummary room;
+  final String? imageUrl;
+  final VoidCallback onBack;
+  final VoidCallback onMenu;
+  const _ChatHeader({
+    required this.room,
+    required this.imageUrl,
+    required this.onBack,
+    required this.onMenu,
+  });
+
+  @override
+  State<_ChatHeader> createState() => _ChatHeaderState();
+}
+
+class _ChatHeaderState extends State<_ChatHeader> {
+  Animation<double>? _progress;
+  bool _settled = false;
+  bool _initialized = false;
+
+  void _onTick() {
+    final want = (_progress?.value ?? 1) >= 1.0;
+    if (want != _settled && mounted) setState(() => _settled = want);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final p = CollapseProgress.of(context);
+    if (!identical(p, _progress)) {
+      _progress?.removeListener(_onTick);
+      _progress = p;
+      _progress?.addListener(_onTick);
+    }
+    if (!_initialized) {
+      _initialized = true;
+      _settled = (p?.value ?? 1) >= 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _progress?.removeListener(_onTick);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
+    // 고객센터는 전용 번들 이미지를 프로필처럼 사용.
+    final Widget? photoImage = widget.imageUrl != null
+        ? Image.network(
+            widget.imageUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _noPhotoBackground(),
+          )
+        : (widget.room.otherNickname == '고객센터'
+            ? Image.asset('assets/images/cs_profile.png', fit: BoxFit.cover)
+            : null);
+    final hasPhoto = photoImage != null;
+    // 사진 유무와 관계없이 동일한 컴팩트 바 — 사진은 전체 블러 배경으로만 쓴다.
+    return SizedBox(
+      height: topPad + 64,
+      // ClipRect — 전체 블러가 헤더 경계 밖으로 번지지 않게 자른다.
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasPhoto)
+              ImageFiltered(
+                imageFilter: ui.ImageFilter.blur(
+                  sigmaX: 18, // 채팅 목록 타일과 동일한 블러 강도
+                  sigmaY: 18,
+                  tileMode: ui.TileMode.clamp,
+                ),
+                child: photoImage,
+              )
+            else
+              _noPhotoBackground(),
+            // 사진 위 가독용 스크림 + 중앙 닉네임(무사진과 동일 배치).
+            if (hasPhoto) ...[
+              const Positioned.fill(
+                child: ColoredBox(color: Color(0x33000000)),
+              ),
+              AnimatedPadding(
+                duration: Duration(milliseconds: _settled ? 380 : 150),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.only(
+                  left: 64,
+                  right: 64,
+                  top: topPad + (_settled ? 6 : 0),
+                ),
+                child: Center(
+                  child: Text(
+                    widget.room.otherNickname,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            Positioned(
+              top: topPad + 4,
+              left: 8,
+              child: OverlayIconButton(
+                icon: Icons.arrow_back,
+                tooltip: '뒤로',
+                onPressed: widget.onBack,
+              ),
+            ),
+            Positioned(
+              top: topPad + 4,
+              right: 8,
+              child: OverlayIconButton(
+                icon: Icons.more_horiz,
+                tooltip: '메뉴',
+                onPressed: widget.onMenu,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 사진이 없을 때 — 컴팩트 바에 닉네임 중앙 정렬(정착 모션 포함).
+  Widget _noPhotoBackground() {
+    return ColoredBox(
+      color: AppColors.primaryDark,
+      child: AnimatedPadding(
+        duration: Duration(milliseconds: _settled ? 380 : 150),
+        curve: Curves.easeOutCubic,
+        // 상태바 높이만큼 내려 시각적 중앙을 맞추고, 정착 시 살짝 내려앉는다.
+        padding: EdgeInsets.only(
+          left: 64,
+          right: 64,
+          top: MediaQuery.of(context).padding.top + (_settled ? 6 : 0),
+        ),
+        child: Center(
+          child: Text(
+            widget.room.otherNickname,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textOnPrimary,
+            ),
+          ),
+        ),
       ),
     );
   }

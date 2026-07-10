@@ -188,19 +188,6 @@ class PostCard extends StatelessWidget {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          CircleAvatar(
-                            radius: 12,
-                            backgroundColor: AppColors.primarySoft,
-                            child: Text(
-                              post.authorNickname.characters.first,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primaryDark,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           Text(
                             post.authorNickname,
                             style: const TextStyle(

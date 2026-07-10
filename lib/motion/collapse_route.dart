@@ -236,6 +236,27 @@ class _OriginExpand extends StatelessWidget {
 /// [builder] 는 스크롤 리스트에 물릴 [ScrollPhysics] 를 받아 화면(Scaffold)을 만든다.
 /// (드래그 중 스크롤을 잠그기 위해 반드시 이 physics 를 리스트에 전달해야 한다.)
 /// [originRect] 가 null 이면 축소 없이 [builder] 결과만 그대로 보여준다.
+/// CollapsibleView 의 확장/축소 진행도(0=카드, 1=풀스크린)를 하위 위젯에 노출.
+/// 상세 화면 내부 요소가 전환 상태에 반응(예: 히어로 본문 정렬 전환)할 때 쓴다.
+/// 값 구독은 [of] 로 받은 애니메이션에 직접 listener 를 달아 관리한다
+/// (Inherited 의존 리빌드가 아니라 임계값 교차 시에만 setState 하도록).
+class CollapseProgress extends InheritedWidget {
+  final Animation<double> progress;
+  const CollapseProgress({
+    super.key,
+    required this.progress,
+    required super.child,
+  });
+
+  static Animation<double>? of(BuildContext context) => context
+      .getInheritedWidgetOfExactType<CollapseProgress>()
+      ?.progress;
+
+  @override
+  bool updateShouldNotify(CollapseProgress oldWidget) =>
+      progress != oldWidget.progress;
+}
+
 class CollapsibleView extends StatefulWidget {
   const CollapsibleView({
     super.key,
@@ -351,7 +372,10 @@ class _CollapsibleViewState extends State<CollapsibleView>
 
   @override
   Widget build(BuildContext context) {
-    final content = widget.builder(context, _physics);
+    final content = CollapseProgress(
+      progress: _cc,
+      child: widget.builder(context, _physics),
+    );
     if (!_collapsible) return content;
 
     final origin = widget.originRect!;

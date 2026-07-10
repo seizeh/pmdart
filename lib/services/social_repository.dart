@@ -78,7 +78,7 @@ class SocialRepository {
     final uid = _uid;
     final rows = await _c
         .from('public_profiles')
-        .select('id, nickname, user_type')
+        .select('id, nickname, user_type, profile_image_url')
         .ilike('nickname', '%$q%')
         .neq('id', uid)
         .limit(30);

@@ -5,8 +5,10 @@ import '../../theme/app_colors.dart';
 import '../../services/phone_auth_service.dart';
 import '../../services/auth_service.dart';
 import '../main_screen.dart';
+import '../pet_edit_screen.dart';
 import '../terms_screen.dart';
 import 'login_screen.dart';
+import '../../main.dart' show navigatorKey;
 
 /// 회원가입 — 전화 OTP 기반 다단계 흐름.
 /// 1) 약관 동의 (필수 전부 동의해야 다음 진행 가능)
@@ -27,9 +29,19 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   final _codeCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
+  final _pw2Ctrl = TextEditingController(); // 비밀번호 재확인
   final _nickCtrl = TextEditingController();
   String _userType = 'pet_owner';
   final List<TextEditingController> _coGuardianCtrls = [];
+
+  // 반려동물 정보(보호자 선택 시, 선택 입력) — 가입 직후 등록 화면으로 이어진다.
+  // 정식 등록은 AI 신원 인증이 필수라 여기서 pets 를 직접 만들지 않는다.
+  final _petNameCtrl = TextEditingController();
+  final _petBreedCtrl = TextEditingController(); // 품종(자유 입력)
+  String? _petKind; // 'dog' | 'cat'
+  String? _petGender; // 'male' | 'female'
+  DateTime? _petBirth;
+  bool _petNeutered = false;
 
   // 약관 동의 상태 — 필수 4개(연령·이용약관·위치약관·개인정보)가 모두 체크돼야
   // 전화번호 인증 단계로 진행할 수 있다. 마케팅은 선택.
@@ -491,7 +503,21 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             obscureText: true,
             decoration: const InputDecoration(
                 labelText: '비밀번호',
-                hintText: '대/소문자 + 특수문자 포함 8자 이상'),
+                hintText: '영문 + 숫자 포함 8자 이상'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _pw2Ctrl,
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: '비밀번호 확인',
+              hintText: '비밀번호를 한 번 더 입력해주세요',
+              errorText: _pw2Ctrl.text.isNotEmpty &&
+                      _pw2Ctrl.text != _pwCtrl.text
+                  ? '비밀번호가 일치하지 않아요'
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -543,6 +569,94 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           ),
           if (_userType == 'pet_owner') ...[
             const SizedBox(height: 28),
+            const Text(
+              '반려동물 정보를 입력해주세요',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '지금 입력하면 가입 후 바로 등록이 이어져요 (선택 · 나중에 내정보에서도 등록 가능)',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _petNameCtrl,
+              decoration: const InputDecoration(labelText: '이름'),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                for (final (kind, label) in [('dog', '강아지'), ('cat', '고양이')])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(label),
+                      selected: _petKind == kind,
+                      onSelected: (_) => setState(() => _petKind = kind),
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _petBreedCtrl,
+                    decoration: const InputDecoration(
+                        labelText: '품종', hintText: '예: 말티즈'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                for (final (g, label) in [('male', '남아'), ('female', '여아')])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(label),
+                      selected: _petGender == g,
+                      onSelected: (sel) =>
+                          setState(() => _petGender = sel ? g : null),
+                    ),
+                  ),
+                const Spacer(),
+                OutlinedButton(
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _petBirth ?? DateTime(now.year - 1),
+                      firstDate: DateTime(now.year - 30),
+                      lastDate: now,
+                    );
+                    if (picked != null) setState(() => _petBirth = picked);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  child: Text(
+                    _petBirth == null
+                        ? '생일 선택'
+                        : '${_petBirth!.year}.${_petBirth!.month}.${_petBirth!.day}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            CheckboxListTile(
+              value: _petNeutered,
+              onChanged: (v) => setState(() => _petNeutered = v ?? false),
+              title: const Text('중성화 완료', style: TextStyle(fontSize: 14)),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+            const SizedBox(height: 20),
             const Text(
               '공동보호자가 있다면 전화번호를 입력해주세요',
               style: TextStyle(
@@ -637,12 +751,29 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           await AuthService.instance.login(_idCtrl.text.trim(), _pwCtrl.text);
       if (!mounted) return;
       if (loginResult.ok) {
-        // 세션 발급 성공 → 메인으로.
+        // 세션 발급 성공 → 메인으로. 펫 정보를 입력했다면 등록 화면으로 이어간다
+        // (정식 등록은 AI 신원 인증 필수 → 가입 단계에서 직접 생성하지 않는다).
+        final petDraft = (_userType == 'pet_owner' &&
+                _petNameCtrl.text.trim().isNotEmpty)
+            ? PetDraft(
+                name: _petNameCtrl.text.trim(),
+                speciesKind: _petKind,
+                species: _petBreedCtrl.text.trim(),
+                gender: _petGender,
+                birthDate: _petBirth,
+                isNeutered: _petNeutered,
+              )
+            : null;
         Navigator.pushAndRemoveUntil(
           context,
           AppPageRoute(builder: (_) => const MainScreen()),
           (route) => false,
         );
+        if (petDraft != null) {
+          navigatorKey.currentState?.push(
+            AppPageRoute(builder: (_) => PetEditScreen(draft: petDraft)),
+          );
+        }
       } else {
         // 가입은 됐지만 자동 로그인 실패(예: 서버 JWT 설정 누락) → 로그인 화면으로.
         // 세션 없이 메인에 진입하면 데이터가 안 보이므로 진입을 막는다.
@@ -756,6 +887,10 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     }
     if (_pwCtrl.text.length < 8) {
       _toast('비밀번호를 8자 이상 입력해주세요');
+      return false;
+    }
+    if (_pw2Ctrl.text != _pwCtrl.text) {
+      _toast('비밀번호가 일치하지 않아요');
       return false;
     }
     if (_nickCtrl.text.trim().isEmpty) {

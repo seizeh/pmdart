@@ -188,9 +188,6 @@ class _NotificationPanelState extends State<_NotificationPanel> {
   final _repo = NotificationRepository.instance;
   late List<AppNotification> _items = List.of(widget.items);
 
-  // 모두 읽음을 누르면 같은 자리에 닫기 버튼이 나타난다.
-  bool _showClose = false;
-
   Future<void> _markAll() async {
     try {
       await _repo.deleteAll();
@@ -198,7 +195,6 @@ class _NotificationPanelState extends State<_NotificationPanel> {
     if (mounted) {
       setState(() {
         _items = [];
-        _showClose = true;
       });
     }
   }
@@ -299,25 +295,22 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                                   style: TextStyle(fontSize: 13),
                                 ),
                               )
-                            : _showClose
-                                ? TextButton(
-                                    key: const ValueKey('close'),
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10),
-                                      minimumSize: const Size(0, 32),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    child: const Text(
-                                      '닫기',
-                                      style: TextStyle(fontSize: 13),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(
-                                    key: ValueKey('none')),
+                            // 알림이 없으면(처음부터 비었든 모두 읽음 후든) 닫기 버튼.
+                            : TextButton(
+                                key: const ValueKey('close'),
+                                onPressed: () => Navigator.of(context).pop(),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10),
+                                  minimumSize: const Size(0, 32),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  '닫기',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -325,33 +318,38 @@ class _NotificationPanelState extends State<_NotificationPanel> {
               ),
             ),
             const Divider(height: 1, color: AppColors.border),
-            // 본문 — 빈/목록. 목록은 개수에 비례한 높이(최대치 넘으면 스크롤).
-            Flexible(
-              child: items.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 28),
-                      child: Center(
-                        child: Text(
-                          '받은 알림이 없어요',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      itemCount: items.length,
-                      separatorBuilder: (_, _) =>
-                          const Divider(height: 1, color: AppColors.border),
-                      itemBuilder: (_, i) => _PanelTile(
-                        notification: items[i],
-                        onTap: () => _onTap(items[i]),
-                      ),
+            // 본문 — 빈 상태는 최대 높이의 1/3(컴팩트). 알림이 있으면 개수에 맞게
+            // 늘어나되 최소 1/3·최대(현재 상태)까지, 넘으면 스크롤.
+            if (items.isEmpty)
+              SizedBox(
+                height: widget.maxHeight / 3,
+                child: const Center(
+                  child: Text(
+                    '받은 알림이 없어요',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textTertiary,
                     ),
-            ),
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: widget.maxHeight / 3),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, color: AppColors.border),
+                    itemBuilder: (_, i) => _PanelTile(
+                      notification: items[i],
+                      onTap: () => _onTap(items[i]),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

@@ -1000,6 +1000,11 @@ class _SettingsSection extends StatelessWidget {
           onTap: () => _push(context, const BlockedUsersScreen()),
         ),
         _Item(
+          icon: Icons.description_outlined,
+          label: '약관 및 정책',
+          onTap: () => _showTerms(context),
+        ),
+        _Item(
           icon: Icons.logout,
           label: '로그아웃',
           onTap: () => _confirmLogout(context),
@@ -1010,6 +1015,57 @@ class _SettingsSection extends StatelessWidget {
           onTap: () => _confirmWithdraw(context),
         ),
       ],
+    );
+  }
+
+  /// 약관·정책 전문 조회 — 가입 때 동의한 문서를 언제든 다시 볼 수 있게.
+  void _showTerms(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 20, 24, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '약관 및 정책',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+            for (final (label, builder) in <(String, Widget Function())>[
+              ('서비스 이용약관', TermsScreen.service),
+              ('위치기반서비스 이용약관', TermsScreen.location),
+              ('개인정보 처리방침', TermsScreen.privacy),
+            ])
+              ListTile(
+                leading: const Icon(Icons.article_outlined,
+                    color: AppColors.textSecondary),
+                title: Text(label,
+                    style: const TextStyle(
+                        fontSize: 15, color: AppColors.textPrimary)),
+                trailing: const Icon(Icons.chevron_right,
+                    size: 20, color: AppColors.textTertiary),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _push(context, builder());
+                },
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
     );
   }
 

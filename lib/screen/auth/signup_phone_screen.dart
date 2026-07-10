@@ -458,6 +458,12 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                 height: 52,
                 child: OutlinedButton(
                   onPressed: _checkingId ? null : _checkUsername,
+                  // 전역 테마의 minimumSize(폭 무한)가 Row 안에서 무한 폭 제약을
+                  // 만들어 레이아웃이 깨지므로(화면 백지) 이 버튼만 재정의.
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 52),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
                   child: _checkingId
                       ? const SizedBox(
                           width: 18,
@@ -691,6 +697,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (result.verified) {
+      _toast('전화번호 인증이 완료되었어요');
       setState(() => _step = 3);
     } else {
       _toast(result.message);

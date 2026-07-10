@@ -6,10 +6,30 @@ import '../services/pet_repository.dart';
 import '../services/storage_service.dart';
 import 'pet_identity_enroll_screen.dart';
 
+/// 가입 단계 등에서 미리 받아온 펫 정보 초안 — 신규 등록 폼을 프리필한다.
+class PetDraft {
+  final String name;
+  final String? speciesKind; // 'dog' | 'cat'
+  final String species; // 품종(자유 입력)
+  final String? gender;
+  final DateTime? birthDate;
+  final bool isNeutered;
+  const PetDraft({
+    required this.name,
+    this.speciesKind,
+    this.species = '',
+    this.gender,
+    this.birthDate,
+    this.isNeutered = false,
+  });
+}
+
 /// 반려동물 등록/수정 화면. [pet] 가 있으면 수정, 없으면 신규 등록.
+/// 신규 등록 시 [draft] 가 있으면 폼을 프리필한다(가입 흐름 연계).
 class PetEditScreen extends StatefulWidget {
   final MockPet? pet;
-  const PetEditScreen({super.key, this.pet});
+  final PetDraft? draft;
+  const PetEditScreen({super.key, this.pet, this.draft});
 
   @override
   State<PetEditScreen> createState() => _PetEditScreenState();
@@ -34,6 +54,15 @@ class _PetEditScreenState extends State<PetEditScreen> {
   @override
   void initState() {
     super.initState();
+    final d = widget.draft;
+    if (widget.pet == null && d != null) {
+      _nameCtrl.text = d.name;
+      _speciesCtrl.text = d.species;
+      _speciesKind = d.speciesKind;
+      _gender = d.gender;
+      _birthDate = d.birthDate;
+      _neutered = d.isNeutered;
+    }
     final p = widget.pet;
     if (p != null) {
       _nameCtrl.text = p.name;

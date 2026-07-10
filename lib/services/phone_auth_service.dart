@@ -162,6 +162,8 @@ class PhoneCodeResult {
   /// 사용자에게 보여줄 한글 메시지.
   String get message => switch (errorCode) {
         'invalid_phone' => '전화번호 형식이 올바르지 않아요',
+        'phone_taken' => '이미 가입된 전화번호예요. 로그인하거나 비밀번호 찾기를 이용해주세요',
+        'user_not_found' => '가입되지 않은 전화번호예요',
         'rate_limited' =>
           '잠시 후 다시 시도해주세요 (${retryAfterSec ?? 60}초 후 재발송 가능)',
         'sms_send_failed' => '문자 발송에 실패했어요. 잠시 후 다시 시도해주세요',

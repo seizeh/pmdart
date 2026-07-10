@@ -49,6 +49,20 @@ class NotificationRepository {
     AppEvents.instance.notifyNotification();
   }
 
+  /// 단건 삭제 — 확인한 알림은 목록에서 제거.
+  Future<void> delete(String id) async {
+    await _c.from('notifications').delete().eq('id', id);
+    AppEvents.instance.notifyNotification();
+  }
+
+  /// 내 알림 전체 삭제 — '모두 읽음'(확인) 시.
+  Future<void> deleteAll() async {
+    final uid = _uid;
+    if (uid == null) return;
+    await _c.from('notifications').delete().eq('user_id', uid);
+    AppEvents.instance.notifyNotification();
+  }
+
   /// 모두 읽음 처리.
   Future<void> markAllRead() async {
     final uid = _uid;

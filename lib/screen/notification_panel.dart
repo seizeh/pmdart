@@ -7,7 +7,6 @@ import '../models/notification.dart';
 import '../services/notification_repository.dart';
 import '../services/community_repository.dart';
 import '../services/chat_repository.dart';
-import '../services/app_events.dart';
 import 'post_detail_screen.dart';
 import 'chat_room_screen.dart';
 import 'guardian_invites_screen.dart';
@@ -78,6 +77,11 @@ class _NotificationPanelRoute extends PopupRoute<void> {
       parent: animation,
       curve: const Interval(0.85, 1.0, curve: Curves.easeOut),
     );
+    // ④ 확장이 끝날 때 살짝 튕기는 마무리 — 벨 코너 기준 미세 오버슛 후 정착.
+    final settle = CurvedAnimation(
+      parent: animation,
+      curve: const Interval(0.5, 1.0, curve: Curves.elasticOut),
+    );
 
     // 벨 아이콘 시작(실제 벨 중심)·도착(헤더 좌측 상단 슬롯) — 크기/형태 동일.
     const bellR = 13.0; // 지름 26 (앱 헤더 벨과 동일)
@@ -106,13 +110,18 @@ class _NotificationPanelRoute extends PopupRoute<void> {
             builder: (context, child) => Opacity(
               // 거의 즉시 불투명 → 솔리드 박스가 8시 방향으로 커지는 게 또렷이 보임.
               opacity: (animation.value * 10).clamp(0.0, 1.0),
-              // ClipRect 로 실제 잘라야 확장이 보인다(Align 만으론 자식이 안 잘림).
-              child: ClipRect(
-                child: Align(
-                  alignment: Alignment.topRight, // 벨 코너 기준으로 펼쳐짐
-                  widthFactor: expand.value.clamp(0.0001, 1.0),
-                  heightFactor: expand.value.clamp(0.0001, 1.0),
-                  child: child,
+              // 확장 마무리에 벨 코너 기준으로 살짝 튕겼다가(1.5% 오버슛) 정착.
+              child: Transform.scale(
+                alignment: Alignment.topRight,
+                scale: 0.95 + 0.05 * settle.value,
+                // ClipRect 로 실제 잘라야 확장이 보인다(Align 만으론 자식이 안 잘림).
+                child: ClipRect(
+                  child: Align(
+                    alignment: Alignment.topRight, // 벨 코너 기준으로 펼쳐짐
+                    widthFactor: expand.value.clamp(0.0001, 1.0),
+                    heightFactor: expand.value.clamp(0.0001, 1.0),
+                    child: child,
+                  ),
                 ),
               ),
             ),
@@ -179,24 +188,24 @@ class _NotificationPanelState extends State<_NotificationPanel> {
   final _repo = NotificationRepository.instance;
   late List<AppNotification> _items = List.of(widget.items);
 
+  // 모두 읽음을 누르면 같은 자리에 닫기 버튼이 나타난다.
+  bool _showClose = false;
+
   Future<void> _markAll() async {
     try {
-      await _repo.markAllRead();
-      AppEvents.instance.notifyNotification();
+      await _repo.deleteAll();
     } catch (_) {}
     if (mounted) {
-      setState(
-        () => _items = [for (final n in _items) n.copyWith(isRead: true)],
-      );
+      setState(() {
+        _items = [];
+        _showClose = true;
+      });
     }
   }
 
   void _onTap(AppNotification n) {
     final nav = Navigator.of(context);
-    if (!n.isRead) {
-      _repo.markRead(n.id);
-      AppEvents.instance.notifyNotification();
-    }
+    _repo.delete(n.id); // 확인한 알림은 삭제
     nav.pop(); // 패널 닫기
     _navigate(nav, n);
   }
@@ -229,7 +238,6 @@ class _NotificationPanelState extends State<_NotificationPanel> {
   @override
   Widget build(BuildContext context) {
     final items = _items;
-    final hasUnread = items.any((n) => !n.isRead);
 
     return Material(
       color: Colors.white,
@@ -264,22 +272,54 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                       ),
                     ),
                     const Spacer(),
-                    if (hasUnread)
-                      FadeTransition(
-                        opacity: widget.reveal,
-                        child: TextButton(
-                          onPressed: _markAll,
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            minimumSize: const Size(0, 32),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text(
-                            '모두 읽음',
-                            style: TextStyle(fontSize: 13),
-                          ),
+                    // 모두 읽음 ↔ 닫기 — 누르면 같은 자리에서 부드럽게 교체.
+                    FadeTransition(
+                      opacity: widget.reveal,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOutBack,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder: (child, anim) => ScaleTransition(
+                          scale: anim,
+                          child: FadeTransition(opacity: anim, child: child),
                         ),
+                        child: _items.isNotEmpty
+                            ? TextButton(
+                                key: const ValueKey('markAll'),
+                                onPressed: _markAll,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10),
+                                  minimumSize: const Size(0, 32),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  '모두 읽음',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              )
+                            : _showClose
+                                ? TextButton(
+                                    key: const ValueKey('close'),
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10),
+                                      minimumSize: const Size(0, 32),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text(
+                                      '닫기',
+                                      style: TextStyle(fontSize: 13),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(
+                                    key: ValueKey('none')),
                       ),
+                    ),
                   ],
                 ),
               ),

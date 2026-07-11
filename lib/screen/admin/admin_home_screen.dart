@@ -12,6 +12,7 @@ import 'admin_reports_screen.dart';
 import 'admin_posts_screen.dart';
 import 'admin_inquiries_screen.dart';
 import 'admin_logs_screen.dart';
+import 'admin_metrics_screen.dart';
 
 /// 관리자 홈 — 대시보드 + 관리 메뉴.
 /// 관리자(user_type='admin') 로 로그인하면 일반 화면 대신 이 화면으로 진입한다.
@@ -141,6 +142,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 icon: Icons.support_agent_outlined,
                 label: '문의 처리',
                 onTap: () => _open(const AdminInquiriesScreen()),
+              ),
+              _MenuTile(
+                icon: Icons.query_stats_outlined,
+                label: '운영 지표 · 비용',
+                onTap: () => _open(const AdminMetricsScreen()),
               ),
               _MenuTile(
                 icon: Icons.receipt_long_outlined,

@@ -238,6 +238,156 @@ class AdminLog {
       );
 }
 
+/// DAU(일일 활성 사용자) 1일치.
+class DauPoint {
+  final String day; // 'MM-DD'
+  final int count;
+  const DauPoint(this.day, this.count);
+}
+
+/// 운영 지표·비용 (AI 사진인증 / Solapi 문자 / DAU).
+/// 비용은 로그가 없어 "단가 × 건수" 추정치다(단가는 서버 상수).
+class AdminOpsMetrics {
+  final int smsUnitKrw;
+  final int aiUnitKrw;
+
+  // AI 사진 인증
+  final int aiTotal, aiPass, aiFail, aiToday, aiD7, aiD30;
+  final int aiCostAll, aiCostToday, aiCostD7, aiCostD30;
+
+  // Solapi 문자 인증(발송 건)
+  final int smsTotal, smsToday, smsD7, smsD30;
+  final int smsCostAll, smsCostToday, smsCostD7, smsCostD30;
+
+  // 일일 활성 사용자
+  final int dauToday;
+  final List<DauPoint> dauSeries;
+
+  const AdminOpsMetrics({
+    required this.smsUnitKrw,
+    required this.aiUnitKrw,
+    required this.aiTotal,
+    required this.aiPass,
+    required this.aiFail,
+    required this.aiToday,
+    required this.aiD7,
+    required this.aiD30,
+    required this.aiCostAll,
+    required this.aiCostToday,
+    required this.aiCostD7,
+    required this.aiCostD30,
+    required this.smsTotal,
+    required this.smsToday,
+    required this.smsD7,
+    required this.smsD30,
+    required this.smsCostAll,
+    required this.smsCostToday,
+    required this.smsCostD7,
+    required this.smsCostD30,
+    required this.dauToday,
+    required this.dauSeries,
+  });
+
+  /// AI 인증 성공률 0~1.
+  double get aiSuccessRate => aiTotal == 0 ? 0 : aiPass / aiTotal;
+
+  static int _gi(Map m, String k) => (m[k] as num?)?.toInt() ?? 0;
+
+  factory AdminOpsMetrics.fromJson(Map j) {
+    final uc = (j['unit_cost'] as Map?) ?? const {};
+    final ai = (j['ai'] as Map?) ?? const {};
+    final sms = (j['sms'] as Map?) ?? const {};
+    final dau = (j['dau'] as Map?) ?? const {};
+    return AdminOpsMetrics(
+      smsUnitKrw: _gi(uc, 'sms_krw'),
+      aiUnitKrw: _gi(uc, 'ai_krw'),
+      aiTotal: _gi(ai, 'total'),
+      aiPass: _gi(ai, 'pass'),
+      aiFail: _gi(ai, 'fail'),
+      aiToday: _gi(ai, 'today'),
+      aiD7: _gi(ai, 'd7'),
+      aiD30: _gi(ai, 'd30'),
+      aiCostAll: _gi(ai, 'cost_all'),
+      aiCostToday: _gi(ai, 'cost_today'),
+      aiCostD7: _gi(ai, 'cost_d7'),
+      aiCostD30: _gi(ai, 'cost_d30'),
+      smsTotal: _gi(sms, 'total'),
+      smsToday: _gi(sms, 'today'),
+      smsD7: _gi(sms, 'd7'),
+      smsD30: _gi(sms, 'd30'),
+      smsCostAll: _gi(sms, 'cost_all'),
+      smsCostToday: _gi(sms, 'cost_today'),
+      smsCostD7: _gi(sms, 'cost_d7'),
+      smsCostD30: _gi(sms, 'cost_d30'),
+      dauToday: _gi(dau, 'today'),
+      dauSeries: ((dau['series'] as List?) ?? const [])
+          .map((e) => DauPoint(
+                (e['d'] ?? '') as String,
+                (e['c'] as num?)?.toInt() ?? 0,
+              ))
+          .toList(),
+    );
+  }
+}
+
+/// AI 사진 인증 실패 로그 1건.
+class PhotoVerifyFailure {
+  final String id;
+  final DateTime createdAt;
+  final String? failReason;
+  final String? aiReason;
+  final bool regionMatched;
+  final double? aiMatchScore;
+  final String purpose;
+  final String nickname;
+
+  const PhotoVerifyFailure({
+    required this.id,
+    required this.createdAt,
+    required this.failReason,
+    required this.aiReason,
+    required this.regionMatched,
+    required this.aiMatchScore,
+    required this.purpose,
+    required this.nickname,
+  });
+
+  /// 실패 사유 한글 라벨(verify-post-photo reason 코드 기준).
+  String get failLabel {
+    switch (failReason) {
+      case 'mock_location':
+        return '모의 위치 감지';
+      case 'geocode_failed':
+        return '촬영지 동네 확인 실패';
+      case 'region_mismatch':
+        return '촬영지가 인증 동네와 불일치';
+      case 'not_real_pet':
+        return '실제 반려동물 아님(라이브니스)';
+      case 'identity_mismatch':
+        return '등록 개체와 불일치';
+      case 'pet_not_enrolled':
+        return '신원 미등록 반려동물';
+      case 'not_verified':
+        return '활동지역 미인증';
+      case null:
+        return '알 수 없음';
+      default:
+        return failReason!;
+    }
+  }
+
+  factory PhotoVerifyFailure.fromJson(Map j) => PhotoVerifyFailure(
+        id: j['id'] as String,
+        createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+        failReason: j['fail_reason'] as String?,
+        aiReason: j['ai_reason'] as String?,
+        regionMatched: j['region_matched'] == true,
+        aiMatchScore: (j['ai_match_score'] as num?)?.toDouble(),
+        purpose: (j['purpose'] ?? '') as String,
+        nickname: (j['nickname'] ?? '알 수 없음') as String,
+      );
+}
+
 /// 관리자 전용 데이터 접근. 모든 호출은 DB 에서 app.is_admin() 으로 검증된다.
 class AdminRepository {
   AdminRepository._();
@@ -343,5 +493,21 @@ class AdminRepository {
     final res =
         await _c.rpc('admin_list_logs', params: {'p_limit': 100, 'p_offset': 0});
     return (res as List).map((r) => AdminLog.fromJson(r as Map)).toList();
+  }
+
+  /// 운영 지표·비용 (AI 사진인증 / Solapi 문자 / DAU).
+  Future<AdminOpsMetrics> opsMetrics() async {
+    final res = await _c.rpc('admin_ops_metrics');
+    return AdminOpsMetrics.fromJson(res as Map);
+  }
+
+  /// AI 사진 인증 실패 로그(최신순).
+  Future<List<PhotoVerifyFailure>> photoVerificationFailures(
+      {int limit = 50}) async {
+    final res = await _c.rpc('admin_photo_verification_failures',
+        params: {'p_limit': limit, 'p_offset': 0});
+    return (res as List)
+        .map((r) => PhotoVerifyFailure.fromJson(r as Map))
+        .toList();
   }
 }

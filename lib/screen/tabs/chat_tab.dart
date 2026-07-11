@@ -49,7 +49,6 @@ class _ChatTabState extends State<ChatTab> {
               builder: (_) => ChatRoomScreen(
                 room: room,
                 originRect: rect,
-                cardBuilder: (_) => _ChatRoomTile(room: room, onTap: () {}),
               ),
             ),
     );

@@ -375,34 +375,15 @@ class _ChatHeader extends StatefulWidget {
 }
 
 class _ChatHeaderState extends State<_ChatHeader> {
+  // 확장/축소 진행도(0=목록 타일, 1=풀스크린). 닉네임이 이 값을 따라
+  // 펼칠 땐 중앙으로 살짝 내려앉고, 축소할 땐 목록 타일의 닉네임 위치로
+  // 위로 올라가며 자리를 맞춘다.
   Animation<double>? _progress;
-  bool _settled = false;
-  bool _initialized = false;
-
-  void _onTick() {
-    final want = (_progress?.value ?? 1) >= 1.0;
-    if (want != _settled && mounted) setState(() => _settled = want);
-  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final p = CollapseProgress.of(context);
-    if (!identical(p, _progress)) {
-      _progress?.removeListener(_onTick);
-      _progress = p;
-      _progress?.addListener(_onTick);
-    }
-    if (!_initialized) {
-      _initialized = true;
-      _settled = (p?.value ?? 1) >= 1.0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _progress?.removeListener(_onTick);
-    super.dispose();
+    _progress = CollapseProgress.of(context);
   }
 
   @override
@@ -450,28 +431,15 @@ class _ChatHeaderState extends State<_ChatHeader> {
                 const Positioned.fill(
                   child: ColoredBox(color: Color(0x33000000)),
                 ),
-              // 중앙 닉네임 — 확장 완료 시 살짝 내려앉는 정착 모션.
+              // 중앙 닉네임 — 진행도에 따라 펼칠 땐 중앙으로 내려앉고,
+              // 축소할 땐 목록 타일의 닉네임 위치(위쪽)로 올라가 자연스럽게 인계.
               Positioned.fill(
-                child: AnimatedPadding(
-                  duration: Duration(milliseconds: _settled ? 380 : 150),
-                  curve: Curves.easeOutCubic,
-                  padding: EdgeInsets.only(
-                    left: 56,
-                    right: 56,
-                    top: _settled ? 6 : 0,
-                  ),
-                  child: Center(
-                    child: Text(
-                      widget.room.otherNickname,
-                      maxLines: 1,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: nameColor,
-                      ),
-                    ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 56),
+                  child: _SettlingName(
+                    progress: _progress,
+                    text: widget.room.otherNickname,
+                    color: nameColor,
                   ),
                 ),
               ),
@@ -499,6 +467,50 @@ class _ChatHeaderState extends State<_ChatHeader> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 헤더 닉네임 — 확장/축소 진행도에 맞춰 세로 위치를 보간한다.
+/// p=1(펼침): 중앙에서 살짝 아래(정착). p→0(축소): 목록 타일의 닉네임 위치(위)로
+/// 올라가, 타일로 크로스페이드될 때 위치가 어긋나지 않게 맞춘다.
+class _SettlingName extends StatelessWidget {
+  final Animation<double>? progress;
+  final String text;
+  final Color color;
+  const _SettlingName({
+    required this.progress,
+    required this.text,
+    required this.color,
+  });
+
+  Widget _name() => Text(
+        text,
+        maxLines: 1,
+        textAlign: TextAlign.center,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      );
+
+  Widget _at(double p) {
+    // 펼침 +6(정착) ↔ 축소 -10(목록 타일 닉네임 상단 정렬).
+    final dy = ui.lerpDouble(-10.0, 6.0, p.clamp(0.0, 1.0))!;
+    return Center(
+      child: Transform.translate(offset: Offset(0, dy), child: _name()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = progress;
+    if (p == null) return _at(1);
+    return AnimatedBuilder(
+      animation: p,
+      builder: (_, _) => _at(p.value),
     );
   }
 }

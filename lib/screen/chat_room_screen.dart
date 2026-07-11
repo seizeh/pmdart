@@ -1,8 +1,10 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../motion/motion.dart';
 import '../theme/app_colors.dart';
+import '../data/mock_data.dart' show timeAgo;
 import '../models/chat.dart';
 import '../services/chat_repository.dart';
 import '../services/report_repository.dart';
@@ -17,24 +19,30 @@ class ChatRoomScreen extends StatefulWidget {
   /// 채팅 목록 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 인터랙션용. null 이면 일반 화면.
   final Rect? originRect;
 
-  /// 축소 시 크로스페이드로 나타날 실제 채팅 타일(목록과 동일 위젯).
-  final WidgetBuilder? cardBuilder;
-
   const ChatRoomScreen({
     super.key,
     required this.room,
     this.originRect,
-    this.cardBuilder,
   });
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-class _ChatRoomScreenState extends State<ChatRoomScreen> {
+class _ChatRoomScreenState extends State<ChatRoomScreen>
+    with SingleTickerProviderStateMixin {
   final _repo = ChatRepository.instance;
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
+
+  // 2단계 축소 모션: 축소 완료 후 방 프로필 카드(0) → 목록 타일(1)로 변형.
+  late final AnimationController _morph = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+  // 텍스트 이동이 뚝뚝 끊기지 않도록 감속 이징(선형 forward 대신).
+  late final CurvedAnimation _morphCurved =
+      CurvedAnimation(parent: _morph, curve: Curves.easeOutCubic);
 
   List<ChatMessage> _messages = [];
   bool _loading = true;
@@ -104,6 +112,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   @override
   void dispose() {
     if (_channel != null) _repo.unsubscribe(_channel!);
+    _morphCurved.dispose();
+    _morph.dispose();
     _ctrl.dispose();
     _scroll.dispose();
     super.dispose();
@@ -279,11 +289,31 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 헤더 히어로: 사진(블러+스크림, 밝음)=어두운 아이콘 / 무사진(primaryDark)=밝은 아이콘.
+    // AnnotatedRegion 이라 화면을 벗어나면 전역 기본(어두움)으로 자동 복원.
+    final headerHasPhoto =
+        _otherImageUrl != null || widget.room.otherNickname == '고객센터';
     // 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 공통 래퍼(게시글 상세와 동일 언어).
-    return CollapsibleView(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: headerHasPhoto
+          ? SystemUiOverlayStyle.dark
+          : SystemUiOverlayStyle.light,
+      child: CollapsibleView(
       originRect: widget.originRect,
-      card: widget.cardBuilder,
+      // 축소 도착 지점의 카드 = 방 프로필(m=0). 목록 타일이 아니라 방 헤더 모습이라
+      // 축소 중 목록 타일이 비쳐 겹치는 투명 트렌지션이 생기지 않는다.
+      card: (ctx) => _MorphCard(
+        room: widget.room,
+        imageUrl: _otherImageUrl,
+        morph: _morphCurved,
+        onMenu: _openRoomMenu,
+      ),
+      // 2단계: 축소가 타일 위치에 안착하면 방 프로필 → 목록 타일로 변형 후 pop.
+      onSettled: () => _morph.forward(),
       scrollController: _scroll,
+      // 채팅 목록 타일에서 확장되는 느낌을 강조 — 살짝 튕기며 열리고 시간도 조금 길게.
+      expandDuration: const Duration(milliseconds: 520),
+      expandCurve: Curves.easeOutBack,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,
         body: Column(
@@ -293,7 +323,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             _ChatHeader(
               room: widget.room,
               imageUrl: _otherImageUrl,
-              onBack: () => Navigator.maybePop(context),
               onMenu: _openRoomMenu,
             ),
             Expanded(child: _buildMessages(physics)),
@@ -309,6 +338,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -341,170 +371,259 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 }
 
-/// 채팅방 상단 히어로 헤더 — 타사용자 프로필 상세와 동일한 문법.
-/// 프로필 사진이 있으면 사진 + 하단 점진 블러(경계선 없는 am 스타일),
-/// 없으면 primaryDark 배경에 닉네임을 중앙 정렬. 뒤로가기·메뉴는 오버레이
-/// 원형 버튼, 확장 완료 시 닉네임이 살짝 내려앉는 정착 모션(CollapseProgress).
-class _ChatHeader extends StatefulWidget {
+/// 채팅방 상단 히어로 헤더 — 채팅 목록 타일과 같은 크기·곡률·블러 배경의 방 프로필
+/// 바(중앙 닉네임 + 메뉴). 축소가 끝나면 이 모습 그대로 타일 위치에 안착하고,
+/// 그 뒤 [_MorphCard] 가 목록 타일 모습으로 변형한다(2단계).
+class _ChatHeader extends StatelessWidget {
   final ChatRoomSummary room;
   final String? imageUrl;
-  final VoidCallback onBack;
   final VoidCallback onMenu;
   const _ChatHeader({
     required this.room,
     required this.imageUrl,
-    required this.onBack,
     required this.onMenu,
   });
 
   @override
-  State<_ChatHeader> createState() => _ChatHeaderState();
-}
-
-class _ChatHeaderState extends State<_ChatHeader> {
-  Animation<double>? _progress;
-  bool _settled = false;
-  bool _initialized = false;
-
-  void _onTick() {
-    final want = (_progress?.value ?? 1) >= 1.0;
-    if (want != _settled && mounted) setState(() => _settled = want);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final p = CollapseProgress.of(context);
-    if (!identical(p, _progress)) {
-      _progress?.removeListener(_onTick);
-      _progress = p;
-      _progress?.addListener(_onTick);
-    }
-    if (!_initialized) {
-      _initialized = true;
-      _settled = (p?.value ?? 1) >= 1.0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _progress?.removeListener(_onTick);
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
-    // 고객센터는 전용 번들 이미지를 프로필처럼 사용.
-    final Widget? photoImage = widget.imageUrl != null
-        ? Image.network(
-            widget.imageUrl!,
-            fit: BoxFit.cover,
-            cacheWidth: 500, // 블러 배경 — 저해상 디코딩으로 충분
-            errorBuilder: (_, _, _) => _noPhotoBackground(),
-          )
-        : (widget.room.otherNickname == '고객센터'
-            ? Image.asset('assets/images/cs_profile.png',
-                fit: BoxFit.cover, cacheWidth: 500)
-            : null);
-    final hasPhoto = photoImage != null;
-    // 사진 유무와 관계없이 동일한 컴팩트 바 — 사진은 전체 블러 배경으로만 쓴다.
-    return SizedBox(
-      height: topPad + 64,
-      // ClipRect — 전체 블러가 헤더 경계 밖으로 번지지 않게 자른다.
-      child: ClipRect(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (hasPhoto)
-              ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(
-                  sigmaX: 18, // 채팅 목록 타일과 동일한 블러 강도
-                  sigmaY: 18,
-                  tileMode: ui.TileMode.clamp,
-                ),
-                child: photoImage,
-              )
-            else
-              _noPhotoBackground(),
-            // 사진 위 가독용 스크림 + 중앙 닉네임(무사진과 동일 배치).
-            if (hasPhoto) ...[
-              const Positioned.fill(
-                child: ColoredBox(color: Color(0x33000000)),
-              ),
-              AnimatedPadding(
-                duration: Duration(milliseconds: _settled ? 380 : 150),
-                curve: Curves.easeOutCubic,
-                padding: EdgeInsets.only(
-                  left: 64,
-                  right: 64,
-                  top: topPad + (_settled ? 6 : 0),
-                ),
-                child: Center(
-                  child: Text(
-                    widget.room.otherNickname,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+    final hasPhoto = imageUrl != null || room.otherNickname == '고객센터';
+    // 상태바 아래에 떠 있는 둥근(채팅 목록 타일과 동일한 16) 직사각형 바.
+    // 좌우 여백 20, 높이 72(상하패딩16+2줄) — 목록 타일과 동일 크기.
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, topPad + 8, 20, 6),
+      child: SizedBox(
+        height: 72,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _ChatBlurBg(imageUrl: imageUrl, nickname: room.otherNickname),
+              // 방 프로필 모습(m=0) — 축소 중엔 변형하지 않음.
+              _ChatBarForeground(
+                room: room,
+                hasPhoto: hasPhoto,
+                m: 0,
+                onMenu: onMenu,
               ),
             ],
-            Positioned(
-              top: topPad + 4,
-              left: 8,
-              child: OverlayIconButton(
-                icon: Icons.arrow_back,
-                tooltip: '뒤로',
-                onPressed: widget.onBack,
-              ),
-            ),
-            Positioned(
-              top: topPad + 4,
-              right: 8,
-              child: OverlayIconButton(
-                icon: Icons.more_horiz,
-                tooltip: '메뉴',
-                onPressed: widget.onMenu,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
 
-  /// 사진이 없을 때 — 컴팩트 바에 닉네임 중앙 정렬(정착 모션 포함).
-  Widget _noPhotoBackground() {
-    return ColoredBox(
-      color: AppColors.primaryDark,
-      child: AnimatedPadding(
-        duration: Duration(milliseconds: _settled ? 380 : 150),
-        curve: Curves.easeOutCubic,
-        // 상태바 높이만큼 내려 시각적 중앙을 맞추고, 정착 시 살짝 내려앉는다.
-        padding: EdgeInsets.only(
-          left: 64,
-          right: 64,
-          top: MediaQuery.of(context).padding.top + (_settled ? 6 : 0),
-        ),
-        child: Center(
-          child: Text(
-            widget.room.otherNickname,
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textOnPrimary,
+/// 블러 배경(정적) — 프로필 사진 블러, 없으면 primaryDark. 애니메이션과 분리해
+/// [_MorphCard] 에서 RepaintBoundary 로 캐시하면 변형 중 매 프레임 재블러를 피한다.
+class _ChatBlurBg extends StatelessWidget {
+  final String? imageUrl;
+  final String nickname;
+  const _ChatBlurBg({required this.imageUrl, required this.nickname});
+
+  @override
+  Widget build(BuildContext context) {
+    // 고객센터는 전용 번들 이미지를 프로필처럼 사용.
+    // cacheWidth 400 — 목록 타일(_ChatRoomTile)과 동일하게 맞춰 변형 종료 시
+    // 블러 배경 질감이 어긋나지 않게 한다.
+    final Widget? photoImage = imageUrl != null
+        ? Image.network(
+            imageUrl!,
+            fit: BoxFit.cover,
+            cacheWidth: 400,
+            errorBuilder: (_, _, _) =>
+                const ColoredBox(color: AppColors.primaryDark),
+          )
+        : (nickname == '고객센터'
+            ? Image.asset('assets/images/cs_profile.png',
+                fit: BoxFit.cover, cacheWidth: 400)
+            : null);
+    if (photoImage == null) {
+      return const ColoredBox(color: AppColors.primaryDark);
+    }
+    return ImageFiltered(
+      imageFilter: ui.ImageFilter.blur(
+        sigmaX: 18, // 채팅 목록 타일과 동일한 블러 강도
+        sigmaY: 18,
+        tileMode: ui.TileMode.clamp,
+      ),
+      child: photoImage,
+    );
+  }
+}
+
+/// 바 전경 — 방 프로필(m=0) ↔ 목록 타일(m=1) 사이를 보간해 그린다. 스크림(어두움↔밝음),
+/// 닉네임(중앙↔상단·흰↔검정, 크기는 Transform.scale 로 부드럽게), 메뉴(m=0에서만),
+/// 마지막 메시지·시각(m=1에서 페이드 인). 방 헤더와 변형 카드가 같은 그림을 공유한다.
+class _ChatBarForeground extends StatelessWidget {
+  final ChatRoomSummary room;
+  final bool hasPhoto;
+  final double m; // 0=방 프로필, 1=목록 타일
+  final VoidCallback? onMenu;
+  const _ChatBarForeground({
+    required this.room,
+    required this.hasPhoto,
+    required this.m,
+    this.onMenu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = m.clamp(0.0, 1.0);
+    // 크기(18↔15)는 fontSize 대신 Transform.scale 로 — fontSize 를 매 프레임 바꾸면
+    // 텍스트 재레이아웃으로 글리프가 정수 픽셀에 스냅돼 덜덜거린다. base 는 타일과
+    // 동일한 15px/w700 로 두고 스케일 1.2→1.0 을 줘서 m=1 에서 native 15px(=타일과
+    // 완전히 동일·또렷)가 되게 한다 → pop 시 굵기/선명도 튐 없음.
+    final nameScale = ui.lerpDouble(18.0 / 15.0, 1.0, t)!;
+    final nameColor = hasPhoto
+        ? Color.lerp(Colors.white, AppColors.textPrimary, t)!
+        : AppColors.textOnPrimary;
+    // 스크림: 방(어두움) → 타일(밝음). 사진 없으면 스크림 없음(primaryDark 유지).
+    final scrim = hasPhoto
+        ? Color.lerp(const Color(0x33000000), const Color(0xB3FFFFFF), t)!
+        : null;
+    final msg =
+        room.lastMessage.isEmpty ? '대화를 시작해보세요' : room.lastMessage;
+    final msgColor = hasPhoto ? AppColors.textSecondary : Colors.white70;
+    final timeColor = hasPhoto ? AppColors.textTertiary : Colors.white70;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (scrim != null) Positioned.fill(child: ColoredBox(color: scrim)),
+        // 닉네임+메시지 — m=0(방): 메시지 높이 0으로 접혀 닉네임만 세로 중앙.
+        // m=1(타일): 상단 정렬(top16)로 닉네임 위 + 메시지 아래(타일과 동일 위치).
+        // 축소되며 정렬이 중앙→상단으로 이동하고 메시지가 아래로 펼쳐지며(heightFactor)
+        // 페이드 인 → 닉네임이 위로 이동하는 거리가 길어져 뚝 끊기지 않는다.
+        Positioned.fill(
+          child: Align(
+            alignment: Alignment.lerp(Alignment.center, Alignment.topCenter, t)!,
+            child: Padding(
+              padding: EdgeInsets.only(top: 16.0 * t),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 84),
+                    child: Transform.scale(
+                      scale: nameScale,
+                      child: Text(
+                        room.otherNickname,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ).copyWith(color: nameColor),
+                      ),
+                    ),
+                  ),
+                  // 메시지 — 아래로 펼쳐지며(높이 0→전체) 페이드 인.
+                  ClipRect(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      heightFactor: t,
+                      child: Opacity(
+                        opacity: t,
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                              top: 4, left: 60, right: 60),
+                          child: Text(
+                            msg,
+                            maxLines: 1,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 13, color: msgColor),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
+        // 시각 — 우측 상단(타일과 동일 위치: 상하16·좌우12 패딩 기준), 페이드 인.
+        if (t > 0.01 && room.lastMessageAt != null)
+          Positioned(
+            top: 16,
+            right: 12,
+            child: Opacity(
+              opacity: t,
+              child: Text(
+                timeAgo(room.lastMessageAt!),
+                style: TextStyle(fontSize: 11, color: timeColor),
+              ),
+            ),
+          ),
+        // 메뉴 버튼 — 방 프로필(m=0)에서만, 타일화하며 페이드 아웃.
+        if (t < 0.99 && onMenu != null)
+          Positioned(
+            top: 0,
+            bottom: 0,
+            right: 4,
+            child: Opacity(
+              opacity: 1 - t,
+              child: IgnorePointer(
+                ignoring: t > 0.01,
+                child: OverlayIconButton(
+                  icon: Icons.more_horiz,
+                  tooltip: '메뉴',
+                  onPressed: onMenu!,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 축소가 안착하는 타일 위치의 카드 — 방 프로필(m=0)로 시작해 [morph] 0→1 재생 시
+/// 목록 타일(m=1) 모습으로 변형된다(2단계 애니메이션). 축소 도착점이 목록 타일이
+/// 아니라 방 헤더라, 축소 중 목록 타일이 비쳐 겹치는 투명 트렌지션이 없다.
+/// 블러 배경은 정적이라 RepaintBoundary 로 캐시하고, 전경만 morph 로 다시 그린다.
+class _MorphCard extends StatelessWidget {
+  final ChatRoomSummary room;
+  final String? imageUrl;
+  final Animation<double> morph;
+  final VoidCallback onMenu;
+  const _MorphCard({
+    required this.room,
+    required this.imageUrl,
+    required this.morph,
+    required this.onMenu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = imageUrl != null || room.otherNickname == '고객센터';
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 정적 블러 배경 — 캐시해 변형 중 매 프레임 재블러 방지.
+          RepaintBoundary(
+            child:
+                _ChatBlurBg(imageUrl: imageUrl, nickname: room.otherNickname),
+          ),
+          // 전경만 morph(이징된 CurvedAnimation) 진행도로 다시 그린다.
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: morph,
+              builder: (context, _) => _ChatBarForeground(
+                room: room,
+                hasPhoto: hasPhoto,
+                m: morph.value,
+                onMenu: onMenu,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -520,10 +639,12 @@ class _LockedBar extends StatelessWidget {
       top: false,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: const BoxDecoration(
+        margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
-          border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -558,10 +679,12 @@ class _Composer extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        decoration: const BoxDecoration(
+        margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+        padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+        decoration: BoxDecoration(
           color: AppColors.surface,
-          border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'motion/motion.dart';
 import 'firebase_options.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,6 +24,14 @@ final GlobalKey<ScaffoldMessengerState> messengerKey =
 Future<void> main() async {
   // Flutter 엔진 초기화
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 상태바 기본값 — 앱 배경이 밝으므로 아이콘(시간·배터리·네트워크)을 어둡게.
+  // 사진 히어로 화면은 각자 AnnotatedRegion 으로 밝게 덮고, 벗어나면 자동 복원.
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark, // Android
+    statusBarBrightness: Brightness.light, // iOS
+  ));
 
   // 저장된 로그인 세션 복원
   await SessionManager.instance.load();

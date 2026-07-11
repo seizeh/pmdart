@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'app_colors.dart';
 import '../motion/spring_page_route.dart';
 
@@ -46,6 +47,12 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        // 밝은 앱바 → 상태바 아이콘 어둡게(시간·배터리 가독성).
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
         iconTheme: const IconThemeData(color: AppColors.primaryDark),
         titleTextStyle: textTheme.titleLarge?.copyWith(
           color: AppColors.primaryDark,

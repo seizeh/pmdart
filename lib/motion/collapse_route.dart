@@ -264,12 +264,25 @@ class CollapsibleView extends StatefulWidget {
     required this.card,
     required this.scrollController,
     required this.builder,
+    this.expandDuration = const Duration(milliseconds: 420),
+    this.expandCurve = Curves.easeOutCubic,
+    this.onSettled,
   });
 
   final Rect? originRect;
   final WidgetBuilder? card; // 축소 도착 시 크로스페이드할 실제 카드
   final ScrollController scrollController;
   final Widget Function(BuildContext context, ScrollPhysics physics) builder;
+
+  /// 원본(카드/타일)에서 펼쳐지는 확장 전환의 시간·커브. 화면별로 강조 정도를
+  /// 다르게 줄 수 있다(기본은 게시글 상세와 동일).
+  final Duration expandDuration;
+  final Curve expandCurve;
+
+  /// 축소가 원본 위치에 안착한 뒤(=카드) pop 하기 전에 실행할 2단계 모션.
+  /// 예) 채팅방 프로필 카드가 목록 타일 모습으로 변형되는 후속 애니메이션.
+  /// 반환 Future 가 끝나면 라우트를 닫는다. null 이면 즉시 pop(기존 동작).
+  final Future<void> Function()? onSettled;
 
   @override
   State<CollapsibleView> createState() => _CollapsibleViewState();
@@ -305,8 +318,8 @@ class _CollapsibleViewState extends State<CollapsibleView>
     if (_collapsible) {
       _cc.animateTo(
         1,
-        duration: const Duration(milliseconds: 420),
-        curve: Curves.easeOutCubic,
+        duration: widget.expandDuration,
+        curve: widget.expandCurve,
       );
     }
   }
@@ -364,7 +377,9 @@ class _CollapsibleViewState extends State<CollapsibleView>
     setState(() => _settling = true);
     final dur = Duration(milliseconds: (260 + 300 * _cc.value).round());
     _cc.animateTo(0, duration: dur, curve: Curves.easeOutCubic).whenComplete(
-      () {
+      () async {
+        // 축소가 카드(원본 위치)에 안착. 2단계 모션이 있으면 먼저 재생 후 pop.
+        if (widget.onSettled != null) await widget.onSettled!();
         if (mounted) Navigator.of(context).pop();
       },
     );

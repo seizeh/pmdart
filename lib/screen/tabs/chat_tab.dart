@@ -149,8 +149,7 @@ class _ChatTabState extends State<ChatTab> {
       child: ListView.separated(
         padding: EdgeInsets.only(left: 20, right: 20, top: topPad + 14),
         itemCount: _rooms.length,
-        separatorBuilder: (_, _) =>
-            const Divider(height: 1, indent: 64, color: AppColors.border),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
           final room = _rooms[i];
           final key = _roomKeys.putIfAbsent(room.id, () => GlobalKey());

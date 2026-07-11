@@ -335,7 +335,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final hasImage = _post.imageUrl != null;
 
     // 카드에서 펼쳐지고/아래로 당기면 카드로 축소되는 공통 래퍼. physics 를 리스트에 전달.
-    return CollapsibleView(
+    // AnnotatedRegion — 사진 히어로는 밝은 상태바 아이콘, 벗어나면 자동으로
+    // 전역 기본(어두움)으로 복원(흰 화면에서 아이콘이 안 보이던 문제 해결).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: hasImage
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
+      child: CollapsibleView(
       originRect: widget.originRect,
       card: widget.cardBuilder,
       scrollController: _scroll,
@@ -347,9 +353,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
-          // 사진은 어두울 수 있어 밝은 아이콘, 블롭 배경은 밝아서 어두운 아이콘.
-          systemOverlayStyle:
-              hasImage ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
           leading: OverlayIconButton(
             icon: Icons.arrow_back,
             tooltip: '뒤로',
@@ -414,6 +417,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           onHeart: _toggleHeart,
           onSend: _sendComment,
         ),
+      ),
       ),
     );
   }

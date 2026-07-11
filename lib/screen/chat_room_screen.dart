@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../motion/motion.dart';
 import '../theme/app_colors.dart';
@@ -279,11 +280,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 헤더 히어로: 사진(블러+스크림, 밝음)=어두운 아이콘 / 무사진(primaryDark)=밝은 아이콘.
+    // AnnotatedRegion 이라 화면을 벗어나면 전역 기본(어두움)으로 자동 복원.
+    final headerHasPhoto =
+        _otherImageUrl != null || widget.room.otherNickname == '고객센터';
     // 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 공통 래퍼(게시글 상세와 동일 언어).
-    return CollapsibleView(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: headerHasPhoto
+          ? SystemUiOverlayStyle.dark
+          : SystemUiOverlayStyle.light,
+      child: CollapsibleView(
       originRect: widget.originRect,
       card: widget.cardBuilder,
       scrollController: _scroll,
+      // 채팅 목록 타일에서 확장되는 느낌을 강조 — 살짝 튕기며 열리고 시간도 조금 길게.
+      expandDuration: const Duration(milliseconds: 520),
+      expandCurve: Curves.easeOutBack,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,
         body: Column(
@@ -309,6 +321,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -401,108 +414,88 @@ class _ChatHeaderState extends State<_ChatHeader> {
             widget.imageUrl!,
             fit: BoxFit.cover,
             cacheWidth: 500, // 블러 배경 — 저해상 디코딩으로 충분
-            errorBuilder: (_, _, _) => _noPhotoBackground(),
+            errorBuilder: (_, _, _) =>
+                const ColoredBox(color: AppColors.primaryDark),
           )
         : (widget.room.otherNickname == '고객센터'
             ? Image.asset('assets/images/cs_profile.png',
                 fit: BoxFit.cover, cacheWidth: 500)
             : null);
     final hasPhoto = photoImage != null;
-    // 사진 유무와 관계없이 동일한 컴팩트 바 — 사진은 전체 블러 배경으로만 쓴다.
-    return SizedBox(
-      height: topPad + 64,
-      // ClipRect — 전체 블러가 헤더 경계 밖으로 번지지 않게 자른다.
-      child: ClipRect(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (hasPhoto)
-              ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(
-                  sigmaX: 18, // 채팅 목록 타일과 동일한 블러 강도
-                  sigmaY: 18,
-                  tileMode: ui.TileMode.clamp,
+    // 채팅 목록 타일과 동일한 크기 — 좌우 여백 20, 높이 72(상하패딩16+2줄).
+    const barH = 72.0;
+    final nameColor = hasPhoto ? Colors.white : AppColors.textOnPrimary;
+    // 상태바 아래에 떠 있는 둥근(채팅 목록 타일과 동일한 16) 직사각형 바.
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, topPad + 8, 20, 6),
+      child: SizedBox(
+        height: barH,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (hasPhoto)
+                ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(
+                    sigmaX: 18, // 채팅 목록 타일과 동일한 블러 강도
+                    sigmaY: 18,
+                    tileMode: ui.TileMode.clamp,
+                  ),
+                  child: photoImage,
+                )
+              else
+                const ColoredBox(color: AppColors.primaryDark),
+              if (hasPhoto)
+                const Positioned.fill(
+                  child: ColoredBox(color: Color(0x33000000)),
                 ),
-                child: photoImage,
-              )
-            else
-              _noPhotoBackground(),
-            // 사진 위 가독용 스크림 + 중앙 닉네임(무사진과 동일 배치).
-            if (hasPhoto) ...[
-              const Positioned.fill(
-                child: ColoredBox(color: Color(0x33000000)),
-              ),
-              AnimatedPadding(
-                duration: Duration(milliseconds: _settled ? 380 : 150),
-                curve: Curves.easeOutCubic,
-                padding: EdgeInsets.only(
-                  left: 64,
-                  right: 64,
-                  top: topPad + (_settled ? 6 : 0),
-                ),
-                child: Center(
-                  child: Text(
-                    widget.room.otherNickname,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
+              // 중앙 닉네임 — 확장 완료 시 살짝 내려앉는 정착 모션.
+              Positioned.fill(
+                child: AnimatedPadding(
+                  duration: Duration(milliseconds: _settled ? 380 : 150),
+                  curve: Curves.easeOutCubic,
+                  padding: EdgeInsets.only(
+                    left: 56,
+                    right: 56,
+                    top: _settled ? 6 : 0,
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.room.otherNickname,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: nameColor,
+                      ),
                     ),
                   ),
                 ),
               ),
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: 4,
+                child: OverlayIconButton(
+                  icon: Icons.arrow_back,
+                  tooltip: '뒤로',
+                  onPressed: widget.onBack,
+                ),
+              ),
+              Positioned(
+                top: 0,
+                bottom: 0,
+                right: 4,
+                child: OverlayIconButton(
+                  icon: Icons.more_horiz,
+                  tooltip: '메뉴',
+                  onPressed: widget.onMenu,
+                ),
+              ),
             ],
-            Positioned(
-              top: topPad + 4,
-              left: 8,
-              child: OverlayIconButton(
-                icon: Icons.arrow_back,
-                tooltip: '뒤로',
-                onPressed: widget.onBack,
-              ),
-            ),
-            Positioned(
-              top: topPad + 4,
-              right: 8,
-              child: OverlayIconButton(
-                icon: Icons.more_horiz,
-                tooltip: '메뉴',
-                onPressed: widget.onMenu,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 사진이 없을 때 — 컴팩트 바에 닉네임 중앙 정렬(정착 모션 포함).
-  Widget _noPhotoBackground() {
-    return ColoredBox(
-      color: AppColors.primaryDark,
-      child: AnimatedPadding(
-        duration: Duration(milliseconds: _settled ? 380 : 150),
-        curve: Curves.easeOutCubic,
-        // 상태바 높이만큼 내려 시각적 중앙을 맞추고, 정착 시 살짝 내려앉는다.
-        padding: EdgeInsets.only(
-          left: 64,
-          right: 64,
-          top: MediaQuery.of(context).padding.top + (_settled ? 6 : 0),
-        ),
-        child: Center(
-          child: Text(
-            widget.room.otherNickname,
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textOnPrimary,
-            ),
           ),
         ),
       ),
@@ -520,10 +513,12 @@ class _LockedBar extends StatelessWidget {
       top: false,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: const BoxDecoration(
+        margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
-          border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -558,10 +553,12 @@ class _Composer extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        decoration: const BoxDecoration(
+        margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+        padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+        decoration: BoxDecoration(
           color: AppColors.surface,
-          border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,

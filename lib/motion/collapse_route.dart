@@ -264,12 +264,19 @@ class CollapsibleView extends StatefulWidget {
     required this.card,
     required this.scrollController,
     required this.builder,
+    this.expandDuration = const Duration(milliseconds: 420),
+    this.expandCurve = Curves.easeOutCubic,
   });
 
   final Rect? originRect;
   final WidgetBuilder? card; // 축소 도착 시 크로스페이드할 실제 카드
   final ScrollController scrollController;
   final Widget Function(BuildContext context, ScrollPhysics physics) builder;
+
+  /// 원본(카드/타일)에서 펼쳐지는 확장 전환의 시간·커브. 화면별로 강조 정도를
+  /// 다르게 줄 수 있다(기본은 게시글 상세와 동일).
+  final Duration expandDuration;
+  final Curve expandCurve;
 
   @override
   State<CollapsibleView> createState() => _CollapsibleViewState();
@@ -305,8 +312,8 @@ class _CollapsibleViewState extends State<CollapsibleView>
     if (_collapsible) {
       _cc.animateTo(
         1,
-        duration: const Duration(milliseconds: 420),
-        curve: Curves.easeOutCubic,
+        duration: widget.expandDuration,
+        curve: widget.expandCurve,
       );
     }
   }

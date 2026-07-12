@@ -205,10 +205,13 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
                 // 모든 스크롤이 먹통이 되던 문제 수정.
                 if (keyboardUp && barrierOn)
                   Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: () =>
-                          FocusManager.instance.primaryFocus?.unfocus(),
+                    // 예외 영역(카테고리 칩 등)은 배리어 히트 자체를 건너뛴다.
+                    child: KeyboardBarrierHitFilter(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () =>
+                            FocusManager.instance.primaryFocus?.unfocus(),
+                      ),
                     ),
                   ),
               ],

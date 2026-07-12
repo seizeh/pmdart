@@ -8,6 +8,7 @@ import '../../widgets/post_card.dart';
 import '../../widgets/role_badge.dart';
 import '../../motion/motion.dart';
 import '../../services/app_events.dart';
+import '../../services/keyboard_barrier.dart';
 import '../../services/notification_repository.dart';
 import '../auth/auth_wall_dialog.dart';
 import '../post_detail_screen.dart';
@@ -109,6 +110,9 @@ class _CommunityTabState extends State<CommunityTab>
     'free',
   ];
 
+  // 카테고리 칩 행 위치 캡처 — 키보드 배리어 예외 영역 등록용.
+  final _chipsKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -116,6 +120,18 @@ class _CommunityTabState extends State<CommunityTab>
     AppEvents.instance.feed.addListener(_onFeedEvent);
     _searchFocus.addListener(_updateChipsVisible);
     _scrollCtrl.addListener(_updateChipsVisible);
+    // 검색 키보드가 떠 있어도 카테고리 칩은 탭(선택)·가로 스크롤을 그대로
+    // 받아야 하므로 배리어 예외 영역으로 등록한다.
+    keyboardBarrierExemptAreas.add(_chipsExemptRect);
+  }
+
+  /// 칩 행의 현재 전역 rect — 커뮤니티 검색 포커스 중 + 칩이 보일 때만 유효.
+  /// (다른 탭/화면의 키보드에서는 null → 예외 없음.)
+  Rect? _chipsExemptRect() {
+    if (!mounted || !_chipsShown || !_searchFocus.hasFocus) return null;
+    final box = _chipsKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
   }
 
   /// 카테고리 칩 표시 갱신 — 최상단 || 검색 활성(포커스/검색어)일 때만.
@@ -138,6 +154,7 @@ class _CommunityTabState extends State<CommunityTab>
 
   @override
   void dispose() {
+    keyboardBarrierExemptAreas.remove(_chipsExemptRect);
     AppEvents.instance.feed.removeListener(_onFeedEvent);
     _debounce?.cancel();
     _searchCtrl.dispose();
@@ -341,6 +358,7 @@ class _CommunityTabState extends State<CommunityTab>
                       // 빨간 섹션: 카테고리 칩 (완전 투명 → 게시글이 뒤로 비침).
                       // 평소엔 숨고, 최상단이거나 검색 활성일 때 제자리에서 스프링으로 등장.
                       SizedBox(
+                        key: _chipsKey,
                         height: _chipsSectionH,
                         child: AnimatedBuilder(
                           animation: _chipsCtrl,

@@ -60,7 +60,10 @@ class _EntranceState extends State<Entrance>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _a,
-      child: widget.child,
+      // RepaintBoundary — 등장 애니메이션(불투명도·이동·확대) 동안 자식을 매 프레임
+      // 다시 그리지 않고, 한 번 래스터한 레이어를 합성만 한다. 블러가 든 카드
+      // (PostCard 등)가 스태거로 여럿 등장할 때 프레임 저하를 막는 핵심.
+      child: RepaintBoundary(child: widget.child),
       builder: (context, child) {
         final t = _a.value;
         return Opacity(

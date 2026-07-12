@@ -43,6 +43,8 @@ class PostCard extends StatelessWidget {
                 Image.network(
                   post.imageUrl!,
                   fit: BoxFit.cover,
+                  // 원본(최대 4284px 폭) 풀해상 디코딩 방지 — 카드 폭이면 충분.
+                  cacheWidth: 1200,
                   errorBuilder: (_, _, _) =>
                       BlobBackground(seed: post.id, color: color),
                 )
@@ -73,6 +75,7 @@ class PostCard extends StatelessWidget {
                       child: Image.network(
                         post.imageUrl!,
                         fit: BoxFit.cover,
+                        cacheWidth: 400, // 블러 사본 — 저해상 디코딩으로 충분
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     ),

@@ -165,12 +165,16 @@ class _CommunityTabState extends State<CommunityTab>
     super.dispose();
   }
 
-  /// 검색어 변경 → 디바운스 후 재조회.
+  /// 검색어 변경 → 디바운스 후 재조회. silent — 키 입력마다 스피너로 리스트를
+  /// 갈아엎지 않고 결과가 오면 바로 교체(타이핑 중 프레임 저하·깜빡임 방지).
   void _onSearchChanged(String v) {
     _query = v;
     _updateChipsVisible();
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), _load);
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _load(silent: true),
+    );
   }
 
   void _clearSearch() {
@@ -180,7 +184,9 @@ class _CommunityTabState extends State<CommunityTab>
     // 검색 취소 → 포커스도 내려 칩이 함께 사라지게(최상단이면 유지).
     _searchFocus.unfocus();
     _updateChipsVisible();
-    _load();
+    // silent — 스피너 → 전체 리스트 순으로 두 번 갈아엎지 않고 기존 목록을 유지한 채
+    // 데이터만 갱신(키보드 하강 애니메이션과 겹치며 프레임이 떨어지던 문제 완화).
+    _load(silent: true);
   }
 
   /// [silent] 이면 로딩 스피너로 바꾸지 않고 목록을 유지한 채 데이터만 갱신한다.
@@ -308,11 +314,16 @@ class _CommunityTabState extends State<CommunityTab>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      // 키보드가 오르내릴 때 매 프레임 본문(블러 카드 리스트) 전체가 재레이아웃되며
+      // 프레임이 떨어지므로 리사이즈를 끈다. 검색 UI 는 상단이라 가려질 것이 없고,
+      // 결과 스크롤은 세로 스크롤 시작과 함께 키보드가 내려가 문제없다.
+      resizeToAvoidBottomInset: false,
       body: Builder(
         builder: (context) {
-          final topInset = MediaQuery.of(context).padding.top;
+          // paddingOf — viewInsets(키보드) 변화에는 리빌드되지 않도록 padding 만 구독.
+          final topInset = MediaQuery.paddingOf(context).top;
           // 하단 바(높이 62 + 하단 안전영역) 뒤로 콘텐츠가 확장되므로 그만큼 하단 여백.
-          final bottomInset = MediaQuery.of(context).padding.bottom;
+          final bottomInset = MediaQuery.paddingOf(context).bottom;
           return Stack(
             children: [
               // 게시글 스크롤 — 헤더 높이만큼 상단 패딩(헤더는 위에 오버레이).
@@ -395,7 +406,7 @@ class _CommunityTabState extends State<CommunityTab>
           // FAB 가 바 뒤로 가려지지 않게 한다.
           return Padding(
             padding: EdgeInsets.only(
-              bottom: 90 + MediaQuery.of(context).padding.bottom,
+              bottom: 90 + MediaQuery.paddingOf(context).bottom,
             ),
             child: Opacity(
               opacity: o,

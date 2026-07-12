@@ -21,6 +21,9 @@ class UserTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = connection;
     final photo = c.profileImageUrl;
+    // 사진 없는 사용자는 프로필 상세 헤더와 동일한 primaryDark 배경으로 —
+    // 흰 타일 → 진갈색 프로필로 바뀌던 이질감 제거.
+    final hasPhoto = photo != null;
     return Pressable(
       onTap: onTap ??
           () => Navigator.push(
@@ -33,7 +36,10 @@ class UserTile extends StatelessWidget {
       child: Container(
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(
+          color: hasPhoto ? null : AppColors.primaryDark,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Stack(
           children: [
             // 프로필 사진을 타일 전체 블러 배경으로 — 채팅 목록과 동일 문법.
@@ -65,10 +71,12 @@ class UserTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: hasPhoto
+                      ? AppColors.textPrimary
+                      : AppColors.textOnPrimary,
                 ),
               ),
             ),

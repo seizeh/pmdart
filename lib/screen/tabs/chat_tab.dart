@@ -183,15 +183,21 @@ class _ChatRoomTile extends StatelessWidget {
             cacheWidth: 400, // 블러 배경 — 저해상 디코딩으로 충분(비용·메모리 절감)
             errorBuilder: (_, _, _) => const SizedBox.shrink(),
           )
-        : (room.otherNickname == '고객센터'
+        : (room.isSupport
             ? Image.asset('assets/images/cs_profile.png',
                 fit: BoxFit.cover, cacheWidth: 400)
             : null);
+    // 사진 없는 상대는 채팅방 헤더와 동일한 primaryDark 프로필로 —
+    // 흰 타일 → 진갈색 헤더로 바뀌던 이질감 제거.
+    final hasPhoto = bgImage != null;
     return Pressable(
       onTap: onTap,
       child: Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(
+          color: hasPhoto ? null : AppColors.primaryDark,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Stack(
           children: [
             // 상대 프로필 사진을 타일 전체 블러 배경으로(채팅방 헤더와 동일 문법).
@@ -227,10 +233,12 @@ class _ChatRoomTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: hasPhoto
+                          ? AppColors.textPrimary
+                          : AppColors.textOnPrimary,
                     ),
                   ),
                 ),
@@ -242,9 +250,11 @@ class _ChatRoomTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: hasPhoto
+                          ? AppColors.textSecondary
+                          : Colors.white70,
                     ),
                   ),
                 ),
@@ -257,9 +267,9 @@ class _ChatRoomTile extends StatelessWidget {
                 right: 0,
                 child: Text(
                   timeAgo(room.lastMessageAt!),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textTertiary,
+                    color: hasPhoto ? AppColors.textTertiary : Colors.white70,
                   ),
                 ),
               ),

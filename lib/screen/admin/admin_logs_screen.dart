@@ -53,6 +53,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
         'set_comment_deleted' => '댓글 처리',
         'delete_comment' => '댓글 숨김',
         'set_chat_message_deleted' => '채팅 메시지 처리',
+        'broadcast_system_notice' => '전체 공지 발송',
         _ => t,
       };
 

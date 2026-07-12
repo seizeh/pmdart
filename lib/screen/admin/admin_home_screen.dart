@@ -10,6 +10,7 @@ import 'admin_theme.dart';
 import 'admin_users_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_posts_screen.dart';
+import 'admin_broadcast_screen.dart';
 import 'admin_inquiries_screen.dart';
 import 'admin_logs_screen.dart';
 import 'admin_metrics_screen.dart';
@@ -142,6 +143,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 icon: Icons.support_agent_outlined,
                 label: '문의 처리',
                 onTap: () => _open(const AdminInquiriesScreen()),
+              ),
+              _MenuTile(
+                icon: Icons.campaign_outlined,
+                label: '전체 공지 발송',
+                onTap: () => _open(const AdminBroadcastScreen()),
               ),
               _MenuTile(
                 icon: Icons.query_stats_outlined,

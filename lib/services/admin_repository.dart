@@ -510,4 +510,11 @@ class AdminRepository {
         .map((r) => PhotoVerifyFailure.fromJson(r as Map))
         .toList();
   }
+
+  /// 전체 공지 발송(system_notice) — 약관 개정 고지 등. 발송 대상 수를 반환.
+  Future<int> broadcastSystemNotice(String title, String body) async {
+    final res = await _c.rpc('admin_broadcast_system_notice',
+        params: {'p_title': title, 'p_body': body});
+    return (res as num).toInt();
+  }
 }

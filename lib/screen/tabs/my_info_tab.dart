@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
@@ -6,14 +7,17 @@ import '../../models/profile.dart';
 import '../../services/profile_repository.dart';
 import '../../services/pet_repository.dart';
 import '../../services/app_events.dart';
+import '../../services/session.dart';
 import '../../widgets/pet_card.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/gradient_header.dart';
+import '../../widgets/overlay_icon_button.dart';
 import '../../services/auth_service.dart';
 import '../pet_detail_screen.dart';
 import '../pet_edit_screen.dart';
 import '../connections_screen.dart';
 import '../profile_edit_screen.dart';
+import '../user_profile_screen.dart';
 import '../my_posts_screen.dart';
 import '../activity_screens.dart';
 import '../change_password_screen.dart';
@@ -44,6 +48,55 @@ class _MyInfoTabState extends State<MyInfoTab> {
   int _pendingInvites = 0;
   bool _loading = true;
   String? _error;
+
+  // 프로필 히어로 카드 → 내 공개 프로필 확장 전환용(게시글 상세와 동일 패턴).
+  final _profileCardKey = GlobalKey();
+  bool _profileOpened = false;
+
+  Rect? _profileRect() {
+    final box =
+        _profileCardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// 프로필 카드 탭 → 다른 사용자가 보는 내 공개 프로필이 카드 자리에서 펼쳐진다.
+  Future<void> _openMyPublicProfile() async {
+    final uid = SessionManager.instance.user?.id;
+    final p = _profile;
+    if (uid == null || p == null) return;
+    final rect = _profileRect();
+    final page = UserProfileScreen(
+      userId: uid,
+      previewNickname: p.nickname,
+      originRect: rect,
+      cardBuilder: rect == null ? null : (_) => _ProfileHeroCard(profile: p),
+      cardRadius: 24,
+    );
+    if (rect != null) setState(() => _profileOpened = true);
+    await Navigator.push(
+      context,
+      rect == null
+          ? AppPageRoute(builder: (_) => page)
+          : CollapseRoute(builder: (_) => page),
+    );
+    if (!mounted) return;
+    setState(() => _profileOpened = false);
+    _load(silent: true);
+  }
+
+  void _openProfileEdit() {
+    final p = _profile;
+    if (p == null) return;
+    _push(
+      context,
+      ProfileEditScreen(
+        initialNickname: p.nickname,
+        initialAddress: p.address,
+        initialVerified: p.isLocationVerified,
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -165,8 +218,22 @@ class _MyInfoTabState extends State<MyInfoTab> {
             // 반려동물이 주인공 — 큰 히어로 카드/캐러셀을 최상단에.
             _PetHero(pets: profile.pets),
             const SizedBox(height: 20),
-            // 유저 정보는 작은 카드로 축소(보조).
-            _UserStrip(profile: profile),
+            // 유저 정보 — 다른 사용자가 보는 공개 프로필 헤더와 동일한 히어로 카드.
+            // 탭하면 그 자리에서 내 공개 프로필로 펼쳐진다.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: KeyedSubtree(
+                key: _profileCardKey,
+                child: Opacity(
+                  opacity: _profileOpened ? 0.0 : 1.0,
+                  child: _ProfileHeroCard(
+                    profile: profile,
+                    onTap: _openMyPublicProfile,
+                    onEdit: _openProfileEdit,
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
             _ActivitySection(
               profile: profile,
@@ -304,6 +371,10 @@ class _PetHeroState extends State<_PetHero> {
   final _pc = PageController(viewportFraction: 0.9);
   int _page = 0;
 
+  // 카드 → 펫 상세 확장 전환용(게시글 상세와 동일 패턴).
+  final _cardKeys = <String, GlobalKey>{};
+  String? _openedPetId;
+
   @override
   void dispose() {
     _pc.dispose();
@@ -311,6 +382,30 @@ class _PetHeroState extends State<_PetHero> {
   }
 
   void _openEditor() => _push(context, const PetEditScreen());
+
+  Rect? _cardRect(String id) {
+    final box = _cardKeys[id]?.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// 카드 자리에서 펫 상세가 펼쳐지고/당기면 카드로 축소된다.
+  Future<void> _openPet(MockPet pet) async {
+    final rect = _cardRect(pet.id);
+    final page = PetDetailScreen(
+      pet: pet,
+      originRect: rect,
+      cardBuilder: rect == null ? null : (_) => _PetHeroCard(pet: pet, onTap: () {}),
+    );
+    if (rect != null) setState(() => _openedPetId = pet.id);
+    await Navigator.push(
+      context,
+      rect == null
+          ? AppPageRoute(builder: (_) => page)
+          : CollapseRoute(builder: (_) => page),
+    );
+    if (mounted) setState(() => _openedPetId = null);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -364,13 +459,21 @@ class _PetHeroState extends State<_PetHero> {
               padEnds: pets.length > 1,
               itemCount: pets.length,
               onPageChanged: (i) => setState(() => _page = i),
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: _PetHeroCard(
-                  pet: pets[i],
-                  onTap: () => _push(context, PetDetailScreen(pet: pets[i])),
-                ),
-              ),
+              itemBuilder: (_, i) {
+                final pet = pets[i];
+                final key = _cardKeys.putIfAbsent(pet.id, () => GlobalKey());
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: KeyedSubtree(
+                    key: key,
+                    // 상세로 열려있으면 투명(빈자리) — 축소가 겹침 없이 안착.
+                    child: Opacity(
+                      opacity: pet.id == _openedPetId ? 0.0 : 1.0,
+                      child: _PetHeroCard(pet: pet, onTap: () => _openPet(pet)),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           if (pets.length > 1) ...[
@@ -552,121 +655,213 @@ class _PetHeroPlaceholder extends StatelessWidget {
   );
 }
 
-/// 유저 정보(축소) — 반려동물이 주인공이므로 작은 카드로 보조 표시.
-class _UserStrip extends StatelessWidget {
+/// 유저 프로필 히어로 — 다른 사용자가 보는 공개 프로필 헤더 카드와 동일한 디자인
+/// (애플뮤직 스타일: 사진 풀블리드 + 하단 점진 블러 + 닉네임/유형·지역/통계).
+/// 사진이 없으면 primaryDark 배경에 닉네임을 크게. 우상단 연필로 편집.
+class _ProfileHeroCard extends StatelessWidget {
   final ProfileData profile;
-  const _UserStrip({required this.profile});
+  final VoidCallback? onTap;
+  final VoidCallback? onEdit;
+  const _ProfileHeroCard({required this.profile, this.onTap, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: AppColors.primarySoft,
-                child: Text(
-                  profile.nickname.isEmpty
-                      ? '?'
-                      : profile.nickname.characters.first,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryDark,
+    final hasPhoto = profile.profileImageUrl != null;
+    return Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        height: 360, // 공개 프로필 헤더 카드와 동일 높이
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: AppColors.primaryDark,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasPhoto)
+              Image.network(
+                profile.profileImageUrl!,
+                fit: BoxFit.cover,
+                cacheWidth: 1200,
+                errorBuilder: (_, _, _) => _noPhotoBackground(),
+              )
+            else
+              _noPhotoBackground(),
+            // 점진 블러 — 공개 프로필 헤더와 동일 문법.
+            if (hasPhoto)
+              Positioned.fill(
+                child: ShaderMask(
+                  shaderCallback: (rect) => const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x00FFFFFF),
+                      Color(0x00FFFFFF),
+                      Color(0xFFFFFFFF),
+                    ],
+                    stops: [0.0, 0.5, 0.88],
+                  ).createShader(rect),
+                  blendMode: BlendMode.dstIn,
+                  child: ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(
+                      sigmaX: 22,
+                      sigmaY: 22,
+                      tileMode: ui.TileMode.clamp,
+                    ),
+                    child: Image.network(
+                      profile.profileImageUrl!,
+                      fit: BoxFit.cover,
+                      cacheWidth: 400, // 블러 사본 — 저해상 디코딩으로 충분
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
+            // 가독용 스크림.
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 150,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x00000000), Color(0x4D000000)],
+                  ),
+                ),
+              ),
+            ),
+            // 정보 — 블러 구간 위.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      profile.nickname,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                    if (hasPhoto) ...[
+                      Text(
+                        profile.nickname,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '@${profile.username}  ·  ${_userTypeLabel(profile.userType)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
+                      const SizedBox(height: 3),
+                    ],
+                    _metaLine(),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _statCol('받은 평가', profile.reviewCount),
+                        ),
+                        _statDivider(),
+                        Expanded(child: _statCol('Pawing', profile.pawingCount)),
+                        _statDivider(),
+                        Expanded(
+                          child: _statCol('Pawmate', profile.pawmateCount),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: const Icon(
-                  Icons.edit_outlined,
-                  color: AppColors.textSecondary,
-                ),
-                onPressed: () => Navigator.push(
-                  context,
-                  AppPageRoute(
-                    builder: (_) => ProfileEditScreen(
-                      initialNickname: profile.nickname,
-                      initialAddress: profile.address,
-                      initialVerified: profile.isLocationVerified,
-                    ),
-                  ),
-                ),
+            ),
+            // 우상단 편집 버튼(히어로 위 오버레이 — 게시글 상세 앱바 버튼과 동일 문법).
+            Positioned(
+              top: 10,
+              right: 10,
+              child: OverlayIconButton(
+                icon: Icons.edit_outlined,
+                tooltip: '프로필 편집',
+                onPressed: onEdit ?? () {},
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _statCol('받은 평가', profile.reviewCount.toString()),
-              ),
-              Container(width: 1, height: 26, color: AppColors.border),
-              Expanded(
-                child: _statCol('Pawing', profile.pawingCount.toString()),
-              ),
-              Container(width: 1, height: 26, color: AppColors.border),
-              Expanded(
-                child: _statCol('Pawmate', profile.pawmateCount.toString()),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _statCol(String label, String value) => Column(
-    children: [
-      Text(
-        value,
-        style: const TextStyle(
-          fontSize: 17,
-          fontWeight: FontWeight.w700,
-          color: AppColors.textPrimary,
+  /// 사진 없는 프로필 — 닉네임을 카드 중앙에 크게(공개 프로필과 동일).
+  Widget _noPhotoBackground() => ColoredBox(
+        color: AppColors.primaryDark,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 100, left: 24, right: 24),
+            child: Text(
+              profile.nickname,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textOnPrimary,
+              ),
+            ),
+          ),
         ),
-      ),
-      const SizedBox(height: 2),
-      Text(
-        label,
-        style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
-      ),
-    ],
-  );
+      );
+
+  Widget _metaLine() {
+    final region = profile.regionName;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _userTypeLabel(profile.userType),
+          style: const TextStyle(fontSize: 12, color: Color(0xE6FFFFFF)),
+        ),
+        if (region != null) ...[
+          const SizedBox(width: 8),
+          const Icon(Icons.location_on, size: 12, color: Color(0xE6FFFFFF)),
+          const SizedBox(width: 2),
+          Text(
+            region,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xE6FFFFFF),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _statDivider() =>
+      Container(width: 1, height: 28, color: const Color(0x4DFFFFFF));
+
+  Widget _statCol(String label, int value) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$value',
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, color: Color(0xCCFFFFFF)),
+          ),
+        ],
+      );
 
   String _userTypeLabel(String t) => switch (t) {
     'pet_owner' => '반려동물 보호자',

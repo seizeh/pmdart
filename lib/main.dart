@@ -193,10 +193,15 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
               children: [
                 child ?? const SizedBox.shrink(),
                 // 지도 등 자체 처리 화면(barrierOn=false)에서는 배리어를 끈다.
+                // translucent — 탭은 배리어가 아레나에서 먼저 이겨 '키보드 닫기'로
+                // 흡수하되(아래 위젯 안 눌림), 드래그는 아래로 통과해 스크롤이
+                // 정상 동작한다(스크롤 시작 시 위 리스너가 키보드를 닫음).
+                // opaque 였을 때 키보드가 뜬 동안 카테고리 칩 가로 스크롤 등
+                // 모든 스크롤이 먹통이 되던 문제 수정.
                 if (keyboardUp && barrierOn)
                   Positioned.fill(
                     child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
+                      behavior: HitTestBehavior.translucent,
                       onTap: () =>
                           FocusManager.instance.primaryFocus?.unfocus(),
                     ),

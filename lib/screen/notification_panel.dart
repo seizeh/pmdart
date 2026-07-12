@@ -30,6 +30,12 @@ class _NotificationPanelRoute extends PopupRoute<void> {
   final Rect anchor;
   final List<AppNotification> items;
 
+  // 배경(아래 화면)이 밀리지 않게 — 이 팝업이 이전 라우트의 secondary 전환
+  // (Fluid 의 좌측 시차 이동·딤)을 구동하지 않는다. 벨 앵커 기준으로 제자리에서
+  // 펼쳐지는 패널이라 배경 UI 는 그대로 있어야 한다.
+  @override
+  bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) => false;
+
   @override
   Color? get barrierColor => null; // 스크림은 직접 그린다.
 

@@ -27,6 +27,9 @@ class PetProfileScreen extends StatefulWidget {
   /// 축소 시 크로스페이드로 나타날 원본 타일(검색 결과와 동일 위젯).
   final WidgetBuilder? cardBuilder;
 
+  /// 원본 타일의 모서리 곡률 — 축소 안착 시 곡률이 튀지 않도록 타일과 맞춘다.
+  final double cardRadius;
+
   /// 이 화면으로 들어오기 직전에 보던 사용자 id(있으면). 그 보호자를 다시 열려 하면
   /// 새 화면을 쌓지 않고 pop 으로 되돌아간다(사용자→펫→사용자 무한 스택 방지).
   final String? fromUserId;
@@ -37,6 +40,7 @@ class PetProfileScreen extends StatefulWidget {
     this.preview,
     this.originRect,
     this.cardBuilder,
+    this.cardRadius = 14,
     this.fromUserId,
   });
 
@@ -170,6 +174,7 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
     return CollapsibleView(
       originRect: widget.originRect,
       card: widget.cardBuilder,
+      cardRadius: widget.cardRadius,
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,
@@ -224,7 +229,6 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
       if (pet.species.isNotEmpty) pet.species,
       if (age != null) age,
       if (genderKo != null) genderKo,
-      if (pet.isNeutered) '중성화 완료',
     ].join('  ·  ');
 
     return Padding(
@@ -505,6 +509,8 @@ class _GuardianTile extends StatelessWidget {
     final g = guardian;
     final name = g.nickname.isEmpty ? '알 수 없음' : g.nickname;
     final photo = g.profileImageUrl;
+    // 사진 없는 보호자는 프로필 상세 헤더와 동일한 primaryDark 배경으로(UserTile 과 동일).
+    final hasPhoto = photo != null;
     return Pressable(
       onTap: onTap ??
           () => Navigator.push(
@@ -517,7 +523,10 @@ class _GuardianTile extends StatelessWidget {
       child: Container(
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(
+          color: hasPhoto ? null : AppColors.primaryDark,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Stack(
           children: [
             if (photo != null)
@@ -552,8 +561,11 @@ class _GuardianTile extends StatelessWidget {
                   Text(
                     g.isOwner ? '대표 보호자' : '공동보호자',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textTertiary),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: hasPhoto
+                            ? AppColors.textTertiary
+                            : Colors.white70),
                   ),
                   const SizedBox(height: 3),
                   Text(
@@ -561,10 +573,12 @@ class _GuardianTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: hasPhoto
+                          ? AppColors.textPrimary
+                          : AppColors.textOnPrimary,
                     ),
                   ),
                 ],

@@ -60,14 +60,12 @@ class PetRepository {
     String? gender,
     DateTime? birthDate,
     String? bio,
-    bool isNeutered = false,
     String? imageUrl,
   }) async {
     final data = <String, dynamic>{
       'primary_guardian_id': _uid,
       'name': name,
       'species': species,
-      'is_neutered': isNeutered,
     };
     if (speciesKind != null) data['species_kind'] = speciesKind;
     if (gender != null) data['gender'] = gender;
@@ -92,13 +90,11 @@ class PetRepository {
     String? gender,
     DateTime? birthDate,
     String? bio,
-    bool isNeutered = false,
     String? imageUrl,
   }) async {
     final data = <String, dynamic>{
       'name': name,
       'species': species,
-      'is_neutered': isNeutered,
       'gender': gender,
       'birth_date': birthDate?.toIso8601String().split('T').first,
       'bio': (bio == null || bio.isEmpty) ? null : bio,
@@ -121,7 +117,7 @@ class PetRepository {
     final p = await _c
         .from('pets')
         .select(
-            'id, name, species, species_kind, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count')
+            'id, name, species, species_kind, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count')
         .eq('id', petId)
         .maybeSingle();
     if (p == null || p['pet_status'] == 'deleted') return null;
@@ -157,7 +153,6 @@ class PetRepository {
       role: (mine?['role'] ?? 'co_guardian') as String,
       guardianCount: (guardianRows as List).length,
       ownerName: ownerName,
-      isNeutered: p['is_neutered'] == true,
       imageUrl: p['image_url'] as String?,
       isIdentityVerified: p['identity_verified'] == true,
       matchCount: (p['pet_match_count'] ?? 0) as int,
@@ -170,7 +165,7 @@ class PetRepository {
     final p = await _c
         .from('pets')
         .select(
-            'id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count')
+            'id, name, species, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count')
         .eq('id', petId)
         .maybeSingle();
     if (p == null || p['pet_status'] == 'deleted') return null;
@@ -193,7 +188,6 @@ class PetRepository {
       birthDate: p['birth_date'] == null
           ? null
           : DateTime.parse(p['birth_date'] as String),
-      isNeutered: p['is_neutered'] == true,
       bio: p['bio'] as String?,
       imageUrl: p['image_url'] as String?,
       ownerId: ownerId ?? '',

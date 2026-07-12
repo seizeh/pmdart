@@ -277,7 +277,6 @@ class _Header extends StatelessWidget {
       pet.species,
       if (age.isNotEmpty) age,
       if (pet.gender == 'male') '수컷' else if (pet.gender == 'female') '암컷',
-      if (pet.isNeutered) '중성화 완료',
     ].join('  ·  ');
 
     return Padding(

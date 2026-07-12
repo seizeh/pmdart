@@ -72,23 +72,26 @@ class _SpringyNavBarState extends State<SpringyNavBar>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        // 흰색 셀로판지(반투명) — 뒤 콘텐츠가 선명하게 비치며 덮인다(상단 헤더와 동일 효과).
-        color: Color(0xEBFFFFFF), // 흰색 alpha ≈ 0.92 (= AppColors.frostFilm)
-        // 상단 좌우 모서리를 둥글게 — 각진 느낌 제거.
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        // 하드 보더 대신 위로 번지는 부드러운 그림자로 본문과 분리.
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 24,
-            offset: Offset(0, -6),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    // 화면 가장자리에서 띄운 둥근 직사각형 바 — 네 모서리 모두 동일 곡률(24,
+    // 상단 헤더 패널과 통일). SafeArea 대신 하단 여백으로 홈 인디케이터를 피한다.
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12, 0, 12, bottomInset + 8),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: const BoxDecoration(
+          // 흰색 셀로판지(반투명) — 뒤 콘텐츠가 선명하게 비치며 덮인다(상단 헤더와 동일 효과).
+          color: Color(0xEBFFFFFF), // 흰색 alpha ≈ 0.92 (= AppColors.frostFilm)
+          borderRadius: BorderRadius.all(Radius.circular(24)),
+          // 하드 보더 대신 부드럽게 번지는 그림자로 본문과 분리.
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 24,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
         child: SizedBox(
           height: 62,
           child: LayoutBuilder(

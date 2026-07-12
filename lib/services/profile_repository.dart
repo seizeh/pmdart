@@ -157,7 +157,7 @@ class ProfileRepository {
       final rows = await _c
           .from('pets')
           .select(
-              'id, name, species, gender, birth_date, bio, is_neutered, image_url, identity_verified, pet_match_count')
+              'id, name, species, gender, birth_date, bio, image_url, identity_verified, pet_match_count')
           .eq('primary_guardian_id', userId)
           .eq('pet_status', 'active');
       return [
@@ -174,7 +174,6 @@ class ProfileRepository {
             role: 'owner',
             guardianCount: 1,
             ownerName: '',
-            isNeutered: p['is_neutered'] == true,
             imageUrl: p['image_url'] as String?,
             isIdentityVerified: p['identity_verified'] == true,
             matchCount: (p['pet_match_count'] ?? 0) as int,
@@ -209,7 +208,7 @@ class ProfileRepository {
     final rows = await _c
         .from('pet_guardians')
         .select(
-            'role, pets(id, name, species, gender, birth_date, bio, is_neutered, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count)')
+            'role, pets(id, name, species, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count)')
         .eq('user_id', uid);
 
     final pets = <Map<String, dynamic>>[];
@@ -264,7 +263,6 @@ class ProfileRepository {
         role: myRole[id] ?? 'co_guardian',
         guardianCount: guardianCount[id] ?? 1,
         ownerName: ownerId == null ? '' : (ownerName[ownerId] ?? ''),
-        isNeutered: p['is_neutered'] == true,
         imageUrl: p['image_url'] as String?,
         isIdentityVerified: p['identity_verified'] == true,
         matchCount: (p['pet_match_count'] ?? 0) as int,

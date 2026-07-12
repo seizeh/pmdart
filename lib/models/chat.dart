@@ -30,6 +30,9 @@ class ChatRoomSummary {
     this.otherProfileImageUrl,
   });
 
+  /// 고객센터(admin_inquiry) 방 여부 — v_chat_rooms 가 상대를 '고객센터'로 표기한다.
+  bool get isSupport => otherNickname == '고객센터';
+
   factory ChatRoomSummary.fromJson(Map<String, dynamic> j) => ChatRoomSummary(
         id: j['id'] as String,
         otherNickname: (j['other_nickname'] ?? '알 수 없음') as String,

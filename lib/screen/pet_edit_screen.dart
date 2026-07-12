@@ -13,14 +13,12 @@ class PetDraft {
   final String species; // 품종(자유 입력)
   final String? gender;
   final DateTime? birthDate;
-  final bool isNeutered;
   const PetDraft({
     required this.name,
     this.speciesKind,
     this.species = '',
     this.gender,
     this.birthDate,
-    this.isNeutered = false,
   });
 }
 
@@ -42,7 +40,6 @@ class _PetEditScreenState extends State<PetEditScreen> {
   String? _speciesKind; // 'dog' | 'cat' (강아지/고양이) — 필수
   String? _gender;
   DateTime? _birthDate;
-  bool _neutered = false;
   String? _imageUrl;
   bool _uploading = false;
   bool _saving = false;
@@ -61,7 +58,6 @@ class _PetEditScreenState extends State<PetEditScreen> {
       _speciesKind = d.speciesKind;
       _gender = d.gender;
       _birthDate = d.birthDate;
-      _neutered = d.isNeutered;
     }
     final p = widget.pet;
     if (p != null) {
@@ -71,7 +67,6 @@ class _PetEditScreenState extends State<PetEditScreen> {
       _bioCtrl.text = p.bio ?? '';
       _gender = p.gender;
       _birthDate = p.birthDate;
-      _neutered = p.isNeutered;
       _imageUrl = p.imageUrl;
       _identityVerified = p.isIdentityVerified;
     }
@@ -135,7 +130,6 @@ class _PetEditScreenState extends State<PetEditScreen> {
           gender: _gender,
           birthDate: _birthDate,
           bio: _bioCtrl.text.trim(),
-          isNeutered: _neutered,
           imageUrl: _imageUrl,
         );
       } else {
@@ -146,7 +140,6 @@ class _PetEditScreenState extends State<PetEditScreen> {
           gender: _gender,
           birthDate: _birthDate,
           bio: _bioCtrl.text.trim(),
-          isNeutered: _neutered,
           imageUrl: _imageUrl,
         );
         if (!mounted) return;
@@ -275,17 +268,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('중성화 완료',
-                    style: TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600)),
-                value: _neutered,
-                activeThumbColor: AppColors.primary,
-                onChanged: (v) => setState(() => _neutered = v),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               const _Label('소개 (선택)'),
               TextField(
                 controller: _bioCtrl,

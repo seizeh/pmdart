@@ -300,6 +300,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
           : SystemUiOverlayStyle.light,
       child: CollapsibleView(
       originRect: widget.originRect,
+      cardRadius: 16, // 채팅 목록 타일과 동일 곡률 — 안착 시 곡률 튐 방지.
       // 축소 도착 지점의 카드 = 방 프로필(m=0). 목록 타일이 아니라 방 헤더 모습이라
       // 축소 중 목록 타일이 비쳐 겹치는 투명 트렌지션이 생기지 않는다.
       card: (ctx) => _MorphCard(

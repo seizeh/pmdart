@@ -35,15 +35,19 @@ class ChatRepository {
     return row == null ? null : ChatRoomSummary.fromJson(row);
   }
 
-  /// 내 채팅방 목록 (최근 메시지 순).
+  /// 내 채팅방 목록 (고객센터 최상단 고정, 나머지는 최근 메시지 순).
   Future<List<ChatRoomSummary>> fetchRooms() async {
     final rows = await _c
         .from('v_chat_rooms')
         .select()
         .order('last_message_at', ascending: false, nullsFirst: false);
-    return (rows as List)
+    final rooms = (rows as List)
         .map((r) => ChatRoomSummary.fromJson(r as Map<String, dynamic>))
         .toList();
+    return [
+      ...rooms.where((r) => r.isSupport),
+      ...rooms.where((r) => !r.isSupport),
+    ];
   }
 
   static const _messageCols =

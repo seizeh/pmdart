@@ -31,7 +31,6 @@ class MockPet {
   final String role; // owner / co_guardian (현재 사용자 기준)
   final int guardianCount;
   final String ownerName;
-  final bool isNeutered;
   final String? imageUrl;
   final bool isIdentityVerified; // AI 인증 기준 사진 등록 여부 (0019)
   final int matchCount; // 개체 일치 누적 횟수 (신뢰도)
@@ -47,7 +46,6 @@ class MockPet {
     this.role = 'owner',
     this.guardianCount = 1,
     this.ownerName = '',
-    this.isNeutered = false,
     this.imageUrl,
     this.isIdentityVerified = false,
     this.matchCount = 0,

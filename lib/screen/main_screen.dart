@@ -107,6 +107,10 @@ class _MainScreenState extends State<MainScreen>
       // body 를 하단 바 뒤까지 확장 → 바가 숨을 때 콘텐츠가 화면 끝까지 차서
       // 흰 여백이 생기지 않는다(각 탭은 바 높이만큼 하단 패딩으로 가림 방지).
       extendBody: true,
+      // 키보드 리사이즈 금지 — 켜두면 키보드가 오르내리는 매 프레임 IndexedStack 의
+      // 5개 탭 전부(지도 플랫폼뷰 포함)가 재레이아웃돼 검색 중 스크롤이 심하게 끊긴다.
+      // 탭 내 입력 필드(커뮤니티·사용자 검색)는 모두 상단이라 가려질 것이 없다.
+      resizeToAvoidBottomInset: false,
       // IndexedStack 으로 각 탭 상태는 보존하고, 전환 순간에만 방향성 있게 흘려 보낸다.
       body: AnimatedBuilder(
         animation: _tabAnim,

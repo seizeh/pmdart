@@ -42,7 +42,6 @@ class PetProfile {
   final String species;
   final String? gender; // male / female / null
   final DateTime? birthDate;
-  final bool isNeutered;
   final String? bio;
   final String? imageUrl;
   final String ownerId;
@@ -56,7 +55,6 @@ class PetProfile {
     required this.species,
     required this.gender,
     required this.birthDate,
-    required this.isNeutered,
     required this.bio,
     required this.imageUrl,
     required this.ownerId,

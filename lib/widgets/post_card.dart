@@ -43,6 +43,8 @@ class PostCard extends StatelessWidget {
                 Image.network(
                   post.imageUrl!,
                   fit: BoxFit.cover,
+                  // 원본(최대 4284px 폭) 풀해상 디코딩 방지 — 카드 폭이면 충분.
+                  cacheWidth: 1200,
                   errorBuilder: (_, _, _) =>
                       BlobBackground(seed: post.id, color: color),
                 )
@@ -50,30 +52,36 @@ class PostCard extends StatelessWidget {
                 BlobBackground(seed: post.id, color: color),
               // 점진 블러 — 같은 사진의 블러 사본을 세로 그라데이션 마스크로
               // 페이드인(아래로 갈수록 진해짐, 경계선 없음).
+              // ClipRect — 마스크가 완전 투명한 상단(0~42%)까지 블러를 래스터하지
+              // 않도록, 실제 보이는 하단 구간만 잘라 그린다(블러 비용 ~40% 절감).
               if (hasPhoto)
                 Positioned.fill(
-                  child: ShaderMask(
-                    shaderCallback: (rect) => const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x00FFFFFF),
-                        Color(0x00FFFFFF),
-                        Color(0xFFFFFFFF),
-                      ],
-                      stops: [0.0, 0.42, 0.85],
-                    ).createShader(rect),
-                    blendMode: BlendMode.dstIn,
-                    child: ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(
-                        sigmaX: 22,
-                        sigmaY: 22,
-                        tileMode: ui.TileMode.clamp,
-                      ),
-                      child: Image.network(
-                        post.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  child: ClipRect(
+                    clipper: const _BottomFractionClipper(0.40),
+                    child: ShaderMask(
+                      shaderCallback: (rect) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0x00FFFFFF),
+                          Color(0x00FFFFFF),
+                          Color(0xFFFFFFFF),
+                        ],
+                        stops: [0.0, 0.42, 0.85],
+                      ).createShader(rect),
+                      blendMode: BlendMode.dstIn,
+                      child: ImageFiltered(
+                        imageFilter: ui.ImageFilter.blur(
+                          sigmaX: 22,
+                          sigmaY: 22,
+                          tileMode: ui.TileMode.clamp,
+                        ),
+                        child: Image.network(
+                          post.imageUrl!,
+                          fit: BoxFit.cover,
+                          cacheWidth: 400, // 블러 사본 — 저해상 디코딩으로 충분
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
                       ),
                     ),
                   ),
@@ -334,6 +342,21 @@ class _MetaPill extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 위쪽 [topFraction] 을 잘라내고 아래만 남기는 클리퍼 — 마스크로 어차피 안 보이는
+/// 상단 구간의 블러 래스터를 건너뛰기 위한 것.
+class _BottomFractionClipper extends CustomClipper<Rect> {
+  final double topFraction;
+  const _BottomFractionClipper(this.topFraction);
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, size.height * topFraction, size.width, size.height);
+
+  @override
+  bool shouldReclip(_BottomFractionClipper oldClipper) =>
+      oldClipper.topFraction != topFraction;
 }
 
 class _Stat extends StatelessWidget {

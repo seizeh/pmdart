@@ -35,12 +35,16 @@ class PostDetailScreen extends StatefulWidget {
   /// 축소 시 크로스페이드로 나타날 실제 커뮤니티 카드(피드와 동일 위젯).
   final WidgetBuilder? cardBuilder;
 
+  /// 원본 카드의 모서리 곡률 — 축소 안착 시 곡률이 튀지 않도록 카드와 맞춘다.
+  final double cardRadius;
+
   const PostDetailScreen({
     super.key,
     required this.post,
     this.isGuest = false,
     this.originRect,
     this.cardBuilder,
+    this.cardRadius = 20,
   });
 
   @override
@@ -335,15 +339,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final hasImage = _post.imageUrl != null;
 
     // 카드에서 펼쳐지고/아래로 당기면 카드로 축소되는 공통 래퍼. physics 를 리스트에 전달.
-    // AnnotatedRegion — 사진 히어로는 밝은 상태바 아이콘, 벗어나면 자동으로
-    // 전역 기본(어두움)으로 복원(흰 화면에서 아이콘이 안 보이던 문제 해결).
+    // AnnotatedRegion — 사진 유무와 무관하게 전역 기본과 같은 어두운 상태바
+    // 아이콘 유지(사진 글에서 시간·배터리가 흰색으로 바뀌던 문제 해결).
+    // 어두운 사진 위 가독성은 히어로 상단의 밝은 스크림이 담당한다.
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: hasImage
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
+      value: SystemUiOverlayStyle.dark,
       child: CollapsibleView(
       originRect: widget.originRect,
       card: widget.cardBuilder,
+      cardRadius: widget.cardRadius,
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,
@@ -392,12 +396,35 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             AspectRatio(
               aspectRatio: kPostImageAspectRatio,
               child: hasImage
-                  ? Image.network(
-                      _post.imageUrl!,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          const ColoredBox(color: AppColors.surfaceMuted),
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          _post.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              const ColoredBox(color: AppColors.surfaceMuted),
+                        ),
+                        // 상태바 스크림 — 어두운 사진에서도 시간·배터리(어두운
+                        // 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: MediaQuery.paddingOf(context).top + 24,
+                          child: const IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [Colors.white70, Colors.transparent],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     )
                   : _BlobHero(post: _post),
             ),

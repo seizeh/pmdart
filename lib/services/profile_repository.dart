@@ -19,7 +19,8 @@ class ProfileRepository {
     // 프로필 헤더(공개 프로필 뷰). 아이디(username)는 공개 뷰에 없으므로 세션에서 가져온다.
     final profile = await _c
         .from('public_profiles')
-        .select('nickname, user_type, address, is_location_verified, activity_radius_m')
+        .select(
+            'nickname, user_type, profile_image_url, address, is_location_verified, activity_radius_m')
         .eq('id', uid)
         .maybeSingle();
 
@@ -40,6 +41,7 @@ class ProfileRepository {
       nickname: (profile?['nickname'] ?? user.nickname) as String,
       username: user.username,
       userType: (profile?['user_type'] ?? user.userType) as String,
+      profileImageUrl: profile?['profile_image_url'] as String?,
       reviewCount: counts[0],
       pawingCount: counts[1],
       pawmateCount: counts[2],

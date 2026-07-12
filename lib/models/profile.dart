@@ -5,6 +5,7 @@ class ProfileData {
   final String nickname;
   final String username;
   final String userType;
+  final String? profileImageUrl;
 
   final int reviewCount; // 받은 평가
   final int pawingCount; // 내가 팔로우 (Pawing)
@@ -25,6 +26,7 @@ class ProfileData {
     required this.nickname,
     required this.username,
     required this.userType,
+    this.profileImageUrl,
     required this.reviewCount,
     required this.pawingCount,
     required this.pawmateCount,

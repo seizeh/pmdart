@@ -8,9 +8,27 @@ import '../widgets/pet_trust_badge.dart';
 import 'pet_edit_screen.dart';
 
 /// 펫 상세 — 펫 정보 + 보호자 목록(실데이터). owner 는 수정/삭제/초대 가능.
+/// [originRect] 가 있으면 카드에서 펼쳐지고/당기면 그 자리로 축소된다
+/// (게시글 상세와 동일한 전환 언어).
 class PetDetailScreen extends StatefulWidget {
   final MockPet pet;
-  const PetDetailScreen({super.key, required this.pet});
+
+  /// 카드에서 펼쳐지는 전환용. null 이면 일반 화면.
+  final Rect? originRect;
+
+  /// 축소 시 크로스페이드로 나타날 원본 카드(내정보 펫 히어로와 동일 위젯).
+  final WidgetBuilder? cardBuilder;
+
+  /// 원본 카드의 모서리 곡률 — 축소 안착 시 곡률이 튀지 않도록 카드와 맞춘다.
+  final double cardRadius;
+
+  const PetDetailScreen({
+    super.key,
+    required this.pet,
+    this.originRect,
+    this.cardBuilder,
+    this.cardRadius = 24,
+  });
 
   @override
   State<PetDetailScreen> createState() => _PetDetailScreenState();
@@ -22,6 +40,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   List<Guardian> _guardians = [];
   bool _loading = true;
 
+  // CollapsibleView(당겨서 축소) 용 스크롤 컨트롤러.
+  final _scroll = ScrollController();
+
   bool get _isOwner => _pet.role == 'owner';
 
   @override
@@ -29,6 +50,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     super.initState();
     _pet = widget.pet;
     _loadGuardians();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
   Future<void> _loadGuardians() async {
@@ -65,35 +92,44 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            pinned: true,
-            actions: [
-              if (_isOwner)
-                IconButton(
-                  icon: const Icon(Icons.more_horiz),
-                  onPressed: _showOwnerMenu,
-                ),
-            ],
-          ),
-          SliverToBoxAdapter(child: _Header(pet: _pet)),
-          SliverToBoxAdapter(
-            child: _GuardiansSection(
-              pet: _pet,
-              guardians: _guardians,
-              loading: _loading,
-              isOwner: _isOwner,
-              onInvite: _showInviteSheet,
-              onRemove: _removeGuardian,
+    // 카드에서 펼쳐지고/아래로 당기면 카드로 축소되는 공통 래퍼(게시글 상세와 동일).
+    return CollapsibleView(
+      originRect: widget.originRect,
+      card: widget.cardBuilder,
+      cardRadius: widget.cardRadius,
+      scrollController: _scroll,
+      builder: (context, physics) => Scaffold(
+        backgroundColor: Colors.white,
+        body: CustomScrollView(
+          controller: _scroll,
+          physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
+          slivers: [
+            SliverAppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              pinned: true,
+              actions: [
+                if (_isOwner)
+                  IconButton(
+                    icon: const Icon(Icons.more_horiz),
+                    onPressed: _showOwnerMenu,
+                  ),
+              ],
             ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
-        ],
+            SliverToBoxAdapter(child: _Header(pet: _pet)),
+            SliverToBoxAdapter(
+              child: _GuardiansSection(
+                pet: _pet,
+                guardians: _guardians,
+                loading: _loading,
+                isOwner: _isOwner,
+                onInvite: _showInviteSheet,
+                onRemove: _removeGuardian,
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
+        ),
       ),
     );
   }

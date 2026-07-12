@@ -30,6 +30,12 @@ class _NotificationPanelRoute extends PopupRoute<void> {
   final Rect anchor;
   final List<AppNotification> items;
 
+  // 배경(아래 화면)이 밀리지 않게 — 이 팝업이 이전 라우트의 secondary 전환
+  // (Fluid 의 좌측 시차 이동·딤)을 구동하지 않는다. 벨 앵커 기준으로 제자리에서
+  // 펼쳐지는 패널이라 배경 UI 는 그대로 있어야 한다.
+  @override
+  bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) => false;
+
   @override
   Color? get barrierColor => null; // 스크림은 직접 그린다.
 
@@ -54,7 +60,9 @@ class _NotificationPanelRoute extends PopupRoute<void> {
     final media = MediaQuery.of(context);
     final screenW = media.size.width;
     // 패널 폭(우측 정렬) + 벨 옆 남은 공간에 맞춘 최대 높이.
-    final panelW = math.min(screenW - 24.0, 380.0);
+    // 폭은 화면을 다 덮지 않게 — 벨에 매달린 우측 팝오버라는 게 드러나도록
+    // 왼쪽 배경을 충분히 남긴다(기존 380 은 사실상 풀폭이라 좌편향으로 보였음).
+    final panelW = math.min(screenW - 30.0, 354.0);
     final panelRight = (screenW - anchor.right).clamp(8.0, screenW - 8);
     final panelLeft = screenW - panelRight - panelW;
     final panelTop = anchor.top;

@@ -12,6 +12,11 @@ class CollapseRoute<T> extends PageRoute<T> {
 
   final WidgetBuilder builder;
 
+  // 배경(피드)이 제자리에 있어야 originRect 안착이 정확하다 — 이전 라우트의
+  // secondary 전환(Fluid 의 좌측 시차 이동·딤)을 구동하지 않는다.
+  @override
+  bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) => false;
+
   @override
   Color? get barrierColor => null;
 
@@ -73,6 +78,10 @@ class ExpandRoute<T> extends PageRoute<T> {
 
   /// 원본(버튼)의 모서리 곡률. null 이면 알약(높이/2)으로 간주.
   final double? originRadius;
+
+  // 배경이 제자리에 있어야 originRect 에서의 확장/축소가 정확히 겹친다.
+  @override
+  bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) => false;
 
   @override
   Color? get barrierColor => null;

@@ -68,6 +68,7 @@ class _RegionPostsContentState extends State<RegionPostsContent> {
                 post: p,
                 originRect: rect,
                 cardBuilder: (_) => _PostRow(post: p, onTap: () {}),
+                cardRadius: 14, // _PostRow 곡률과 동일.
               ),
             ),
     );

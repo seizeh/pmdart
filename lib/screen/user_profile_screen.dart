@@ -32,6 +32,9 @@ class UserProfileScreen extends StatefulWidget {
   /// 축소 시 크로스페이드로 나타날 원본 타일(검색 결과와 동일 위젯).
   final WidgetBuilder? cardBuilder;
 
+  /// 원본 타일의 모서리 곡률 — 축소 안착 시 곡률이 튀지 않도록 타일과 맞춘다.
+  final double cardRadius;
+
   /// 이 화면으로 들어오기 직전에 보던 반려동물 id(있으면). 그 펫을 다시 열려 하면
   /// 새 화면을 쌓지 않고 pop 으로 되돌아간다(A→펫→A 무한 스택 방지).
   final String? fromPetId;
@@ -42,6 +45,7 @@ class UserProfileScreen extends StatefulWidget {
     this.previewNickname,
     this.originRect,
     this.cardBuilder,
+    this.cardRadius = 16,
     this.fromPetId,
   });
 
@@ -166,6 +170,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       post: post,
       originRect: rect,
       cardBuilder: rect == null ? null : (_) => _PostPhotoTile(post: post),
+      cardRadius: 16, // _PostPhotoTile 곡률과 동일.
     );
     if (rect != null) setState(() => _openedPostId = post.id);
     await Navigator.push<void>(
@@ -191,6 +196,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       fromUserId: widget.userId,
       originRect: rect,
       cardBuilder: rect == null ? null : (_) => PetPosterCard(pet: pet),
+      cardRadius: 24, // PetPosterCard 곡률과 동일.
     );
     if (rect != null) setState(() => _openedPetId = pet.id);
     await Navigator.push<void>(
@@ -212,6 +218,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return CollapsibleView(
       originRect: widget.originRect,
       card: widget.cardBuilder,
+      cardRadius: widget.cardRadius,
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,

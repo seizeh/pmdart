@@ -264,6 +264,7 @@ class CollapsibleView extends StatefulWidget {
     required this.card,
     required this.scrollController,
     required this.builder,
+    this.cardRadius = 20,
     this.expandDuration = const Duration(milliseconds: 420),
     this.expandCurve = Curves.easeOutCubic,
     this.onSettled,
@@ -273,6 +274,10 @@ class CollapsibleView extends StatefulWidget {
   final WidgetBuilder? card; // 축소 도착 시 크로스페이드할 실제 카드
   final ScrollController scrollController;
   final Widget Function(BuildContext context, ScrollPhysics physics) builder;
+
+  /// 원본 카드의 모서리 곡률. 축소가 안착해 실제 카드로 교체될 때 곡률이
+  /// 어긋나 뚝 튀지 않도록 반드시 [card] 와 같은 값을 넘긴다(기본 20 = PostCard).
+  final double cardRadius;
 
   /// 원본(카드/타일)에서 펼쳐지는 확장 전환의 시간·커브. 화면별로 강조 정도를
   /// 다르게 줄 수 있다(기본은 게시글 상세와 동일).
@@ -434,7 +439,7 @@ class _CollapsibleViewState extends State<CollapsibleView>
 
     final win = Rect.lerp(Offset.zero & size, origin, t)!.shift(_drag * p);
     final scale = win.width / w;
-    final radius = 20.0 * (t * 2).clamp(0.0, 1.0);
+    final radius = widget.cardRadius * (t * 2).clamp(0.0, 1.0);
     final scrim = 0.32 * p;
     final cardFade = ((t - 0.5) / 0.5).clamp(0.0, 1.0);
 

@@ -62,7 +62,7 @@ class _NotificationPanelRoute extends PopupRoute<void> {
     // 패널 폭(우측 정렬) + 벨 옆 남은 공간에 맞춘 최대 높이.
     // 폭은 화면을 다 덮지 않게 — 벨에 매달린 우측 팝오버라는 게 드러나도록
     // 왼쪽 배경을 충분히 남긴다(기존 380 은 사실상 풀폭이라 좌편향으로 보였음).
-    final panelW = math.min(screenW - 96.0, 340.0);
+    final panelW = math.min(screenW - 30.0, 354.0);
     final panelRight = (screenW - anchor.right).clamp(8.0, screenW - 8);
     final panelLeft = screenW - panelRight - panelW;
     final panelTop = anchor.top;

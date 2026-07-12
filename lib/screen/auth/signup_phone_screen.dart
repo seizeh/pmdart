@@ -41,7 +41,6 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   String? _petKind; // 'dog' | 'cat'
   String? _petGender; // 'male' | 'female'
   DateTime? _petBirth;
-  bool _petNeutered = false;
 
   // 약관 동의 상태 — 필수 4개(연령·이용약관·위치약관·개인정보)가 모두 체크돼야
   // 전화번호 인증 단계로 진행할 수 있다. 마케팅은 선택.
@@ -647,15 +646,6 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            CheckboxListTile(
-              value: _petNeutered,
-              onChanged: (v) => setState(() => _petNeutered = v ?? false),
-              title: const Text('중성화 완료', style: TextStyle(fontSize: 14)),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-            ),
             const SizedBox(height: 20),
             const Text(
               '공동보호자가 있다면 전화번호를 입력해주세요',
@@ -761,7 +751,6 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                 species: _petBreedCtrl.text.trim(),
                 gender: _petGender,
                 birthDate: _petBirth,
-                isNeutered: _petNeutered,
               )
             : null;
         Navigator.pushAndRemoveUntil(

@@ -23,13 +23,14 @@ class GradientHeader extends StatelessWidget {
       top: 0,
       left: 0,
       right: 0,
-      child: ClipRRect(
-        // 하단 모서리를 둥글게 — 셀로판지 패널이 카드처럼 떨어진다(커뮤니티와 동일).
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
-        child: ColoredBox(
-          color: AppColors.frostFilm,
-          child: Padding(
-            padding: EdgeInsets.only(top: topInset),
+      // 상태바 아래에 떠 있는 둥근 직사각형 패널 — 네 모서리 모두 동일 곡률(24,
+      // 하단 메뉴바와 통일).
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(12, topInset + 8, 12, 0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: ColoredBox(
+            color: AppColors.frostFilm,
             child: child,
           ),
         ),

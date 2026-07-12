@@ -154,7 +154,8 @@ class _UserSearchTabState extends State<UserSearchTab> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          Positioned.fill(child: _buildBody(topInset + 126)),
+          // 헤더가 상태바 아래로 8 떠 있으므로 그만큼 리스트 시작점도 내린다.
+          Positioned.fill(child: _buildBody(topInset + 134)),
           GradientHeader(
             topInset: topInset,
             child: Padding(

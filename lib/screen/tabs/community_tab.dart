@@ -63,7 +63,8 @@ class _CommunityTabState extends State<CommunityTab>
   final _fabKey = GlobalKey();
 
   // 헤더 두 섹션 높이(오버레이+애니메이션): 제목+검색 / 카테고리 칩.
-  static const _searchSectionH = 116.0;
+  // 패널이 상태바 아래로 8 떠 있으므로(플로팅 카드) 그만큼 더해 콘텐츠 높이를 유지.
+  static const _searchSectionH = 124.0;
   static const _chipsSectionH = 52.0;
   static const _headerH = _searchSectionH + _chipsSectionH;
 
@@ -404,20 +405,15 @@ class _CommunityTabState extends State<CommunityTab>
     );
   }
 
-  // 파란 섹션: (상태바 +) 제목 + 검색. 뒤 게시글이 그라데이션 프로스트(블러+틴트)로 비친다.
+  // 파란 섹션: 제목 + 검색. 상태바 아래에 떠 있는 둥근 직사각형 패널(곡률 24,
+  // 하단 메뉴바·다른 탭 헤더와 통일). 뒤 게시글이 흰색 셀로판지로 비친다.
   Widget _searchSection(double topInset) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // 실험: 흰색 셀로판지 — 블러 없이(뒤 피드 선명) 균일 흰색 반투명 필름만 덮는다.
-        ClipRRect(
-          borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(32),
-          ),
-          child: const ColoredBox(color: AppColors.frostFilm),
-        ),
-        Padding(
-          padding: EdgeInsets.only(top: topInset),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12, topInset + 8, 12, 0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: ColoredBox(
+          color: AppColors.frostFilm,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -451,7 +447,7 @@ class _CommunityTabState extends State<CommunityTab>
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 

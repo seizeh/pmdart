@@ -8,6 +8,7 @@ import '../../services/pet_repository.dart';
 import '../../services/app_events.dart';
 import '../../widgets/pet_card.dart';
 import '../../widgets/role_badge.dart';
+import '../../widgets/gradient_header.dart';
 import '../../services/auth_service.dart';
 import '../pet_detail_screen.dart';
 import '../pet_edit_screen.dart';
@@ -99,66 +100,88 @@ class _MyInfoTabState extends State<MyInfoTab> {
   Widget build(BuildContext context) {
     if (widget.isGuest) return const _GuestMyInfo();
 
+    final topInset = MediaQuery.of(context).padding.top;
+    // 다른 탭(채팅·검색·커뮤니티)과 동일하게: 콘텐츠가 떠 있는 프로스트 헤더
+    // 아래로 스크롤되며 비치는 구조.
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          Positioned.fill(child: _buildBody(topInset + 56)),
+          GradientHeader(
+            topInset: topInset,
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
+              child: Text(
+                '내 정보',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryDark,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(double topPad) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
     if (_error != null || _profile == null) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _error ?? '프로필을 불러오지 못했어요',
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 12),
-              TextButton(onPressed: _load, child: const Text('다시 시도')),
-            ],
-          ),
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _error ?? '프로필을 불러오지 못했어요',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
         ),
       );
     }
 
     final profile = _profile!;
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 반려동물이 주인공 — 큰 히어로 카드/캐러셀을 최상단에.
-                const SizedBox(height: 8),
-                _PetHero(pets: profile.pets),
-                const SizedBox(height: 20),
-                // 유저 정보는 작은 카드로 축소(보조).
-                _UserStrip(profile: profile),
-                const SizedBox(height: 20),
-                _ActivitySection(
-                  profile: profile,
-                  pendingInvites: _pendingInvites,
-                ),
-                const SizedBox(height: 12),
-                _ActivityRangeSection(profile: profile),
-                const SizedBox(height: 12),
-                _InterestSection(profile: profile),
-                const SizedBox(height: 12),
-                _SettingsSection(profile: profile),
-                const SizedBox(height: 20),
-                // 약관·처리방침 상시 열람(게시 의무).
-                const _GuestFooter(),
-              ],
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    return RefreshIndicator(
+      onRefresh: _load,
+      edgeOffset: topPad,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        // 헤더 아래에서 시작, 하단은 플로팅 메뉴바(62+여백) 뒤로 확장되는 만큼 여백.
+        padding: EdgeInsets.only(
+          top: topPad + 14,
+          bottom: 62 + bottomInset + 32,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 반려동물이 주인공 — 큰 히어로 카드/캐러셀을 최상단에.
+            _PetHero(pets: profile.pets),
+            const SizedBox(height: 20),
+            // 유저 정보는 작은 카드로 축소(보조).
+            _UserStrip(profile: profile),
+            const SizedBox(height: 20),
+            _ActivitySection(
+              profile: profile,
+              pendingInvites: _pendingInvites,
             ),
-          ),
+            const SizedBox(height: 12),
+            _ActivityRangeSection(profile: profile),
+            const SizedBox(height: 12),
+            _InterestSection(profile: profile),
+            const SizedBox(height: 12),
+            _SettingsSection(profile: profile),
+            const SizedBox(height: 20),
+            // 약관·처리방침 상시 열람(게시 의무).
+            const _GuestFooter(),
+          ],
         ),
       ),
     );
@@ -399,7 +422,8 @@ class _PetHeroCard extends StatelessWidget {
       if (genderKo != null) genderKo,
     ].join('  ·  ');
 
-    return InkWell(
+    // Pressable — 피드 카드·검색 타일과 동일한 스프링 눌림 피드백으로 통일.
+    return Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(24),
       child: Container(

@@ -181,7 +181,12 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
         final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
         return NotificationListener<ScrollNotification>(
           onNotification: (n) {
-            if (n is ScrollStartNotification && n.dragDetails != null) {
+            // 세로 스크롤만 키보드를 닫는다 — 가로 스크롤(카테고리 칩 등 캐러셀)은
+            // 검색 도중의 필터 조작이므로 키보드·포커스를 유지해야 한다
+            // (닫으면 searchActive 가 풀려 칩이 함께 사라지는 문제).
+            if (n is ScrollStartNotification &&
+                n.dragDetails != null &&
+                n.metrics.axis == Axis.vertical) {
               FocusManager.instance.primaryFocus?.unfocus();
             }
             return false;

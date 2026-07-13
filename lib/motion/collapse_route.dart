@@ -1,4 +1,5 @@
 import 'dart:ui' show lerpDouble;
+import 'package:flutter/gestures.dart' show VelocityTracker;
 import 'package:flutter/material.dart';
 
 /// 아래에서 위로 떠오르는 모달형 원점 — [CollapsibleView.originRect] 에 넘기면
@@ -363,13 +364,22 @@ class _CollapsibleViewState extends State<CollapsibleView>
       !widget.scrollController.hasClients ||
       widget.scrollController.position.pixels <= 0;
 
+  // 플릭(빠른 하강) 판정용 속도 추적 — 문턱 미달이어도 빠르게 내리면 닫는다.
+  VelocityTracker? _velocity;
+
+  /// 이 속도(px/s) 이상으로 아래로 튕기면 거리와 무관하게 닫는다.
+  static const double _kFlingVelocity = 800;
+
   void _onPointerDown(PointerDownEvent e) {
     if (_settling) return;
     _dragStart = e.position;
+    _velocity = VelocityTracker.withKind(e.kind)
+      ..addPosition(e.timeStamp, e.position);
   }
 
   void _onPointerMove(PointerMoveEvent e) {
     if (!mounted || _settling || !_collapsible) return;
+    _velocity?.addPosition(e.timeStamp, e.position);
     if (!_dragging) {
       final d = e.position - _dragStart;
       // 축소 진입 조건: 핸들 영역이 지정됐으면 그 안에서 시작한 드래그만,
@@ -377,7 +387,8 @@ class _CollapsibleViewState extends State<CollapsibleView>
       final canStart = widget.dragHandleTest != null
           ? widget.dragHandleTest!(_dragStart)
           : _atTop;
-      if (canStart && d.dy > 8 && d.dy > d.dx.abs()) {
+      // 진입 문턱 36px — 최상단에서의 미세한 손떨림/관성으로 축소가 걸리지 않게.
+      if (canStart && d.dy > 36 && d.dy > d.dx.abs()) {
         _dragStart = e.position;
         _dragging = true; // 물리가 live 로 읽음(rebuild 불필요)
       }
@@ -387,13 +398,19 @@ class _CollapsibleViewState extends State<CollapsibleView>
     final vh = MediaQuery.of(context).size.height;
     final pull = d.dy.clamp(0.0, vh);
     _drag = d;
-    _cc.value = 1 - (pull / (vh * 0.4)).clamp(0.0, 1.0); // 40% 당기면 카드
+    // 손가락 이동 거리에 1:1 비례 — 화면 높이만큼 당겨야 완전 축소.
+    // (기존 40% 배율은 손가락보다 화면이 훨씬 빨리 줄어 과민하게 느껴졌음.)
+    _cc.value = 1 - (pull / vh).clamp(0.0, 1.0);
   }
 
   void _onPointerUp([_]) {
     if (!mounted || _settling || !_dragging) return;
     _dragging = false;
-    if (_cc.value < 0.97) {
+    // 닫힘 판정 — ① 거리: 화면 높이의 12%(≈100px) 이상 당김, 또는
+    // ② 플릭: 아래로 800px/s 이상 빠르게 튕김(거리 미달이어도 닫힘).
+    // 둘 다 미달이면 스프링 복귀.
+    final vy = _velocity?.getVelocity().pixelsPerSecond.dy ?? 0.0;
+    if (_cc.value < 0.88 || vy > _kFlingVelocity) {
       _startDismiss();
     } else {
       _drag = Offset.zero;

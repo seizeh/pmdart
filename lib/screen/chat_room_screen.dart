@@ -35,6 +35,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
 
+  // 축소 드래그 핸들 = 헤더(프로필 바) 영역. 메시지 스크롤과 당김이 겹치지 않도록
+  // 축소는 헤더를 잡아 내릴 때만 시작한다.
+  final _headerKey = GlobalKey();
+
+  bool _inHeader(Offset global) {
+    final box = _headerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return false;
+    return (box.localToGlobal(Offset.zero) & box.size).contains(global);
+  }
+
   // 2단계 축소 모션: 축소 완료 후 방 프로필 카드(0) → 목록 타일(1)로 변형.
   late final AnimationController _morph = AnimationController(
     vsync: this,
@@ -289,15 +299,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 헤더 히어로: 사진(블러+스크림, 밝음)=어두운 아이콘 / 무사진(primaryDark)=밝은 아이콘.
-    // AnnotatedRegion 이라 화면을 벗어나면 전역 기본(어두움)으로 자동 복원.
-    final headerHasPhoto =
-        _otherImageUrl != null || widget.room.otherNickname == '고객센터';
+    // 헤더 바가 상태바 아래에 떠 있고 상태바 뒤로는 흰 메시지 영역이 비치므로
+    // 아이콘은 항상 어둡게(무사진 방에서 흰 아이콘이 안 보이던 문제 방지).
     // 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 공통 래퍼(게시글 상세와 동일 언어).
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: headerHasPhoto
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.dark,
       child: CollapsibleView(
       originRect: widget.originRect,
       cardRadius: 16, // 채팅 목록 타일과 동일 곡률 — 안착 시 곡률 튐 방지.
@@ -311,32 +317,45 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       ),
       // 2단계: 축소가 타일 위치에 안착하면 방 프로필 → 목록 타일로 변형 후 pop.
       onSettled: () => _morph.forward(),
+      // 축소는 헤더(프로필 바)를 잡아 내릴 때만 — 메시지 스크롤과 충돌 방지.
+      dragHandleTest: _inHeader,
       scrollController: _scroll,
       // 채팅 목록 타일에서 확장되는 느낌을 강조 — 살짝 튕기며 열리고 시간도 조금 길게.
       expandDuration: const Duration(milliseconds: 520),
       expandCurve: Curves.easeOutBack,
       builder: (context, physics) => Scaffold(
         backgroundColor: Colors.white,
-        body: Column(
+        body: Stack(
           children: [
-            // 블롭 헤더 히어로 — 게시글 상세와 동일한 디자인 언어(상태바까지 채움,
-            // 오버레이 원형 버튼, 확장 완료 시 내려앉는 정착 애니메이션).
-            _ChatHeader(
-              room: widget.room,
-              imageUrl: _otherImageUrl,
-              onMenu: _openRoomMenu,
-            ),
-            Expanded(child: _buildMessages(physics)),
-            // 상대가 나간 방은 입력을 잠근다(서버도 INSERT 차단).
-            if (widget.room.otherLeft)
-              const _LockedBar()
-            else
-              _Composer(
-                controller: _ctrl,
-                sending: _sending,
-                onSend: _send,
-                onPickImage: _sendImage,
+            // 메시지 — 헤더 바 위(상태바 영역)와 입력창 아래(홈 인디케이터)까지
+            // 풀블리드로 확장되어, 오버레이 패널 뒤로 비치며 스크롤된다
+            // (탭 화면들의 플로팅 패널과 동일한 문법).
+            Positioned.fill(child: _buildMessages(physics)),
+            // 헤더 바 — 위 오버레이(블러 배경이라 뒤 메시지가 비친다).
+            // 이 영역이 축소 드래그 핸들이다(_inHeader).
+            Align(
+              alignment: Alignment.topCenter,
+              child: KeyedSubtree(
+                key: _headerKey,
+                child: _ChatHeader(
+                  room: widget.room,
+                  imageUrl: _otherImageUrl,
+                  onMenu: _openRoomMenu,
+                ),
               ),
+            ),
+            // 입력창 — 아래 오버레이. 상대가 나간 방은 입력을 잠근다(서버도 INSERT 차단).
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: widget.room.otherLeft
+                  ? const _LockedBar()
+                  : _Composer(
+                      controller: _ctrl,
+                      sending: _sending,
+                      onSend: _send,
+                      onPickImage: _sendImage,
+                    ),
+            ),
           ],
         ),
       ),
@@ -358,11 +377,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     }
     // reverse:true — 최신 메시지를 맨 아래에 두고 그 위치에서 렌더 시작(진입 시 점프 없음).
     // 데이터는 오래된→최신 순이라, 표시 인덱스는 뒤에서부터 읽는다.
+    // 패딩 — 평소엔 헤더 바 아래/입력창 위에서 시작·끝나되, 스크롤하면 그 뒤로
+    // 지나가며 비친다(리스트 자체는 풀블리드).
+    final topInset = MediaQuery.paddingOf(context).top;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     return ListView.builder(
       controller: _scroll,
       physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
       reverse: true,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        topInset + 8 + 72 + 16, // 상태바 + 헤더 바(72) + 간격
+        16,
+        bottomInset + 90, // 입력창(≈78) + 간격
+      ),
       itemCount: _messages.length,
       itemBuilder: (_, i) => _MessageBubble(
         message: _messages[_messages.length - 1 - i],
@@ -643,7 +671,8 @@ class _LockedBar extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+          // 흰색 셀로판지 — 뒤로 지나가는 메시지가 비친다(입력창과 동일).
+          color: AppColors.frostFilm,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.border, width: 0.5),
         ),
@@ -683,7 +712,8 @@ class _Composer extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
         padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          // 흰색 셀로판지 — 뒤로 지나가는 메시지가 비친다(상단 헤더·탭 패널과 동일).
+          color: AppColors.frostFilm,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.border, width: 0.5),
         ),

@@ -237,7 +237,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
     if (saved == true) {
       final fresh = await _repo.fetchPost(_post.id);
-      if (fresh != null && mounted) setState(() => _post = fresh);
+      if (!mounted) return;
+      if (fresh == null) {
+        // 수정 화면에서 삭제됨 → 상세도 닫는다(축소 전환 경유).
+        Navigator.of(context).maybePop();
+        return;
+      }
+      setState(() => _post = fresh);
     }
   }
 

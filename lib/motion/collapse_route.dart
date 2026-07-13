@@ -277,6 +277,7 @@ class CollapsibleView extends StatefulWidget {
     this.expandDuration = const Duration(milliseconds: 420),
     this.expandCurve = Curves.easeOutCubic,
     this.onSettled,
+    this.dragHandleTest,
   });
 
   final Rect? originRect;
@@ -297,6 +298,12 @@ class CollapsibleView extends StatefulWidget {
   /// 예) 채팅방 프로필 카드가 목록 타일 모습으로 변형되는 후속 애니메이션.
   /// 반환 Future 가 끝나면 라우트를 닫는다. null 이면 즉시 pop(기존 동작).
   final Future<void> Function()? onSettled;
+
+  /// 축소 드래그를 시작할 수 있는 위치 판정(포인터 다운의 전역 좌표).
+  /// null 이면 기존 동작(스크롤 최상단이면 화면 어디서나). 채팅방처럼 리스트
+  /// 스크롤과 당김이 겹쳐 애매한 화면은 헤더 등 특정 핸들 영역으로 제한한다
+  /// (이 경우 스크롤 위치와 무관하게 핸들에서만 시작).
+  final bool Function(Offset globalPosition)? dragHandleTest;
 
   @override
   State<CollapsibleView> createState() => _CollapsibleViewState();
@@ -357,8 +364,12 @@ class _CollapsibleViewState extends State<CollapsibleView>
     if (!mounted || _settling || !_collapsible) return;
     if (!_dragging) {
       final d = e.position - _dragStart;
-      // 최상단에서 아래로(세로 우세) 끌기 시작할 때만 축소 진입.
-      if (_atTop && d.dy > 8 && d.dy > d.dx.abs()) {
+      // 축소 진입 조건: 핸들 영역이 지정됐으면 그 안에서 시작한 드래그만,
+      // 아니면 기존처럼 스크롤 최상단에서. 이후 아래로(세로 우세) 끌기 시작.
+      final canStart = widget.dragHandleTest != null
+          ? widget.dragHandleTest!(_dragStart)
+          : _atTop;
+      if (canStart && d.dy > 8 && d.dy > d.dx.abs()) {
         _dragStart = e.position;
         _dragging = true; // 물리가 live 로 읽음(rebuild 불필요)
       }

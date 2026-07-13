@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../models/social.dart';
 import '../../models/pet_search.dart';
 import '../../services/social_repository.dart';
+import '../../widgets/app_search_field.dart';
 import '../../widgets/user_tile.dart';
 import '../../widgets/gradient_header.dart';
 import '../pet_profile_screen.dart';
@@ -172,31 +173,16 @@ class _UserSearchTabState extends State<UserSearchTab> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  TextField(
+                  AppSearchField(
                     controller: _ctrl,
                     autofocus: true,
-                    textInputAction: TextInputAction.search,
+                    hintText: '닉네임이나 반려동물의 이름으로 검색',
                     onChanged: _onChanged,
                     onSubmitted: (v) {
                       final q = v.trim();
                       if (q.isNotEmpty) _runSearch(q);
                     },
-                    decoration: InputDecoration(
-                      hintText: '닉네임이나 반려동물의 이름으로 검색',
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: AppColors.textSecondary,
-                      ),
-                      suffixIcon: _ctrl.text.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(
-                                Icons.close,
-                                color: AppColors.textTertiary,
-                              ),
-                              onPressed: _clear,
-                            ),
-                    ),
+                    onClear: _clear,
                   ),
                 ],
               ),
@@ -227,19 +213,26 @@ class _UserSearchTabState extends State<UserSearchTab> {
           _sectionHeader('반려동물'),
           for (final pet in _petResults)
             // 프로필이 열린 타일은 빈자리로 — 축소가 겹침 없이 안착.
-            Opacity(
-              key: _tileKeys.putIfAbsent('pet:${pet.id}', GlobalKey.new),
-              opacity: _openedTileId == 'pet:${pet.id}' ? 0 : 1,
-              child: PetSearchTile(pet: pet, onTap: () => _openPet(pet)),
+            // 타일 간격은 채팅 목록과 동일하게 10.
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Opacity(
+                key: _tileKeys.putIfAbsent('pet:${pet.id}', GlobalKey.new),
+                opacity: _openedTileId == 'pet:${pet.id}' ? 0 : 1,
+                child: PetSearchTile(pet: pet, onTap: () => _openPet(pet)),
+              ),
             ),
         ],
         if (_results.isNotEmpty) ...[
           _sectionHeader('보호자'),
           for (final c in _results)
-            Opacity(
-              key: _tileKeys.putIfAbsent('user:${c.userId}', GlobalKey.new),
-              opacity: _openedTileId == 'user:${c.userId}' ? 0 : 1,
-              child: UserTile(connection: c, onTap: () => _openUser(c)),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Opacity(
+                key: _tileKeys.putIfAbsent('user:${c.userId}', GlobalKey.new),
+                opacity: _openedTileId == 'user:${c.userId}' ? 0 : 1,
+                child: UserTile(connection: c, onTap: () => _openUser(c)),
+              ),
             ),
         ],
       ],

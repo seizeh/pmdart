@@ -72,7 +72,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   // 반려동물 포스터 확장/축소 — 게시글 상세와 동일 전환.
   String? _openedPetId;
 
-  // 핀 스택용: 인라인 섹션 타이틀들의 위치 측정.
+  // 섹션 타이틀 위치 캡처 — 도킹 판정 + 타이틀 탭 시 해당 섹션으로 스크롤 이동용.
   final _titleKeys = List.generate(3, (_) => GlobalKey());
   final List<double?> _titleReveal = [null, null, null];
 
@@ -148,12 +148,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   String _userTypeLabel(String t) => switch (t) {
-        'pet_owner' => '반려동물 보호자',
-        'no_pet' => '반려동물 미보유',
-        'business' => '업체',
-        'admin' => '관리자',
-        _ => t,
-      };
+    'pet_owner' => '반려동물 보호자',
+    'no_pet' => '반려동물 미보유',
+    'business' => '업체',
+    'admin' => '관리자',
+    _ => t,
+  };
 
   // ── 게시글 상세: 카드 자리에서 펼쳐지고/당기면 축소 (커뮤니티와 동일) ──
 
@@ -213,8 +213,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
     // 검색 타일에서 펼쳐지고/당기면 타일로 축소 — 게시글 상세와 동일 래퍼.
-    // 상단바 없는 몰입형: 사용자 정보 카드가 최상단에 핀 고정된 채 바로 수축하고,
-    // 섹션 타이틀들이 그 아래로 층층이 쌓인다.
+    // 상단바 없는 몰입형: 사용자 정보 카드만 최상단에 핀 고정된 채 제자리 수축하고,
+    // 섹션 타이틀·내용은 함께 스크롤되어 그 뒤로 지나간다.
     return CollapsibleView(
       originRect: widget.originRect,
       card: widget.cardBuilder,
@@ -236,8 +236,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('프로필을 불러오지 못했어요',
-                style: TextStyle(color: AppColors.textSecondary)),
+            const Text(
+              '프로필을 불러오지 못했어요',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
             const SizedBox(height: 12),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -246,15 +248,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
 
     final p = _profile!;
-    // 갈색 사용자 정보 카드는 최상단 핀 고정 — 스크롤해도 위로 밀리지 않고
-    // 그 자리에서 닉네임만 남은 긴 바로 수축(사라지지 않음). 섹션 타이틀들은
-    // 스크롤에 따라 그 아래로 층층이 쌓여 고정되고, 내용만 밑으로 흘러들어간다.
-    //
-    // 프레임워크의 pinned SliverPersistentHeader 는 여러 개를 층으로 쌓는 걸
-    // 지원하지 않아(레이아웃 검증 예외), 스크롤 오프셋 기반 오버레이로 직접
-    // 구현한다: 리스트에는 인라인 타이틀을 두고, 도킹 지점을 지나면 인라인을
-    // 숨기고 상단 핀 스택(오버레이)에 같은 모양으로 붙인다(자리가 정확히 이어져
-    // 스왑이 보이지 않는다).
+    // 갈색 사용자 정보 카드는 최상단 핀 고정 — 그 자리에서 닉네임 바로 수축.
+    // 섹션 타이틀 3개는 스크롤에 따라 계단으로 도킹되고, 마지막 계단까지 쌓인
+    // 뒤에는 계단 전체가 콘텐츠와 함께 위로 밀려 닉네임 바 뒤로 사라진다.
+    // 타이틀을 탭하면 그 섹션 위치로, 닉네임을 탭하면 최상단으로 이동.
     final headerMax = topInset + 8 + _kHeaderCardH + 12;
     final titles = [
       ('키우는 반려동물', p.pets.length),
@@ -304,14 +301,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             },
           ),
         ),
-        // 상단 핀 스택: 사용자 정보 헤더(수축) + 도킹된 섹션 타이틀들.
+        // 상단 핀: 사용자 정보 헤더(수축)만 고정 — 콘텐츠가 그 뒤로 지나간다.
         Positioned(
           top: 0,
           left: 0,
           right: 0,
           child: AnimatedBuilder(
             animation: _scroll,
-            builder: (context, _) => _pinnedStack(p, titles, topInset),
+            builder: (context, _) => _pinnedHeader(p, topInset),
           ),
         ),
       ],
@@ -319,8 +316,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   // ── 핀 스택(오버레이) 계산 ──
-  // 헤더: offset 에 따라 카드(248) → 닉네임 바(48)로 제자리 수축.
-  // 타이틀 i: 인라인 위치가 [헤더 바닥 + 44*i] 라인에 닿으면 도킹.
+  // 헤더: offset 에 따라 카드(360) → 닉네임 바(48)로 제자리 수축.
+  // 타이틀 i: 인라인 위치가 [헤더 바닥 + 44*i] 라인에 닿으면 도킹(계단 3개).
+  // 마지막 계단까지 도킹된 뒤(릴리즈 지점)에는 계단 스택 전체가 콘텐츠와 함께
+  // 위로 밀려 닉네임 바 뒤로 사라진다 — 닉네임만 남고 전체가 스크롤되는 구조.
 
   static const double _kHeaderCardH = 360; // 대표사진 히어로 카드(애플뮤직 스타일)
   static const double _kHeaderBarH = 48;
@@ -353,7 +352,37 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  /// 리스트 안의 인라인 타이틀 — 도킹되면 숨겨 오버레이 복제와 겹치지 않게 한다.
+  /// 섹션 타이틀 탭 → 그 타이틀이 자기 슬롯(닉네임 바 + 위 계단들 아래)에
+  /// 오도록 스크롤. 마지막 타이틀은 도킹된 두 계단 바로 아래 라인에 정렬.
+  void _scrollToSection(int i) {
+    final box = _titleKeys[i].currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !_scroll.hasClients) return;
+    final viewport = RenderAbstractViewport.maybeOf(box);
+    if (viewport == null) return;
+    final reveal = viewport.getOffsetToReveal(box, 0).offset;
+    final topInset = MediaQuery.paddingOf(context).top;
+    // 도착 시점의 헤더는 완전 수축(바) 상태 — 바 + 자기 위 계단 수만큼 내린 라인.
+    final target = (reveal - (topInset + 8 + _kHeaderBarH + 12 + _kTitleH * i))
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    _scroll.animateTo(
+      target,
+      duration: const Duration(milliseconds: 460),
+      curve: Curves.easeInOutCubicEmphasized,
+    );
+  }
+
+  /// 닉네임(헤더) 탭 → 최상단으로.
+  void _scrollToTop() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 460),
+      curve: Curves.easeInOutCubicEmphasized,
+    );
+  }
+
+  /// 리스트 안의 인라인 타이틀 — 도킹되면 숨겨 오버레이 복제와 겹치지 않게 하고,
+  /// 탭하면 그 섹션 위치로 스크롤한다.
   Widget _inlineTitle(int i, List<(String, int)> titles) {
     // 위쪽 콘텐츠(로딩/이미지)로 위치가 바뀔 수 있어 매 프레임 뒤 갱신(값 대입뿐).
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureTitles());
@@ -362,26 +391,75 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       key: _titleKeys[i],
       child: AnimatedBuilder(
         animation: _scroll,
-        builder: (context, child) => Opacity(
-          opacity: _isDocked(i, topInset) ? 0 : 1,
-          child: child,
+        builder: (context, child) =>
+            Opacity(opacity: _isDocked(i, topInset) ? 0 : 1, child: child),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _scrollToSection(i),
+          child: _titleBar(titles[i].$1, titles[i].$2),
         ),
-        child: _titleBar(titles[i].$1, titles[i].$2),
       ),
     );
   }
 
-  /// 상단 핀 스택 — 헤더(수축) + 도킹된 타이틀들이 층으로 쌓인다.
-  Widget _pinnedStack(
-      PublicProfileData p, List<(String, int)> titles, double topInset) {
+  /// 상단 핀 스택 — 헤더(수축) + 도킹된 계단 타이틀(3개).
+  /// 마지막 계단까지 도킹되면(릴리즈) 계단 스택 전체가 스크롤을 따라 위로 밀려
+  /// 닉네임 바 뒤로 사라진다. 도킹된 타이틀도 탭하면 그 섹션 위치로 이동한다.
+  Widget _pinnedHeader(PublicProfileData p, double topInset) {
     final t = ((_offset) / (_kHeaderCardH - _kHeaderBarH)).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+    final titles = [
+      ('키우는 반려동물', p.pets.length),
+      ('받은 평가', p.reviewCount),
+      ('작성한 게시글', _posts.length),
+    ];
+    // 릴리즈 지점 = 마지막 타이틀이 자기 슬롯에 도킹 완료되는 오프셋.
+    final base = topInset + 8 + _kHeaderBarH + 12; // 완전 수축 시 헤더 바닥
+    final lastReveal = _titleReveal[titles.length - 1];
+    final release = lastReveal == null
+        ? double.infinity
+        : lastReveal - base - _kTitleH * (titles.length - 1);
+    final slide = (_offset - release).clamp(0.0, double.infinity);
+    final headerBottomPx = _headerBottom(topInset);
+    // 가림판 높이 — 계단 스택 위쪽(이미 지나간 섹션 내용)을 흰색으로 덮는다.
+    // 릴리즈 후 스택이 올라가는 만큼 같이 걷혀, 스택이 지나간 자리부터는
+    // 현재 흐름의 콘텐츠가 닉네임 바 뒤로 그대로 비친다.
+    final backingH = (headerBottomPx - slide).clamp(0.0, headerBottomPx);
+
+    return Stack(
       children: [
+        // 스테일 콘텐츠 가림판 — 계단·헤더보다 먼저 그린다(밑에 깔림).
+        if (backingH > 0)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: backingH,
+            child: const AbsorbPointer(
+              child: ColoredBox(color: Colors.white),
+            ),
+          ),
+        // 계단 스택 — 릴리즈 후엔 콘텐츠와 같은 속도(-slide)로 올라가며 클립 없이
+        // 닉네임 바 뒤로 자연스럽게 지나간다(바가 덮는 부분만 가려짐).
+        Padding(
+          padding: EdgeInsets.only(top: headerBottomPx),
+          child: Transform.translate(
+            offset: Offset(0, -slide),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < titles.length; i++)
+                  if (_isDocked(i, topInset))
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _scrollToSection(i),
+                      child: _titleBar(titles[i].$1, titles[i].$2),
+                    ),
+              ],
+            ),
+          ),
+        ),
         _headerBox(p, t, topInset),
-        for (var i = 0; i < titles.length; i++)
-          if (_isDocked(i, topInset)) _titleBar(titles[i].$1, titles[i].$2),
       ],
     );
   }
@@ -420,50 +498,60 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   /// 사용자 정보 헤더 — 제자리 수축: 카드(사진·지역·통계) → 닉네임만 남은 긴 바.
+  /// 탭하면 최상단으로 스크롤.
   Widget _headerBox(PublicProfileData p, double t, double topInset) {
     final h = _kHeaderCardH - (_kHeaderCardH - _kHeaderBarH) * t;
     final fullOpacity = (1 - t * 1.8).clamp(0.0, 1.0);
     final barOpacity = ((t - 0.6) / 0.4).clamp(0.0, 1.0);
     final radius = 24.0 + (100.0 - 24.0) * t;
 
-    return Container(
-      color: Colors.white, // 밑을 지나는 콘텐츠 가림
+    // 자체 배경판 없음 — 스테일 콘텐츠 가림은 _pinnedHeader 의 가림판이 담당.
+    // 닉네임 바(불투명 브라운)만 남고, 주변으로는 계단·콘텐츠가 지나가는 게
+    // 보인다. 탭은 바 위에서만 받는다(최상단 이동).
+    return Padding(
       padding: EdgeInsets.fromLTRB(20, topInset + 8, 20, 12),
-      child: Container(
-        height: h,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: AppColors.primaryDark,
-          borderRadius: BorderRadius.circular(radius),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (fullOpacity > 0)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: _kHeaderCardH,
-                child: Opacity(opacity: fullOpacity, child: _fullHeaderCard(p)),
-              ),
-            if (barOpacity > 0)
-              Opacity(
-                opacity: barOpacity,
-                child: Center(
-                  child: Text(
-                    p.nickname,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textOnPrimary,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _scrollToTop,
+        child: Container(
+          height: h,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AppColors.primaryDark,
+            borderRadius: BorderRadius.circular(radius),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (fullOpacity > 0)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: _kHeaderCardH,
+                  child: Opacity(
+                    opacity: fullOpacity,
+                    child: _fullHeaderCard(p),
+                  ),
+                ),
+              if (barOpacity > 0)
+                Opacity(
+                  opacity: barOpacity,
+                  child: Center(
+                    child: Text(
+                      p.nickname,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textOnPrimary,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -629,21 +717,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       Container(width: 1, height: 28, color: const Color(0x4DFFFFFF));
 
   Widget _statCol(String label, int value) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$value',
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(label,
-              style: const TextStyle(fontSize: 10, color: Color(0xCCFFFFFF))),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        '$value',
+        style: const TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
+      const SizedBox(height: 1),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 10, color: Color(0xCCFFFFFF)),
+      ),
+    ],
+  );
 
   Widget _actions(PublicProfileData p) {
     return Row(
@@ -762,18 +852,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _emptyBox(String msg) => Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(vertical: 28),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(
-          child: Text(msg,
-              style:
-                  const TextStyle(fontSize: 13, color: AppColors.textTertiary)),
-        ),
-      );
+    margin: const EdgeInsets.symmetric(horizontal: 20),
+    padding: const EdgeInsets.symmetric(vertical: 28),
+    decoration: BoxDecoration(
+      color: AppColors.surfaceMuted,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Center(
+      child: Text(
+        msg,
+        style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
+      ),
+    ),
+  );
 }
 
 /// 작성한 게시글 그리드 타일 — 대표사진만 보여준다.
@@ -844,7 +935,6 @@ class PostPhotoTile extends StatelessWidget {
       ],
     );
   }
-
 }
 
 /// 받은 평가 태그 1개 — "친절해요 3" 형태의 칩.
@@ -960,8 +1050,9 @@ class _PetPosterCarouselState extends State<_PetPosterCarousel> {
                   width: i == _page ? 20 : 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color:
-                        i == _page ? AppColors.primaryDark : AppColors.border,
+                    color: i == _page
+                        ? AppColors.primaryDark
+                        : AppColors.border,
                     borderRadius: BorderRadius.circular(100),
                   ),
                 ),
@@ -1037,8 +1128,10 @@ class PetPosterCard extends StatelessWidget {
                 top: 14,
                 right: 14,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(100),
@@ -1046,8 +1139,11 @@ class PetPosterCard extends StatelessWidget {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.verified,
-                          size: 13, color: AppColors.primaryDark),
+                      Icon(
+                        Icons.verified,
+                        size: 13,
+                        color: AppColors.primaryDark,
+                      ),
                       SizedBox(width: 3),
                       Text(
                         '인증',
@@ -1104,9 +1200,9 @@ class _PosterPlaceholder extends StatelessWidget {
   const _PosterPlaceholder();
   @override
   Widget build(BuildContext context) => const ColoredBox(
-        color: AppColors.primarySoft,
-        child: Center(
-          child: Icon(Icons.pets, size: 64, color: AppColors.primaryDark),
-        ),
-      );
+    color: AppColors.primarySoft,
+    child: Center(
+      child: Icon(Icons.pets, size: 64, color: AppColors.primaryDark),
+    ),
+  );
 }

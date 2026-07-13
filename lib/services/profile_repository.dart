@@ -97,6 +97,23 @@ class ProfileRepository {
     );
   }
 
+  /// 동네 인증이 유효한지(인증됨 + 30일 이내) — 게시글 작성 전 안내 게이트.
+  /// 서버(create_post_verified)도 같은 규칙으로 최종 차단하므로 여긴 UX 용.
+  /// 30일은 pmdb REVERIFY_DAYS·위치기반서비스 약관과 동일하게 유지할 것.
+  Future<bool> isRegionVerificationFresh() async {
+    final user = SessionManager.instance.user;
+    if (user == null) return false;
+    final row = await _c
+        .from('users')
+        .select('is_location_verified, last_verified_at')
+        .eq('id', user.id)
+        .maybeSingle();
+    if (row?['is_location_verified'] != true) return false;
+    final at = DateTime.tryParse((row?['last_verified_at'] as String?) ?? '');
+    if (at == null) return false;
+    return DateTime.now().difference(at).inDays < 30;
+  }
+
   /// 타 사용자 공개 프로필 조회 (사용자 검색 → 프로필).
   /// 공개 뷰/공개 정책으로 읽을 수 있는 범위만 채운다.
   Future<PublicProfileData> fetchPublicProfile(String userId) async {

@@ -11,6 +11,7 @@ import '../services/report_repository.dart';
 import '../services/storage_service.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/report_sheet.dart';
+import 'user_profile_screen.dart';
 
 /// 채팅방 — 메시지 목록(실데이터) + 전송 + 실시간 수신.
 class ChatRoomScreen extends StatefulWidget {
@@ -43,6 +44,56 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     final box = _headerKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return false;
     return (box.localToGlobal(Offset.zero) & box.size).contains(global);
+  }
+
+  // 프로필 확장 전환용 — 헤더 바(패딩 제외) 위치 캡처 + 열린 동안 원본 숨김.
+  final _profileBarKey = GlobalKey();
+  bool _profileOpen = false;
+
+  /// 축소 안착 시 크로스페이드될 헤더 바 모습(원본과 동일한 그림).
+  Widget _headerBarCard() {
+    final hasPhoto =
+        _otherImageUrl != null || widget.room.otherNickname == '고객센터';
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _ChatBlurBg(
+            imageUrl: _otherImageUrl,
+            nickname: widget.room.otherNickname,
+          ),
+          _ChatBarForeground(room: widget.room, hasPhoto: hasPhoto, m: 0),
+        ],
+      ),
+    );
+  }
+
+  /// 헤더(프로필 바) 탭 → 상대 프로필이 바 자리에서 펼쳐지고, 당기면 그 자리로
+  /// 축소된다(사용자 검색 타일 → 프로필과 동일한 전환).
+  Future<void> _openOtherProfile() async {
+    final uid = widget.room.otherUserId;
+    if (uid == null) return; // 고객센터/알 수 없음
+    final box =
+        _profileBarKey.currentContext?.findRenderObject() as RenderBox?;
+    final rect = (box != null && box.hasSize)
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    final page = UserProfileScreen(
+      userId: uid,
+      previewNickname: widget.room.otherNickname,
+      originRect: rect,
+      cardBuilder: rect == null ? null : (_) => _headerBarCard(),
+      cardRadius: 16, // 헤더 바 곡률과 동일
+    );
+    if (rect != null) setState(() => _profileOpen = true);
+    await Navigator.push(
+      context,
+      rect == null
+          ? AppPageRoute(builder: (_) => page)
+          : CollapseRoute(builder: (_) => page),
+    );
+    if (mounted) setState(() => _profileOpen = false);
   }
 
   // 2단계 축소 모션: 축소 완료 후 방 프로필 카드(0) → 목록 타일(1)로 변형.
@@ -341,6 +392,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   room: widget.room,
                   imageUrl: _otherImageUrl,
                   onMenu: _openRoomMenu,
+                  onProfileTap:
+                      widget.room.otherUserId == null ? null : _openOtherProfile,
+                  barKey: _profileBarKey,
+                  barHidden: _profileOpen,
                 ),
               ),
             ),
@@ -407,10 +462,23 @@ class _ChatHeader extends StatelessWidget {
   final ChatRoomSummary room;
   final String? imageUrl;
   final VoidCallback onMenu;
+
+  /// 헤더(프로필 바) 탭 → 상대 프로필 상세. null 이면 탭 없음(고객센터 등).
+  final VoidCallback? onProfileTap;
+
+  /// 바(패딩 제외) 위치 캡처용 — 프로필 확장 전환의 originRect.
+  final GlobalKey? barKey;
+
+  /// 프로필이 열려 있는 동안 바를 빈자리로(축소가 겹침 없이 안착).
+  final bool barHidden;
+
   const _ChatHeader({
     required this.room,
     required this.imageUrl,
     required this.onMenu,
+    this.onProfileTap,
+    this.barKey,
+    this.barHidden = false,
   });
 
   @override
@@ -423,20 +491,33 @@ class _ChatHeader extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(20, topPad + 8, 20, 6),
       child: SizedBox(
         height: 72,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _ChatBlurBg(imageUrl: imageUrl, nickname: room.otherNickname),
-              // 방 프로필 모습(m=0) — 축소 중엔 변형하지 않음.
-              _ChatBarForeground(
-                room: room,
-                hasPhoto: hasPhoto,
-                m: 0,
-                onMenu: onMenu,
+        child: Opacity(
+          opacity: barHidden ? 0.0 : 1.0,
+          child: KeyedSubtree(
+            key: barKey,
+            child: GestureDetector(
+              // 탭 = 상대 프로필. 아래로 당기는 축소 드래그(raw pointer)와는 별개라 공존.
+              onTap: onProfileTap,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _ChatBlurBg(
+                      imageUrl: imageUrl,
+                      nickname: room.otherNickname,
+                    ),
+                    // 방 프로필 모습(m=0) — 축소 중엔 변형하지 않음.
+                    _ChatBarForeground(
+                      room: room,
+                      hasPhoto: hasPhoto,
+                      m: 0,
+                      onMenu: onMenu,
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),

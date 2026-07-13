@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
-import '../motion/pressable.dart';
-import '../motion/heart_burst.dart';
+import '../motion/motion.dart';
+import '../screen/user_profile_screen.dart';
 import 'role_badge.dart';
 import 'blob_background.dart';
 
@@ -196,12 +196,30 @@ class PostCard extends StatelessWidget {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          Text(
-                            post.authorNickname,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xE6FFFFFF),
+                          // 닉네임 탭 → 작성자 프로필(안쪽 제스처가 카드 탭보다 우선).
+                          // 오프스크린 원점 — 아래에서 떠오르고, 당기거나 뒤로가기
+                          // 하면 아래로 내려가며 닫힌다(모달 문법).
+                          GestureDetector(
+                            onTap: post.userId.isEmpty
+                                ? null
+                                : () => Navigator.push(
+                                      context,
+                                      CollapseRoute(
+                                        builder: (_) => UserProfileScreen(
+                                          userId: post.userId,
+                                          previewNickname: post.authorNickname,
+                                          originRect: riseOriginRect(context),
+                                          cardRadius: 24,
+                                        ),
+                                      ),
+                                    ),
+                            child: Text(
+                              post.authorNickname,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xE6FFFFFF),
+                              ),
                             ),
                           ),
                           const Spacer(),

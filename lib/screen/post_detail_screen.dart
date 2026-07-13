@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import '../motion/motion.dart';
+import 'user_profile_screen.dart';
 import '../theme/app_colors.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
@@ -363,11 +364,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: OverlayIconButton(
-            icon: Icons.arrow_back,
-            tooltip: '뒤로',
-            onPressed: () => Navigator.maybePop(context),
-          ),
+          // 뒤로가기 버튼 없음 — 아래로 당겨 카드로 축소하거나 시스템 뒤로가기
+          // (프로필·펫 상세와 동일한 몰입형).
+          automaticallyImplyLeading: false,
           actions: [
             if (_isMyPost)
               OverlayIconButton(
@@ -585,12 +584,29 @@ class _AuthorRow extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              post.authorNickname,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+            // 닉네임 탭 → 작성자 프로필. 피드 카드의 닉네임과 동일한 모달 문법 —
+            // 아래에서 떠오르고, 당기거나 뒤로가기 하면 아래로 내려가며 닫힌다.
+            GestureDetector(
+              onTap: post.userId.isEmpty
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        CollapseRoute(
+                          builder: (_) => UserProfileScreen(
+                            userId: post.userId,
+                            previewNickname: post.authorNickname,
+                            originRect: riseOriginRect(context),
+                            cardRadius: 24,
+                          ),
+                        ),
+                      ),
+              child: Text(
+                post.authorNickname,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
             const SizedBox(height: 2),

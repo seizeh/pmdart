@@ -1,6 +1,14 @@
 import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
+/// 아래에서 위로 떠오르는 모달형 원점 — [CollapsibleView.originRect] 에 넘기면
+/// 화면이 하단(오프스크린)에서 슬라이드 업으로 등장하고, 당기거나 뒤로가기 시
+/// 아래로 내려가며 닫힌다. 카드 크로스페이드는 생략(card: null).
+Rect riseOriginRect(BuildContext context) {
+  final size = MediaQuery.sizeOf(context);
+  return Rect.fromLTWH(0, size.height, size.width, size.height);
+}
+
 /// 투명 통과 라우트 — 아래 화면(피드)이 그대로 비쳐 보인다.
 ///
 /// 카드에서 펼쳐지고/카드로 축소되는 **모든 시각 효과와 제스처는 화면 내부의
@@ -419,14 +427,17 @@ class _CollapsibleViewState extends State<CollapsibleView>
     if (!_collapsible) return content;
 
     final origin = widget.originRect!;
-    final cardWidget = Material(
-      type: MaterialType.transparency,
-      child: SizedBox(
-        width: origin.width,
-        height: origin.height,
-        child: widget.card!(context),
-      ),
-    );
+    // card 가 없으면(오프스크린 원점 모달 등) 크로스페이드 없이 콘텐츠만 이동.
+    final cardWidget = widget.card == null
+        ? null
+        : Material(
+            type: MaterialType.transparency,
+            child: SizedBox(
+              width: origin.width,
+              height: origin.height,
+              child: widget.card!(context),
+            ),
+          );
     return PopScope(
       canPop: _settling,
       onPopInvokedWithResult: (didPop, _) {
@@ -449,7 +460,8 @@ class _CollapsibleViewState extends State<CollapsibleView>
 
   /// 풀스크린 콘텐츠를 _cc 에 따라 카드로 균일 축소·클립하고, 카드 크기에서 실제 카드로
   /// 크로스페이드(피드 카드와 동일). 게시글 상세와 완전히 동일한 시각 언어.
-  Widget _wrapCollapse(BuildContext context, Widget child, Widget cardWidget) {
+  /// [cardWidget] 이 null 이면 크로스페이드 없이 콘텐츠가 불투명하게 이동만 한다.
+  Widget _wrapCollapse(BuildContext context, Widget child, Widget? cardWidget) {
     final origin = widget.originRect!;
     final size = MediaQuery.of(context).size;
     final w = size.width;
@@ -461,7 +473,8 @@ class _CollapsibleViewState extends State<CollapsibleView>
     final scale = win.width / w;
     final radius = widget.cardRadius * (t * 2).clamp(0.0, 1.0);
     final scrim = 0.32 * p;
-    final cardFade = ((t - 0.5) / 0.5).clamp(0.0, 1.0);
+    final cardFade =
+        cardWidget == null ? 0.0 : ((t - 0.5) / 0.5).clamp(0.0, 1.0);
 
     return Stack(
       fit: StackFit.expand,
@@ -496,7 +509,7 @@ class _CollapsibleViewState extends State<CollapsibleView>
                       ),
                     ),
                   ),
-                if (cardFade > 0)
+                if (cardWidget != null && cardFade > 0)
                   Opacity(
                     opacity: cardFade,
                     child: Align(

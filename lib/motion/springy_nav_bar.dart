@@ -112,7 +112,8 @@ class _SpringyNavBarState extends State<SpringyNavBar>
                   const pillH = 36.0;
                   final pillCenterX = (pos + 0.5) * itemW;
 
-                  final pill = widget.pillColor ??
+                  final pill =
+                      widget.pillColor ??
                       context.colors.primaryDark.withValues(alpha: 0.08);
                   return Stack(
                     children: [

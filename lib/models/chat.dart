@@ -1,8 +1,9 @@
 /// 채팅 도메인 모델 (Supabase 실데이터).
 library;
 
-DateTime _date(dynamic v) =>
-    v == null ? DateTime.fromMillisecondsSinceEpoch(0) : DateTime.parse(v as String).toLocal();
+DateTime _date(dynamic v) => v == null
+    ? DateTime.fromMillisecondsSinceEpoch(0)
+    : DateTime.parse(v as String).toLocal();
 
 /// 채팅방 목록 항목 (v_chat_rooms 뷰).
 class ChatRoomSummary {
@@ -34,17 +35,17 @@ class ChatRoomSummary {
   bool get isSupport => otherNickname == '고객센터';
 
   factory ChatRoomSummary.fromJson(Map<String, dynamic> j) => ChatRoomSummary(
-        id: j['id'] as String,
-        otherNickname: (j['other_nickname'] ?? '알 수 없음') as String,
-        otherUserId: j['other_user_id'] as String?,
-        lastMessage: (j['last_message_preview'] ?? '') as String,
-        lastMessageAt: j['last_message_at'] == null
-            ? null
-            : DateTime.parse(j['last_message_at'] as String).toLocal(),
-        unreadCount: (j['unread_count'] as num?)?.toInt() ?? 0,
-        otherLeft: j['other_left'] == true,
-        otherProfileImageUrl: j['other_profile_image_url'] as String?,
-      );
+    id: j['id'] as String,
+    otherNickname: (j['other_nickname'] ?? '알 수 없음') as String,
+    otherUserId: j['other_user_id'] as String?,
+    lastMessage: (j['last_message_preview'] ?? '') as String,
+    lastMessageAt: j['last_message_at'] == null
+        ? null
+        : DateTime.parse(j['last_message_at'] as String).toLocal(),
+    unreadCount: (j['unread_count'] as num?)?.toInt() ?? 0,
+    otherLeft: j['other_left'] == true,
+    otherProfileImageUrl: j['other_profile_image_url'] as String?,
+  );
 }
 
 /// 채팅 메시지 (chat_messages). 텍스트 또는 사진(image_url) 메시지.

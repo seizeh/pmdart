@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../services/activity_repository.dart';
 
 /// 차단 사용자 관리 — 목록 + 차단 해제.
@@ -44,8 +44,9 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('해제에 실패했어요'),
-              behavior: SnackBarBehavior.floating),
+            content: Text('해제에 실패했어요'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
@@ -54,7 +55,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('차단 사용자 관리')),
       body: SafeArea(child: _body()),
     );
@@ -63,14 +64,23 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_items.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.block_outlined, size: 48, color: AppColors.textTertiary),
+            Icon(
+              Icons.block_outlined,
+              size: 48,
+              color: context.colors.textTertiary,
+            ),
             SizedBox(height: 12),
-            Text('차단한 사용자가 없어요',
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            Text(
+              '차단한 사용자가 없어요',
+              style: TextStyle(
+                fontSize: 14,
+                color: context.colors.textSecondary,
+              ),
+            ),
           ],
         ),
       );
@@ -79,7 +89,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       itemCount: _items.length,
       separatorBuilder: (_, _) =>
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: context.colors.border),
       itemBuilder: (_, i) {
         final item = _items[i];
         final nickname = (item['nickname'] ?? '알 수 없음') as String;
@@ -89,21 +99,25 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: AppColors.surfaceMuted,
+                backgroundColor: context.colors.surfaceMuted,
                 child: Text(
                   nickname.isEmpty ? '?' : nickname.characters.first,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textSecondary,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(nickname,
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary)),
+                child: Text(
+                  nickname,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
               ),
               OutlinedButton(
                 onPressed: () => _unblock(item),

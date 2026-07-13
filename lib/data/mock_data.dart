@@ -55,7 +55,8 @@ class MockPet {
 /// 커뮤니티 게시글
 class MockPost {
   final String id;
-  final String category; // walk_together / walk_proxy / care / give_away / adoption / free
+  final String
+  category; // walk_together / walk_proxy / care / give_away / adoption / free
   final String title;
   final String content;
   final String authorNickname;
@@ -146,7 +147,8 @@ class MockData {
       id: 'post1',
       category: 'walk_together',
       title: '동탄2동 저녁 산책 메이트 구해요',
-      content: '매일 저녁 7시쯤 호수공원에서 산책해요. 비슷한 시간대에 함께 걸으실 분 있나요? 우리 콩이는 순둥이라 다른 강아지랑도 잘 지내요!',
+      content:
+          '매일 저녁 7시쯤 호수공원에서 산책해요. 비슷한 시간대에 함께 걸으실 분 있나요? 우리 콩이는 순둥이라 다른 강아지랑도 잘 지내요!',
       authorNickname: '우진',
       authorUserType: 'pet_owner',
       createdAt: _now.subtract(const Duration(hours: 2)),
@@ -260,11 +262,11 @@ String timeAgo(DateTime time, {DateTime? now}) {
 
 /// 카테고리 라벨 헬퍼.
 String categoryLabel(String category) => switch (category) {
-      'walk_together' => '동반산책',
-      'walk_proxy' => '대리산책',
-      'care' => '돌봄',
-      'give_away' => '분양',
-      'adoption' => '입양',
-      'free' => '자유',
-      _ => category,
-    };
+  'walk_together' => '동반산책',
+  'walk_proxy' => '대리산책',
+  'care' => '돌봄',
+  'give_away' => '분양',
+  'adoption' => '입양',
+  'free' => '자유',
+  _ => category,
+};

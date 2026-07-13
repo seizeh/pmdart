@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import 'auth/login_screen.dart';
 import 'auth/signup_phone_screen.dart';
 import 'main_screen.dart';
@@ -13,7 +13,7 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.colors.cream,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
@@ -34,7 +34,7 @@ class WelcomeScreen extends StatelessWidget {
                   style: GoogleFonts.baloo2(
                     fontSize: 34,
                     fontWeight: FontWeight.w800, // 두껍게
-                    color: AppColors.primaryDark,
+                    color: context.colors.primaryDark,
                     letterSpacing: 1.0,
                     height: 1.4,
                   ),
@@ -60,16 +60,14 @@ class WelcomeScreen extends StatelessWidget {
               TextButton(
                 onPressed: () => Navigator.pushReplacement(
                   context,
-                  AppPageRoute(
-                    builder: (_) => const MainScreen(isGuest: true),
-                  ),
+                  AppPageRoute(builder: (_) => const MainScreen(isGuest: true)),
                 ),
-                child: const Text(
+                child: Text(
                   '로그인 없이 둘러보기',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: context.colors.textSecondary,
                     decoration: TextDecoration.underline,
-                    decorationColor: AppColors.textTertiary,
+                    decorationColor: context.colors.textTertiary,
                     fontSize: 14,
                   ),
                 ),

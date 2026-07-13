@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../services/admin_repository.dart';
 import 'admin_theme.dart';
 
@@ -54,27 +54,36 @@ class _AdminMetricsScreenState extends State<AdminMetricsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: adminAppBar('운영 지표 · 비용'),
+      backgroundColor: context.colors.background,
+      appBar: adminAppBar(context, '운영 지표 · 비용'),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : (_error != null || _m == null)
-                  ? ListView(children: [
-                      const SizedBox(height: 120),
-                      Center(
-                        child: Column(children: [
-                          Text(_error ?? '지표를 불러오지 못했어요',
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary)),
+              ? ListView(
+                  children: [
+                    const SizedBox(height: 120),
+                    Center(
+                      child: Column(
+                        children: [
+                          Text(
+                            _error ?? '지표를 불러오지 못했어요',
+                            style: TextStyle(
+                              color: context.colors.textSecondary,
+                            ),
+                          ),
                           TextButton(
-                              onPressed: _load, child: const Text('다시 시도')),
-                        ]),
+                            onPressed: _load,
+                            child: const Text('다시 시도'),
+                          ),
+                        ],
                       ),
-                    ])
-                  : _content(_m!),
+                    ),
+                  ],
+                )
+              : _content(_m!),
         ),
       ),
     );
@@ -101,8 +110,7 @@ class _AdminMetricsScreenState extends State<AdminMetricsScreen> {
           unit: '건',
         ),
         const SizedBox(height: 10),
-        _SuccessRateBar(
-            pass: m.aiPass, fail: m.aiFail, rate: m.aiSuccessRate),
+        _SuccessRateBar(pass: m.aiPass, fail: m.aiFail, rate: m.aiSuccessRate),
         const SizedBox(height: 10),
         _CostCard(
           title: 'AI 예상 비용',
@@ -142,16 +150,18 @@ class _AdminMetricsScreenState extends State<AdminMetricsScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
             alignment: Alignment.center,
-            decoration: _boxDeco(),
-            child: const Text('실패한 인증이 없어요',
-                style: TextStyle(color: AppColors.textSecondary)),
+            decoration: _boxDeco(context),
+            child: Text(
+              '실패한 인증이 없어요',
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
           )
         else
           ..._fails.map((f) => _FailTile(f: f)),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           '※ 비용은 로그가 없어 단가 × 건수로 추정한 값이에요. 실제 청구액과 다를 수 있어요.',
-          style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+          style: TextStyle(fontSize: 11, color: context.colors.textTertiary),
         ),
         const SizedBox(height: 24),
       ],
@@ -159,15 +169,16 @@ class _AdminMetricsScreenState extends State<AdminMetricsScreen> {
   }
 }
 
-BoxDecoration _boxDeco({bool danger = false}) => BoxDecoration(
+BoxDecoration _boxDeco(BuildContext context, {bool danger = false}) =>
+    BoxDecoration(
       color: danger
-          ? AppColors.danger.withValues(alpha: 0.06)
-          : AppColors.surface,
+          ? context.colors.danger.withValues(alpha: 0.06)
+          : context.colors.surface,
       borderRadius: BorderRadius.circular(16),
       border: Border.all(
         color: danger
-            ? AppColors.danger.withValues(alpha: 0.35)
-            : AppColors.border,
+            ? context.colors.danger.withValues(alpha: 0.35)
+            : context.colors.border,
         width: 0.5,
       ),
     );
@@ -193,10 +204,10 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w700,
-        color: AppColors.textSecondary,
+        color: context.colors.textSecondary,
       ),
     );
   }
@@ -210,11 +221,10 @@ class _DauCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final series = m.dauSeries;
-    final maxC =
-        series.fold<int>(1, (p, e) => e.count > p ? e.count : p);
+    final maxC = series.fold<int>(1, (p, e) => e.count > p ? e.count : p);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: _boxDeco(),
+      decoration: _boxDeco(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -224,18 +234,22 @@ class _DauCard extends StatelessWidget {
             children: [
               Text(
                 '${m.dauToday}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.primaryDark,
+                  color: context.colors.primaryDark,
                 ),
               ),
               const SizedBox(width: 6),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(bottom: 4),
-                child: Text('명 · 오늘',
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
+                child: Text(
+                  '명 · 오늘',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
               ),
             ],
           ),
@@ -254,16 +268,18 @@ class _DauCard extends StatelessWidget {
                         children: [
                           Text(
                             series[i].count == 0 ? '' : '${series[i].count}',
-                            style: const TextStyle(
-                                fontSize: 9, color: AppColors.textTertiary),
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: context.colors.textTertiary,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Container(
                             height: (series[i].count / maxC) * 46 + 3,
                             decoration: BoxDecoration(
                               color: i == series.length - 1
-                                  ? AppColors.adminAccent
-                                  : AppColors.primary,
+                                  ? context.colors.adminAccent
+                                  : context.colors.primary,
                               borderRadius: BorderRadius.circular(3),
                             ),
                           ),
@@ -278,15 +294,27 @@ class _DauCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(series.isEmpty ? '' : series.first.day,
-                  style: const TextStyle(
-                      fontSize: 10, color: AppColors.textTertiary)),
-              const Text('최근 14일',
-                  style: TextStyle(
-                      fontSize: 10, color: AppColors.textTertiary)),
-              Text(series.isEmpty ? '' : series.last.day,
-                  style: const TextStyle(
-                      fontSize: 10, color: AppColors.textTertiary)),
+              Text(
+                series.isEmpty ? '' : series.first.day,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: context.colors.textTertiary,
+                ),
+              ),
+              Text(
+                '최근 14일',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: context.colors.textTertiary,
+                ),
+              ),
+              Text(
+                series.isEmpty ? '' : series.last.day,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: context.colors.textTertiary,
+                ),
+              ),
             ],
           ),
         ],
@@ -310,68 +338,82 @@ class _PeriodCounts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget cell(String label, int v) => Expanded(
-          child: Column(
-            children: [
-              Text(_n(v),
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary)),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary)),
-            ],
+      child: Column(
+        children: [
+          Text(
+            _n(v),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: context.colors.textPrimary,
+            ),
           ),
-        );
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: context.colors.textSecondary),
+          ),
+        ],
+      ),
+    );
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: _boxDeco(),
+      decoration: _boxDeco(context),
       child: Row(
         children: [
           cell('오늘', today),
-          _divider(),
+          _divider(context),
           cell('7일', d7),
-          _divider(),
+          _divider(context),
           cell('30일', d30),
-          _divider(),
+          _divider(context),
           cell('전체', total),
         ],
       ),
     );
   }
 
-  Widget _divider() => Container(
-      width: 0.5, height: 34, color: AppColors.border);
+  Widget _divider(BuildContext context) =>
+      Container(width: 0.5, height: 34, color: context.colors.border);
 }
 
 /// AI 인증 성공률 막대.
 class _SuccessRateBar extends StatelessWidget {
   final int pass, fail;
   final double rate;
-  const _SuccessRateBar(
-      {required this.pass, required this.fail, required this.rate});
+  const _SuccessRateBar({
+    required this.pass,
+    required this.fail,
+    required this.rate,
+  });
 
   @override
   Widget build(BuildContext context) {
     final pct = (rate * 100);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: _boxDeco(),
+      decoration: _boxDeco(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('인증 성공률',
-                  style: TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary)),
-              Text('${pct.toStringAsFixed(pass + fail == 0 ? 0 : 1)}%',
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primaryDark)),
+              Text(
+                '인증 성공률',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.textSecondary,
+                ),
+              ),
+              Text(
+                '${pct.toStringAsFixed(pass + fail == 0 ? 0 : 1)}%',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: context.colors.primaryDark,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -380,15 +422,15 @@ class _SuccessRateBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: rate.clamp(0.0, 1.0),
               minHeight: 8,
-              backgroundColor: AppColors.danger.withValues(alpha: 0.18),
-              valueColor:
-                  const AlwaysStoppedAnimation(AppColors.primaryDark),
+              backgroundColor: context.colors.danger.withValues(alpha: 0.18),
+              valueColor: AlwaysStoppedAnimation(context.colors.primaryDark),
             ),
           ),
           const SizedBox(height: 8),
-          Text('성공 ${_n(pass)}건 · 실패 ${_n(fail)}건',
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textTertiary)),
+          Text(
+            '성공 ${_n(pass)}건 · 실패 ${_n(fail)}건',
+            style: TextStyle(fontSize: 11, color: context.colors.textTertiary),
+          ),
         ],
       ),
     );
@@ -412,48 +454,58 @@ class _CostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget line(String label, int v, {bool strong = false}) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label,
-                  style: TextStyle(
-                      fontSize: strong ? 14 : 13,
-                      fontWeight: strong ? FontWeight.w700 : FontWeight.w400,
-                      color: strong
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary)),
-              Text(_won(v),
-                  style: TextStyle(
-                      fontSize: strong ? 16 : 14,
-                      fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
-                      color: strong
-                          ? AppColors.primaryDark
-                          : AppColors.textPrimary)),
-            ],
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: strong ? 14 : 13,
+              fontWeight: strong ? FontWeight.w700 : FontWeight.w400,
+              color: strong
+                  ? context.colors.textPrimary
+                  : context.colors.textSecondary,
+            ),
           ),
-        );
+          Text(
+            _won(v),
+            style: TextStyle(
+              fontSize: strong ? 16 : 14,
+              fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+              color: strong
+                  ? context.colors.primaryDark
+                  : context.colors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: _boxDeco(),
+      decoration: _boxDeco(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary)),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 8),
           line('오늘', today),
           line('최근 7일', d7),
           line('최근 30일', d30),
-          const Divider(height: 16, color: AppColors.border),
+          Divider(height: 16, color: context.colors.border),
           line('누적(전체)', all, strong: true),
           const SizedBox(height: 8),
-          Text(basis,
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textTertiary)),
+          Text(
+            basis,
+            style: TextStyle(fontSize: 11, color: context.colors.textTertiary),
+          ),
         ],
       ),
     );
@@ -474,22 +526,29 @@ class _FailTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
-      decoration: _boxDeco(danger: true),
+      decoration: _boxDeco(context, danger: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Expanded(
-                child: Text(f.failLabel,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.danger)),
+                child: Text(
+                  f.failLabel,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.danger,
+                  ),
+                ),
               ),
-              Text(_when(f.createdAt),
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary)),
+              Text(
+                _when(f.createdAt),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.colors.textTertiary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
@@ -497,14 +556,17 @@ class _FailTile extends StatelessWidget {
             '${f.nickname}'
             '${f.aiMatchScore != null ? ' · 유사도 ${(f.aiMatchScore! * 100).toStringAsFixed(0)}%' : ''}'
             '${f.regionMatched ? ' · 동네 일치' : ''}',
-            style: const TextStyle(
-                fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
           ),
           if (f.aiReason != null && f.aiReason!.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text('AI: ${f.aiReason}',
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.textTertiary)),
+            Text(
+              'AI: ${f.aiReason}',
+              style: TextStyle(
+                fontSize: 11,
+                color: context.colors.textTertiary,
+              ),
+            ),
           ],
         ],
       ),

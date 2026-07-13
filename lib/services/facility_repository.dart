@@ -34,19 +34,19 @@ class Facility {
   bool get isNaver => source == 'naver';
 
   factory Facility.fromJson(Map<String, dynamic> j) => Facility(
-        id: j['id'] as String,
-        category: (j['category'] ?? '') as String,
-        name: (j['name'] ?? '') as String,
-        address: j['address'] as String?,
-        phone: j['phone'] as String?,
-        isOpen: j['is_open'] == true,
-        lat: (j['lat'] as num).toDouble(),
-        lng: (j['lng'] as num).toDouble(),
-        distanceM: (j['distance_m'] as num?)?.toDouble() ?? 0,
-        source: (j['source'] ?? 'localdata') as String,
-        avgRating: (j['avg_rating'] as num?)?.toDouble() ?? 0,
-        reviewCount: (j['review_count'] as num?)?.toInt() ?? 0,
-      );
+    id: j['id'] as String,
+    category: (j['category'] ?? '') as String,
+    name: (j['name'] ?? '') as String,
+    address: j['address'] as String?,
+    phone: j['phone'] as String?,
+    isOpen: j['is_open'] == true,
+    lat: (j['lat'] as num).toDouble(),
+    lng: (j['lng'] as num).toDouble(),
+    distanceM: (j['distance_m'] as num?)?.toDouble() ?? 0,
+    source: (j['source'] ?? 'localdata') as String,
+    avgRating: (j['avg_rating'] as num?)?.toDouble() ?? 0,
+    reviewCount: (j['review_count'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// 분양업(pet_sales) 신뢰도 등급. 사업자 업종만 '반려동물판매업'으로 등록하고
@@ -71,7 +71,14 @@ class PetSalesScore {
 // '캐터리'·'켄넬샵' 등은 '캐터'·'켄넬'에 부분일치로 포함된다.
 const _salesPositiveWords = ['분양', '켄넬', '캐터', '브리더', '브리딩'];
 const _salesNegativeWords = [
-  '(주)', '㈜', '주식회사', '컴퍼니', '홀딩스', '용품', 'company', 'holdings'
+  '(주)',
+  '㈜',
+  '주식회사',
+  '컴퍼니',
+  '홀딩스',
+  '용품',
+  'company',
+  'holdings',
 ];
 
 // 예외 화이트리스트: 상호에 (주) 등 감점 단어가 있어도 실제 분양 전문 브랜드/체인은
@@ -94,9 +101,15 @@ PetSalesScore? evaluatePetSales(Facility f) {
   if (f.category != 'pet_sales') return null;
   final name = f.name;
   final lower = name.toLowerCase();
-  final pos = [for (final w in _salesPositiveWords) if (name.contains(w)) w];
+  final pos = [
+    for (final w in _salesPositiveWords)
+      if (name.contains(w)) w,
+  ];
   // 화이트리스트 브랜드면 감점 무시하고 신뢰(가점 단어와 함께 근거로 표시).
-  final brand = [for (final b in _salesWhitelist) if (name.contains(b)) b];
+  final brand = [
+    for (final b in _salesWhitelist)
+      if (name.contains(b)) b,
+  ];
   if (brand.isNotEmpty) {
     final positives = [...brand, ...pos];
     return PetSalesScore(
@@ -108,14 +121,18 @@ PetSalesScore? evaluatePetSales(Facility f) {
   }
   final neg = [
     for (final w in _salesNegativeWords)
-      if (name.contains(w) || lower.contains(w.toLowerCase())) w
+      if (name.contains(w) || lower.contains(w.toLowerCase())) w,
   ];
   final score = pos.length - neg.length;
   final level = score > 0
       ? PetSalesTrust.likely
       : (score < 0 ? PetSalesTrust.caution : PetSalesTrust.unclear);
   return PetSalesScore(
-      score: score, level: level, positives: pos, negatives: neg);
+    score: score,
+    level: level,
+    positives: pos,
+    negatives: neg,
+  );
 }
 
 /// 분양 신뢰도가 너무 낮아(점수 ≤ -2) 지도·검색에서 숨길 시설인지.
@@ -148,12 +165,17 @@ class FacilityRepository {
     int radiusM = 5000,
     List<String>? categories,
   }) async {
-    final rows = await _c.rpc('facilities_within', params: {
-      'p_lng': lng,
-      'p_lat': lat,
-      'p_radius_m': radiusM,
-      'p_categories': (categories == null || categories.isEmpty) ? null : categories,
-    });
+    final rows = await _c.rpc(
+      'facilities_within',
+      params: {
+        'p_lng': lng,
+        'p_lat': lat,
+        'p_radius_m': radiusM,
+        'p_categories': (categories == null || categories.isEmpty)
+            ? null
+            : categories,
+      },
+    );
     return (rows as List)
         .map((r) => Facility.fromJson(r as Map<String, dynamic>))
         .toList();
@@ -163,10 +185,14 @@ class FacilityRepository {
   /// 상세에서 모두 표기하기 위함. 매칭 없거나 실패 시 빈 목록.
   Future<List<String>> allCategories(String facilityId) async {
     try {
-      final res =
-          await _c.rpc('facility_all_categories', params: {'p_id': facilityId});
+      final res = await _c.rpc(
+        'facility_all_categories',
+        params: {'p_id': facilityId},
+      );
       if (res is List) return res.map((e) => e.toString()).toList();
-    } catch (_) {/* 네트워크/미매칭 — 단일 카테고리로 폴백 */}
+    } catch (_) {
+      /* 네트워크/미매칭 — 단일 카테고리로 폴백 */
+    }
     return const [];
   }
 
@@ -178,11 +204,10 @@ class FacilityRepository {
   }) async {
     final q = query.trim();
     if (q.isEmpty) return const [];
-    final rows = await _c.rpc('facilities_search', params: {
-      'p_query': q,
-      'p_lng': lng,
-      'p_lat': lat,
-    });
+    final rows = await _c.rpc(
+      'facilities_search',
+      params: {'p_query': q, 'p_lng': lng, 'p_lat': lat},
+    );
     return (rows as List)
         .map((r) => Facility.fromJson(r as Map<String, dynamic>))
         // 분양 신뢰도가 너무 낮은(점수 ≤ -2) 비분양 추정 시설은 검색에서도 제외.
@@ -199,11 +224,14 @@ class FacilityRepository {
     String? query, // 이름 검색 시 검색어(없으면 현재 동네 애견카페)
   }) async {
     try {
-      final res = await _c.functions.invoke('search-petcafe', body: {
-        'lat': lat,
-        'lng': lng,
-        if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
-      });
+      final res = await _c.functions.invoke(
+        'search-petcafe',
+        body: {
+          'lat': lat,
+          'lng': lng,
+          if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
+        },
+      );
       final data = (res.data as Map?) ?? const {};
       final items = (data['items'] as List?) ?? const [];
       final out = <Facility>[];
@@ -213,18 +241,20 @@ class FacilityRepository {
         final clng = (m['lng'] as num).toDouble();
         final dist = Geolocator.distanceBetween(lat, lng, clat, clng);
         if (dist > radiusM) continue; // 5km 후필터(지역검색은 위치정렬이 약함)
-        out.add(Facility(
-          id: 'petcafe_${clat.toStringAsFixed(5)}_${clng.toStringAsFixed(5)}',
-          category: 'pet_cafe',
-          name: (m['name'] ?? '') as String,
-          address: m['address'] as String?,
-          phone: m['phone'] as String?,
-          isOpen: true,
-          lat: clat,
-          lng: clng,
-          distanceM: dist,
-          source: 'naver', // DB 미적재 — 후기 작성 시 ensure_naver_facility 로 승격
-        ));
+        out.add(
+          Facility(
+            id: 'petcafe_${clat.toStringAsFixed(5)}_${clng.toStringAsFixed(5)}',
+            category: 'pet_cafe',
+            name: (m['name'] ?? '') as String,
+            address: m['address'] as String?,
+            phone: m['phone'] as String?,
+            isOpen: true,
+            lat: clat,
+            lng: clng,
+            distanceM: dist,
+            source: 'naver', // DB 미적재 — 후기 작성 시 ensure_naver_facility 로 승격
+          ),
+        );
       }
       out.sort((a, b) => a.distanceM.compareTo(b.distanceM));
       return out;

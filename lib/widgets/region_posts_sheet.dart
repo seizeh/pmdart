@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
 import '../services/community_repository.dart';
@@ -83,10 +83,10 @@ class _RegionPostsContentState extends State<RegionPostsContent> {
       children: [
         Text(
           '이 동네 게시글 ${widget.cluster.count}개',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
+            color: context.colors.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -96,12 +96,12 @@ class _RegionPostsContentState extends State<RegionPostsContent> {
             child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
           )
         else if (posts.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(
               child: Text(
                 '게시글을 불러오지 못했어요',
-                style: TextStyle(color: AppColors.textTertiary),
+                style: TextStyle(color: context.colors.textTertiary),
               ),
             ),
           )
@@ -127,7 +127,7 @@ class _PostRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = categoryColor(post.category);
+    final color = categoryColor(context, post.category);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -135,9 +135,9 @@ class _PostRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.colors.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,9 +169,9 @@ class _PostRow extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         timeAgo(post.createdAt),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: AppColors.textTertiary,
+                          color: context.colors.textTertiary,
                         ),
                       ),
                     ],
@@ -181,10 +181,10 @@ class _PostRow extends StatelessWidget {
                     post.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -192,40 +192,40 @@ class _PostRow extends StatelessWidget {
                     post.content,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: context.colors.textSecondary,
                       height: 1.4,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.favorite_border,
                         size: 14,
-                        color: AppColors.textTertiary,
+                        color: context.colors.textTertiary,
                       ),
                       const SizedBox(width: 3),
                       Text(
                         '${post.heartCount}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: context.colors.textSecondary,
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Icon(
+                      Icon(
                         Icons.chat_bubble_outline,
                         size: 14,
-                        color: AppColors.textTertiary,
+                        color: context.colors.textTertiary,
                       ),
                       const SizedBox(width: 3),
                       Text(
                         '${post.commentCount}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: context.colors.textSecondary,
                         ),
                       ),
                     ],
@@ -242,10 +242,10 @@ class _PostRow extends StatelessWidget {
                   width: 56,
                   height: 56,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox(
+                  errorBuilder: (_, _, _) => SizedBox(
                     width: 56,
                     height: 56,
-                    child: ColoredBox(color: AppColors.surfaceMuted),
+                    child: ColoredBox(color: context.colors.surfaceMuted),
                   ),
                 ),
               ),

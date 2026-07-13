@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/community.dart';
 import '../models/profile.dart';
 import '../services/community_repository.dart';
@@ -221,7 +221,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       cardRadius: widget.cardRadius,
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: context.colors.background,
         body: _buildBody(physics, topInset),
       ),
     );
@@ -236,9 +236,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               '프로필을 불러오지 못했어요',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: context.colors.textSecondary),
             ),
             const SizedBox(height: 12),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
@@ -434,8 +434,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             left: 0,
             right: 0,
             height: backingH,
-            child: const AbsorbPointer(
-              child: ColoredBox(color: Colors.white),
+            child: AbsorbPointer(
+              child: ColoredBox(color: context.colors.background),
             ),
           ),
         // 계단 스택 — 릴리즈 후엔 콘텐츠와 같은 속도(-slide)로 올라가며 클립 없이
@@ -468,27 +468,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _titleBar(String label, int count) {
     return Container(
       height: _kTitleH,
-      color: Colors.white,
+      color: context.colors.background,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       alignment: Alignment.centerLeft,
       child: Row(
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: context.colors.textPrimary,
             ),
           ),
           if (count > 0) ...[
             const SizedBox(width: 6),
             Text(
               '$count',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textTertiary,
+                color: context.colors.textTertiary,
               ),
             ),
           ],
@@ -517,7 +517,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           height: h,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: AppColors.primaryDark,
+            color: context.colors.primaryDark,
             borderRadius: BorderRadius.circular(radius),
           ),
           child: Stack(
@@ -542,10 +542,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       p.nickname,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.textOnPrimary,
+                        color: context.colors.textOnPrimary,
                       ),
                     ),
                   ),
@@ -664,7 +664,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// 사진 없는 프로필 — 닉네임을 카드 중앙에 크게.
   Widget _noPhotoBackground(PublicProfileData p) {
     return ColoredBox(
-      color: AppColors.primaryDark,
+      color: context.colors.primaryDark,
       child: Center(
         // 블러 구간(132px)을 피해 위쪽 영역의 가운데에 오도록 살짝 올린다.
         child: Padding(
@@ -674,10 +674,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             maxLines: 2,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 40,
               fontWeight: FontWeight.w800,
-              color: AppColors.textOnPrimary,
+              color: context.colors.textOnPrimary,
               height: 1.15,
             ),
           ),
@@ -746,10 +746,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: _following ? AppColors.surface : AppColors.primaryDark,
+                color: _following
+                    ? context.colors.surface
+                    : context.colors.primaryDark,
                 borderRadius: BorderRadius.circular(100),
                 border: Border.all(
-                  color: _following ? AppColors.border : AppColors.primaryDark,
+                  color: _following
+                      ? context.colors.border
+                      : context.colors.primaryDark,
                 ),
               ),
               child: Text(
@@ -758,8 +762,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: _following
-                      ? AppColors.textSecondary
-                      : AppColors.textOnPrimary,
+                      ? context.colors.textSecondary
+                      : context.colors.textOnPrimary,
                 ),
               ),
             ),
@@ -855,13 +859,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     margin: const EdgeInsets.symmetric(horizontal: 20),
     padding: const EdgeInsets.symmetric(vertical: 28),
     decoration: BoxDecoration(
-      color: AppColors.surfaceMuted,
+      color: context.colors.surfaceMuted,
       borderRadius: BorderRadius.circular(16),
     ),
     child: Center(
       child: Text(
         msg,
-        style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
+        style: TextStyle(fontSize: 13, color: context.colors.textTertiary),
       ),
     ),
   );
@@ -883,27 +887,27 @@ class PostPhotoTile extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+          color: context.colors.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: post.imageUrl != null
             ? Image.network(
                 post.imageUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _textFallback(),
+                errorBuilder: (_, _, _) => _textFallback(context),
               )
-            : _textFallback(),
+            : _textFallback(context),
       ),
     );
   }
 
-  Widget _textFallback() {
-    final color = categoryColor(post.category);
-    const titleStyle = TextStyle(
+  Widget _textFallback(BuildContext context) {
+    final color = categoryColor(context, post.category);
+    final titleStyle = TextStyle(
       fontSize: 19,
       fontWeight: FontWeight.w700,
-      color: AppColors.textPrimary,
+      color: context.colors.textPrimary,
       height: 1.35,
     );
     return Stack(
@@ -947,28 +951,28 @@ class _ReviewTagChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: context.colors.surfaceMuted,
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        border: Border.all(color: context.colors.border, width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             tag.category,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: context.colors.textPrimary,
             ),
           ),
           const SizedBox(width: 6),
           Text(
             '${tag.count}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: AppColors.primary,
+              color: context.colors.primary,
             ),
           ),
         ],
@@ -1051,8 +1055,8 @@ class _PetPosterCarouselState extends State<_PetPosterCarousel> {
                   height: 6,
                   decoration: BoxDecoration(
                     color: i == _page
-                        ? AppColors.primaryDark
-                        : AppColors.border,
+                        ? context.colors.primaryDark
+                        : context.colors.border,
                     borderRadius: BorderRadius.circular(100),
                   ),
                 ),
@@ -1093,9 +1097,9 @@ class PetPosterCard extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: AppColors.primarySoft,
+          color: context.colors.primarySoft,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Stack(
           fit: StackFit.expand,
@@ -1136,13 +1140,13 @@ class PetPosterCard extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(100),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.verified,
                         size: 13,
-                        color: AppColors.primaryDark,
+                        color: context.colors.primaryDark,
                       ),
                       SizedBox(width: 3),
                       Text(
@@ -1150,7 +1154,7 @@ class PetPosterCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.primaryDark,
+                          color: context.colors.primaryDark,
                         ),
                       ),
                     ],
@@ -1199,10 +1203,10 @@ class PetPosterCard extends StatelessWidget {
 class _PosterPlaceholder extends StatelessWidget {
   const _PosterPlaceholder();
   @override
-  Widget build(BuildContext context) => const ColoredBox(
-    color: AppColors.primarySoft,
+  Widget build(BuildContext context) => ColoredBox(
+    color: context.colors.primarySoft,
     child: Center(
-      child: Icon(Icons.pets, size: 64, color: AppColors.primaryDark),
+      child: Icon(Icons.pets, size: 64, color: context.colors.primaryDark),
     ),
   );
 }

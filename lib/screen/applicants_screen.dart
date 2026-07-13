@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../models/community.dart';
 import '../services/activity_repository.dart';
@@ -64,10 +64,13 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
         content: Text('$nickname 님을 수락하면 약속이 생성되고,\n나머지 지원자는 자동으로 거절됩니다.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark),
+            style: FilledButton.styleFrom(
+              backgroundColor: context.colors.primaryDark,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('수락'),
           ),
@@ -99,7 +102,7 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('지원자 목록')),
       body: SafeArea(child: _body()),
     );
@@ -112,22 +115,33 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!,
-                style: const TextStyle(color: AppColors.textSecondary)),
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.people_outline, size: 48, color: AppColors.textTertiary),
+            Icon(
+              Icons.people_outline,
+              size: 48,
+              color: context.colors.textTertiary,
+            ),
             SizedBox(height: 12),
-            Text('아직 지원자가 없어요',
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            Text(
+              '아직 지원자가 없어요',
+              style: TextStyle(
+                fontSize: 14,
+                color: context.colors.textSecondary,
+              ),
+            ),
           ],
         ),
       );
@@ -145,8 +159,10 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
             canAccept: _stillOpen && _items[i - 1]['status'] == 'pending',
             accepting: _accepting == _items[i - 1]['id'],
             onAccept: () => _accept(_items[i - 1]),
-            onChat: () =>
-                openDirectChat(context, _items[i - 1]['applicant_id'] as String),
+            onChat: () => openDirectChat(
+              context,
+              _items[i - 1]['applicant_id'] as String,
+            ),
           );
         },
       ),
@@ -162,24 +178,28 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
         children: [
           Text(
             '지원자 $count명',
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textPrimary,
+            ),
           ),
           const SizedBox(width: 8),
           if (matched)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.12),
+                color: context.colors.success.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(100),
               ),
-              child: const Text('매칭 완료',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.success)),
+              child: Text(
+                '매칭 완료',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.success,
+                ),
+              ),
             ),
         ],
       ),
@@ -211,10 +231,12 @@ class _ApplicantCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: status == 'accepted' ? AppColors.success : AppColors.border,
+          color: status == 'accepted'
+              ? context.colors.success
+              : context.colors.border,
           width: status == 'accepted' ? 1.2 : 0.5,
         ),
       ),
@@ -225,44 +247,59 @@ class _ApplicantCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: AppColors.primarySoft,
-                child: Text(initial,
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryDark)),
+                backgroundColor: context.colors.primarySoft,
+                child: Text(
+                  initial,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.primaryDark,
+                  ),
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(nickname,
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                child: Text(
+                  nickname,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
               ),
-              _statusBadge(status),
+              _statusBadge(context, status),
             ],
           ),
           if (message.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(message,
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textSecondary, height: 1.4)),
+            Text(
+              message,
+              style: TextStyle(
+                fontSize: 14,
+                color: context.colors.textSecondary,
+                height: 1.4,
+              ),
+            ),
           ],
           const SizedBox(height: 12),
           Row(
             children: [
-              Text(timeAgo(DateTime.parse(app['created_at'] as String).toLocal()),
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary)),
+              Text(
+                timeAgo(DateTime.parse(app['created_at'] as String).toLocal()),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.colors.textTertiary,
+                ),
+              ),
               const Spacer(),
               OutlinedButton.icon(
                 onPressed: onChat,
                 icon: const Icon(Icons.chat_bubble_outline, size: 16),
                 label: const Text('채팅'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
-                  side: const BorderSide(color: AppColors.border),
+                  foregroundColor: context.colors.primaryDark,
+                  side: BorderSide(color: context.colors.border),
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   minimumSize: const Size(0, 38),
                 ),
@@ -272,7 +309,7 @@ class _ApplicantCard extends StatelessWidget {
                 FilledButton(
                   onPressed: accepting ? null : onAccept,
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
+                    backgroundColor: context.colors.primaryDark,
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     minimumSize: const Size(0, 38),
                   ),
@@ -281,7 +318,10 @@ class _ApplicantCard extends StatelessWidget {
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : const Text('수락'),
                 ),
               ],
@@ -292,13 +332,13 @@ class _ApplicantCard extends StatelessWidget {
     );
   }
 
-  Widget _statusBadge(String status) {
+  Widget _statusBadge(BuildContext context, String status) {
     final (label, color) = switch (status) {
-      'accepted' => ('수락됨', AppColors.success),
-      'completed' => ('완료', AppColors.success),
-      'rejected' => ('거절됨', AppColors.danger),
-      'cancelled' => ('취소됨', AppColors.danger),
-      _ => ('대기 중', AppColors.warning),
+      'accepted' => ('수락됨', context.colors.success),
+      'completed' => ('완료', context.colors.success),
+      'rejected' => ('거절됨', context.colors.danger),
+      'cancelled' => ('취소됨', context.colors.danger),
+      _ => ('대기 중', context.colors.warning),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -306,9 +346,14 @@ class _ApplicantCard extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(100),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }

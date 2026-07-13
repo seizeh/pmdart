@@ -48,7 +48,9 @@ class AuthService {
     if (r != null) {
       try {
         await _client.functions.invoke('logout', body: {'refresh_token': r});
-      } catch (_) {/* 회수 실패해도 로컬은 정리 */}
+      } catch (_) {
+        /* 회수 실패해도 로컬은 정리 */
+      }
     }
     await SessionManager.instance.clear();
   }
@@ -90,16 +92,16 @@ class AuthResult {
   const AuthResult({required this.ok, this.errorCode});
 
   String get message => switch (errorCode) {
-        'invalid_credentials' => '아이디 또는 비밀번호가 올바르지 않아요',
-        'missing_fields' => '아이디와 비밀번호를 입력해주세요',
-        'server_misconfigured' => '서버 설정 오류로 로그인할 수 없어요',
-        'network_error' => '네트워크 연결을 확인해주세요',
-        'invalid_current' => '현재 비밀번호가 올바르지 않아요',
-        'weak_password' => '새 비밀번호는 6자 이상이어야 해요',
-        'not_authenticated' || 'unauthorized' => '다시 로그인해주세요',
-        'rate_limited' => '요청이 많아요. 잠시 후 다시 시도해주세요',
-        'change_failed' => '비밀번호를 변경하지 못했어요',
-        null => '완료되었어요',
-        _ => '처리에 실패했어요',
-      };
+    'invalid_credentials' => '아이디 또는 비밀번호가 올바르지 않아요',
+    'missing_fields' => '아이디와 비밀번호를 입력해주세요',
+    'server_misconfigured' => '서버 설정 오류로 로그인할 수 없어요',
+    'network_error' => '네트워크 연결을 확인해주세요',
+    'invalid_current' => '현재 비밀번호가 올바르지 않아요',
+    'weak_password' => '새 비밀번호는 6자 이상이어야 해요',
+    'not_authenticated' || 'unauthorized' => '다시 로그인해주세요',
+    'rate_limited' => '요청이 많아요. 잠시 후 다시 시도해주세요',
+    'change_failed' => '비밀번호를 변경하지 못했어요',
+    null => '완료되었어요',
+    _ => '처리에 실패했어요',
+  };
 }

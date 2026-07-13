@@ -55,11 +55,19 @@ class AppTheme {
               onError: Colors.white,
             ),
       textTheme: textTheme.copyWith(
-        displayLarge: textTheme.displayLarge?.copyWith(fontWeight: FontWeight.w700),
-        headlineLarge: textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
-        headlineMedium: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600),
+        displayLarge: textTheme.displayLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        headlineLarge: textTheme.headlineLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        headlineMedium: textTheme.headlineMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
         titleLarge: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-        titleMedium: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        titleMedium: textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
         bodyLarge: textTheme.bodyLarge?.copyWith(height: 1.5),
         bodyMedium: textTheme.bodyMedium?.copyWith(height: 1.5),
         labelLarge: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
@@ -72,10 +80,12 @@ class AppTheme {
         // 표면 밝기에 맞는 상태바 아이콘(시간·배터리 가독성).
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness:
-              isDark ? Brightness.light : Brightness.dark, // Android
-          statusBarBrightness:
-              isDark ? Brightness.dark : Brightness.light, // iOS
+          statusBarIconBrightness: isDark
+              ? Brightness.light
+              : Brightness.dark, // Android
+          statusBarBrightness: isDark
+              ? Brightness.dark
+              : Brightness.light, // iOS
         ),
         iconTheme: IconThemeData(color: c.primaryDark),
         titleTextStyle: textTheme.titleLarge?.copyWith(
@@ -107,10 +117,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -121,10 +128,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -136,7 +140,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: c.surfaceMuted,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
+        ),
         hintStyle: TextStyle(color: c.textTertiary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -162,9 +169,7 @@ class AppTheme {
           color: c.textOnPrimary,
           fontWeight: FontWeight.w500,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(100),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       ),
@@ -175,17 +180,17 @@ class AppTheme {
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
         elevation: 0,
-        selectedLabelStyle:
-            const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-        unselectedLabelStyle:
-            const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 12,
+        ),
       ),
       dividerColor: c.border,
-      dividerTheme: DividerThemeData(
-        color: c.border,
-        thickness: 0.5,
-        space: 1,
-      ),
+      dividerTheme: DividerThemeData(color: c.border, thickness: 0.5, space: 1),
     );
   }
 }

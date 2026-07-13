@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show MockPet;
 import '../services/pet_repository.dart';
 import '../services/storage_service.dart';
@@ -173,9 +173,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
         }
         if (!mounted) return;
         Navigator.pop(context, true);
-        _toast(invited > 0
-            ? '반려동물을 등록하고 공동보호자 초대를 보냈어요'
-            : '반려동물을 등록했어요');
+        _toast(invited > 0 ? '반려동물을 등록하고 공동보호자 초대를 보냈어요' : '반려동물을 등록했어요');
         return;
       }
       if (!mounted) return;
@@ -198,7 +196,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(
         title: Text(_isEdit ? '반려동물 수정' : '반려동물 등록'),
         actions: [
@@ -208,10 +206,12 @@ class _PetEditScreenState extends State<PetEditScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('저장',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    '저장',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
           ),
         ],
       ),
@@ -241,8 +241,9 @@ class _PetEditScreenState extends State<PetEditScreen> {
               const SizedBox(height: 10),
               TextField(
                 controller: _speciesCtrl,
-                decoration:
-                    const InputDecoration(hintText: '품종 입력 (예: 말티즈, 코리안숏헤어)'),
+                decoration: const InputDecoration(
+                  hintText: '품종 입력 (예: 말티즈, 코리안숏헤어)',
+                ),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
@@ -260,17 +261,25 @@ class _PetEditScreenState extends State<PetEditScreen> {
                 onTap: _pickBirthDate,
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
+                    color: context.colors.surfaceMuted,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.border, width: 0.5),
+                    border: Border.all(
+                      color: context.colors.border,
+                      width: 0.5,
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.cake_outlined,
-                          color: AppColors.primaryDark, size: 20),
+                      Icon(
+                        Icons.cake_outlined,
+                        color: context.colors.primaryDark,
+                        size: 20,
+                      ),
                       const SizedBox(width: 10),
                       Text(
                         _birthDate == null
@@ -279,8 +288,8 @@ class _PetEditScreenState extends State<PetEditScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           color: _birthDate == null
-                              ? AppColors.textTertiary
-                              : AppColors.textPrimary,
+                              ? context.colors.textTertiary
+                              : context.colors.textPrimary,
                         ),
                       ),
                     ],
@@ -292,8 +301,7 @@ class _PetEditScreenState extends State<PetEditScreen> {
               TextField(
                 controller: _bioCtrl,
                 maxLines: 4,
-                decoration:
-                    const InputDecoration(hintText: '아이를 소개해주세요'),
+                decoration: const InputDecoration(hintText: '아이를 소개해주세요'),
               ),
               if (_isEdit && _isOwner) ...[
                 const SizedBox(height: 24),
@@ -315,28 +323,37 @@ class _PetEditScreenState extends State<PetEditScreen> {
         width: 120,
         height: 120,
         decoration: BoxDecoration(
-          color: AppColors.primarySoft,
+          color: context.colors.primarySoft,
           borderRadius: BorderRadius.circular(40),
           image: _imageUrl != null
               ? DecorationImage(
-                  image: NetworkImage(_imageUrl!), fit: BoxFit.cover)
+                  image: NetworkImage(_imageUrl!),
+                  fit: BoxFit.cover,
+                )
               : null,
         ),
         child: _uploading
             ? const Center(child: CircularProgressIndicator())
             : (_imageUrl == null
-                ? const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_a_photo_outlined,
-                          color: AppColors.primaryDark, size: 28),
-                      SizedBox(height: 4),
-                      Text('사진',
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_a_photo_outlined,
+                          color: context.colors.primaryDark,
+                          size: 28,
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          '사진',
                           style: TextStyle(
-                              fontSize: 12, color: AppColors.primaryDark)),
-                    ],
-                  )
-                : null),
+                            fontSize: 12,
+                            color: context.colors.primaryDark,
+                          ),
+                        ),
+                      ],
+                    )
+                  : null),
       ),
     );
   }
@@ -345,31 +362,35 @@ class _PetEditScreenState extends State<PetEditScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: context.colors.surfaceMuted,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        border: Border.all(color: context.colors.border, width: 0.5),
       ),
       child: Row(
         children: [
-          Icon(_identityVerified ? Icons.verified : Icons.videocam_outlined,
-              color: _identityVerified
-                  ? AppColors.primary
-                  : AppColors.textTertiary,
-              size: 22),
+          Icon(
+            _identityVerified ? Icons.verified : Icons.videocam_outlined,
+            color: _identityVerified
+                ? context.colors.primary
+                : context.colors.textTertiary,
+            size: 22,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               _identityVerified
                   ? '신원 인증이 완료됐어요. 게시글 사진이 이 아이와 대조됩니다.'
                   : '산책·돌봄·분양 게시글을 쓰려면 무작위 동작 임무 영상으로 신원 인증을 해야 해요.',
-              style: const TextStyle(
-                  fontSize: 12.5, color: AppColors.textSecondary, height: 1.4),
+              style: TextStyle(
+                fontSize: 12.5,
+                color: context.colors.textSecondary,
+                height: 1.4,
+              ),
             ),
           ),
           const SizedBox(width: 8),
           TextButton(
-            onPressed: () =>
-                _openEnroll(widget.pet!.id, _nameCtrl.text.trim()),
+            onPressed: () => _openEnroll(widget.pet!.id, _nameCtrl.text.trim()),
             child: Text(_identityVerified ? '다시 인증' : '인증하기'),
           ),
         ],
@@ -387,17 +408,24 @@ class _PetEditScreenState extends State<PetEditScreen> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? AppColors.primaryDark : AppColors.surface,
+            color: selected
+                ? context.colors.primaryDark
+                : context.colors.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color: selected ? AppColors.primaryDark : AppColors.border),
+              color: selected
+                  ? context.colors.primaryDark
+                  : context.colors.border,
+            ),
           ),
           child: Text(
             label,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
+              color: selected
+                  ? context.colors.textOnPrimary
+                  : context.colors.textPrimary,
             ),
           ),
         ),
@@ -412,17 +440,22 @@ class _PetEditScreenState extends State<PetEditScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primaryDark : AppColors.surface,
+          color: selected ? context.colors.primaryDark : context.colors.surface,
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-              color: selected ? AppColors.primaryDark : AppColors.border),
+            color: selected
+                ? context.colors.primaryDark
+                : context.colors.border,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
+            color: selected
+                ? context.colors.textOnPrimary
+                : context.colors.textPrimary,
           ),
         ),
       ),
@@ -451,10 +484,10 @@ class _Label extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w700,
-          color: AppColors.textPrimary,
+          color: context.colors.textPrimary,
         ),
       ),
     );

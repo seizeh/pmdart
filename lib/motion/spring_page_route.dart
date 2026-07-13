@@ -81,8 +81,9 @@ Widget buildFluidTransition(
                     Positioned.fill(
                       child: IgnorePointer(
                         child: ColoredBox(
-                          color:
-                              const Color(0xFF000000).withValues(alpha: coverDim),
+                          color: const Color(
+                            0xFF000000,
+                          ).withValues(alpha: coverDim),
                         ),
                       ),
                     ),
@@ -107,20 +108,19 @@ class FluidPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) =>
-      buildFluidTransition(animation, secondaryAnimation, child);
+  ) => buildFluidTransition(animation, secondaryAnimation, child);
 }
 
 /// 개별 push 에 직접 쓰고 싶을 때(테마를 안 타는 모달성 화면 등).
 class FluidPageRoute<T> extends PageRouteBuilder<T> {
   FluidPageRoute({required WidgetBuilder builder, super.settings})
-      : super(
-          transitionDuration: MotionDurations.page,
-          reverseTransitionDuration: MotionDurations.base,
-          pageBuilder: (context, _, _) => builder(context),
-          transitionsBuilder: (context, animation, secondary, child) =>
-              buildFluidTransition(animation, secondary, child),
-        );
+    : super(
+        transitionDuration: MotionDurations.page,
+        reverseTransitionDuration: MotionDurations.base,
+        pageBuilder: (context, _, _) => builder(context),
+        transitionsBuilder: (context, animation, secondary, child) =>
+            buildFluidTransition(animation, secondary, child),
+      );
 }
 
 /// 앱 표준 화면 라우트 — [MaterialPageRoute] 대체.
@@ -267,14 +267,21 @@ class _EdgeBackController {
     if (settleOpen) {
       // 제자리로 스프링백(미세 탄성 — 앱 공통 물리).
       controller.animateWith(
-        SpringSimulation(MotionSprings.standard, controller.value, 1.0, velocity),
+        SpringSimulation(
+          MotionSprings.standard,
+          controller.value,
+          1.0,
+          velocity,
+        ),
       );
     } else {
       navigator.pop(); // route 가 reverse 시작
       if (controller.isAnimating) {
-        controller.animateBack(0.0,
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic);
+        controller.animateBack(
+          0.0,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+        );
       }
     }
 

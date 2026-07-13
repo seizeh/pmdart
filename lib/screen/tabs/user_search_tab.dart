@@ -47,7 +47,10 @@ class _UserSearchTabState extends State<UserSearchTab> {
   }
 
   /// 타일 자리에서 [page] 를 펼친다. rect 를 못 구하면 표준 라우트로 폴백.
-  Future<void> _openFromTile(String tileId, Widget Function(Rect? rect) page) async {
+  Future<void> _openFromTile(
+    String tileId,
+    Widget Function(Rect? rect) page,
+  ) async {
     final rect = _tileRect(tileId);
     if (rect != null) setState(() => _openedTileId = tileId);
     await Navigator.push<void>(
@@ -297,13 +300,14 @@ class PetSearchTile extends StatelessWidget {
     ].join('  ·  ');
 
     return InkWell(
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () => Navigator.push(
-                context,
-                AppPageRoute(
-                  builder: (_) => PetProfileScreen(petId: pet.id, preview: pet),
-                ),
-              ),
+            context,
+            AppPageRoute(
+              builder: (_) => PetProfileScreen(petId: pet.id, preview: pet),
+            ),
+          ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(

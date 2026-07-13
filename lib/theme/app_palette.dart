@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 /// PawMate 시맨틱 색 토큰 — 라이트/다크 팔레트를 [ThemeExtension] 으로 제공.
 ///
-/// 정적 [AppColors] 는 라이트 고정값이라 다크모드에 반응하지 못한다.
-/// 새 코드는 `context.colors.x` 로 접근하고, 기존 `AppColors.x` 사용처는
-/// 화면 단위로 점진 이행한다(마이그레이션 전 화면은 라이트 값으로 보임).
+/// 모든 색은 `context.colors.x` 로 접근한다(구 AppColors 정적 클래스는 제거됨).
+/// 사진/어두운 스크림 위 고정 흰색 텍스트, 지도 마커 비트맵 등 모드 무관
+/// 색상만 리터럴로 남긴다.
 ///
 /// 다크 팔레트 원칙: 회색 반전이 아니라 **웜 다크 브라운** — 크림·골든탠
 /// 정체성을 밤 톤으로 옮긴다. 라이트에서 어두웠던 강조(primaryDark)는
@@ -15,9 +15,11 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.primaryDark,
     required this.primarySoft,
     required this.background,
+    required this.cream,
     required this.surface,
     required this.surfaceMuted,
     required this.frostFilm,
+    required this.photoVeil,
     required this.textPrimary,
     required this.textSecondary,
     required this.textTertiary,
@@ -46,11 +48,18 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
   // 표면
   final Color background;
+
+  /// 브랜드 크림 베이스 — 인증/웰컴 화면·블롭 배경. 다크에선 페이지 배경과 동일.
+  final Color cream;
   final Color surface;
   final Color surfaceMuted;
 
   /// 셀로판지 필름(반투명) — 헤더·하단 바가 뒤 콘텐츠를 비치며 덮는다.
   final Color frostFilm;
+
+  /// 사진 블러 위 가독 베일 — 위에 올라가는 textPrimary 가 읽히도록
+  /// 라이트는 밝게, 다크는 어둡게 깐다(채팅/사용자/보호자 타일 공용).
+  final Color photoVeil;
 
   // 텍스트
   final Color textPrimary;
@@ -81,17 +90,18 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color catAdoption;
   final Color catFree;
 
-  /// 라이트 — 기존 [AppColors] 값 기반.
-  /// background 는 앱의 실질 페이지 배경(흰색) — 크림(F5EFE3)은 인증/웰컴
-  /// 화면 전용이라 추후 별도 토큰으로 분리한다.
+  /// 라이트 — 기존 브랜드 팔레트 그대로.
+  /// background 는 앱의 실질 페이지 배경(흰색), 크림은 [cream] 토큰.
   static const light = AppPalette(
     primary: Color(0xFFAD9466),
     primaryDark: Color(0xFF5A4E3A),
     primarySoft: Color(0xFFD9CBA8),
     background: Color(0xFFFFFFFF),
+    cream: Color(0xFFF5EFE3),
     surface: Color(0xFFFFFFFF),
     surfaceMuted: Color(0xFFFAF6EC),
     frostFilm: Color(0xEBFFFFFF),
+    photoVeil: Color(0xB3FFFFFF),
     textPrimary: Color(0xFF5A4E3A),
     textSecondary: Color(0xFF8C8273),
     textTertiary: Color(0xFFB6AC9A),
@@ -120,9 +130,11 @@ class AppPalette extends ThemeExtension<AppPalette> {
     primaryDark: Color(0xFFD8C7A9), // 강조 반전 — 어두운 회색 위 밝은 모래
     primarySoft: Color(0xFF35322B), // 배지/하이라이트 — 탠 기운 살짝 도는 다크 그레이
     background: Color(0xFF121212),
+    cream: Color(0xFF121212),
     surface: Color(0xFF1E1E1E),
     surfaceMuted: Color(0xFF191919),
     frostFilm: Color(0xEB1B1B1B), // 다크 셀로판지(같은 92% 불투명)
+    photoVeil: Color(0xB3161616),
     textPrimary: Color(0xFFECEAE5),
     textSecondary: Color(0xFFABA79E),
     textTertiary: Color(0xFF6F6C66),
@@ -150,9 +162,11 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? primaryDark,
     Color? primarySoft,
     Color? background,
+    Color? cream,
     Color? surface,
     Color? surfaceMuted,
     Color? frostFilm,
+    Color? photoVeil,
     Color? textPrimary,
     Color? textSecondary,
     Color? textTertiary,
@@ -178,9 +192,11 @@ class AppPalette extends ThemeExtension<AppPalette> {
       primaryDark: primaryDark ?? this.primaryDark,
       primarySoft: primarySoft ?? this.primarySoft,
       background: background ?? this.background,
+      cream: cream ?? this.cream,
       surface: surface ?? this.surface,
       surfaceMuted: surfaceMuted ?? this.surfaceMuted,
       frostFilm: frostFilm ?? this.frostFilm,
+      photoVeil: photoVeil ?? this.photoVeil,
       textPrimary: textPrimary ?? this.textPrimary,
       textSecondary: textSecondary ?? this.textSecondary,
       textTertiary: textTertiary ?? this.textTertiary,
@@ -212,9 +228,11 @@ class AppPalette extends ThemeExtension<AppPalette> {
       primaryDark: l(primaryDark, other.primaryDark),
       primarySoft: l(primarySoft, other.primarySoft),
       background: l(background, other.background),
+      cream: l(cream, other.cream),
       surface: l(surface, other.surface),
       surfaceMuted: l(surfaceMuted, other.surfaceMuted),
       frostFilm: l(frostFilm, other.frostFilm),
+      photoVeil: l(photoVeil, other.photoVeil),
       textPrimary: l(textPrimary, other.textPrimary),
       textSecondary: l(textSecondary, other.textSecondary),
       textTertiary: l(textTertiary, other.textTertiary),
@@ -239,14 +257,14 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
   /// 게시글 카테고리 코드 → 색.
   Color categoryColor(String category) => switch (category) {
-        'walk_together' => catWalk,
-        'walk_proxy' => catWalkProxy,
-        'care' => catCare,
-        'give_away' => catGiveAway,
-        'adoption' => catAdoption,
-        'free' => catFree,
-        _ => primary,
-      };
+    'walk_together' => catWalk,
+    'walk_proxy' => catWalkProxy,
+    'care' => catCare,
+    'give_away' => catGiveAway,
+    'adoption' => catAdoption,
+    'free' => catFree,
+    _ => primary,
+  };
 }
 
 /// `context.colors.textPrimary` 처럼 짧게 접근하기 위한 헬퍼.

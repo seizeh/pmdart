@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show categoryLabel;
 import '../models/community.dart';
 import '../services/community_repository.dart';
@@ -177,7 +177,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dCtx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            style: TextButton.styleFrom(foregroundColor: context.colors.danger),
             child: const Text('삭제'),
           ),
         ],
@@ -210,14 +210,14 @@ class _PostEditScreenState extends State<PostEditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(
         title: const Text('게시글 수정'),
         actions: [
           // 삭제 — 저장 왼쪽. 진행 중엔 서로 비활성화.
           TextButton(
             onPressed: (_saving || _deleting) ? null : _confirmDelete,
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            style: TextButton.styleFrom(foregroundColor: context.colors.danger),
             child: _deleting
                 ? const SizedBox(
                     width: 18,
@@ -258,16 +258,16 @@ class _PostEditScreenState extends State<PostEditScreen> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceMuted,
+                  color: context.colors.surfaceMuted,
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: AppColors.border, width: 0.5),
+                  border: Border.all(color: context.colors.border, width: 0.5),
                 ),
                 child: Text(
                   categoryLabel(widget.post.category),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
+                    color: context.colors.textSecondary,
                   ),
                 ),
               ),
@@ -308,15 +308,18 @@ class _PostEditScreenState extends State<PostEditScreen> {
                       vertical: 16,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
+                      color: context.colors.surfaceMuted,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.border, width: 0.5),
+                      border: Border.all(
+                        color: context.colors.border,
+                        width: 0.5,
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.event,
-                          color: AppColors.primaryDark,
+                          color: context.colors.primaryDark,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
@@ -327,8 +330,8 @@ class _PostEditScreenState extends State<PostEditScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             color: _scheduledAt == null
-                                ? AppColors.textTertiary
-                                : AppColors.textPrimary,
+                                ? context.colors.textTertiary
+                                : context.colors.textPrimary,
                           ),
                         ),
                       ],
@@ -336,22 +339,22 @@ class _PostEditScreenState extends State<PostEditScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   '일정을 바꾸면 이 게시글에 지원한 사용자에게 변경 알림이 전송돼요.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textTertiary,
+                    color: context.colors.textTertiary,
                     height: 1.5,
                   ),
                 ),
               ],
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 '사진·카테고리·연결한 반려동물은 수정할 수 없어요. '
                 '변경하려면 삭제 후 다시 작성해주세요.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: AppColors.textTertiary,
+                  color: context.colors.textTertiary,
                   height: 1.5,
                 ),
               ),
@@ -382,9 +385,9 @@ class _PhotoEditor extends StatelessWidget {
       return Container(
         height: 180,
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+          color: context.colors.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: const Center(child: CircularProgressIndicator()),
       );
@@ -396,22 +399,25 @@ class _PhotoEditor extends StatelessWidget {
         child: Container(
           height: 100,
           decoration: BoxDecoration(
-            color: AppColors.surfaceMuted,
+            color: context.colors.surfaceMuted,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border, width: 0.5),
+            border: Border.all(color: context.colors.border, width: 0.5),
           ),
-          child: const Column(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 Icons.add_a_photo_outlined,
-                color: AppColors.primaryDark,
+                color: context.colors.primaryDark,
                 size: 26,
               ),
               SizedBox(height: 6),
               Text(
                 '사진 추가',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -429,7 +435,7 @@ class _PhotoEditor extends StatelessWidget {
               width: double.infinity,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => Container(
-                color: AppColors.surfaceMuted,
+                color: context.colors.surfaceMuted,
                 child: const Center(child: Icon(Icons.image, size: 40)),
               ),
             ),
@@ -465,10 +471,10 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w700,
-          color: AppColors.textPrimary,
+          color: context.colors.textPrimary,
         ),
       ),
     );

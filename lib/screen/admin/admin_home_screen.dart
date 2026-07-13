@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../services/admin_repository.dart';
 import '../../services/auth_service.dart';
 import '../../services/session.dart';
@@ -64,11 +64,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         content: const Text('관리자 계정에서 로그아웃할까요?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dCtx, false),
-              child: const Text('취소')),
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('취소'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('로그아웃')),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('로그아웃'),
+          ),
         ],
       ),
     );
@@ -88,8 +90,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: adminAppBar(
+        context,
         '관리자 콘솔',
         actions: [
           IconButton(
@@ -114,12 +117,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               const SizedBox(height: 16),
               _dashboard(),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 '관리',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -179,8 +182,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         child: Center(
           child: Column(
             children: [
-              Text(_error ?? '통계를 불러오지 못했어요',
-                  style: const TextStyle(color: AppColors.textSecondary)),
+              Text(
+                _error ?? '통계를 불러오지 못했어요',
+                style: TextStyle(color: context.colors.textSecondary),
+              ),
               TextButton(onPressed: _load, child: const Text('다시 시도')),
             ],
           ),
@@ -202,20 +207,23 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       children: [
         _StatCard(label: '전체 회원', value: s.users, icon: Icons.people_outline),
         _StatCard(
-            label: '정지 회원',
-            value: s.usersSuspended,
-            icon: Icons.block,
-            highlight: s.usersSuspended > 0),
+          label: '정지 회원',
+          value: s.usersSuspended,
+          icon: Icons.block,
+          highlight: s.usersSuspended > 0,
+        ),
         _StatCard(label: '게시글', value: s.posts, icon: Icons.article_outlined),
         _StatCard(
-            label: '진행 중 약속',
-            value: s.appointmentsScheduled,
-            icon: Icons.event_available_outlined),
+          label: '진행 중 약속',
+          value: s.appointmentsScheduled,
+          icon: Icons.event_available_outlined,
+        ),
         _StatCard(
-            label: '미처리 신고',
-            value: s.reportsOpen,
-            icon: Icons.flag_outlined,
-            highlight: s.reportsOpen > 0),
+          label: '미처리 신고',
+          value: s.reportsOpen,
+          icon: Icons.flag_outlined,
+          highlight: s.reportsOpen > 0,
+        ),
       ],
     );
   }
@@ -238,10 +246,14 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: highlight ? AppColors.danger.withValues(alpha: 0.08) : AppColors.surface,
+        color: highlight
+            ? context.colors.danger.withValues(alpha: 0.08)
+            : context.colors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: highlight ? AppColors.danger.withValues(alpha: 0.4) : AppColors.border,
+          color: highlight
+              ? context.colors.danger.withValues(alpha: 0.4)
+              : context.colors.border,
           width: 0.5,
         ),
       ),
@@ -249,20 +261,27 @@ class _StatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon,
-              size: 20,
-              color: highlight ? AppColors.danger : AppColors.primaryDark),
+          Icon(
+            icon,
+            size: 20,
+            color: highlight
+                ? context.colors.danger
+                : context.colors.primaryDark,
+          ),
           Text(
             '$value',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w800,
-              color: highlight ? AppColors.danger : AppColors.textPrimary,
+              color: highlight
+                  ? context.colors.danger
+                  : context.colors.textPrimary,
             ),
           ),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
+          ),
         ],
       ),
     );
@@ -286,36 +305,41 @@ class _MenuTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        border: Border.all(color: context.colors.border, width: 0.5),
       ),
       child: ListTile(
-        leading: Icon(icon, color: AppColors.primaryDark),
-        title: Text(label,
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary)),
+        leading: Icon(icon, color: context.colors.primaryDark),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: context.colors.textPrimary,
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (badge > 0)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.danger,
+                  color: context.colors.danger,
                   borderRadius: BorderRadius.circular(100),
                 ),
-                child: Text('$badge',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white)),
+                child: Text(
+                  '$badge',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+            Icon(Icons.chevron_right, color: context.colors.textTertiary),
           ],
         ),
         onTap: onTap,
@@ -335,7 +359,7 @@ class _AdminIdentityHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.adminAccent,
+        color: context.colors.adminAccent,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -347,8 +371,11 @@ class _AdminIdentityHeader extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Icons.shield_outlined,
-                color: AppColors.adminOnAccent, size: 26),
+            child: Icon(
+              Icons.shield_outlined,
+              color: context.colors.adminOnAccent,
+              size: 26,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -361,10 +388,11 @@ class _AdminIdentityHeader extends StatelessWidget {
                       child: Text(
                         nickname,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.adminOnAccent),
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: context.colors.adminOnAccent,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -375,8 +403,9 @@ class _AdminIdentityHeader extends StatelessWidget {
                 Text(
                   username.isEmpty ? '관리자 모드' : '@$username · 관리자 모드',
                   style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.75)),
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.75),
+                  ),
                 ),
               ],
             ),

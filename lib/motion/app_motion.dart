@@ -86,15 +86,15 @@ class SpringCurve extends Curve {
     double ratio = 0.82,
     double velocity = 0,
   }) : _sim = SpringSimulation(
-          SpringDescription.withDampingRatio(
-            mass: mass,
-            stiffness: stiffness,
-            ratio: ratio,
-          ),
-          0,
-          1,
-          velocity,
-        ) {
+         SpringDescription.withDampingRatio(
+           mass: mass,
+           stiffness: stiffness,
+           ratio: ratio,
+         ),
+         0,
+         1,
+         velocity,
+       ) {
     // 스프링이 안착하는 데 걸리는 시간을 추정해 [0,1] 로 정규화한다.
     double t = 0;
     const stepSize = 1 / 240;

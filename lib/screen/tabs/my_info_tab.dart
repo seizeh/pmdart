@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../data/mock_data.dart' show MockPet;
 import '../../models/community.dart';
 import '../../models/profile.dart';
@@ -121,22 +121,22 @@ class _MyInfoTabState extends State<MyInfoTab> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              const Text(
+              Text(
                 '내 게시글',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
               if (posts.isNotEmpty) ...[
                 const SizedBox(width: 8),
                 Text(
                   '${posts.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textTertiary,
+                    color: context.colors.textTertiary,
                   ),
                 ),
               ],
@@ -149,13 +149,16 @@ class _MyInfoTabState extends State<MyInfoTab> {
             margin: const EdgeInsets.symmetric(horizontal: 20),
             padding: const EdgeInsets.symmetric(vertical: 28),
             decoration: BoxDecoration(
-              color: AppColors.surfaceMuted,
+              color: context.colors.surfaceMuted,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Center(
+            child: Center(
               child: Text(
                 '작성한 게시글이 없어요',
-                style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.textTertiary,
+                ),
               ),
             ),
           )
@@ -178,7 +181,10 @@ class _MyInfoTabState extends State<MyInfoTab> {
                 return Opacity(
                   key: _postKeys.putIfAbsent(post.id, GlobalKey.new),
                   opacity: _openedPostId == post.id ? 0 : 1,
-                  child: PostPhotoTile(post: post, onTap: () => _openPost(post)),
+                  child: PostPhotoTile(
+                    post: post,
+                    onTap: () => _openPost(post),
+                  ),
                 );
               },
             ),
@@ -254,20 +260,20 @@ class _MyInfoTabState extends State<MyInfoTab> {
     // 다른 탭(채팅·검색·커뮤니티)과 동일하게: 콘텐츠가 떠 있는 프로스트 헤더
     // 아래로 스크롤되며 비치는 구조.
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       body: Stack(
         children: [
           Positioned.fill(child: _buildBody(topInset + 56)),
           GradientHeader(
             topInset: topInset,
-            child: const Padding(
+            child: Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Text(
                 '내 정보',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark,
+                  color: context.colors.primaryDark,
                 ),
               ),
             ),
@@ -288,7 +294,7 @@ class _MyInfoTabState extends State<MyInfoTab> {
           children: [
             Text(
               _error ?? '프로필을 불러오지 못했어요',
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: context.colors.textSecondary),
             ),
             const SizedBox(height: 12),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
@@ -347,7 +353,7 @@ class _GuestMyInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -359,32 +365,32 @@ class _GuestMyInfo extends StatelessWidget {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
+                  color: context.colors.primarySoft,
                   borderRadius: BorderRadius.circular(32),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.person_outline,
                   size: 48,
-                  color: AppColors.primaryDark,
+                  color: context.colors.primaryDark,
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 '게스트로 둘러보는 중',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '회원이 되면 반려동물 등록·산책 메이트 매칭·\n채팅까지 모두 이용할 수 있어요',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                   height: 1.5,
                 ),
               ),
@@ -435,9 +441,9 @@ class _GuestFooter extends StatelessWidget {
         onTap: () => _push(context, screen),
         child: Text(
           s,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: AppColors.textTertiary,
+            color: context.colors.textTertiary,
             decoration: TextDecoration.underline,
           ),
         ),
@@ -481,7 +487,9 @@ class _PetHeroState extends State<_PetHero> {
     final page = PetDetailScreen(
       pet: pet,
       originRect: rect,
-      cardBuilder: rect == null ? null : (_) => _PetHeroCard(pet: pet, onTap: () {}),
+      cardBuilder: rect == null
+          ? null
+          : (_) => _PetHeroCard(pet: pet, onTap: () {}),
     );
     if (rect != null) setState(() => _openedPetId = pet.id);
     await Navigator.push(
@@ -503,22 +511,22 @@ class _PetHeroState extends State<_PetHero> {
           padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
           child: Row(
             children: [
-              const Text(
+              Text(
                 '내 반려동물',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
               if (pets.isNotEmpty) ...[
                 const SizedBox(width: 8),
                 Text(
                   '${pets.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textTertiary,
+                    color: context.colors.textTertiary,
                   ),
                 ),
               ],
@@ -575,8 +583,8 @@ class _PetHeroState extends State<_PetHero> {
                     height: 6,
                     decoration: BoxDecoration(
                       color: i == _page
-                          ? AppColors.primaryDark
-                          : AppColors.border,
+                          ? context.colors.primaryDark
+                          : context.colors.border,
                       borderRadius: BorderRadius.circular(100),
                     ),
                   ),
@@ -618,9 +626,9 @@ class _PetHeroCard extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: AppColors.primarySoft,
+          color: context.colors.primarySoft,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Stack(
           fit: StackFit.expand,
@@ -666,13 +674,13 @@ class _PetHeroCard extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.92),
                         borderRadius: BorderRadius.circular(100),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.verified,
                             size: 13,
-                            color: AppColors.primaryDark,
+                            color: context.colors.primaryDark,
                           ),
                           SizedBox(width: 3),
                           Text(
@@ -680,7 +688,7 @@ class _PetHeroCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.primaryDark,
+                              color: context.colors.primaryDark,
                             ),
                           ),
                         ],
@@ -733,10 +741,10 @@ class _PetHeroCard extends StatelessWidget {
 class _PetHeroPlaceholder extends StatelessWidget {
   const _PetHeroPlaceholder();
   @override
-  Widget build(BuildContext context) => const ColoredBox(
-    color: AppColors.primarySoft,
+  Widget build(BuildContext context) => ColoredBox(
+    color: context.colors.primarySoft,
     child: Center(
-      child: Icon(Icons.pets, size: 72, color: AppColors.primaryDark),
+      child: Icon(Icons.pets, size: 72, color: context.colors.primaryDark),
     ),
   );
 }
@@ -759,7 +767,7 @@ class _ProfileHeroCard extends StatelessWidget {
         height: 360, // 공개 프로필 헤더 카드와 동일 높이
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: AppColors.primaryDark,
+          color: context.colors.primaryDark,
           borderRadius: BorderRadius.circular(24),
         ),
         child: Stack(
@@ -770,10 +778,10 @@ class _ProfileHeroCard extends StatelessWidget {
                 profile.profileImageUrl!,
                 fit: BoxFit.cover,
                 cacheWidth: 1200,
-                errorBuilder: (_, _, _) => _noPhotoBackground(),
+                errorBuilder: (_, _, _) => _noPhotoBackground(context),
               )
             else
-              _noPhotoBackground(),
+              _noPhotoBackground(context),
             // 점진 블러 — 공개 프로필 헤더와 동일 문법.
             if (hasPhoto)
               Positioned.fill(
@@ -847,11 +855,11 @@ class _ProfileHeroCard extends StatelessWidget {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(
-                          child: _statCol('받은 평가', profile.reviewCount),
-                        ),
+                        Expanded(child: _statCol('받은 평가', profile.reviewCount)),
                         _statDivider(),
-                        Expanded(child: _statCol('Pawing', profile.pawingCount)),
+                        Expanded(
+                          child: _statCol('Pawing', profile.pawingCount),
+                        ),
                         _statDivider(),
                         Expanded(
                           child: _statCol('Pawmate', profile.pawmateCount),
@@ -869,25 +877,25 @@ class _ProfileHeroCard extends StatelessWidget {
   }
 
   /// 사진 없는 프로필 — 닉네임을 카드 중앙에 크게(공개 프로필과 동일).
-  Widget _noPhotoBackground() => ColoredBox(
-        color: AppColors.primaryDark,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 100, left: 24, right: 24),
-            child: Text(
-              profile.nickname,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textOnPrimary,
-              ),
-            ),
+  Widget _noPhotoBackground(BuildContext context) => ColoredBox(
+    color: context.colors.primaryDark,
+    child: Center(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 100, left: 24, right: 24),
+        child: Text(
+          profile.nickname,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: context.colors.textOnPrimary,
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _metaLine() {
     final region = profile.regionName;
@@ -920,23 +928,23 @@ class _ProfileHeroCard extends StatelessWidget {
       Container(width: 1, height: 28, color: const Color(0x4DFFFFFF));
 
   Widget _statCol(String label, int value) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$value',
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 10, color: Color(0xCCFFFFFF)),
-          ),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        '$value',
+        style: const TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
+      const SizedBox(height: 1),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 10, color: Color(0xCCFFFFFF)),
+      ),
+    ],
+  );
 
   String _userTypeLabel(String t) => switch (t) {
     'pet_owner' => '반려동물 보호자',

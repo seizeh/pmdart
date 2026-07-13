@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../models/notification.dart';
 import '../services/notification_repository.dart';
@@ -244,7 +244,7 @@ class _NotificationPanelState extends State<_NotificationPanel> {
     final items = _items;
 
     return Material(
-      color: Colors.white,
+      color: context.colors.surface,
       elevation: 12,
       borderRadius: BorderRadius.circular(18),
       // 내용(리스트)을 둥근 모서리로 클립 → 하단이 각지게 삐져나오지 않음.
@@ -266,12 +266,12 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                     const SizedBox(width: 8),
                     FadeTransition(
                       opacity: widget.reveal,
-                      child: const Text(
+                      child: Text(
                         '알림',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
+                          color: context.colors.textPrimary,
                         ),
                       ),
                     ),
@@ -293,7 +293,8 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                                 onPressed: _markAll,
                                 style: TextButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 10),
+                                    horizontal: 10,
+                                  ),
                                   minimumSize: const Size(0, 32),
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
@@ -309,7 +310,8 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                                 onPressed: () => Navigator.of(context).pop(),
                                 style: TextButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 10),
+                                    horizontal: 10,
+                                  ),
                                   minimumSize: const Size(0, 32),
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
@@ -325,18 +327,18 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                 ),
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: context.colors.border),
             // 본문 — 빈 상태는 최대 높이의 1/3(컴팩트). 알림이 있으면 개수에 맞게
             // 늘어나되 최소 1/3·최대(현재 상태)까지, 넘으면 스크롤.
             if (items.isEmpty)
               SizedBox(
                 height: widget.maxHeight / 3,
-                child: const Center(
+                child: Center(
                   child: Text(
                     '받은 알림이 없어요',
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textTertiary,
+                      color: context.colors.textTertiary,
                     ),
                   ),
                 ),
@@ -350,7 +352,7 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                     padding: EdgeInsets.zero,
                     itemCount: items.length,
                     separatorBuilder: (_, _) =>
-                        const Divider(height: 1, color: AppColors.border),
+                        Divider(height: 1, color: context.colors.border),
                     itemBuilder: (_, i) => _PanelTile(
                       notification: items[i],
                       onTap: () => _onTap(items[i]),
@@ -372,11 +374,11 @@ class _BellDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Icon(
         Icons.notifications_outlined,
         size: 26, // 앱 헤더 벨과 동일 크기
-        color: AppColors.primaryDark,
+        color: context.colors.primaryDark,
       ),
     );
   }
@@ -396,7 +398,7 @@ class _PanelTile extends StatelessWidget {
       child: Container(
         color: n.isRead
             ? Colors.white
-            : AppColors.primarySoft.withValues(alpha: 0.18),
+            : context.colors.primarySoft.withValues(alpha: 0.18),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,11 +406,11 @@ class _PanelTile extends StatelessWidget {
             Container(
               width: 34,
               height: 34,
-              decoration: const BoxDecoration(
-                color: AppColors.primarySoft,
+              decoration: BoxDecoration(
+                color: context.colors.primarySoft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(n.icon, size: 17, color: AppColors.primaryDark),
+              child: Icon(n.icon, size: 17, color: context.colors.primaryDark),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -422,7 +424,7 @@ class _PanelTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: n.isRead ? FontWeight.w600 : FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   if (n.body != null && n.body!.isNotEmpty) ...[
@@ -431,9 +433,9 @@ class _PanelTile extends StatelessWidget {
                       n.body!,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
-                        color: AppColors.textSecondary,
+                        color: context.colors.textSecondary,
                         height: 1.35,
                       ),
                     ),
@@ -441,9 +443,9 @@ class _PanelTile extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     timeAgo(n.createdAt),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppColors.textTertiary,
+                      color: context.colors.textTertiary,
                     ),
                   ),
                 ],
@@ -454,8 +456,8 @@ class _PanelTile extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 4, left: 6),
                 width: 7,
                 height: 7,
-                decoration: const BoxDecoration(
-                  color: AppColors.danger,
+                decoration: BoxDecoration(
+                  color: context.colors.danger,
                   shape: BoxShape.circle,
                 ),
               ),

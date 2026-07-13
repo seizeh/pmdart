@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import '../motion/motion.dart';
 import 'user_profile_screen.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
 import '../services/community_repository.dart';
@@ -299,7 +299,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   void _showReportActions(List<_ReportAction> actions) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -309,9 +309,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           children: [
             for (final a in actions)
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.flag_outlined,
-                  color: AppColors.danger,
+                  color: context.colors.danger,
                 ),
                 title: Text(a.label),
                 onTap: () {
@@ -352,104 +352,107 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: CollapsibleView(
-      originRect: widget.originRect,
-      card: widget.cardBuilder,
-      cardRadius: widget.cardRadius,
-      scrollController: _scroll,
-      builder: (context, physics) => Scaffold(
-        backgroundColor: Colors.white,
-        // 히어로(사진 또는 블롭 본문)가 상태바까지 차오르도록 앱바를 투명 오버레이로.
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          // 뒤로가기 버튼 없음 — 아래로 당겨 카드로 축소하거나 시스템 뒤로가기
-          // (프로필·펫 상세와 동일한 몰입형).
-          automaticallyImplyLeading: false,
-          actions: [
-            if (_isMyPost)
-              OverlayIconButton(
-                icon: Icons.edit_outlined,
-                tooltip: '수정',
-                onPressed: _openEdit,
-              ),
-            if (!_isMyPost)
-              OverlayIconButton(
-                icon: Icons.chat_bubble_outline,
-                tooltip: '채팅하기',
-                onPressed: _startChat,
-              ),
-            if (!_isMyPost)
-              OverlayIconButton(
-                icon: Icons.report_outlined,
-                tooltip: '신고',
-                color: const Color(0xFFFF8A80),
-                onPressed: _openPostMenu,
-              ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        body: ListView(
-          controller: _scroll,
-          physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            // 히어로 — 피드 카드와 동일 비율. 사진 글은 대표사진,
-            // 사진 없는 글은 카드와 같은 블롭 배경 + 본문(같은 위치/스타일)로
-            // 축소 전환 시 피드 카드와 그대로 겹쳐진다.
-            AspectRatio(
-              aspectRatio: kPostImageAspectRatio,
-              child: hasImage
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(
-                          _post.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              const ColoredBox(color: AppColors.surfaceMuted),
-                        ),
-                        // 상태바 스크림 — 어두운 사진에서도 시간·배터리(어두운
-                        // 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: MediaQuery.paddingOf(context).top + 24,
-                          child: const IgnorePointer(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [Colors.white70, Colors.transparent],
+        originRect: widget.originRect,
+        card: widget.cardBuilder,
+        cardRadius: widget.cardRadius,
+        scrollController: _scroll,
+        builder: (context, physics) => Scaffold(
+          backgroundColor: context.colors.background,
+          // 히어로(사진 또는 블롭 본문)가 상태바까지 차오르도록 앱바를 투명 오버레이로.
+          extendBodyBehindAppBar: true,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            // 뒤로가기 버튼 없음 — 아래로 당겨 카드로 축소하거나 시스템 뒤로가기
+            // (프로필·펫 상세와 동일한 몰입형).
+            automaticallyImplyLeading: false,
+            actions: [
+              if (_isMyPost)
+                OverlayIconButton(
+                  icon: Icons.edit_outlined,
+                  tooltip: '수정',
+                  onPressed: _openEdit,
+                ),
+              if (!_isMyPost)
+                OverlayIconButton(
+                  icon: Icons.chat_bubble_outline,
+                  tooltip: '채팅하기',
+                  onPressed: _startChat,
+                ),
+              if (!_isMyPost)
+                OverlayIconButton(
+                  icon: Icons.report_outlined,
+                  tooltip: '신고',
+                  color: const Color(0xFFFF8A80),
+                  onPressed: _openPostMenu,
+                ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          body: ListView(
+            controller: _scroll,
+            physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              // 히어로 — 피드 카드와 동일 비율. 사진 글은 대표사진,
+              // 사진 없는 글은 카드와 같은 블롭 배경 + 본문(같은 위치/스타일)로
+              // 축소 전환 시 피드 카드와 그대로 겹쳐진다.
+              AspectRatio(
+                aspectRatio: kPostImageAspectRatio,
+                child: hasImage
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(
+                            _post.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) =>
+                                ColoredBox(color: context.colors.surfaceMuted),
+                          ),
+                          // 상태바 스크림 — 어두운 사진에서도 시간·배터리(어두운
+                          // 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: MediaQuery.paddingOf(context).top + 24,
+                            child: const IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.white70,
+                                      Colors.transparent,
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    )
-                  : _BlobHero(post: _post),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: _infoChildren(contentInHero: !hasImage),
+                        ],
+                      )
+                    : _BlobHero(post: _post),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: _infoChildren(contentInHero: !hasImage),
+                ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: _BottomBar(
+            post: _post,
+            controller: _commentCtrl,
+            sending: _sending,
+            onHeart: _toggleHeart,
+            onSend: _sendComment,
+          ),
         ),
-        bottomNavigationBar: _BottomBar(
-          post: _post,
-          controller: _commentCtrl,
-          sending: _sending,
-          onHeart: _toggleHeart,
-          onSend: _sendComment,
-        ),
-      ),
       ),
     );
   }
@@ -464,103 +467,100 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   /// [contentInHero] 가 true(사진 없는 글)면 본문이 상단 히어로에 있으므로,
   /// 히어로에서 잘리는 긴 글에만 전문을 아래에 덧붙인다.
   List<Widget> _infoChildren({required bool contentInHero}) {
-    final color = categoryColor(_post.category);
+    final color = categoryColor(context, _post.category);
     final showContent = !contentInHero || !_heroHoldsFullContent;
     return [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Text(
-                    categoryLabel(_post.category),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                _post.title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  height: 1.3,
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AuthorRow(
-                post: _post,
-                showFollow: !widget.isGuest && !_isMyPost,
-                following: _following,
-                onFollow: _toggleFollow,
-              ),
-              if (showContent) ...[
-                const SizedBox(height: 20),
-                const Divider(height: 1, color: AppColors.border),
-                const SizedBox(height: 20),
-                Text(
-                  _post.content,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: AppColors.textPrimary,
-                    height: 1.7,
-                  ),
-                ),
-              ],
-              if (_post.scheduledAt != null || _post.location != null) ...[
-                const SizedBox(height: 24),
-                _InfoBox(post: _post),
-              ],
-              if (!_isFreePost && _canManage) ...[
-                const SizedBox(height: 20),
-                OutlinedButton.icon(
-                  onPressed: _openApplicants,
-                  icon: const Icon(Icons.people_outline),
-                  label: const Text('지원자 목록 보기'),
-                ),
-              ] else if (!_isFreePost &&
-                  _managerChecked &&
-                  _post.progressStatus == 'recruiting') ...[
-                const SizedBox(height: 20),
-                OutlinedButton.icon(
-                  onPressed: _applying ? null : _apply,
-                  icon: _applying
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send_outlined),
-                  label: const Text('이 게시글에 지원하기'),
-                ),
-              ],
-              const SizedBox(height: 28),
-              Text(
-                '댓글 ${_comments.length}',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _CommentList(
-                loading: _loadingComments,
-                comments: _comments,
-                myUserId: SessionManager.instance.user?.id,
-                onReport: _openCommentMenu,
-              ),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(100),
+          ),
+          child: Text(
+            categoryLabel(_post.category),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+      Text(
+        _post.title,
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: context.colors.textPrimary,
+          height: 1.3,
+        ),
+      ),
+      const SizedBox(height: 14),
+      _AuthorRow(
+        post: _post,
+        showFollow: !widget.isGuest && !_isMyPost,
+        following: _following,
+        onFollow: _toggleFollow,
+      ),
+      if (showContent) ...[
+        const SizedBox(height: 20),
+        Divider(height: 1, color: context.colors.border),
+        const SizedBox(height: 20),
+        Text(
+          _post.content,
+          style: TextStyle(
+            fontSize: 15,
+            color: context.colors.textPrimary,
+            height: 1.7,
+          ),
+        ),
+      ],
+      if (_post.scheduledAt != null || _post.location != null) ...[
+        const SizedBox(height: 24),
+        _InfoBox(post: _post),
+      ],
+      if (!_isFreePost && _canManage) ...[
+        const SizedBox(height: 20),
+        OutlinedButton.icon(
+          onPressed: _openApplicants,
+          icon: const Icon(Icons.people_outline),
+          label: const Text('지원자 목록 보기'),
+        ),
+      ] else if (!_isFreePost &&
+          _managerChecked &&
+          _post.progressStatus == 'recruiting') ...[
+        const SizedBox(height: 20),
+        OutlinedButton.icon(
+          onPressed: _applying ? null : _apply,
+          icon: _applying
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.send_outlined),
+          label: const Text('이 게시글에 지원하기'),
+        ),
+      ],
+      const SizedBox(height: 28),
+      Text(
+        '댓글 ${_comments.length}',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: context.colors.textPrimary,
+        ),
+      ),
+      const SizedBox(height: 12),
+      _CommentList(
+        loading: _loadingComments,
+        comments: _comments,
+        myUserId: SessionManager.instance.user?.id,
+        onReport: _openCommentMenu,
+      ),
     ];
   }
 }
@@ -590,31 +590,31 @@ class _AuthorRow extends StatelessWidget {
               onTap: post.userId.isEmpty
                   ? null
                   : () => Navigator.push(
-                        context,
-                        CollapseRoute(
-                          builder: (_) => UserProfileScreen(
-                            userId: post.userId,
-                            previewNickname: post.authorNickname,
-                            originRect: riseOriginRect(context),
-                            cardRadius: 24,
-                          ),
+                      context,
+                      CollapseRoute(
+                        builder: (_) => UserProfileScreen(
+                          userId: post.userId,
+                          previewNickname: post.authorNickname,
+                          originRect: riseOriginRect(context),
+                          cardRadius: 24,
                         ),
                       ),
+                    ),
               child: Text(
                 post.authorNickname,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
             ),
             const SizedBox(height: 2),
             Text(
               '${timeAgo(post.createdAt)} · 조회 ${post.viewCount}${post.isEdited ? ' · 수정됨' : ''}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: AppColors.textTertiary,
+                color: context.colors.textTertiary,
               ),
             ),
           ],
@@ -639,10 +639,14 @@ class _FollowButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: following ? AppColors.surface : AppColors.primaryDark,
+          color: following
+              ? context.colors.surface
+              : context.colors.primaryDark,
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-            color: following ? AppColors.border : AppColors.primaryDark,
+            color: following
+                ? context.colors.border
+                : context.colors.primaryDark,
           ),
         ),
         child: Row(
@@ -652,8 +656,8 @@ class _FollowButton extends StatelessWidget {
               following ? Icons.check : Icons.add,
               size: 14,
               color: following
-                  ? AppColors.textSecondary
-                  : AppColors.textOnPrimary,
+                  ? context.colors.textSecondary
+                  : context.colors.textOnPrimary,
             ),
             const SizedBox(width: 4),
             Text(
@@ -662,8 +666,8 @@ class _FollowButton extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: following
-                    ? AppColors.textSecondary
-                    : AppColors.textOnPrimary,
+                    ? context.colors.textSecondary
+                    : context.colors.textOnPrimary,
               ),
             ),
           ],
@@ -683,14 +687,15 @@ class _InfoBox extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        border: Border.all(color: context.colors.border, width: 0.5),
       ),
       child: Column(
         children: [
           if (post.scheduledAt != null)
             _row(
+              context,
               Icons.event_outlined,
               '약속 일정',
               '${post.scheduledAt!.year}년 ${post.scheduledAt!.month}월 ${post.scheduledAt!.day}일 ${post.scheduledAt!.hour}시',
@@ -698,16 +703,16 @@ class _InfoBox extends StatelessWidget {
           if (post.scheduledAt != null && post.location != null)
             const SizedBox(height: 12),
           if (post.location != null)
-            _row(Icons.place_outlined, '위치', post.location!),
+            _row(context, Icons.place_outlined, '위치', post.location!),
           if (post.authorMoved) ...[
             const SizedBox(height: 10),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
+                Icon(
                   Icons.info_outline,
                   size: 16,
-                  color: AppColors.warning,
+                  color: context.colors.warning,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -716,7 +721,7 @@ class _InfoBox extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.4,
-                      color: AppColors.warning,
+                      color: context.colors.warning,
                     ),
                   ),
                 ),
@@ -728,23 +733,28 @@ class _InfoBox extends StatelessWidget {
     );
   }
 
-  Widget _row(IconData icon, String label, String value) => Row(
+  Widget _row(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) => Row(
     children: [
-      Icon(icon, size: 18, color: AppColors.primaryDark),
+      Icon(icon, size: 18, color: context.colors.primaryDark),
       const SizedBox(width: 10),
       Text(
         label,
-        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
       ),
       const Spacer(),
       Flexible(
         child: Text(
           value,
           textAlign: TextAlign.right,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
+            color: context.colors.textPrimary,
           ),
         ),
       ),
@@ -781,13 +791,13 @@ class _CommentList extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 32),
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+          color: context.colors.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Center(
+        child: Center(
           child: Text(
             '첫 댓글을 남겨보세요',
-            style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+            style: TextStyle(fontSize: 13, color: context.colors.textTertiary),
           ),
         ),
       );
@@ -811,18 +821,18 @@ class _CommentList extends StatelessWidget {
                         children: [
                           Text(
                             c.authorNickname,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
+                              color: context.colors.textPrimary,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             timeAgo(c.createdAt),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textTertiary,
+                              color: context.colors.textTertiary,
                             ),
                           ),
                         ],
@@ -830,9 +840,9 @@ class _CommentList extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         c.content,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: AppColors.textPrimary,
+                          color: context.colors.textPrimary,
                           height: 1.4,
                         ),
                       ),
@@ -866,9 +876,11 @@ class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        border: Border(
+          top: BorderSide(color: context.colors.border, width: 0.5),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -885,14 +897,14 @@ class _BottomBar extends StatelessWidget {
                     Icon(
                       post.hearted ? Icons.favorite : Icons.favorite_border,
                       color: post.hearted
-                          ? AppColors.danger
-                          : AppColors.textSecondary,
+                          ? context.colors.danger
+                          : context.colors.textSecondary,
                     ),
                     Text(
                       '${post.heartCount}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: context.colors.textSecondary,
                       ),
                     ),
                   ],
@@ -907,7 +919,7 @@ class _BottomBar extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: '댓글을 입력하세요',
                     filled: true,
-                    fillColor: AppColors.surfaceMuted,
+                    fillColor: context.colors.surfaceMuted,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 10,
@@ -918,8 +930,8 @@ class _BottomBar extends StatelessWidget {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(100),
-                      borderSide: const BorderSide(
-                        color: AppColors.primary,
+                      borderSide: BorderSide(
+                        color: context.colors.primary,
                         width: 1.2,
                       ),
                     ),
@@ -928,23 +940,23 @@ class _BottomBar extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.primaryDark,
+                decoration: BoxDecoration(
+                  color: context.colors.primaryDark,
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
                   icon: sending
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.textOnPrimary,
+                            color: context.colors.textOnPrimary,
                           ),
                         )
-                      : const Icon(
+                      : Icon(
                           Icons.arrow_upward,
-                          color: AppColors.textOnPrimary,
+                          color: context.colors.textOnPrimary,
                         ),
                   onPressed: sending ? null : onSend,
                 ),
@@ -1007,7 +1019,7 @@ class _BlobHeroState extends State<_BlobHero> {
       children: [
         BlobBackground(
           seed: widget.post.id,
-          color: categoryColor(widget.post.category),
+          color: categoryColor(context, widget.post.category),
         ),
         Positioned.fill(
           child: AnimatedPadding(
@@ -1021,10 +1033,10 @@ class _BlobHeroState extends State<_BlobHero> {
                 textAlign: TextAlign.center,
                 maxLines: 9,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                   height: 1.6,
                 ),
               ),
@@ -1035,4 +1047,3 @@ class _BlobHeroState extends State<_BlobHero> {
     );
   }
 }
-

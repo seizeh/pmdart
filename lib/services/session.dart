@@ -19,18 +19,18 @@ class AuthUser {
   });
 
   factory AuthUser.fromJson(Map json) => AuthUser(
-        id: json['id'] as String,
-        username: (json['username'] ?? '') as String,
-        nickname: (json['nickname'] ?? '') as String,
-        userType: (json['user_type'] ?? '') as String,
-      );
+    id: json['id'] as String,
+    username: (json['username'] ?? '') as String,
+    nickname: (json['nickname'] ?? '') as String,
+    userType: (json['user_type'] ?? '') as String,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'username': username,
-        'nickname': nickname,
-        'user_type': userType,
-      };
+    'id': id,
+    'username': username,
+    'nickname': nickname,
+    'user_type': userType,
+  };
 }
 
 /// 앱 전역 세션. 커스텀 JWT(access) + refresh 토큰을 보관하고 모든 Supabase 요청에
@@ -100,7 +100,11 @@ class SessionManager extends ChangeNotifier {
   }
 
   /// 로그인/비번변경 성공 시 세션 저장(refresh 없으면 레거시로 간주).
-  Future<void> setSession(String access, AuthUser user, {String? refresh}) async {
+  Future<void> setSession(
+    String access,
+    AuthUser user, {
+    String? refresh,
+  }) async {
     _access = access;
     _user = user;
     _refresh = refresh;
@@ -169,7 +173,9 @@ class SessionManager extends ChangeNotifier {
         // realtime(채팅) 연결도 새 토큰으로 재인증 — 안 하면 8h 후 만료로 끊길 수 있음.
         try {
           Supabase.instance.client.realtime.setAuth(_access);
-        } catch (_) {/* realtime 미연결 등 */}
+        } catch (_) {
+          /* realtime 미연결 등 */
+        }
         // notifyListeners 안 함 — 로그인 상태 변화 없음(토큰만 교체, 리빌드 불필요).
       } else {
         await _invalidate(); // 예상 밖 응답 → 세션 만료 처리
@@ -187,14 +193,18 @@ class SessionManager extends ChangeNotifier {
   /// 같은 패밀리로 매끄럽게 이어지므로, 다음 요청을 기다리지 않고 바로 재시도한다.
   Future<FunctionResponse> _invokeRefreshWithRetry(String r) async {
     try {
-      return await Supabase.instance.client.functions
-          .invoke('refresh', body: {'refresh_token': r});
+      return await Supabase.instance.client.functions.invoke(
+        'refresh',
+        body: {'refresh_token': r},
+      );
     } on FunctionException {
       rethrow; // 401 등 명시적 거절은 재시도 대상 아님
     } catch (_) {
       await Future.delayed(const Duration(seconds: 1));
-      return await Supabase.instance.client.functions
-          .invoke('refresh', body: {'refresh_token': r});
+      return await Supabase.instance.client.functions.invoke(
+        'refresh',
+        body: {'refresh_token': r},
+      );
     }
   }
 
@@ -225,7 +235,8 @@ class SessionManager extends ChangeNotifier {
       final parts = jwt.split('.');
       if (parts.length != 3) return null;
       final payload = jsonDecode(
-          utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))) as Map;
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      ) as Map;
       final exp = payload['exp'];
       return exp is int ? exp : null;
     } catch (_) {

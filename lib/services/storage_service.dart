@@ -15,33 +15,31 @@ class StorageService {
 
   /// 갤러리에서 이미지 1장 선택 (적당히 리사이즈/압축).
   Future<XFile?> pickImage() => _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1600,
-        imageQuality: 85,
-      );
+    source: ImageSource.gallery,
+    maxWidth: 1600,
+    imageQuality: 85,
+  );
 
   /// 갤러리에서 여러 장 선택(후기용 — 미리 찍은 사진 허용).
-  Future<List<XFile>> pickImages() => _picker.pickMultiImage(
-        maxWidth: 1600,
-        imageQuality: 85,
-      );
+  Future<List<XFile>> pickImages() =>
+      _picker.pickMultiImage(maxWidth: 1600, imageQuality: 85);
 
   /// 신원 인증용: 카메라 영상만(갤러리 진입 불가). 무작위 임무 수행 영상(~11초).
   Future<XFile?> capturePetVideo() => _picker.pickVideo(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
-        maxDuration: const Duration(seconds: 11),
-      );
+    source: ImageSource.camera,
+    preferredCameraDevice: CameraDevice.rear,
+    maxDuration: const Duration(seconds: 11),
+  );
 
   /// 게시글 사진 실존 검증용: 카메라만(갤러리 진입 불가) 방금 찍은 1장.
   /// EXIF 위치는 신뢰하지 않으므로(위치는 geolocator 로 별도 취득) 메타데이터 요청 안 함.
   Future<XFile?> capturePostPhoto() => _picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
-        maxWidth: 1600,
-        imageQuality: 85,
-        requestFullMetadata: false,
-      );
+    source: ImageSource.camera,
+    preferredCameraDevice: CameraDevice.rear,
+    maxWidth: 1600,
+    imageQuality: 85,
+    requestFullMetadata: false,
+  );
 
   /// 업로드 후 공개 URL/메타 반환.
   Future<UploadedImage> upload(XFile file, {required String category}) async {
@@ -53,10 +51,11 @@ class StorageService {
         ? file.name.split('.').last.toLowerCase()
         : 'jpg';
     final mime = file.mimeType ?? 'image/${ext == 'jpg' ? 'jpeg' : ext}';
-    final path =
-        '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-    await _c.storage.from('media').uploadBinary(
+    await _c.storage
+        .from('media')
+        .uploadBinary(
           path,
           bytes,
           fileOptions: FileOptions(contentType: mime, upsert: false),
@@ -75,7 +74,9 @@ class StorageService {
     final uid = SessionManager.instance.user?.id;
     if (uid == null) throw StateError('로그인이 필요합니다');
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await _c.storage.from('media').uploadBinary(
+    await _c.storage
+        .from('media')
+        .uploadBinary(
           path,
           bytes,
           fileOptions: FileOptions(contentType: mime, upsert: false),
@@ -89,5 +90,9 @@ class UploadedImage {
   final String url;
   final String mime;
   final int size;
-  const UploadedImage({required this.url, required this.mime, required this.size});
+  const UploadedImage({
+    required this.url,
+    required this.mime,
+    required this.size,
+  });
 }

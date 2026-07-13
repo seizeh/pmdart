@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../models/community.dart';
 import '../../services/community_repository.dart';
 import '../../widgets/app_search_field.dart';
@@ -314,7 +314,7 @@ class _CommunityTabState extends State<CommunityTab>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       // 키보드가 오르내릴 때 매 프레임 본문(블러 카드 리스트) 전체가 재레이아웃되며
       // 프레임이 떨어지므로 리사이즈를 끈다. 검색 UI 는 상단이라 가려질 것이 없고,
       // 결과 스크롤은 세로 스크롤 시작과 함께 키보드가 내려가 문제없다.
@@ -422,8 +422,8 @@ class _CommunityTabState extends State<CommunityTab>
           key: _fabKey,
           onPressed: _openCreate,
           // 카테고리 칩(0.7)이 아닌 상단 필름과 동일한 투명도(0.92) 적용.
-          backgroundColor: AppColors.primaryDark.withValues(alpha: 0.92),
-          foregroundColor: AppColors.textOnPrimary,
+          backgroundColor: context.colors.primaryDark.withValues(alpha: 0.92),
+          foregroundColor: context.colors.textOnPrimary,
           elevation: 0,
           icon: const Icon(Icons.edit_outlined),
           label: const Text(
@@ -443,7 +443,7 @@ class _CommunityTabState extends State<CommunityTab>
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: ColoredBox(
-          color: AppColors.frostFilm,
+          color: context.colors.frostFilm,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -451,12 +451,12 @@ class _CommunityTabState extends State<CommunityTab>
                 padding: const EdgeInsets.fromLTRB(20, 6, 12, 0),
                 child: Row(
                   children: [
-                    const Text(
+                    Text(
                       '커뮤니티',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.primaryDark,
+                        color: context.colors.primaryDark,
                         letterSpacing: -0.3,
                       ),
                     ),
@@ -573,19 +573,23 @@ class _FabGhost extends StatelessWidget {
     return Container(
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.primaryDark,
+        color: context.colors.primaryDark,
         borderRadius: BorderRadius.circular(100),
       ),
       // 실제 FloatingActionButton.extended 와 아이콘 크기(24)·라벨(14/w600)·간격(8)을 일치.
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.edit_outlined, color: AppColors.textOnPrimary, size: 24),
+          Icon(
+            Icons.edit_outlined,
+            color: context.colors.textOnPrimary,
+            size: 24,
+          ),
           SizedBox(width: 8),
           Text(
             '글 쓰기',
             style: TextStyle(
-              color: AppColors.textOnPrimary,
+              color: context.colors.textOnPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -610,9 +614,9 @@ class _MessageState extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: AppColors.textSecondary,
+              color: context.colors.textSecondary,
               height: 1.5,
             ),
           ),
@@ -700,9 +704,9 @@ class _NotificationBellState extends State<_NotificationBell> {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          const Icon(
+          Icon(
             Icons.notifications_outlined,
-            color: AppColors.primaryDark,
+            color: context.colors.primaryDark,
             size: 26,
           ),
           if (!widget.isGuest && _unread > 0)
@@ -713,7 +717,7 @@ class _NotificationBellState extends State<_NotificationBell> {
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 constraints: const BoxConstraints(minWidth: 16),
                 decoration: BoxDecoration(
-                  color: AppColors.danger,
+                  color: context.colors.danger,
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
@@ -778,17 +782,21 @@ class _FilterChip extends StatelessWidget {
         decoration: BoxDecoration(
           // 채우기만 투명(테두리·글씨는 불투명 유지). CategoryChip 과 동일 값으로 통일.
           color: selected
-              ? AppColors.primaryDark.withValues(alpha: 0.7)
+              ? context.colors.primaryDark.withValues(alpha: 0.7)
               : Colors.white.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-            color: selected ? AppColors.primaryDark : AppColors.border,
+            color: selected
+                ? context.colors.primaryDark
+                : context.colors.border,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
+            color: selected
+                ? context.colors.textOnPrimary
+                : context.colors.textPrimary,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),

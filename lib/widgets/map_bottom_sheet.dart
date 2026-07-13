@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// 지도 위에 안전하게 띄우는 커스텀 바텀시트.
 ///
@@ -128,8 +128,8 @@ class _MapBottomSheetState extends State<MapBottomSheet>
 
   Widget _panel(double w) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: context.colors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
@@ -154,7 +154,7 @@ class _MapBottomSheetState extends State<MapBottomSheet>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: context.colors.border,
                     borderRadius: BorderRadius.circular(100),
                   ),
                 ),

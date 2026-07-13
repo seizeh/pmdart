@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart';
 
 /// 보호자 역할 배지 — owner / co_guardian 구분.
@@ -13,7 +13,7 @@ class RoleBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final isOwner = role == 'owner';
     final label = isOwner ? '소유자' : '공동보호자';
-    final color = isOwner ? AppColors.primaryDark : AppColors.info;
+    final color = isOwner ? context.colors.primaryDark : context.colors.info;
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -71,17 +71,21 @@ class CategoryChip extends StatelessWidget {
           // 선택칩 색은 '전체' 칩과 동일하게 primaryDark 로 통일(카테고리별 색 안 씀).
           // 채우기만 투명(테두리·글씨는 불투명 유지 → 가독성).
           color: selected
-              ? AppColors.primaryDark.withValues(alpha: 0.7)
+              ? context.colors.primaryDark.withValues(alpha: 0.7)
               : Colors.white.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-            color: selected ? AppColors.primaryDark : AppColors.border,
+            color: selected
+                ? context.colors.primaryDark
+                : context.colors.border,
           ),
         ),
         child: Text(
           categoryLabel(category),
           style: TextStyle(
-            color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
+            color: selected
+                ? context.colors.textOnPrimary
+                : context.colors.textPrimary,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -91,13 +95,6 @@ class CategoryChip extends StatelessWidget {
   }
 }
 
-/// 카테고리별 강조 색상.
-Color categoryColor(String category) => switch (category) {
-      'walk_together' => AppColors.catWalk,
-      'walk_proxy' => AppColors.catWalkProxy,
-      'care' => AppColors.catCare,
-      'give_away' => AppColors.catGiveAway,
-      'adoption' => AppColors.catAdoption,
-      'free' => AppColors.catFree,
-      _ => AppColors.primary,
-    };
+/// 카테고리별 강조 색상 — 테마 팔레트에서 가져온다(다크모드 대응).
+Color categoryColor(BuildContext context, String category) =>
+    context.colors.categoryColor(category);

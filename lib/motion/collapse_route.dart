@@ -266,9 +266,8 @@ class CollapseProgress extends InheritedWidget {
     required super.child,
   });
 
-  static Animation<double>? of(BuildContext context) => context
-      .getInheritedWidgetOfExactType<CollapseProgress>()
-      ?.progress;
+  static Animation<double>? of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<CollapseProgress>()?.progress;
 
   @override
   bool updateShouldNotify(CollapseProgress oldWidget) =>
@@ -490,8 +489,9 @@ class _CollapsibleViewState extends State<CollapsibleView>
     final scale = win.width / w;
     final radius = widget.cardRadius * (t * 2).clamp(0.0, 1.0);
     final scrim = 0.32 * p;
-    final cardFade =
-        cardWidget == null ? 0.0 : ((t - 0.5) / 0.5).clamp(0.0, 1.0);
+    final cardFade = cardWidget == null
+        ? 0.0
+        : ((t - 0.5) / 0.5).clamp(0.0, 1.0);
 
     return Stack(
       fit: StackFit.expand,

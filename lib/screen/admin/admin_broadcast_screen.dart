@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../services/admin_repository.dart';
 import 'admin_theme.dart';
 
@@ -38,14 +38,17 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
       builder: (dCtx) => AlertDialog(
         title: const Text('전체 공지 발송'),
         content: Text(
-            '탈퇴자를 제외한 모든 회원에게 인앱 알림과 푸시가 발송됩니다. 발송 후 취소할 수 없어요.\n\n[$title]\n$body'),
+          '탈퇴자를 제외한 모든 회원에게 인앱 알림과 푸시가 발송됩니다. 발송 후 취소할 수 없어요.\n\n[$title]\n$body',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dCtx, false),
-              child: const Text('취소')),
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('취소'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('발송')),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('발송'),
+          ),
         ],
       ),
     );
@@ -53,27 +56,29 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
 
     setState(() => _sending = true);
     try {
-      final count =
-          await AdminRepository.instance.broadcastSystemNotice(title, body);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('회원 $count명에게 공지를 발송했어요')),
+      final count = await AdminRepository.instance.broadcastSystemNotice(
+        title,
+        body,
       );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('회원 $count명에게 공지를 발송했어요')));
       Navigator.pop(context);
     } catch (_) {
       if (!mounted) return;
       setState(() => _sending = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('발송에 실패했어요. 다시 시도해주세요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('발송에 실패했어요. 다시 시도해주세요')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: adminAppBar('전체 공지 발송'),
+      backgroundColor: context.colors.background,
+      appBar: adminAppBar(context, '전체 공지 발송'),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -81,13 +86,16 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppColors.adminAccentSoft,
+                color: context.colors.adminAccentSoft,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Text(
+              child: Text(
                 '약관·개인정보 처리방침 개정은 시행 7일 전(이용자에게 불리하거나 중대한 '
                 '변경은 30일 전)까지 고지해야 해요. 발송 내역은 감사 로그에 기록됩니다.',
-                style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.textPrimary,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -120,10 +128,11 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
               height: 52,
               child: FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.adminAccent,
-                  foregroundColor: AppColors.adminOnAccent,
+                  backgroundColor: context.colors.adminAccent,
+                  foregroundColor: context.colors.adminOnAccent,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 onPressed: _canSend ? _send : null,
                 child: _sending
@@ -132,9 +141,13 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
                         height: 22,
                         child: CircularProgressIndicator(strokeWidth: 2.5),
                       )
-                    : const Text('전체 회원에게 발송',
+                    : const Text(
+                        '전체 회원에게 발송',
                         style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
               ),
             ),
           ],

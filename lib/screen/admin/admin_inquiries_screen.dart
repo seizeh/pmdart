@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
 import '../../services/chat_repository.dart';
@@ -50,8 +50,9 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _open(AdminInquiry inq) async {
@@ -79,8 +80,8 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: adminAppBar('문의 처리'),
+      backgroundColor: context.colors.background,
+      appBar: adminAppBar(context, '문의 처리'),
       body: SafeArea(child: _body()),
     );
   }
@@ -92,16 +93,21 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text('문의가 없어요',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+      return Center(
+        child: Text(
+          '문의가 없어요',
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+        ),
       );
     }
     return RefreshIndicator(
@@ -109,7 +115,7 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
       child: ListView.separated(
         itemCount: _items.length,
         separatorBuilder: (_, _) =>
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: context.colors.border),
         itemBuilder: (_, i) {
           final inq = _items[i];
           return InkWell(
@@ -120,15 +126,16 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundColor: AppColors.primarySoft,
+                    backgroundColor: context.colors.primarySoft,
                     child: Text(
                       inq.userNickname.isEmpty
                           ? '?'
                           : inq.userNickname.characters.first,
-                      style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryDark),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: context.colors.primaryDark,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -136,18 +143,23 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(inq.userNickname,
-                            style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary)),
+                        Text(
+                          inq.userNickname,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: context.colors.textPrimary,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           inq.lastMessage ?? '메시지 없음',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: context.colors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -155,16 +167,19 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
                   const SizedBox(width: 8),
                   if (_opening == inq.roomId)
                     const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   else
                     Text(
                       inq.lastMessageAt == null
                           ? ''
                           : timeAgo(inq.lastMessageAt!),
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textTertiary),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: context.colors.textTertiary,
+                      ),
                     ),
                 ],
               ),

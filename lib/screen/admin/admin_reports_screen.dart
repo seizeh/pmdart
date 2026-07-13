@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
 import 'admin_theme.dart';
@@ -33,8 +33,9 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       _error = null;
     });
     try {
-      final items = await AdminRepository.instance
-          .listReports(status: _filter == 'open' ? 'open' : null);
+      final items = await AdminRepository.instance.listReports(
+        status: _filter == 'open' ? 'open' : null,
+      );
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -51,8 +52,9 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _setStatus(AdminReport r, String status) async {
@@ -71,8 +73,8 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: adminAppBar('신고 처리'),
+      backgroundColor: context.colors.background,
+      appBar: adminAppBar(context, '신고 처리'),
       body: SafeArea(
         child: Column(
           children: [
@@ -104,16 +106,20 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: sel ? AppColors.adminAccent : AppColors.surface,
+          color: sel ? context.colors.adminAccent : context.colors.surface,
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-              color: sel ? AppColors.adminAccent : AppColors.border),
+            color: sel ? context.colors.adminAccent : context.colors.border,
+          ),
         ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: sel ? Colors.white : AppColors.textSecondary)),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: sel ? Colors.white : context.colors.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -125,16 +131,21 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text('신고가 없어요',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+      return Center(
+        child: Text(
+          '신고가 없어요',
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+        ),
       );
     }
     return RefreshIndicator(
@@ -149,8 +160,8 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
             await Navigator.push(
               context,
               AppPageRoute(
-                  builder: (_) =>
-                      AdminReportDetailScreen(report: _items[i])),
+                builder: (_) => AdminReportDetailScreen(report: _items[i]),
+              ),
             );
             if (mounted) _load();
           },
@@ -176,12 +187,12 @@ class _ReportCard extends StatelessWidget {
   });
 
   static String _targetLabel(String t) => switch (t) {
-        'post' => '게시글',
-        'comment' => '댓글',
-        'chat_message' => '채팅',
-        'user' => '회원',
-        _ => t,
-      };
+    'post' => '게시글',
+    'comment' => '댓글',
+    'chat_message' => '채팅',
+    'user' => '회원',
+    _ => t,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -189,9 +200,9 @@ class _ReportCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        border: Border.all(color: context.colors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,17 +212,20 @@ class _ReportCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceMuted,
+                  color: context.colors.surfaceMuted,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text('${_targetLabel(r.targetType)} 신고',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary)),
+                child: Text(
+                  '${_targetLabel(r.targetType)} 신고',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
               ),
               const Spacer(),
-              _statusBadge(r.status),
+              _statusBadge(context, r.status),
             ],
           ),
           const SizedBox(height: 10),
@@ -219,33 +233,46 @@ class _ReportCard extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: r.categories
-                .map((c) => Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.danger.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(100),
+                .map(
+                  (c) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.colors.danger.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      c,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: context.colors.danger,
                       ),
-                      child: Text(c,
-                          style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.danger)),
-                    ))
+                    ),
+                  ),
+                )
                 .toList(),
           ),
           if (r.extraDescription != null && r.extraDescription!.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(r.extraDescription!,
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textPrimary, height: 1.4)),
+            Text(
+              r.extraDescription!,
+              style: TextStyle(
+                fontSize: 13,
+                color: context.colors.textPrimary,
+                height: 1.4,
+              ),
+            ),
           ],
           const SizedBox(height: 10),
-          Text('신고자 ${r.reporterNickname}  ·  ${timeAgo(r.createdAt)}',
-              style:
-                  const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+          Text(
+            '신고자 ${r.reporterNickname}  ·  ${timeAgo(r.createdAt)}',
+            style: TextStyle(fontSize: 11, color: context.colors.textTertiary),
+          ),
           const SizedBox(height: 8),
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: context.colors.border),
           const SizedBox(height: 6),
           Align(
             alignment: Alignment.centerRight,
@@ -253,22 +280,26 @@ class _ReportCard extends StatelessWidget {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : Wrap(
                     spacing: 4,
                     children: [
                       if (r.status != 'reviewing')
                         TextButton(
-                            onPressed: () => onSetStatus('reviewing'),
-                            child: const Text('검토중')),
+                          onPressed: () => onSetStatus('reviewing'),
+                          child: const Text('검토중'),
+                        ),
                       if (r.status != 'dismissed')
                         TextButton(
-                            onPressed: () => onSetStatus('dismissed'),
-                            child: const Text('반려')),
+                          onPressed: () => onSetStatus('dismissed'),
+                          child: const Text('반려'),
+                        ),
                       if (r.status != 'resolved')
                         TextButton(
-                            onPressed: () => onSetStatus('resolved'),
-                            child: const Text('처리완료')),
+                          onPressed: () => onSetStatus('resolved'),
+                          child: const Text('처리완료'),
+                        ),
                     ],
                   ),
           ),
@@ -277,13 +308,13 @@ class _ReportCard extends StatelessWidget {
     );
   }
 
-  Widget _statusBadge(String status) {
+  Widget _statusBadge(BuildContext context, String status) {
     final (label, color) = switch (status) {
-      'submitted' => ('접수', AppColors.warning),
-      'reviewing' => ('검토중', AppColors.primaryDark),
-      'resolved' => ('처리완료', AppColors.success),
-      'dismissed' => ('반려', AppColors.textSecondary),
-      _ => (status, AppColors.textSecondary),
+      'submitted' => ('접수', context.colors.warning),
+      'reviewing' => ('검토중', context.colors.primaryDark),
+      'resolved' => ('처리완료', context.colors.success),
+      'dismissed' => ('반려', context.colors.textSecondary),
+      _ => (status, context.colors.textSecondary),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -291,9 +322,14 @@ class _ReportCard extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(100),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }

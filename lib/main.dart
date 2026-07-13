@@ -28,11 +28,13 @@ Future<void> main() async {
 
   // 상태바 기본값 — 앱 배경이 밝으므로 아이콘(시간·배터리·네트워크)을 어둡게.
   // 사진 히어로 화면은 각자 AnnotatedRegion 으로 밝게 덮고, 벗어나면 자동 복원.
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark, // Android
-    statusBarBrightness: Brightness.light, // iOS
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark, // Android
+      statusBarBrightness: Brightness.light, // iOS
+    ),
+  );
 
   // 저장된 로그인 세션 복원
   await SessionManager.instance.load();
@@ -158,10 +160,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
     );
     final overlay = navigatorKey.currentState?.overlay;
     if (overlay != null) {
-      AppToast.show(
-        overlay,
-        '다른 기기에서 로그인하거나 비밀번호가 변경되어 로그아웃되었어요. 다시 로그인해주세요.',
-      );
+      AppToast.show(overlay, '다른 기기에서 로그인하거나 비밀번호가 변경되어 로그아웃되었어요. 다시 로그인해주세요.');
     }
   }
 
@@ -191,43 +190,43 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: overlay,
           child: NotificationListener<ScrollNotification>(
-          onNotification: (n) {
-            // 세로 스크롤만 키보드를 닫는다 — 가로 스크롤(카테고리 칩 등 캐러셀)은
-            // 검색 도중의 필터 조작이므로 키보드·포커스를 유지해야 한다
-            // (닫으면 searchActive 가 풀려 칩이 함께 사라지는 문제).
-            if (n is ScrollStartNotification &&
-                n.dragDetails != null &&
-                n.metrics.axis == Axis.vertical) {
-              FocusManager.instance.primaryFocus?.unfocus();
-            }
-            return false;
-          },
-          child: ValueListenableBuilder<bool>(
-            valueListenable: keyboardBarrierEnabled,
-            builder: (_, barrierOn, _) => Stack(
-              fit: StackFit.expand,
-              children: [
-                child ?? const SizedBox.shrink(),
-                // 지도 등 자체 처리 화면(barrierOn=false)에서는 배리어를 끈다.
-                // translucent — 탭은 배리어가 아레나에서 먼저 이겨 '키보드 닫기'로
-                // 흡수하되(아래 위젯 안 눌림), 드래그는 아래로 통과해 스크롤이
-                // 정상 동작한다(스크롤 시작 시 위 리스너가 키보드를 닫음).
-                // opaque 였을 때 키보드가 뜬 동안 카테고리 칩 가로 스크롤 등
-                // 모든 스크롤이 먹통이 되던 문제 수정.
-                if (keyboardUp && barrierOn)
-                  Positioned.fill(
-                    // 예외 영역(카테고리 칩 등)은 배리어 히트 자체를 건너뛴다.
-                    child: KeyboardBarrierHitFilter(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () =>
-                            FocusManager.instance.primaryFocus?.unfocus(),
+            onNotification: (n) {
+              // 세로 스크롤만 키보드를 닫는다 — 가로 스크롤(카테고리 칩 등 캐러셀)은
+              // 검색 도중의 필터 조작이므로 키보드·포커스를 유지해야 한다
+              // (닫으면 searchActive 가 풀려 칩이 함께 사라지는 문제).
+              if (n is ScrollStartNotification &&
+                  n.dragDetails != null &&
+                  n.metrics.axis == Axis.vertical) {
+                FocusManager.instance.primaryFocus?.unfocus();
+              }
+              return false;
+            },
+            child: ValueListenableBuilder<bool>(
+              valueListenable: keyboardBarrierEnabled,
+              builder: (_, barrierOn, _) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  child ?? const SizedBox.shrink(),
+                  // 지도 등 자체 처리 화면(barrierOn=false)에서는 배리어를 끈다.
+                  // translucent — 탭은 배리어가 아레나에서 먼저 이겨 '키보드 닫기'로
+                  // 흡수하되(아래 위젯 안 눌림), 드래그는 아래로 통과해 스크롤이
+                  // 정상 동작한다(스크롤 시작 시 위 리스너가 키보드를 닫음).
+                  // opaque 였을 때 키보드가 뜬 동안 카테고리 칩 가로 스크롤 등
+                  // 모든 스크롤이 먹통이 되던 문제 수정.
+                  if (keyboardUp && barrierOn)
+                    Positioned.fill(
+                      // 예외 영역(카테고리 칩 등)은 배리어 히트 자체를 건너뛴다.
+                      child: KeyboardBarrierHitFilter(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () =>
+                              FocusManager.instance.primaryFocus?.unfocus(),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
           ),
         );
       },

@@ -46,10 +46,7 @@ class _ChatTabState extends State<ChatTab> {
       rect == null
           ? AppPageRoute(builder: (_) => ChatRoomScreen(room: room))
           : CollapseRoute(
-              builder: (_) => ChatRoomScreen(
-                room: room,
-                originRect: rect,
-              ),
+              builder: (_) => ChatRoomScreen(room: room, originRect: rect),
             ),
     );
     if (!mounted) return;
@@ -184,9 +181,12 @@ class _ChatRoomTile extends StatelessWidget {
             errorBuilder: (_, _, _) => const SizedBox.shrink(),
           )
         : (room.isSupport
-            ? Image.asset('assets/images/cs_profile.png',
-                fit: BoxFit.cover, cacheWidth: 400)
-            : null);
+              ? Image.asset(
+                  'assets/images/cs_profile.png',
+                  fit: BoxFit.cover,
+                  cacheWidth: 400,
+                )
+              : null);
     // 사진 없는 상대는 채팅방 헤더와 동일한 primaryDark 프로필로 —
     // 흰 타일 → 진갈색 헤더로 바뀌던 이질감 제거.
     final hasPhoto = bgImage != null;
@@ -215,91 +215,98 @@ class _ChatRoomTile extends StatelessWidget {
             // 가독용 스크림 — 모드별 베일(라이트: 흰, 다크: 웜 다크)로 텍스트 대비 확보.
             if (bgImage != null)
               Positioned.fill(
-                child: ColoredBox(
-                  color: context.isDark
-                      ? const Color(0xB3161616)
-                      : const Color(0xB3FFFFFF),
-                ),
+                child: ColoredBox(color: context.colors.photoVeil),
               ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
               child: Stack(
                 children: [
-            // 본문 — 채팅방 상세 헤더(중앙 닉네임)와 축소 전환 형태가 이어지도록
-            // 아바타 없이 가운데 정렬로만 구성한다.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 72),
-                  child: Text(
-                    room.otherNickname,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: hasPhoto
-                          ? context.colors.textPrimary
-                          : context.colors.textOnPrimary,
+                  // 본문 — 채팅방 상세 헤더(중앙 닉네임)와 축소 전환 형태가 이어지도록
+                  // 아바타 없이 가운데 정렬로만 구성한다.
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 72),
+                        child: Text(
+                          room.otherNickname,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: hasPhoto
+                                ? context.colors.textPrimary
+                                : context.colors.textOnPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 48),
+                        child: Text(
+                          room.lastMessage.isEmpty
+                              ? '대화를 시작해보세요'
+                              : room.lastMessage,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: hasPhoto
+                                ? context.colors.textSecondary
+                                : context.colors.textOnPrimary.withValues(
+                                    alpha: 0.7,
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // 마지막 대화 시각 — 우측 상단.
+                  if (room.lastMessageAt != null)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Text(
+                        timeAgo(room.lastMessageAt!),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: hasPhoto
+                              ? context.colors.textTertiary
+                              : context.colors.textOnPrimary.withValues(
+                                  alpha: 0.7,
+                                ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 48),
-                  child: Text(
-                    room.lastMessage.isEmpty ? '대화를 시작해보세요' : room.lastMessage,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: hasPhoto
-                          ? context.colors.textSecondary
-                          : context.colors.textOnPrimary.withValues(alpha: 0.7),
+                  // 안읽음 뱃지 — 우측 하단.
+                  if (room.unreadCount > 0)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: context.colors.danger,
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(100),
+                          ),
+                        ),
+                        child: Text(
+                          '${room.unreadCount}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            // 마지막 대화 시각 — 우측 상단.
-            if (room.lastMessageAt != null)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Text(
-                  timeAgo(room.lastMessageAt!),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: hasPhoto
-                        ? context.colors.textTertiary
-                        : context.colors.textOnPrimary.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-            // 안읽음 뱃지 — 우측 하단.
-            if (room.unreadCount > 0)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: context.colors.danger,
-                    borderRadius: const BorderRadius.all(Radius.circular(100)),
-                  ),
-                  child: Text(
-                    '${room.unreadCount}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
                 ],
               ),
             ),

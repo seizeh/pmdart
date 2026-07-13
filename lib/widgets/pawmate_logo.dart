@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// PawMate 로고: 핀(눈물방울) 모양 안에 흰 원 + 발자국.
 /// 첫 번째 레퍼런스 이미지의 로고를 CustomPaint 로 구현.
@@ -17,8 +17,8 @@ class PawMateLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pawColor = AppColors.primaryDark;
-    final pin = pinColor ?? AppColors.primary;
+    final pawColor = context.colors.primaryDark;
+    final pin = pinColor ?? context.colors.primary;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -37,8 +37,8 @@ class PawMateLogo extends StatelessWidget {
                 child: Container(
                   width: size * 0.62,
                   height: size * 0.62,
-                  decoration: const BoxDecoration(
-                    color: AppColors.background,
+                  decoration: BoxDecoration(
+                    color: context.colors.cream,
                     shape: BoxShape.circle,
                   ),
                   child: CustomPaint(
@@ -56,7 +56,7 @@ class PawMateLogo extends StatelessWidget {
             style: TextStyle(
               fontSize: size * 0.30,
               fontWeight: FontWeight.w700,
-              color: AppColors.primaryDark,
+              color: context.colors.primaryDark,
               letterSpacing: -0.5,
             ),
           ),
@@ -84,9 +84,16 @@ class _PinPainter extends CustomPainter {
     final headCenterY = w * 0.5;
 
     final path = Path()
-      ..addOval(Rect.fromCircle(center: Offset(cx, headCenterY), radius: headRadius))
+      ..addOval(
+        Rect.fromCircle(center: Offset(cx, headCenterY), radius: headRadius),
+      )
       ..moveTo(cx - w * 0.22, headCenterY + headRadius * 0.7)
-      ..quadraticBezierTo(cx, size.height + 4, cx + w * 0.22, headCenterY + headRadius * 0.7)
+      ..quadraticBezierTo(
+        cx,
+        size.height + 4,
+        cx + w * 0.22,
+        headCenterY + headRadius * 0.7,
+      )
       ..close();
 
     canvas.drawPath(path, paint);
@@ -121,10 +128,26 @@ class _PawPrintPainter extends CustomPainter {
 
     // 발가락 — 4개 타원 (위쪽 2개 / 양옆 2개)
     final toes = <Rect>[
-      Rect.fromCenter(center: Offset(w * 0.30, h * 0.32), width: w * 0.18, height: h * 0.22),
-      Rect.fromCenter(center: Offset(w * 0.70, h * 0.32), width: w * 0.18, height: h * 0.22),
-      Rect.fromCenter(center: Offset(w * 0.16, h * 0.50), width: w * 0.16, height: h * 0.20),
-      Rect.fromCenter(center: Offset(w * 0.84, h * 0.50), width: w * 0.16, height: h * 0.20),
+      Rect.fromCenter(
+        center: Offset(w * 0.30, h * 0.32),
+        width: w * 0.18,
+        height: h * 0.22,
+      ),
+      Rect.fromCenter(
+        center: Offset(w * 0.70, h * 0.32),
+        width: w * 0.18,
+        height: h * 0.22,
+      ),
+      Rect.fromCenter(
+        center: Offset(w * 0.16, h * 0.50),
+        width: w * 0.16,
+        height: h * 0.20,
+      ),
+      Rect.fromCenter(
+        center: Offset(w * 0.84, h * 0.50),
+        width: w * 0.16,
+        height: h * 0.20,
+      ),
     ];
     for (final t in toes) {
       canvas.drawOval(t, paint);

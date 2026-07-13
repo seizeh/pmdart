@@ -20,7 +20,8 @@ class ProfileRepository {
     final profile = await _c
         .from('public_profiles')
         .select(
-            'nickname, user_type, profile_image_url, address, is_location_verified, activity_radius_m')
+          'nickname, user_type, profile_image_url, address, is_location_verified, activity_radius_m',
+        )
         .eq('id', uid)
         .maybeSingle();
 
@@ -59,8 +60,10 @@ class ProfileRepository {
   /// 좌표 → 현재 행정동 이름(역지오코딩). 실패/해상 등은 null. 부수효과 없음.
   Future<String?> regionNameAt(double lat, double lng) async {
     try {
-      final res = await _c.functions
-          .invoke('resolve-region', body: {'lat': lat, 'lng': lng});
+      final res = await _c.functions.invoke(
+        'resolve-region',
+        body: {'lat': lat, 'lng': lng},
+      );
       final data = (res.data as Map?) ?? const {};
       return data['regionName'] as String?;
     } catch (_) {
@@ -99,7 +102,9 @@ class ProfileRepository {
   Future<PublicProfileData> fetchPublicProfile(String userId) async {
     final profile = await _c
         .from('public_profiles')
-        .select('nickname, user_type, profile_image_url, address, is_location_verified')
+        .select(
+          'nickname, user_type, profile_image_url, address, is_location_verified',
+        )
         .eq('id', userId)
         .maybeSingle();
     if (profile == null) throw StateError('프로필을 찾을 수 없어요');
@@ -159,7 +164,8 @@ class ProfileRepository {
       final rows = await _c
           .from('pets')
           .select(
-              'id, name, species, gender, birth_date, bio, image_url, identity_verified, pet_match_count')
+            'id, name, species, gender, birth_date, bio, image_url, identity_verified, pet_match_count',
+          )
           .eq('primary_guardian_id', userId)
           .eq('pet_status', 'active');
       return [
@@ -188,8 +194,11 @@ class ProfileRepository {
 
   /// 단일 컬럼 동등 필터 카운트.
   Future<int> _count(String table, String col, String val) async {
-    final res =
-        await _c.from(table).select('id').eq(col, val).count(CountOption.exact);
+    final res = await _c
+        .from(table)
+        .select('id')
+        .eq(col, val)
+        .count(CountOption.exact);
     return res.count;
   }
 
@@ -210,7 +219,8 @@ class ProfileRepository {
     final rows = await _c
         .from('pet_guardians')
         .select(
-            'role, pets(id, name, species, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count)')
+          'role, pets(id, name, species, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count)',
+        )
         .eq('user_id', uid);
 
     final pets = <Map<String, dynamic>>[];
@@ -231,8 +241,10 @@ class ProfileRepository {
         .toList();
 
     // 펫별 보호자 수
-    final guardianRows =
-        await _c.from('pet_guardians').select('pet_id').inFilter('pet_id', petIds);
+    final guardianRows = await _c
+        .from('pet_guardians')
+        .select('pet_id')
+        .inFilter('pet_id', petIds);
     final guardianCount = <String, int>{};
     for (final g in guardianRows as List) {
       final pid = g['pet_id'] as String;
@@ -259,8 +271,9 @@ class ProfileRepository {
         name: (p['name'] ?? '') as String,
         species: (p['species'] ?? '') as String,
         gender: p['gender'] as String?,
-        birthDate:
-            p['birth_date'] == null ? null : DateTime.parse(p['birth_date'] as String),
+        birthDate: p['birth_date'] == null
+            ? null
+            : DateTime.parse(p['birth_date'] as String),
         bio: p['bio'] as String?,
         role: myRole[id] ?? 'co_guardian',
         guardianCount: guardianCount[id] ?? 1,
@@ -282,7 +295,10 @@ class ProfileRepository {
   }
 
   /// 프로필 수정 (닉네임 등). RLS: users_update (id=app.uid()).
-  Future<void> updateProfile({String? nickname, String? profileImageUrl}) async {
+  Future<void> updateProfile({
+    String? nickname,
+    String? profileImageUrl,
+  }) async {
     final user = SessionManager.instance.user;
     if (user == null) throw StateError('로그인이 필요합니다');
     final data = <String, dynamic>{};

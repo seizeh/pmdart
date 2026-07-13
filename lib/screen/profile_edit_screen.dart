@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/profile.dart';
 import '../services/profile_repository.dart';
 import '../services/storage_service.dart';
@@ -50,8 +50,9 @@ class ProfileEditScreen extends StatefulWidget {
 }
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
-  late final TextEditingController _nickCtrl =
-      TextEditingController(text: widget.initialNickname);
+  late final TextEditingController _nickCtrl = TextEditingController(
+    text: widget.initialNickname,
+  );
   String? _imageUrl;
   bool _uploading = false;
   bool _saving = false;
@@ -76,7 +77,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (file == null) return;
     setState(() => _uploading = true);
     try {
-      final up = await StorageService.instance.upload(file, category: 'profile');
+      final up = await StorageService.instance.upload(
+        file,
+        category: 'profile',
+      );
       if (!mounted) return;
       setState(() {
         _imageUrl = up.url;
@@ -141,7 +145,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ? (SessionManager.instance.user?.nickname ?? '?')
         : _nickCtrl.text;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(
         title: const Text('내정보 수정'),
         actions: [
@@ -151,10 +155,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('저장',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    '저장',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
           ),
         ],
       ),
@@ -169,117 +175,136 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
-              GestureDetector(
-                onTap: _uploading ? null : _pickImage,
-                child: Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
-                    shape: BoxShape.circle,
-                    image: _imageUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(_imageUrl!), fit: BoxFit.cover)
-                        : null,
-                  ),
-                  child: _uploading
-                      ? const Center(child: CircularProgressIndicator())
-                      : (_imageUrl == null
-                          ? Center(
-                              child: Text(
-                                initial.characters.first,
-                                style: const TextStyle(
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primaryDark,
-                                ),
-                              ),
-                            )
-                          : null),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: _uploading ? null : _pickImage,
-                icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                label: const Text('사진 변경'),
-              ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: const Text('닉네임',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _nickCtrl,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(hintText: '닉네임'),
-              ),
-              const SizedBox(height: 24),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('활동 지역',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
-              ),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: _verifyRegion,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined,
-                          size: 20, color: AppColors.primaryDark),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _verified && _regionName != null
-                              ? _regionName!
-                              : '지역 미인증',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: _verified
-                                ? AppColors.textPrimary
-                                : AppColors.textTertiary,
-                          ),
+                    GestureDetector(
+                      onTap: _uploading ? null : _pickImage,
+                      child: Container(
+                        width: 110,
+                        height: 110,
+                        decoration: BoxDecoration(
+                          color: context.colors.primarySoft,
+                          shape: BoxShape.circle,
+                          image: _imageUrl != null
+                              ? DecorationImage(
+                                  image: NetworkImage(_imageUrl!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: _uploading
+                            ? const Center(child: CircularProgressIndicator())
+                            : (_imageUrl == null
+                                  ? Center(
+                                      child: Text(
+                                        initial.characters.first,
+                                        style: TextStyle(
+                                          fontSize: 40,
+                                          fontWeight: FontWeight.w700,
+                                          color: context.colors.primaryDark,
+                                        ),
+                                      ),
+                                    )
+                                  : null),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _uploading ? null : _pickImage,
+                      icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                      label: const Text('사진 변경'),
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '닉네임',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: context.colors.textPrimary,
                         ),
                       ),
-                      Text(
-                        _verified ? '재인증' : 'GPS로 인증',
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryDark),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _nickCtrl,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(hintText: '닉네임'),
+                    ),
+                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '활동 지역',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: context.colors.textPrimary,
+                        ),
                       ),
-                      const Icon(Icons.chevron_right,
-                          size: 18, color: AppColors.textTertiary),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '활동 지역은 현재 위치(GPS)로만 인증돼요.',
-                  style:
-                      TextStyle(fontSize: 12, color: AppColors.textTertiary),
-                ),
-              ),
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: _verifyRegion,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: context.colors.border),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 20,
+                              color: context.colors.primaryDark,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _verified && _regionName != null
+                                    ? _regionName!
+                                    : '지역 미인증',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: _verified
+                                      ? context.colors.textPrimary
+                                      : context.colors.textTertiary,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              _verified ? '재인증' : 'GPS로 인증',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: context.colors.primaryDark,
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right,
+                              size: 18,
+                              color: context.colors.textTertiary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '활동 지역은 현재 위치(GPS)로만 인증돼요.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.colors.textTertiary,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -304,6 +329,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     );
   }
 }
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final List<_Item> items;
@@ -315,9 +341,9 @@ class _SectionCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.colors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -326,20 +352,20 @@ class _SectionCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
               ),
             ),
             ...items.expand((it) sync* {
               yield _ItemRow(item: it);
               if (it != items.last) {
-                yield const Divider(
+                yield Divider(
                   height: 1,
                   indent: 56,
-                  color: AppColors.border,
+                  color: context.colors.border,
                 );
               }
             }),
@@ -376,14 +402,14 @@ class _ItemRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
-            Icon(item.icon, size: 20, color: AppColors.primaryDark),
+            Icon(item.icon, size: 20, color: context.colors.primaryDark),
             const SizedBox(width: 16),
             Expanded(
               child: Text(
                 item.label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -391,16 +417,16 @@ class _ItemRow extends StatelessWidget {
             if (item.trailing != null)
               Text(
                 item.trailing!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
               ),
             const SizedBox(width: 4),
-            const Icon(
+            Icon(
               Icons.chevron_right,
               size: 18,
-              color: AppColors.textTertiary,
+              color: context.colors.textTertiary,
             ),
           ],
         ),
@@ -453,19 +479,19 @@ class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.colors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '활동 범위',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
+                color: context.colors.textSecondary,
               ),
             ),
             const SizedBox(height: 6),
@@ -473,9 +499,9 @@ class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
               verified
                   ? '${dong ?? '내 동네'} 기준 반경 (5~15km) · 이 범위의 게시글만 보여요'
                   : '동네 인증을 먼저 완료하면 설정할 수 있어요',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: AppColors.textTertiary,
+                color: context.colors.textTertiary,
               ),
             ),
             if (verified) ...[
@@ -517,10 +543,12 @@ class _RadiusChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primaryDark : AppColors.surface,
+          color: selected ? context.colors.primaryDark : context.colors.surface,
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-            color: selected ? AppColors.primaryDark : AppColors.border,
+            color: selected
+                ? context.colors.primaryDark
+                : context.colors.border,
             width: 0.5,
           ),
         ),
@@ -529,7 +557,9 @@ class _RadiusChip extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
+            color: selected
+                ? context.colors.textOnPrimary
+                : context.colors.textPrimary,
           ),
         ),
       ),
@@ -667,7 +697,7 @@ class _SettingsSection extends StatelessWidget {
   void _showTerms(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -675,7 +705,7 @@ class _SettingsSection extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(24, 20, 24, 8),
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -684,7 +714,7 @@ class _SettingsSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: context.colors.textPrimary,
                   ),
                 ),
               ),
@@ -695,13 +725,22 @@ class _SettingsSection extends StatelessWidget {
               ('개인정보 처리방침', TermsScreen.privacy),
             ])
               ListTile(
-                leading: const Icon(Icons.article_outlined,
-                    color: AppColors.textSecondary),
-                title: Text(label,
-                    style: const TextStyle(
-                        fontSize: 15, color: AppColors.textPrimary)),
-                trailing: const Icon(Icons.chevron_right,
-                    size: 20, color: AppColors.textTertiary),
+                leading: Icon(
+                  Icons.article_outlined,
+                  color: context.colors.textSecondary,
+                ),
+                title: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+                trailing: Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: context.colors.textTertiary,
+                ),
                 onTap: () {
                   Navigator.pop(sheetCtx);
                   _push(context, builder());
@@ -764,7 +803,7 @@ class _SettingsSection extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => _withdraw(context, dialogCtx),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            style: TextButton.styleFrom(foregroundColor: context.colors.danger),
             child: const Text('탈퇴하기'),
           ),
         ],

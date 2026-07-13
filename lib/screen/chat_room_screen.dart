@@ -369,7 +369,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
           room: widget.room,
           imageUrl: _otherImageUrl,
           morph: _morphCurved,
-          onMenu: _openRoomMenu,
+          // 고객센터 방은 메뉴(신고·나가기) 없음 — 나갈 수 없는 상시 채널.
+          onMenu: widget.room.isSupport ? null : _openRoomMenu,
         ),
         // 2단계: 축소가 타일 위치에 안착하면 방 프로필 → 목록 타일로 변형 후 pop.
         onSettled: () => _morph.forward(),
@@ -396,7 +397,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   child: _ChatHeader(
                     room: widget.room,
                     imageUrl: _otherImageUrl,
-                    onMenu: _openRoomMenu,
+                    // 고객센터 방은 메뉴(신고·나가기) 없음 — 나갈 수 없는 상시 채널.
+                    onMenu: widget.room.isSupport ? null : _openRoomMenu,
                     onProfileTap: widget.room.otherUserId == null
                         ? null
                         : _openOtherProfile,
@@ -467,7 +469,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
 class _ChatHeader extends StatelessWidget {
   final ChatRoomSummary room;
   final String? imageUrl;
-  final VoidCallback onMenu;
+  final VoidCallback? onMenu;
 
   /// 헤더(프로필 바) 탭 → 상대 프로필 상세. null 이면 탭 없음(고객센터 등).
   final VoidCallback? onProfileTap;
@@ -481,7 +483,7 @@ class _ChatHeader extends StatelessWidget {
   const _ChatHeader({
     required this.room,
     required this.imageUrl,
-    required this.onMenu,
+    this.onMenu,
     this.onProfileTap,
     this.barKey,
     this.barHidden = false,
@@ -715,7 +717,7 @@ class _MorphCard extends StatelessWidget {
   final ChatRoomSummary room;
   final String? imageUrl;
   final Animation<double> morph;
-  final VoidCallback onMenu;
+  final VoidCallback? onMenu;
   const _MorphCard({
     required this.room,
     required this.imageUrl,

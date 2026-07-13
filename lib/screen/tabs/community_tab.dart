@@ -407,7 +407,13 @@ class _CommunityTabState extends State<CommunityTab>
           // FAB 가 바 뒤로 가려지지 않게 한다.
           return Padding(
             padding: EdgeInsets.only(
-              bottom: 90 + MediaQuery.paddingOf(context).bottom,
+              // iOS 는 홈 인디케이터 인셋 체감상 하단 메뉴바와 너무 붙어 보여
+              // 조금 더 띄운다(Android 는 현행 간격 유지).
+              bottom:
+                  (Theme.of(context).platform == TargetPlatform.iOS
+                      ? 108.0
+                      : 90.0) +
+                  MediaQuery.paddingOf(context).bottom,
             ),
             child: Opacity(
               opacity: o,

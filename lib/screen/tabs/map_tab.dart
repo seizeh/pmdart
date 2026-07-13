@@ -46,8 +46,11 @@ Color _colorFor(String category) {
 // 카테고리 칩 통일 색(선택 배경) + 마커 아이콘 색(진한 브라운).
 const _catAccent = Color(0xFFAC9466);
 const _markerIconColor = Color(0xFF5A4E38);
-// 지도 위 마커 캡션/틴트 — 테마 무관(밝은 지도 타일 기준. 다크 지도 스타일은 후속).
-const _markerCaptionColor = Color(0xFF5A4E3A);
+// 지도 위 마커 캡션/틴트 — 지도 모드(라이트 타일/나이트 타일) 기준 색.
+const _markerCaptionLight = Color(0xFF5A4E3A);
+const _markerCaptionDark = Color(0xFFE8E2D5);
+const _markerHaloLight = Colors.white;
+const _markerHaloDark = Color(0xFF1E1E1E);
 
 IconData _iconForCat(String code) => switch (code) {
   'animal_hospital' => Icons.local_hospital_outlined,
@@ -153,6 +156,21 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     _searchFocus.addListener(_onSearchFocus);
   }
 
+  // 테마(라이트↔다크) 전환 감지 — 지도는 나이트 모드로 자동 전환되지만,
+  // 이미 그려진 마커 캡션 색은 남아 있으므로 다시 그린다.
+  Brightness? _lastBrightness;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final b = Theme.of(context).brightness;
+    if (_lastBrightness != null && _lastBrightness != b) {
+      final center = _loadedCenter;
+      if (center != null) _loadFacilities(center);
+    }
+    _lastBrightness = b;
+  }
+
   @override
   void dispose() {
     _suggestDebounce?.cancel();
@@ -189,6 +207,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   Future<void> _loadFacilities(NLatLng center) async {
     final c = _controller;
     if (c == null) return;
+    // 마커 캡션 색 — 지도 모드에 맞춰(await 전에 캡처).
+    final dark = context.isDark;
+    final capColor = dark ? _markerCaptionDark : _markerCaptionLight;
+    final capHalo = dark ? _markerHaloDark : _markerHaloLight;
     setState(() => _loadingFac = true);
     try {
       // 공공데이터(DB) 카테고리만 — 'pet_cafe'(실시간)·'posts'(게시글)는 제외.
@@ -240,9 +262,8 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
             NOverlayCaption(
               text: warn ? '⚠ ${_wrapCaption(f.name)}' : _wrapCaption(f.name),
               textSize: 11,
-              // 지도 타일 위 캡션 — 모드 무관 고정색(다크 지도 스타일은 후속).
-              color: _markerCaptionColor,
-              haloColor: Colors.white,
+              color: capColor,
+              haloColor: capHalo,
             ),
           )
           ..setIsHideCollidedCaptions(true)
@@ -625,6 +646,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   /// 검색 강조 마커 1건(id 'search'). 카테고리/반경과 무관하게 항상 최상단.
   /// 핀(IMG_3)은 끝이 아래를 향하므로 앵커는 하단 중앙. 로드 실패 시 기본 핀 폴백.
   Future<NMarker> _buildSearchMarker(Facility sr) async {
+    final dark = context.isDark; // await 전에 캡처
     final icon = await _loadSearchIcon();
     final m =
         NMarker(id: 'search', position: NLatLng(sr.lat, sr.lng), icon: icon)
@@ -634,15 +656,15 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
             NOverlayCaption(
               text: _wrapCaption(sr.name),
               textSize: 13,
-              color: _markerCaptionColor,
-              haloColor: Colors.white,
+              color: dark ? _markerCaptionDark : _markerCaptionLight,
+              haloColor: dark ? _markerHaloDark : _markerHaloLight,
             ),
           )
           ..setOnTapListener((_) => _showFacilitySheet(sr));
     if (icon != null) {
       m.setAnchor(const NPoint(0.5, 1.0)); // 핀 끝(아래)이 좌표를 가리키게
     } else {
-      m.setIconTintColor(_markerCaptionColor);
+      m.setIconTintColor(dark ? _markerCaptionDark : _markerCaptionLight);
     }
     return m;
   }
@@ -960,7 +982,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
               child: NaverMap(
                 options: NaverMapViewOptions(
                   initialCameraPosition: _lastCamera ?? _initialPosition,
-                  customStyleId: _customStyleId,
+                  // 다크: 네이버 기본 나이트 모드. 커스텀 스타일(라이트 전용)과
+                  // 겹치지 않게 라이트에서만 스타일 ID 를 적용한다.
+                  customStyleId: context.isDark ? null : _customStyleId,
+                  nightModeEnable: context.isDark,
                   locationButtonEnable: false,
                   consumeSymbolTapEvents: false,
                   // 네이버 로고를 하단 메뉴바 바로 위로 올린다(내 위치 버튼과 같은 높이).

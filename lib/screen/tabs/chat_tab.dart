@@ -143,7 +143,8 @@ class _ChatTabState extends State<ChatTab> {
       onRefresh: _load,
       edgeOffset: topPad,
       child: ListView.separated(
-        padding: EdgeInsets.only(left: 20, right: 20, top: topPad + 14),
+        // 상단 헤더(상태바 아래 프로스트 패널)와 첫 타일 사이 간격을 넉넉히.
+        padding: EdgeInsets.only(left: 20, right: 20, top: topPad + 26),
         itemCount: _rooms.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {

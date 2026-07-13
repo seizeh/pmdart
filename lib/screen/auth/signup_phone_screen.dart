@@ -735,7 +735,6 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (result.ok) {
-      // TODO: 공동보호자 초대(_coGuardianCtrls) 발송은 후속 연동 지점.
       // 가입 직후 자동 로그인하여 세션(JWT) 발급.
       final loginResult =
           await AuthService.instance.login(_idCtrl.text.trim(), _pwCtrl.text);
@@ -743,6 +742,14 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       if (loginResult.ok) {
         // 세션 발급 성공 → 메인으로. 펫 정보를 입력했다면 등록 화면으로 이어간다
         // (정식 등록은 AI 신원 인증 필수 → 가입 단계에서 직접 생성하지 않는다).
+        // 공동보호자 번호 — 숫자만, 10자리 이상, 내 번호 제외, 중복 제거.
+        // 펫 등록(인증 완료) 시 PetEditScreen 이 자동으로 초대를 발송한다.
+        final myPhone = _phoneCtrl.text.replaceAll(RegExp(r'[^\d]'), '');
+        final coPhones = _coGuardianCtrls
+            .map((c) => c.text.replaceAll(RegExp(r'[^\d]'), ''))
+            .where((p) => p.length >= 10 && p != myPhone)
+            .toSet()
+            .toList();
         final petDraft = (_userType == 'pet_owner' &&
                 _petNameCtrl.text.trim().isNotEmpty)
             ? PetDraft(
@@ -751,6 +758,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                 species: _petBreedCtrl.text.trim(),
                 gender: _petGender,
                 birthDate: _petBirth,
+                coGuardianPhones: coPhones,
               )
             : null;
         Navigator.pushAndRemoveUntil(

@@ -13,12 +13,17 @@ class PetDraft {
   final String species; // 품종(자유 입력)
   final String? gender;
   final DateTime? birthDate;
+
+  /// 가입 화면에서 받아둔 공동보호자 전화번호 — 펫 등록(인증 완료) 시 자동 초대.
+  final List<String> coGuardianPhones;
+
   const PetDraft({
     required this.name,
     this.speciesKind,
     this.species = '',
     this.gender,
     this.birthDate,
+    this.coGuardianPhones = const [],
   });
 }
 
@@ -155,8 +160,22 @@ class _PetEditScreenState extends State<PetEditScreen> {
           _toast('AI 신원 인증을 완료해야 등록돼요. 다시 시도해주세요');
           return;
         }
+        // 가입 화면에서 받아둔 공동보호자 번호로 자동 초대 — 등록·인증이
+        // 확정된 뒤에만 발송한다(가입자는 인앱 알림, 미가입자는 SMS).
+        var invited = 0;
+        for (final ph in widget.draft?.coGuardianPhones ?? const <String>[]) {
+          try {
+            await PetRepository.instance.invite(id, ph);
+            invited++;
+          } catch (_) {
+            // 개별 실패(중복/형식 등)는 등록 흐름을 막지 않는다.
+          }
+        }
+        if (!mounted) return;
         Navigator.pop(context, true);
-        _toast('반려동물을 등록했어요');
+        _toast(invited > 0
+            ? '반려동물을 등록하고 공동보호자 초대를 보냈어요'
+            : '반려동물을 등록했어요');
         return;
       }
       if (!mounted) return;

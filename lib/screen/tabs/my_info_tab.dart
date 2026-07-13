@@ -3,30 +3,23 @@ import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
 import '../../theme/app_colors.dart';
 import '../../data/mock_data.dart' show MockPet;
+import '../../models/community.dart';
 import '../../models/profile.dart';
 import '../../services/profile_repository.dart';
 import '../../services/pet_repository.dart';
+import '../../services/community_repository.dart';
 import '../../services/app_events.dart';
 import '../../services/session.dart';
 import '../../widgets/pet_card.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/gradient_header.dart';
-import '../../widgets/overlay_icon_button.dart';
-import '../../services/auth_service.dart';
 import '../pet_detail_screen.dart';
 import '../pet_edit_screen.dart';
-import '../connections_screen.dart';
+import '../post_detail_screen.dart';
 import '../profile_edit_screen.dart';
-import '../user_profile_screen.dart';
-import '../my_posts_screen.dart';
-import '../activity_screens.dart';
-import '../change_password_screen.dart';
-import '../guardian_invites_screen.dart';
-import '../notification_settings_screen.dart';
-import '../blocked_users_screen.dart';
+import '../user_profile_screen.dart' show PostPhotoTile;
 import '../auth/login_screen.dart';
 import '../auth/signup_phone_screen.dart';
-import '../welcome_screen.dart';
 import '../terms_screen.dart';
 
 /// 화면 이동 공용 헬퍼.
@@ -34,7 +27,8 @@ void _push(BuildContext context, Widget screen) {
   Navigator.push(context, AppPageRoute(builder: (_) => screen));
 }
 
-/// 내정보 탭 — 프로필 헤더 / 내 반려동물(N:M) / 내 활동 / 관심 / 설정.
+/// 내정보 탭 — 내 반려동물(N:M) / 프로필 히어로 / 내 게시글(2열 그리드).
+/// 내 활동·활동 범위·관심·설정은 프로필 히어로 탭 → 내정보 수정 화면에 있다.
 class MyInfoTab extends StatefulWidget {
   final bool isGuest;
   const MyInfoTab({super.key, this.isGuest = false});
@@ -49,9 +43,13 @@ class _MyInfoTabState extends State<MyInfoTab> {
   bool _loading = true;
   String? _error;
 
-  // 프로필 히어로 카드 → 내 공개 프로필 확장 전환용(게시글 상세와 동일 패턴).
+  // 내가 작성한 게시글 — 공개 프로필과 동일한 2열 그리드로 표시.
+  List<Post> _myPosts = [];
+  final _postKeys = <String, GlobalKey>{};
+  String? _openedPostId;
+
+  // 프로필 히어로 카드 → 수정 화면 확장 전환용.
   final _profileCardKey = GlobalKey();
-  bool _profileOpened = false;
 
   Rect? _profileRect() {
     final box =
@@ -60,20 +58,49 @@ class _MyInfoTabState extends State<MyInfoTab> {
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
-  /// 프로필 카드 탭 → 다른 사용자가 보는 내 공개 프로필이 카드 자리에서 펼쳐진다.
-  Future<void> _openMyPublicProfile() async {
-    final uid = SessionManager.instance.user?.id;
+  /// 프로필 카드 탭 → 카드 자리에서 수정 화면이 펼쳐진다(글쓰기 버튼과 동일한 전환).
+  Future<void> _openProfileEdit() async {
     final p = _profile;
-    if (uid == null || p == null) return;
+    if (p == null) return;
     final rect = _profileRect();
-    final page = UserProfileScreen(
-      userId: uid,
-      previewNickname: p.nickname,
-      originRect: rect,
-      cardBuilder: rect == null ? null : (_) => _ProfileHeroCard(profile: p),
-      cardRadius: 24,
+    final page = ProfileEditScreen(
+      initialNickname: p.nickname,
+      initialAddress: p.address,
+      initialVerified: p.isLocationVerified,
+      profile: p,
+      pendingInvites: _pendingInvites,
     );
-    if (rect != null) setState(() => _profileOpened = true);
+    await Navigator.push(
+      context,
+      rect == null
+          ? AppPageRoute(builder: (_) => page)
+          : ExpandRoute(
+              originRect: rect,
+              originRadius: 24, // 프로필 히어로 카드 곡률과 동일
+              builder: (_) => page,
+              origin: (_) => _ProfileHeroCard(profile: p),
+            ),
+    );
+    if (mounted) _load(silent: true); // 닉네임 등 수정 반영
+  }
+
+  // ── 내 게시글: 대표사진 2열 그리드 (공개 프로필과 동일) ──
+
+  Rect? _postRect(String id) {
+    final box = _postKeys[id]?.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  Future<void> _openPost(Post post) async {
+    final rect = _postRect(post.id);
+    final page = PostDetailScreen(
+      post: post,
+      originRect: rect,
+      cardBuilder: rect == null ? null : (_) => PostPhotoTile(post: post),
+      cardRadius: 16, // PostPhotoTile 곡률과 동일.
+    );
+    if (rect != null) setState(() => _openedPostId = post.id);
     await Navigator.push(
       context,
       rect == null
@@ -81,20 +108,82 @@ class _MyInfoTabState extends State<MyInfoTab> {
           : CollapseRoute(builder: (_) => page),
     );
     if (!mounted) return;
-    setState(() => _profileOpened = false);
-    _load(silent: true);
+    setState(() => _openedPostId = null);
+    _load(silent: true); // 하트/댓글/삭제 변동 반영
   }
 
-  void _openProfileEdit() {
-    final p = _profile;
-    if (p == null) return;
-    _push(
-      context,
-      ProfileEditScreen(
-        initialNickname: p.nickname,
-        initialAddress: p.address,
-        initialVerified: p.isLocationVerified,
-      ),
+  Widget _myPostsSection() {
+    final posts = _myPosts;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              const Text(
+                '내 게시글',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (posts.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '${posts.length}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (posts.isEmpty)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 28),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Center(
+              child: Text(
+                '작성한 게시글이 없어요',
+                style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+              ),
+            ),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+              ),
+              itemCount: posts.length,
+              itemBuilder: (_, i) {
+                final post = posts[i];
+                // 상세가 열린 타일은 빈자리로 — 축소가 겹침 없이 안착.
+                return Opacity(
+                  key: _postKeys.putIfAbsent(post.id, GlobalKey.new),
+                  opacity: _openedPostId == post.id ? 0 : 1,
+                  child: PostPhotoTile(post: post, onTap: () => _openPost(post)),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 
@@ -132,10 +221,18 @@ class _MyInfoTabState extends State<MyInfoTab> {
       try {
         invites = await PetRepository.instance.pendingInviteCount();
       } catch (_) {}
+      var posts = _myPosts;
+      try {
+        final uid = SessionManager.instance.user?.id;
+        if (uid != null) {
+          posts = await CommunityRepository.instance.fetchUserPosts(uid);
+        }
+      } catch (_) {} // 게시글 조회 실패 시 기존 목록 유지
       if (!mounted) return;
       setState(() {
         _profile = p;
         _pendingInvites = invites;
+        _myPosts = posts;
         _loading = false;
         _error = null;
       });
@@ -219,33 +316,22 @@ class _MyInfoTabState extends State<MyInfoTab> {
             _PetHero(pets: profile.pets),
             const SizedBox(height: 20),
             // 유저 정보 — 다른 사용자가 보는 공개 프로필 헤더와 동일한 히어로 카드.
-            // 탭하면 그 자리에서 내 공개 프로필로 펼쳐진다.
+            // 탭하면 그 자리에서 프로필 수정 화면으로 펼쳐진다.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: KeyedSubtree(
                 key: _profileCardKey,
-                child: Opacity(
-                  opacity: _profileOpened ? 0.0 : 1.0,
-                  child: _ProfileHeroCard(
-                    profile: profile,
-                    onTap: _openMyPublicProfile,
-                    onEdit: _openProfileEdit,
-                  ),
+                child: _ProfileHeroCard(
+                  profile: profile,
+                  onTap: _openProfileEdit,
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            _ActivitySection(
-              profile: profile,
-              pendingInvites: _pendingInvites,
-            ),
-            const SizedBox(height: 12),
-            _ActivityRangeSection(profile: profile),
-            const SizedBox(height: 12),
-            _InterestSection(profile: profile),
-            const SizedBox(height: 12),
-            _SettingsSection(profile: profile),
-            const SizedBox(height: 20),
+            const SizedBox(height: 28),
+            // 내가 작성한 게시글 — 공개 프로필과 동일한 2열 사진 그리드.
+            // (내 활동·활동 범위·관심·설정은 프로필 수정 화면으로 이동)
+            _myPostsSection(),
+            const SizedBox(height: 24),
             // 약관·처리방침 상시 열람(게시 의무).
             const _GuestFooter(),
           ],
@@ -657,12 +743,11 @@ class _PetHeroPlaceholder extends StatelessWidget {
 
 /// 유저 프로필 히어로 — 다른 사용자가 보는 공개 프로필 헤더 카드와 동일한 디자인
 /// (애플뮤직 스타일: 사진 풀블리드 + 하단 점진 블러 + 닉네임/유형·지역/통계).
-/// 사진이 없으면 primaryDark 배경에 닉네임을 크게. 우상단 연필로 편집.
+/// 사진이 없으면 primaryDark 배경에 닉네임을 크게. 탭하면 프로필 수정으로 펼쳐진다.
 class _ProfileHeroCard extends StatelessWidget {
   final ProfileData profile;
   final VoidCallback? onTap;
-  final VoidCallback? onEdit;
-  const _ProfileHeroCard({required this.profile, this.onTap, this.onEdit});
+  const _ProfileHeroCard({required this.profile, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -777,16 +862,6 @@ class _ProfileHeroCard extends StatelessWidget {
                 ),
               ),
             ),
-            // 우상단 편집 버튼(히어로 위 오버레이 — 게시글 상세 앱바 버튼과 동일 문법).
-            Positioned(
-              top: 10,
-              right: 10,
-              child: OverlayIconButton(
-                icon: Icons.edit_outlined,
-                tooltip: '프로필 편집',
-                onPressed: onEdit ?? () {},
-              ),
-            ),
           ],
         ),
       ),
@@ -870,509 +945,4 @@ class _ProfileHeroCard extends StatelessWidget {
     'admin' => '관리자',
     _ => t,
   };
-}
-
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final List<_Item> items;
-  const _SectionCard({required this.title, required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border, width: 0.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            ...items.expand((it) sync* {
-              yield _ItemRow(item: it);
-              if (it != items.last) {
-                yield const Divider(
-                  height: 1,
-                  indent: 56,
-                  color: AppColors.border,
-                );
-              }
-            }),
-            const SizedBox(height: 4),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Item {
-  final IconData icon;
-  final String label;
-  final String? trailing;
-  final VoidCallback? onTap;
-  const _Item({
-    required this.icon,
-    required this.label,
-    this.trailing,
-    this.onTap,
-  });
-}
-
-class _ItemRow extends StatelessWidget {
-  final _Item item;
-  const _ItemRow({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: item.onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        child: Row(
-          children: [
-            Icon(item.icon, size: 20, color: AppColors.primaryDark),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                item.label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            if (item.trailing != null)
-              Text(
-                item.trailing!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.chevron_right,
-              size: 18,
-              color: AppColors.textTertiary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 활동 범위 설정 — 인증 동 기준 반경(최대 7km).
-class _ActivityRangeSection extends StatefulWidget {
-  final ProfileData profile;
-  const _ActivityRangeSection({required this.profile});
-
-  @override
-  State<_ActivityRangeSection> createState() => _ActivityRangeSectionState();
-}
-
-class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
-  static const _options = [5000, 7000, 10000, 15000]; // m, 5~15km
-  late int? _radius = widget.profile.activityRadiusM;
-  bool _saving = false;
-
-  Future<void> _select(int m) async {
-    if (_saving || m == _radius) return;
-    final prev = _radius;
-    setState(() {
-      _radius = m;
-      _saving = true;
-    });
-    try {
-      await ProfileRepository.instance.setActivityRadius(m);
-    } catch (_) {
-      if (mounted) setState(() => _radius = prev);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('활동 범위를 저장하지 못했어요')));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final verified = widget.profile.isLocationVerified;
-    final dong = widget.profile.regionName;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border, width: 0.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '활동 범위',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              verified
-                  ? '${dong ?? '내 동네'} 기준 반경 (5~15km) · 이 범위의 게시글만 보여요'
-                  : '동네 인증을 먼저 완료하면 설정할 수 있어요',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textTertiary,
-              ),
-            ),
-            if (verified) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final m in _options)
-                    _RadiusChip(
-                      label: '${m ~/ 1000}km',
-                      selected: _radius == m,
-                      onTap: () => _select(m),
-                    ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RadiusChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _RadiusChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryDark : AppColors.surface,
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-            color: selected ? AppColors.primaryDark : AppColors.border,
-            width: 0.5,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivitySection extends StatelessWidget {
-  final ProfileData profile;
-  final int pendingInvites;
-  const _ActivitySection({required this.profile, required this.pendingInvites});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: '내 활동',
-      items: [
-        _Item(
-          icon: Icons.mail_outline,
-          label: '받은 보호자 초대',
-          trailing: pendingInvites > 0 ? '$pendingInvites' : null,
-          onTap: () => _push(context, const GuardianInvitesScreen()),
-        ),
-        _Item(
-          icon: Icons.article_outlined,
-          label: '내 게시글',
-          trailing: '${profile.postCount}',
-          onTap: () =>
-              _push(context, const MyPostsScreen(mode: PostListMode.mine)),
-        ),
-        _Item(
-          icon: Icons.send_outlined,
-          label: '내 지원 내역',
-          trailing: '${profile.applicationCount}',
-          onTap: () => _push(context, const MyApplicationsScreen()),
-        ),
-        _Item(
-          icon: Icons.event_available_outlined,
-          label: '약속',
-          trailing: '${profile.appointmentCount} 진행 중',
-          onTap: () => _push(context, const MyAppointmentsScreen()),
-        ),
-        _Item(
-          icon: Icons.star_border,
-          label: '받은 평가',
-          trailing: '${profile.reviewCount}',
-          onTap: () => _push(context, const MyReviewsScreen()),
-        ),
-      ],
-    );
-  }
-}
-
-class _InterestSection extends StatelessWidget {
-  final ProfileData profile;
-  const _InterestSection({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: '관심',
-      items: [
-        _Item(
-          icon: Icons.favorite_border,
-          label: '하트한 게시글',
-          trailing: '${profile.heartCount}',
-          onTap: () =>
-              _push(context, const MyPostsScreen(mode: PostListMode.hearted)),
-        ),
-        _Item(
-          icon: Icons.handshake_outlined,
-          label: 'Pawing (내가 팔로우)',
-          trailing: '${profile.pawingCount}',
-          onTap: () => Navigator.push(
-            context,
-            AppPageRoute(
-              builder: (_) => const ConnectionsScreen(initialIndex: 0),
-            ),
-          ),
-        ),
-        _Item(
-          icon: Icons.groups_outlined,
-          label: 'Pawmate (나를 팔로우)',
-          trailing: '${profile.pawmateCount}',
-          onTap: () => Navigator.push(
-            context,
-            AppPageRoute(
-              builder: (_) => const ConnectionsScreen(initialIndex: 1),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SettingsSection extends StatelessWidget {
-  final ProfileData profile;
-  const _SettingsSection({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: '설정',
-      items: [
-        _Item(
-          icon: Icons.notifications_outlined,
-          label: '알림 설정',
-          onTap: () => _push(context, const NotificationSettingsScreen()),
-        ),
-        _Item(
-          icon: Icons.lock_outline,
-          label: '비밀번호 변경',
-          onTap: () => _push(context, const ChangePasswordScreen()),
-        ),
-        _Item(
-          icon: Icons.block_outlined,
-          label: '차단 사용자 관리',
-          onTap: () => _push(context, const BlockedUsersScreen()),
-        ),
-        _Item(
-          icon: Icons.description_outlined,
-          label: '약관 및 정책',
-          onTap: () => _showTerms(context),
-        ),
-        _Item(
-          icon: Icons.logout,
-          label: '로그아웃',
-          onTap: () => _confirmLogout(context),
-        ),
-        _Item(
-          icon: Icons.person_off_outlined,
-          label: '회원 탈퇴',
-          onTap: () => _confirmWithdraw(context),
-        ),
-      ],
-    );
-  }
-
-  /// 약관·정책 전문 조회 — 가입 때 동의한 문서를 언제든 다시 볼 수 있게.
-  void _showTerms(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 20, 24, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '약관 및 정책',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-            ),
-            for (final (label, builder) in <(String, Widget Function())>[
-              ('서비스 이용약관', TermsScreen.service),
-              ('위치기반서비스 이용약관', TermsScreen.location),
-              ('개인정보 처리방침', TermsScreen.privacy),
-            ])
-              ListTile(
-                leading: const Icon(Icons.article_outlined,
-                    color: AppColors.textSecondary),
-                title: Text(label,
-                    style: const TextStyle(
-                        fontSize: 15, color: AppColors.textPrimary)),
-                trailing: const Icon(Icons.chevron_right,
-                    size: 20, color: AppColors.textTertiary),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  _push(context, builder());
-                },
-              ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _confirmLogout(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('로그아웃'),
-        content: const Text('로그아웃 하시겠어요?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogCtx);
-              await AuthService.instance.logout();
-              if (!context.mounted) return;
-              Navigator.of(context).pushAndRemoveUntil(
-                AppPageRoute(builder: (_) => const WelcomeScreen()),
-                (route) => false,
-              );
-            },
-            child: const Text('로그아웃'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 회원 탈퇴 — 파기·잔존 안내 후 서버 RPC 로 즉시 처리(복구 불가).
-  void _confirmWithdraw(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('회원 탈퇴'),
-        content: const Text(
-          '탈퇴하면 되돌릴 수 없어요.\n\n'
-          '· 계정·프로필·전화번호 등 개인정보는 즉시 파기됩니다\n'
-          '  (부정이용 방지를 위해 아이디·전화번호만 30일 분리 보관 후 파기)\n'
-          '· 등록한 반려동물 정보가 삭제됩니다\n'
-          '· 작성한 게시글·채팅은 남지만 익명으로 표시됩니다\n'
-          '  (남기고 싶지 않다면 탈퇴 전에 직접 삭제해주세요)',
-          style: TextStyle(fontSize: 13.5, height: 1.6),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => _withdraw(context, dialogCtx),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('탈퇴하기'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _withdraw(BuildContext context, BuildContext dialogCtx) async {
-    Navigator.pop(dialogCtx);
-    try {
-      await ProfileRepository.instance.withdrawAccount();
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      return;
-    }
-    // 서버에서 이미 세션이 무효화됨 — 로컬 세션 정리 후 시작 화면으로.
-    await AuthService.instance.logout();
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('탈퇴가 완료되었어요. 그동안 이용해주셔서 감사합니다'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    Navigator.of(context).pushAndRemoveUntil(
-      AppPageRoute(builder: (_) => const WelcomeScreen()),
-      (route) => false,
-    );
-  }
 }

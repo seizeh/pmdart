@@ -5,20 +5,44 @@ import '../models/profile.dart';
 import '../services/profile_repository.dart';
 import '../services/storage_service.dart';
 import '../services/session.dart';
+import '../services/auth_service.dart';
 import 'location_verify_screen.dart';
+import 'connections_screen.dart';
+import 'my_posts_screen.dart';
+import 'activity_screens.dart';
+import 'change_password_screen.dart';
+import 'guardian_invites_screen.dart';
+import 'notification_settings_screen.dart';
+import 'blocked_users_screen.dart';
+import 'welcome_screen.dart';
+import 'terms_screen.dart';
 
-/// 프로필 편집 — 닉네임 + 프로필 사진 + 활동 지역(GPS 인증).
+/// 화면 이동 공용 헬퍼.
+void _push(BuildContext context, Widget screen) {
+  Navigator.push(context, AppPageRoute(builder: (_) => screen));
+}
+
+/// 내정보 수정 — 닉네임 + 프로필 사진 + 활동 지역(GPS 인증)에 더해
+/// 내 활동 / 활동 범위 / 관심 / 설정 섹션(내정보 탭에서 이동)까지 한 화면에서.
 class ProfileEditScreen extends StatefulWidget {
   final String initialNickname;
 
   /// 활동 지역(동네 인증) 초기 상태. address 는 GPS 인증으로만 바뀐다.
   final String? initialAddress;
   final bool initialVerified;
+
+  /// 내 활동/관심/설정 섹션 표시용 프로필 집계(내정보 탭이 넘겨준다).
+  /// null 이면 섹션 없이 편집 폼만 표시.
+  final ProfileData? profile;
+  final int pendingInvites;
+
   const ProfileEditScreen({
     super.key,
     required this.initialNickname,
     this.initialAddress,
     this.initialVerified = false,
+    this.profile,
+    this.pendingInvites = 0,
   });
 
   @override
@@ -119,7 +143,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('프로필 편집'),
+        title: const Text('내정보 수정'),
         actions: [
           TextButton(
             onPressed: _canSave ? _save : null,
@@ -136,9 +160,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          // 섹션 카드(내 활동 등)는 자체 좌우 20 패딩을 가지므로 스크롤뷰는
+          // 상하 패딩만 주고, 편집 폼 부분만 좌우 24 를 따로 감싼다.
+          padding: const EdgeInsets.symmetric(vertical: 24),
           child: Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
               GestureDetector(
                 onTap: _uploading ? null : _pickImage,
                 child: Container(
@@ -250,10 +280,525 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       TextStyle(fontSize: 12, color: AppColors.textTertiary),
                 ),
               ),
+                  ],
+                ),
+              ),
+              // 내 활동/활동 범위/관심/설정 — 내정보 탭에서 이동해온 섹션들.
+              if (widget.profile != null) ...[
+                const SizedBox(height: 28),
+                _ActivitySection(
+                  profile: widget.profile!,
+                  pendingInvites: widget.pendingInvites,
+                ),
+                const SizedBox(height: 12),
+                _ActivityRangeSection(profile: widget.profile!),
+                const SizedBox(height: 12),
+                _InterestSection(profile: widget.profile!),
+                const SizedBox(height: 12),
+                _SettingsSection(profile: widget.profile!),
+              ],
             ],
           ),
         ),
       ),
+    );
+  }
+}
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final List<_Item> items;
+  const _SectionCard({required this.title, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            ...items.expand((it) sync* {
+              yield _ItemRow(item: it);
+              if (it != items.last) {
+                yield const Divider(
+                  height: 1,
+                  indent: 56,
+                  color: AppColors.border,
+                );
+              }
+            }),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Item {
+  final IconData icon;
+  final String label;
+  final String? trailing;
+  final VoidCallback? onTap;
+  const _Item({
+    required this.icon,
+    required this.label,
+    this.trailing,
+    this.onTap,
+  });
+}
+
+class _ItemRow extends StatelessWidget {
+  final _Item item;
+  const _ItemRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: item.onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Icon(item.icon, size: 20, color: AppColors.primaryDark),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                item.label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (item.trailing != null)
+              Text(
+                item.trailing!,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: AppColors.textTertiary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 활동 범위 설정 — 인증 동 기준 반경(최대 7km).
+class _ActivityRangeSection extends StatefulWidget {
+  final ProfileData profile;
+  const _ActivityRangeSection({required this.profile});
+
+  @override
+  State<_ActivityRangeSection> createState() => _ActivityRangeSectionState();
+}
+
+class _ActivityRangeSectionState extends State<_ActivityRangeSection> {
+  static const _options = [5000, 7000, 10000, 15000]; // m, 5~15km
+  late int? _radius = widget.profile.activityRadiusM;
+  bool _saving = false;
+
+  Future<void> _select(int m) async {
+    if (_saving || m == _radius) return;
+    final prev = _radius;
+    setState(() {
+      _radius = m;
+      _saving = true;
+    });
+    try {
+      await ProfileRepository.instance.setActivityRadius(m);
+    } catch (_) {
+      if (mounted) setState(() => _radius = prev);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('활동 범위를 저장하지 못했어요')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final verified = widget.profile.isLocationVerified;
+    final dong = widget.profile.regionName;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '활동 범위',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              verified
+                  ? '${dong ?? '내 동네'} 기준 반경 (5~15km) · 이 범위의 게시글만 보여요'
+                  : '동네 인증을 먼저 완료하면 설정할 수 있어요',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textTertiary,
+              ),
+            ),
+            if (verified) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final m in _options)
+                    _RadiusChip(
+                      label: '${m ~/ 1000}km',
+                      selected: _radius == m,
+                      onTap: () => _select(m),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RadiusChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _RadiusChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryDark : AppColors.surface,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+            color: selected ? AppColors.primaryDark : AppColors.border,
+            width: 0.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.textOnPrimary : AppColors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivitySection extends StatelessWidget {
+  final ProfileData profile;
+  final int pendingInvites;
+  const _ActivitySection({required this.profile, required this.pendingInvites});
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: '내 활동',
+      items: [
+        _Item(
+          icon: Icons.mail_outline,
+          label: '받은 보호자 초대',
+          trailing: pendingInvites > 0 ? '$pendingInvites' : null,
+          onTap: () => _push(context, const GuardianInvitesScreen()),
+        ),
+        // '내 게시글' 항목은 제거 — 내정보 탭의 2열 그리드에서 직접 본다.
+        _Item(
+          icon: Icons.send_outlined,
+          label: '내 지원 내역',
+          trailing: '${profile.applicationCount}',
+          onTap: () => _push(context, const MyApplicationsScreen()),
+        ),
+        _Item(
+          icon: Icons.event_available_outlined,
+          label: '약속',
+          trailing: '${profile.appointmentCount} 진행 중',
+          onTap: () => _push(context, const MyAppointmentsScreen()),
+        ),
+        _Item(
+          icon: Icons.star_border,
+          label: '받은 평가',
+          trailing: '${profile.reviewCount}',
+          onTap: () => _push(context, const MyReviewsScreen()),
+        ),
+      ],
+    );
+  }
+}
+
+class _InterestSection extends StatelessWidget {
+  final ProfileData profile;
+  const _InterestSection({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: '관심',
+      items: [
+        _Item(
+          icon: Icons.favorite_border,
+          label: '하트한 게시글',
+          trailing: '${profile.heartCount}',
+          onTap: () =>
+              _push(context, const MyPostsScreen(mode: PostListMode.hearted)),
+        ),
+        _Item(
+          icon: Icons.handshake_outlined,
+          label: 'Pawing (내가 팔로우)',
+          trailing: '${profile.pawingCount}',
+          onTap: () => Navigator.push(
+            context,
+            AppPageRoute(
+              builder: (_) => const ConnectionsScreen(initialIndex: 0),
+            ),
+          ),
+        ),
+        _Item(
+          icon: Icons.groups_outlined,
+          label: 'Pawmate (나를 팔로우)',
+          trailing: '${profile.pawmateCount}',
+          onTap: () => Navigator.push(
+            context,
+            AppPageRoute(
+              builder: (_) => const ConnectionsScreen(initialIndex: 1),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsSection extends StatelessWidget {
+  final ProfileData profile;
+  const _SettingsSection({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: '설정',
+      items: [
+        _Item(
+          icon: Icons.notifications_outlined,
+          label: '알림 설정',
+          onTap: () => _push(context, const NotificationSettingsScreen()),
+        ),
+        _Item(
+          icon: Icons.lock_outline,
+          label: '비밀번호 변경',
+          onTap: () => _push(context, const ChangePasswordScreen()),
+        ),
+        _Item(
+          icon: Icons.block_outlined,
+          label: '차단 사용자 관리',
+          onTap: () => _push(context, const BlockedUsersScreen()),
+        ),
+        _Item(
+          icon: Icons.description_outlined,
+          label: '약관 및 정책',
+          onTap: () => _showTerms(context),
+        ),
+        _Item(
+          icon: Icons.logout,
+          label: '로그아웃',
+          onTap: () => _confirmLogout(context),
+        ),
+        _Item(
+          icon: Icons.person_off_outlined,
+          label: '회원 탈퇴',
+          onTap: () => _confirmWithdraw(context),
+        ),
+      ],
+    );
+  }
+
+  /// 약관·정책 전문 조회 — 가입 때 동의한 문서를 언제든 다시 볼 수 있게.
+  void _showTerms(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 20, 24, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '약관 및 정책',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+            for (final (label, builder) in <(String, Widget Function())>[
+              ('서비스 이용약관', TermsScreen.service),
+              ('위치기반서비스 이용약관', TermsScreen.location),
+              ('개인정보 처리방침', TermsScreen.privacy),
+            ])
+              ListTile(
+                leading: const Icon(Icons.article_outlined,
+                    color: AppColors.textSecondary),
+                title: Text(label,
+                    style: const TextStyle(
+                        fontSize: 15, color: AppColors.textPrimary)),
+                trailing: const Icon(Icons.chevron_right,
+                    size: 20, color: AppColors.textTertiary),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _push(context, builder());
+                },
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('로그아웃 하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              await AuthService.instance.logout();
+              if (!context.mounted) return;
+              Navigator.of(context).pushAndRemoveUntil(
+                AppPageRoute(builder: (_) => const WelcomeScreen()),
+                (route) => false,
+              );
+            },
+            child: const Text('로그아웃'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 회원 탈퇴 — 파기·잔존 안내 후 서버 RPC 로 즉시 처리(복구 불가).
+  void _confirmWithdraw(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('회원 탈퇴'),
+        content: const Text(
+          '탈퇴하면 되돌릴 수 없어요.\n\n'
+          '· 계정·프로필·전화번호 등 개인정보는 즉시 파기됩니다\n'
+          '  (부정이용 방지를 위해 아이디·전화번호만 30일 분리 보관 후 파기)\n'
+          '· 등록한 반려동물 정보가 삭제됩니다\n'
+          '· 작성한 게시글·채팅은 남지만 익명으로 표시됩니다\n'
+          '  (남기고 싶지 않다면 탈퇴 전에 직접 삭제해주세요)',
+          style: TextStyle(fontSize: 13.5, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => _withdraw(context, dialogCtx),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('탈퇴하기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _withdraw(BuildContext context, BuildContext dialogCtx) async {
+    Navigator.pop(dialogCtx);
+    try {
+      await ProfileRepository.instance.withdrawAccount();
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    // 서버에서 이미 세션이 무효화됨 — 로컬 세션 정리 후 시작 화면으로.
+    await AuthService.instance.logout();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('탈퇴가 완료되었어요. 그동안 이용해주셔서 감사합니다'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    Navigator.of(context).pushAndRemoveUntil(
+      AppPageRoute(builder: (_) => const WelcomeScreen()),
+      (route) => false,
     );
   }
 }

@@ -169,8 +169,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final page = PostDetailScreen(
       post: post,
       originRect: rect,
-      cardBuilder: rect == null ? null : (_) => _PostPhotoTile(post: post),
-      cardRadius: 16, // _PostPhotoTile 곡률과 동일.
+      cardBuilder: rect == null ? null : (_) => PostPhotoTile(post: post),
+      cardRadius: 16, // PostPhotoTile 곡률과 동일.
     );
     if (rect != null) setState(() => _openedPostId = post.id);
     await Navigator.push<void>(
@@ -754,7 +754,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           return Opacity(
             key: _postKeys.putIfAbsent(post.id, GlobalKey.new),
             opacity: _openedPostId == post.id ? 0 : 1,
-            child: _PostPhotoTile(post: post, onTap: () => _openPost(post)),
+            child: PostPhotoTile(post: post, onTap: () => _openPost(post)),
           );
         },
       ),
@@ -779,10 +779,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 /// 작성한 게시글 그리드 타일 — 대표사진만 보여준다.
 /// 사진 없는 게시글은 카테고리 색 배경 + 아이콘 위에 제목을 꽉 채워 표시
 /// (타일 높이에 맞춰 줄바꿈, 넘치면 말줄임).
-class _PostPhotoTile extends StatelessWidget {
+class PostPhotoTile extends StatelessWidget {
   final Post post;
   final VoidCallback? onTap;
-  const _PostPhotoTile({required this.post, this.onTap});
+  const PostPhotoTile({super.key, required this.post, this.onTap});
 
   @override
   Widget build(BuildContext context) {

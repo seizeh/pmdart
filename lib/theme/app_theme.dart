@@ -60,6 +60,11 @@ class AppTheme {
           fontSize: 18,
         ),
       ),
+      // 하단 알림 로그(스낵바) — 앱의 카드 언어와 동일한 둥근 사각형.
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
       cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,

@@ -15,6 +15,7 @@ import 'services/session.dart';
 import 'services/push_service.dart';
 import 'services/realtime_service.dart';
 import 'services/keyboard_barrier.dart';
+import 'widgets/app_toast.dart';
 
 /// 강제 로그아웃(세션 무효화) 시 라우팅·안내를 위한 전역 키.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -98,9 +99,9 @@ Future<void> _setupPush() async {
         body,
       ].where((e) => e != null && e.isNotEmpty).join(' · ');
       if (text.isNotEmpty) {
-        messengerKey.currentState?.showSnackBar(
-          SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
-        );
+        // 커스텀 토스트 — 아래에서 튕기며 올라오고, 사라질 땐 메뉴바 뒤로 내려간다.
+        final overlay = navigatorKey.currentState?.overlay;
+        if (overlay != null) AppToast.show(overlay, text);
       }
     };
     await PushService.instance.init();
@@ -155,12 +156,13 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
       AppPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,
     );
-    messengerKey.currentState?.showSnackBar(
-      const SnackBar(
-        content: Text('다른 기기에서 로그인하거나 비밀번호가 변경되어 로그아웃되었어요. 다시 로그인해주세요.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    final overlay = navigatorKey.currentState?.overlay;
+    if (overlay != null) {
+      AppToast.show(
+        overlay,
+        '다른 기기에서 로그인하거나 비밀번호가 변경되어 로그아웃되었어요. 다시 로그인해주세요.',
+      );
+    }
   }
 
   @override

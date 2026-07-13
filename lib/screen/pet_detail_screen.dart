@@ -285,8 +285,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 }
                 Navigator.pop(sheetCtx);
                 try {
-                  await _repo.invite(_pet.id, phone);
-                  _toast('초대를 보냈어요');
+                  final registered = await _repo.invite(_pet.id, phone);
+                  _toast(registered
+                      ? '초대를 보냈어요'
+                      : '가입 전 번호예요 — 문자로 초대 안내를 보냈어요');
+                } on StateError {
+                  _toast('이미 초대 중인 번호예요');
                 } catch (_) {
                   _toast('초대에 실패했어요');
                 }

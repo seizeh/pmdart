@@ -235,14 +235,22 @@ class PetRepository {
     }).toList();
   }
 
-  /// 공동보호자 초대 (전화번호). owner 만.
-  Future<void> invite(String petId, String phone) async {
-    await _c.from('pet_guardian_invites').insert({
-      'pet_id': petId,
-      'kind': 'invite',
-      'inviter_id': _uid,
-      'invitee_phone': phone,
-    });
+  /// 공동보호자 초대 (전화번호). owner 만 — Edge Function 이 검증한다.
+  /// 가입자면 인앱 알림, 미가입 번호면 서버가 초대 안내 SMS 를 보낸다.
+  /// 반환: 이미 가입된 번호였는지. 중복 초대는 [StateError]('already_invited').
+  Future<bool> invite(String petId, String phone) async {
+    try {
+      final res = await _c.functions.invoke(
+        'invite-guardian',
+        body: {'petId': petId, 'phone': phone},
+      );
+      final data = (res.data as Map?) ?? const {};
+      return data['registered'] == true;
+    } on FunctionException catch (e) {
+      final err = (e.details is Map) ? (e.details as Map)['error'] : null;
+      if (err == 'already_invited') throw StateError('already_invited');
+      rethrow;
+    }
   }
 
   /// 나에게 온 대기 중 공동보호자 초대 수.

@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../models/chat.dart';
 import '../../services/chat_repository.dart';
@@ -107,20 +107,20 @@ class _ChatTabState extends State<ChatTab> {
     final topInset = MediaQuery.of(context).padding.top;
     // 메인(커뮤니티)과 동일하게: 리스트가 상단 그라데이션 헤더 아래로 스크롤되며 페이드.
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       body: Stack(
         children: [
           Positioned.fill(child: _buildBody(topInset + 56)),
           GradientHeader(
             topInset: topInset,
-            child: const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Text(
                 '채팅',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark,
+                  color: context.colors.primaryDark,
                 ),
               ),
             ),
@@ -195,7 +195,7 @@ class _ChatRoomTile extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: hasPhoto ? null : AppColors.primaryDark,
+          color: hasPhoto ? null : context.colors.primaryDark,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Stack(
@@ -212,10 +212,14 @@ class _ChatRoomTile extends StatelessWidget {
                   child: bgImage,
                 ),
               ),
-            // 가독용 밝은 스크림 — 텍스트 대비 확보.
+            // 가독용 스크림 — 모드별 베일(라이트: 흰, 다크: 웜 다크)로 텍스트 대비 확보.
             if (bgImage != null)
-              const Positioned.fill(
-                child: ColoredBox(color: Color(0xB3FFFFFF)),
+              Positioned.fill(
+                child: ColoredBox(
+                  color: context.isDark
+                      ? const Color(0xB3161616)
+                      : const Color(0xB3FFFFFF),
+                ),
               ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
@@ -237,8 +241,8 @@ class _ChatRoomTile extends StatelessWidget {
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: hasPhoto
-                          ? AppColors.textPrimary
-                          : AppColors.textOnPrimary,
+                          ? context.colors.textPrimary
+                          : context.colors.textOnPrimary,
                     ),
                   ),
                 ),
@@ -253,8 +257,8 @@ class _ChatRoomTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       color: hasPhoto
-                          ? AppColors.textSecondary
-                          : Colors.white70,
+                          ? context.colors.textSecondary
+                          : context.colors.textOnPrimary.withValues(alpha: 0.7),
                     ),
                   ),
                 ),
@@ -269,7 +273,9 @@ class _ChatRoomTile extends StatelessWidget {
                   timeAgo(room.lastMessageAt!),
                   style: TextStyle(
                     fontSize: 11,
-                    color: hasPhoto ? AppColors.textTertiary : Colors.white70,
+                    color: hasPhoto
+                        ? context.colors.textTertiary
+                        : context.colors.textOnPrimary.withValues(alpha: 0.7),
                   ),
                 ),
               ),
@@ -280,9 +286,9 @@ class _ChatRoomTile extends StatelessWidget {
                 bottom: 0,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: const BoxDecoration(
-                    color: AppColors.danger,
-                    borderRadius: BorderRadius.all(Radius.circular(100)),
+                  decoration: BoxDecoration(
+                    color: context.colors.danger,
+                    borderRadius: const BorderRadius.all(Radius.circular(100)),
                   ),
                   child: Text(
                     '${room.unreadCount}',
@@ -317,18 +323,18 @@ class _MessageState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.chat_bubble_outline,
               size: 48,
-              color: AppColors.textTertiary,
+              color: context.colors.textTertiary,
             ),
             const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: AppColors.textSecondary,
+                color: context.colors.textSecondary,
                 height: 1.5,
               ),
             ),
@@ -349,7 +355,7 @@ class _GuestChat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -361,23 +367,23 @@ class _GuestChat extends StatelessWidget {
                   width: 96,
                   height: 96,
                   decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
+                    color: context.colors.primarySoft,
                     borderRadius: BorderRadius.circular(32),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.chat_bubble_outline,
                     size: 48,
-                    color: AppColors.primaryDark,
+                    color: context.colors.primaryDark,
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   '채팅은 로그인 후 이용할 수 있어요',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: context.colors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 24),

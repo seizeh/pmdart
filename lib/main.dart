@@ -173,6 +173,8 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
       title: 'PawMate',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system, // 시스템 설정 따름(앱 내 토글은 후속 단계)
       // 전 화면 공통 키보드 해제:
       //  · 스크롤: 하위 스크롤뷰의 드래그 시작을 받아 해제(알림은 계속 전파).
       //  · 탭: 키보드가 떠 있을 때만 전체 화면에 배리어를 깔아, 화면 탭을 '키보드 닫기'
@@ -181,7 +183,14 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
       //    없어 평소 탭은 정상 동작.
       builder: (context, child) {
         final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
-        return NotificationListener<ScrollNotification>(
+        // 상태바 아이콘 기본값을 테마 밝기에 따라 — 개별 화면의 AnnotatedRegion
+        // (사진 히어로 등)이 더 안쪽이라 필요한 곳은 여전히 덮어쓴다.
+        final overlay = Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: overlay,
+          child: NotificationListener<ScrollNotification>(
           onNotification: (n) {
             // 세로 스크롤만 키보드를 닫는다 — 가로 스크롤(카테고리 칩 등 캐러셀)은
             // 검색 도중의 필터 조작이므로 키보드·포커스를 유지해야 한다
@@ -218,6 +227,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
                   ),
               ],
             ),
+          ),
           ),
         );
       },

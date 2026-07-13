@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// 메인(커뮤니티) 상단과 동일한 **흰색 셀로판지** 헤더.
 ///
@@ -30,7 +30,7 @@ class GradientHeader extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
           child: ColoredBox(
-            color: AppColors.frostFilm,
+            color: context.colors.frostFilm,
             child: child,
           ),
         ),

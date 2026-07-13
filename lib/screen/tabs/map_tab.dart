@@ -43,9 +43,13 @@ Color _colorFor(String category) {
   return const Color(0xFF5A4E3A);
 }
 
-// 카테고리 칩 통일 색(선택 배경) + 마커 아이콘 색(진한 브라운).
+// 카테고리 칩 통일 색(선택 배경).
 const _catAccent = Color(0xFFAC9466);
-const _markerIconColor = Color(0xFF5A4E38);
+// 마커 아이콘 단색 — 라이트: 기존 진브라운, 다크: 검색 핀 테두리와 같은 골드.
+// 지도와의 대비는 색 대신 부드러운 그림자로 확보한다.
+const _markerIconLight = Color(0xFF5A4E38);
+const _markerIconDark = _catAccent;
+const _markerShadow = Color(0x73000000);
 // 지도 위 마커 캡션/틴트 — 지도 모드(라이트 타일/나이트 타일) 기준 색.
 const _markerCaptionLight = Color(0xFF5A4E3A);
 const _markerCaptionDark = Color(0xFFE8E2D5);
@@ -165,6 +169,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     super.didChangeDependencies();
     final b = Theme.of(context).brightness;
     if (_lastBrightness != null && _lastBrightness != b) {
+      _catIcons.clear(); // 마커 아이콘 색이 모드별로 달라 다시 렌더
       final center = _loadedCenter;
       if (center != null) _loadFacilities(center);
     }
@@ -495,9 +500,11 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   /// 카테고리 마커 아이콘(캐시). PNG 를 흰 원형 핀에 합성해 일관/또렷하게.
   Future<NOverlayImage?> _iconFor(String category) async {
     if (_catIcons.containsKey(category)) return _catIcons[category];
+    // 모드별 아이콘 색 — await 전에 캡처(빌드 컨텍스트 안전).
+    final color = context.isDark ? _markerIconDark : _markerIconLight;
     NOverlayImage? out;
     try {
-      out = await _renderMarkerIcon(category);
+      out = await _renderMarkerIcon(category, color);
     } catch (_) {
       out = null;
     }
@@ -533,7 +540,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
 
   /// 마커 아이콘: 분양은 IMG_4.png, 나머지는 채운 Material 아이콘을 #5a4e38 로 렌더.
   /// 흰 배경 없음. 가독성용 흰 외곽선은 블러 없이 오프셋으로 그려 Impeller 안전.
-  Future<NOverlayImage?> _renderMarkerIcon(String category) async {
+  Future<NOverlayImage?> _renderMarkerIcon(
+    String category,
+    Color iconColor,
+  ) async {
     const iconSize = 88.0;
     const pad = 8.0;
     const target = iconSize + pad * 2;
@@ -541,7 +551,8 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     final canvas = Canvas(recorder);
 
     if (category == 'pet_sales') {
-      // 분양: IMG_4.png 를 투명 여백 잘라 중앙 배치.
+      // 분양: IMG_4.png(브라운 발바닥)를 투명 여백 잘라 중앙 배치 —
+      // 다른 마커와 같은 흰색으로 틴트하고, 그림자로 지도와 대비.
       final data = await rootBundle.load('assets/images/IMG_4.png');
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
       final frame = await codec.getNextFrame();
@@ -550,11 +561,26 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       final s = iconSize / (src.width > src.height ? src.width : src.height);
       final dw = src.width * s, dh = src.height * s;
       final dx = (target - dw) / 2, dy = (target - dh) / 2;
+      final dst = Rect.fromLTWH(dx, dy, dw, dh);
       canvas.drawImageRect(
         img,
         src,
-        Rect.fromLTWH(dx, dy, dw, dh),
-        Paint()..filterQuality = FilterQuality.high,
+        dst.shift(const Offset(0, 2)),
+        Paint()
+          ..filterQuality = FilterQuality.high
+          ..colorFilter = const ui.ColorFilter.mode(
+            _markerShadow,
+            ui.BlendMode.srcIn,
+          )
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+      );
+      canvas.drawImageRect(
+        img,
+        src,
+        dst,
+        Paint()
+          ..filterQuality = FilterQuality.high
+          ..colorFilter = ui.ColorFilter.mode(iconColor, ui.BlendMode.srcIn),
       );
       img.dispose();
     } else {
@@ -574,26 +600,20 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           ..layout();
       }
 
-      final base = glyph(_markerIconColor);
+      final base = glyph(iconColor);
       final origin = Offset(
         (target - base.width) / 2,
         (target - base.height) / 2,
       );
-      // 흰 외곽선(8방향 오프셋, 블러 없음) → 지도 배경과 대비.
-      final stroke = glyph(Colors.white);
-      const o = 2.0;
-      for (final d in const [
-        Offset(-o, 0),
-        Offset(o, 0),
-        Offset(0, -o),
-        Offset(0, o),
-        Offset(-o, -o),
-        Offset(o, -o),
-        Offset(-o, o),
-        Offset(o, o),
-      ]) {
-        stroke.paint(canvas, origin + d);
-      }
+      // 아이콘 전체를 외곽선 색(흰색) 단색으로 — 부드러운 그림자만으로
+      // 라이트/나이트 지도 어느 쪽에서도 대비를 확보한다.
+      final shadow = glyph(_markerShadow);
+      canvas.saveLayer(
+        null,
+        Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+      );
+      shadow.paint(canvas, origin + const Offset(0, 2));
+      canvas.restore();
       base.paint(canvas, origin);
     }
 
@@ -982,8 +1002,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
               child: NaverMap(
                 options: NaverMapViewOptions(
                   initialCameraPosition: _lastCamera ?? _initialPosition,
-                  // 다크: 네이버 기본 나이트 모드. 커스텀 스타일(라이트 전용)과
-                  // 겹치지 않게 라이트에서만 스타일 ID 를 적용한다.
+                  // 다크: 내비 지도 + 야간 모드(nightModeEnable 은 navi 에서만
+                  // 공식 지원). 이 조합이어야 SDK 가 isDark 로 판단해 네이버
+                  // 로고를 다크용으로 자동 교체하고, 내비 지도라 상업 POI
+                  // 대부분이 숨겨져 라이트 커스텀 스타일(정보 최소화)과 비슷한
+                  // 밀도가 된다. 커스텀 스타일(라이트 전용)은 라이트에서만.
+                  mapType: context.isDark ? NMapType.navi : NMapType.basic,
                   customStyleId: context.isDark ? null : _customStyleId,
                   nightModeEnable: context.isDark,
                   locationButtonEnable: false,

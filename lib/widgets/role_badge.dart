@@ -72,7 +72,8 @@ class CategoryChip extends StatelessWidget {
           // 채우기만 투명(테두리·글씨는 불투명 유지 → 가독성).
           color: selected
               ? context.colors.primaryDark.withValues(alpha: 0.7)
-              : Colors.white.withValues(alpha: 0.7),
+              // 미선택 채우기 — 표면 토큰(라이트: 흰 필름 그대로, 다크: 어두운 필름).
+              : context.colors.surface.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: selected

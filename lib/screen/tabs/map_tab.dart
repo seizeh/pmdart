@@ -9,6 +9,7 @@ import '../../motion/motion.dart';
 import '../../services/facility_repository.dart';
 import '../../services/community_repository.dart';
 import '../../services/location_service.dart';
+import '../../widgets/app_search_field.dart';
 import '../../widgets/facility_sheet.dart';
 import '../../widgets/map_bottom_sheet.dart';
 import '../../widgets/region_posts_sheet.dart';
@@ -1224,70 +1225,14 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        // 사용자 검색과 동일한 단일 톤(surfaceMuted). 지도 위라 그림자는 유지.
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.search, color: AppColors.textTertiary, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              textInputAction: TextInputAction.search,
-              onSubmitted: onSubmitted,
-              onChanged: onChanged,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-              ),
-              decoration: const InputDecoration(
-                isCollapsed: true,
-                // 테마의 filled/테두리를 모두 끔(안쪽 이중 경계선 제거).
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                hintText: '시설·장소 검색...',
-                hintStyle: TextStyle(
-                  color: AppColors.textTertiary,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
-            builder: (_, value, _) => value.text.isEmpty
-                ? const SizedBox.shrink()
-                : GestureDetector(
-                    onTap: onClear,
-                    child: const Padding(
-                      padding: EdgeInsets.only(left: 6),
-                      child: Icon(
-                        Icons.close,
-                        color: AppColors.textTertiary,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-          ),
-        ],
-      ),
+    // 공용 검색창(사용자 검색 디자인 기준)으로 위임 — 세 검색창 디자인 통일.
+    return AppSearchField(
+      controller: controller,
+      focusNode: focusNode,
+      hintText: '시설·장소 검색...',
+      onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      onClear: onClear,
     );
   }
 }

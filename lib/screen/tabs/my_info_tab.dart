@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../../motion/motion.dart';
 import '../../theme/app_palette.dart';
 import '../../data/mock_data.dart' show MockPet;
@@ -31,13 +32,48 @@ void _push(BuildContext context, Widget screen) {
 /// 내 활동·활동 범위·관심·설정은 프로필 히어로 탭 → 내정보 수정 화면에 있다.
 class MyInfoTab extends StatefulWidget {
   final bool isGuest;
-  const MyInfoTab({super.key, this.isGuest = false});
+
+  /// 아래로 스크롤 시 함께 숨길 하단 크롬(네비 바) 표시 여부 — 커뮤니티와 동일 신호.
+  final ValueNotifier<bool>? chromeVisible;
+  const MyInfoTab({super.key, this.isGuest = false, this.chromeVisible});
 
   @override
   State<MyInfoTab> createState() => _MyInfoTabState();
 }
 
-class _MyInfoTabState extends State<MyInfoTab> {
+class _MyInfoTabState extends State<MyInfoTab>
+    with SingleTickerProviderStateMixin {
+  // 상단 헤더(+하단 네비 바) 표시 스프링(1=보임, 0=숨김) — 커뮤니티와 동일 규칙:
+  // 아래로 스크롤하면 숨고, 위로 올리면 스프링으로 복귀.
+  late final AnimationController _chromeCtrl = AnimationController.unbounded(
+    vsync: this,
+    value: 1,
+  );
+  bool _chromeShown = true;
+
+  void _setChromeShown(bool show, {required SpringDescription spring}) {
+    if (_chromeShown == show) return;
+    _chromeShown = show;
+    _chromeCtrl.springTo(show ? 1 : 0, spring: spring);
+    widget.chromeVisible?.value = show; // 하단 네비 바도 함께 숨김/복귀
+  }
+
+  bool _onUserScroll(UserScrollNotification n) {
+    // 펫 캐러셀(가로 PageView)의 스크롤은 무시 — 세로 본문 스크롤만 반응.
+    if (n.metrics.axis != Axis.vertical) return false;
+    // 헤더가 밀려날 만큼 스크롤되기 전(상단 근처)엔 항상 표시.
+    if (n.metrics.pixels < 64) {
+      _setChromeShown(true, spring: MotionSprings.standard);
+      return false;
+    }
+    if (n.direction == ScrollDirection.reverse) {
+      _setChromeShown(false, spring: MotionSprings.standard);
+    } else if (n.direction == ScrollDirection.forward) {
+      _setChromeShown(true, spring: MotionSprings.bounce);
+    }
+    return false;
+  }
+
   ProfileData? _profile;
   int _pendingInvites = 0;
   bool _loading = true;
@@ -205,6 +241,7 @@ class _MyInfoTabState extends State<MyInfoTab> {
 
   @override
   void dispose() {
+    _chromeCtrl.dispose();
     AppEvents.instance.social.removeListener(_onSocialChanged);
     AppEvents.instance.profile.removeListener(_onSocialChanged);
     super.dispose();
@@ -263,9 +300,24 @@ class _MyInfoTabState extends State<MyInfoTab> {
       backgroundColor: context.colors.background,
       body: Stack(
         children: [
-          Positioned.fill(child: _buildBody(topInset + 56)),
-          GradientHeader(
-            topInset: topInset,
+          Positioned.fill(
+            child: NotificationListener<UserScrollNotification>(
+              onNotification: _onUserScroll,
+              child: _buildBody(topInset + 56),
+            ),
+          ),
+          // 헤더 — 아래로 스크롤 시 위로 밀려 숨고, 위로 올리면 스프링 복귀
+          // (하단 네비 바와 같은 신호로 동기화).
+          AnimatedBuilder(
+            animation: _chromeCtrl,
+            builder: (context, child) {
+              final hidden = 1 - _chromeCtrl.value.clamp(0.0, 1.0);
+              return GradientHeader(
+                topInset: topInset,
+                shift: hidden * (topInset + 72),
+                child: child!,
+              );
+            },
             child: Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Text(

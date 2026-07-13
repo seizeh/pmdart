@@ -12,15 +12,19 @@ class GradientHeader extends StatelessWidget {
     super.key,
     required this.topInset,
     required this.child,
+    this.shift = 0,
   });
 
   final double topInset;
   final Widget child;
 
+  /// 위로 숨김 오프셋(px) — 스크롤 방향에 따라 헤더를 화면 밖으로 밀어낼 때 사용.
+  final double shift;
+
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: 0,
+      top: -shift,
       left: 0,
       right: 0,
       // 상태바 아래에 떠 있는 둥근 직사각형 패널 — 네 모서리 모두 동일 곡률(24,

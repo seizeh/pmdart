@@ -43,7 +43,7 @@ class _MainScreenState extends State<MainScreen>
     const UserSearchTab(),
     CommunityTab(isGuest: widget.isGuest, chromeVisible: _navVisible),
     ChatTab(isGuest: widget.isGuest),
-    MyInfoTab(isGuest: widget.isGuest),
+    MyInfoTab(isGuest: widget.isGuest, chromeVisible: _navVisible),
   ];
 
   static const _navItems = [

@@ -11,7 +11,9 @@ import '../../motion/motion.dart';
 import '../../services/app_events.dart';
 import '../../services/keyboard_barrier.dart';
 import '../../services/notification_repository.dart';
+import '../../services/profile_repository.dart';
 import '../auth/auth_wall_dialog.dart';
+import '../location_verify_screen.dart';
 import '../post_detail_screen.dart';
 import '../post_create_screen.dart';
 import '../notifications_screen.dart';
@@ -296,6 +298,20 @@ class _CommunityTabState extends State<CommunityTab>
       AuthWallDialog.show(context, message: '게시글은 로그인 후 작성할 수 있어요');
       return;
     }
+    // 동네 인증 게이트 — 미인증/만료(30일)면 작성 화면 대신 인증 안내.
+    // (서버 create_post_verified 가 최종 차단하므로 여긴 UX 선안내.
+    //  상태 조회가 실패하면 서버 게이트에 맡기고 통과시킨다.)
+    bool regionOk;
+    try {
+      regionOk = await ProfileRepository.instance.isRegionVerificationFresh();
+    } catch (_) {
+      regionOk = true;
+    }
+    if (!mounted) return;
+    if (!regionOk) {
+      _showRegionGateDialog();
+      return;
+    }
     final rect = _fabRect();
     // 버튼에서 펼쳐지고 버튼으로 축소되는 전환(상세 화면과 같은 맥락). 못 구하면 표준 전환.
     final created = await Navigator.push<bool>(
@@ -309,6 +325,36 @@ class _CommunityTabState extends State<CommunityTab>
             ),
     );
     if (created == true) _load();
+  }
+
+  /// 동네 인증이 없거나 만료된 사용자에게 인증 화면으로 안내.
+  void _showRegionGateDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('동네 인증이 필요해요'),
+        content: const Text(
+          '게시글은 동네 인증 후 작성할 수 있어요.\n'
+          '현재 위치로 활동 지역을 인증해주세요. (30일마다 재인증)',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('닫기'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              Navigator.push(
+                context,
+                AppPageRoute(builder: (_) => const LocationVerifyScreen()),
+              );
+            },
+            child: const Text('인증하러 가기'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

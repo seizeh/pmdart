@@ -18,11 +18,13 @@ class SocialRepository {
 
   /// 팔로우(Pawing). 이미 팔로우 중이면 무시.
   Future<void> follow(String userId) async {
-    await _c.from('pawings').upsert(
-      {'follower_id': _uid, 'following_id': userId},
-      onConflict: 'follower_id,following_id',
-      ignoreDuplicates: true,
-    );
+    await _c
+        .from('pawings')
+        .upsert(
+          {'follower_id': _uid, 'following_id': userId},
+          onConflict: 'follower_id,following_id',
+          ignoreDuplicates: true,
+        );
     AppEvents.instance.notifySocial();
   }
 
@@ -54,8 +56,11 @@ class SocialRepository {
         .select()
         .order('created_at', ascending: false);
     return (rows as List)
-        .map((r) => Connection.fromJson(r as Map<String, dynamic>)
-            .copyWith(following: true))
+        .map(
+          (r) => Connection.fromJson(
+            r as Map<String, dynamic>,
+          ).copyWith(following: true),
+        )
         .toList();
   }
 
@@ -96,7 +101,7 @@ class SocialRepository {
         .eq('follower_id', uid)
         .inFilter('following_id', ids);
     final followingSet = {
-      for (final f in following as List) f['following_id'] as String
+      for (final f in following as List) f['following_id'] as String,
     };
     return list
         .map((c) => c.copyWith(following: followingSet.contains(c.userId)))
@@ -120,7 +125,8 @@ class SocialRepository {
     // 보호자(소유자) 닉네임 채우기
     final ownerIds = <String>{
       for (final r in list)
-        if (r['primary_guardian_id'] != null) r['primary_guardian_id'] as String
+        if (r['primary_guardian_id'] != null)
+          r['primary_guardian_id'] as String,
     }.toList();
     final nameById = <String, String>{};
     if (ownerIds.isNotEmpty) {
@@ -140,7 +146,7 @@ class SocialRepository {
           species: (r['species'] ?? '') as String,
           imageUrl: r['image_url'] as String?,
           ownerNickname: nameById[r['primary_guardian_id']] ?? '',
-        )
+        ),
     ];
   }
 }

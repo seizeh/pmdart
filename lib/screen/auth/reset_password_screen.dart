@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../services/phone_auth_service.dart';
 
 /// 비밀번호 재설정 — 전화 OTP 기반.
@@ -38,9 +38,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.colors.cream,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.colors.cream,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -65,17 +65,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ElevatedButton(
                 onPressed: _loading ? null : _next,
                 child: _loading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.4,
-                          color: AppColors.textOnPrimary,
+                          color: context.colors.textOnPrimary,
                         ),
                       )
-                    : Text(_step == 0
-                        ? '인증번호 받기'
-                        : (_step == 2 ? '비밀번호 변경' : '다음')),
+                    : Text(
+                        _step == 0
+                            ? '인증번호 받기'
+                            : (_step == 2 ? '비밀번호 변경' : '다음'),
+                      ),
               ),
             ],
           ),
@@ -100,18 +102,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '가입한 전화번호를\n입력해주세요',
           style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-              height: 1.3),
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textPrimary,
+            height: 1.3,
+          ),
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           'SMS로 6자리 인증코드를 보내드려요',
-          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
         ),
         const SizedBox(height: 28),
         TextField(
@@ -121,10 +124,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(11),
           ],
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: '01012345678',
-            prefixIcon:
-                Icon(Icons.phone_outlined, color: AppColors.textSecondary),
+            prefixIcon: Icon(
+              Icons.phone_outlined,
+              color: context.colors.textSecondary,
+            ),
           ),
         ),
       ],
@@ -135,18 +140,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '인증코드를\n입력해주세요',
           style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-              height: 1.3),
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textPrimary,
+            height: 1.3,
+          ),
         ),
         const SizedBox(height: 12),
         Text(
           '${_formatPhone(_phoneCtrl.text)}로 보낸 6자리 코드',
-          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
         ),
         const SizedBox(height: 28),
         TextField(
@@ -155,12 +161,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           textAlign: TextAlign.center,
           maxLength: 6,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(hintText: '------', counterText: ''),
-          style: const TextStyle(
+          decoration: const InputDecoration(
+            hintText: '------',
+            counterText: '',
+          ),
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w700,
             letterSpacing: 12,
-            color: AppColors.primaryDark,
+            color: context.colors.primaryDark,
           ),
         ),
         const SizedBox(height: 12),
@@ -180,13 +189,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '새 비밀번호를\n설정해주세요',
             style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-                height: 1.3),
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textPrimary,
+              height: 1.3,
+            ),
           ),
           const SizedBox(height: 28),
           TextField(
@@ -197,8 +207,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               hintText: '영문 + 숫자 포함 8자 이상',
               suffixIcon: IconButton(
                 icon: Icon(
-                    _obscure ? Icons.visibility_off : Icons.visibility,
-                    color: AppColors.textSecondary),
+                  _obscure ? Icons.visibility_off : Icons.visibility,
+                  color: context.colors.textSecondary,
+                ),
                 onPressed: () => setState(() => _obscure = !_obscure),
               ),
             ),
@@ -233,8 +244,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     }
     setState(() => _loading = true);
-    final result =
-        await PhoneAuthService.instance.sendCode(phone, purpose: _purpose);
+    final result = await PhoneAuthService.instance.sendCode(
+      phone,
+      purpose: _purpose,
+    );
     if (!mounted) return;
     setState(() => _loading = false);
     _toast(result.message);
@@ -251,8 +264,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     }
     setState(() => _loading = true);
-    final result = await PhoneAuthService.instance
-        .verifyCode(_phoneCtrl.text.trim(), code, purpose: _purpose);
+    final result = await PhoneAuthService.instance.verifyCode(
+      _phoneCtrl.text.trim(),
+      code,
+      purpose: _purpose,
+    );
     if (!mounted) return;
     setState(() => _loading = false);
     if (result.verified) {
@@ -264,8 +280,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   Future<void> _resend() async {
     setState(() => _loading = true);
-    final result = await PhoneAuthService.instance
-        .sendCode(_phoneCtrl.text.trim(), purpose: _purpose);
+    final result = await PhoneAuthService.instance.sendCode(
+      _phoneCtrl.text.trim(),
+      purpose: _purpose,
+    );
     if (!mounted) return;
     setState(() => _loading = false);
     _toast(result.message);
@@ -273,7 +291,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   Future<void> _submitReset() async {
     final pw = _pwCtrl.text;
-    if (pw.length < 8 || !RegExp(r'[A-Za-z]').hasMatch(pw) || !RegExp(r'\d').hasMatch(pw)) {
+    if (pw.length < 8 ||
+        !RegExp(r'[A-Za-z]').hasMatch(pw) ||
+        !RegExp(r'\d').hasMatch(pw)) {
       _toast('비밀번호는 영문과 숫자를 포함해 8자 이상이어야 해요');
       return;
     }
@@ -282,8 +302,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     }
     setState(() => _loading = true);
-    final result = await PhoneAuthService.instance
-        .resetPassword(phone: _phoneCtrl.text.trim(), newPassword: pw);
+    final result = await PhoneAuthService.instance.resetPassword(
+      phone: _phoneCtrl.text.trim(),
+      newPassword: pw,
+    );
     if (!mounted) return;
     setState(() => _loading = false);
     if (result.ok) {
@@ -328,7 +350,7 @@ class _ProgressBar extends StatelessWidget {
             margin: EdgeInsets.only(right: i < total - 1 ? 6 : 0),
             height: 4,
             decoration: BoxDecoration(
-              color: active ? AppColors.primary : AppColors.border,
+              color: active ? context.colors.primary : context.colors.border,
               borderRadius: BorderRadius.circular(100),
             ),
           ),

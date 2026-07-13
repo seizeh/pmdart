@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart';
 import 'role_badge.dart';
 
@@ -15,8 +15,7 @@ class PetCard extends StatelessWidget {
     final age = pet.birthDate == null
         ? null
         : '${DateTime.now().year - pet.birthDate!.year}살';
-    final subtitle =
-        age == null ? pet.species : '${pet.species}  ·  $age';
+    final subtitle = age == null ? pet.species : '${pet.species}  ·  $age';
 
     return InkWell(
       onTap: onTap,
@@ -24,9 +23,9 @@ class PetCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.colors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Row(
           children: [
@@ -34,11 +33,14 @@ class PetCard extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
+                color: context.colors.primarySoft,
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: const Icon(Icons.pets,
-                  color: AppColors.primaryDark, size: 26),
+              child: Icon(
+                Icons.pets,
+                color: context.colors.primaryDark,
+                size: 26,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -47,18 +49,18 @@ class PetCard extends StatelessWidget {
                 children: [
                   Text(
                     pet.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: context.colors.textSecondary,
                     ),
                   ),
                 ],
@@ -66,8 +68,11 @@ class PetCard extends StatelessWidget {
             ),
             RoleBadge(role: pet.role, compact: true),
             const SizedBox(width: 6),
-            const Icon(Icons.chevron_right,
-                size: 20, color: AppColors.textTertiary),
+            Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: context.colors.textTertiary,
+            ),
           ],
         ),
       ),
@@ -89,24 +94,24 @@ class EmptyPetCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 28),
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+          color: context.colors.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.border,
-            width: 1,
-          ),
+          border: Border.all(color: context.colors.border, width: 1),
         ),
         child: Column(
-          children: const [
-            Icon(Icons.add_circle_outline,
-                color: AppColors.primaryDark, size: 28),
+          children: [
+            Icon(
+              Icons.add_circle_outline,
+              color: context.colors.primaryDark,
+              size: 28,
+            ),
             SizedBox(height: 8),
             Text(
               '반려동물을 등록해보세요',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                color: context.colors.textSecondary,
               ),
             ),
           ],

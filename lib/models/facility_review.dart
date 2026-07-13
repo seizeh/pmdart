@@ -23,17 +23,18 @@ class FacilityReview {
   });
 
   factory FacilityReview.fromJson(Map<String, dynamic> j) => FacilityReview(
-        id: j['id'] as String,
-        facilityId: (j['facility_id'] ?? '') as String,
-        userId: (j['user_id'] ?? '') as String,
-        authorNickname: (j['author_nickname'] ?? '알 수 없음') as String,
-        rating: (j['rating'] as num?)?.toInt() ?? 0,
-        content: j['content'] as String?,
-        photoUrls: [
-          for (final u in (j['photo_urls'] as List? ?? const [])) u as String
-        ],
-        createdAt: DateTime.tryParse((j['created_at'] ?? '') as String)?.toLocal() ??
-            DateTime.now(),
-        isMine: j['is_mine'] == true,
-      );
+    id: j['id'] as String,
+    facilityId: (j['facility_id'] ?? '') as String,
+    userId: (j['user_id'] ?? '') as String,
+    authorNickname: (j['author_nickname'] ?? '알 수 없음') as String,
+    rating: (j['rating'] as num?)?.toInt() ?? 0,
+    content: j['content'] as String?,
+    photoUrls: [
+      for (final u in (j['photo_urls'] as List? ?? const [])) u as String,
+    ],
+    createdAt:
+        DateTime.tryParse((j['created_at'] ?? '') as String)?.toLocal() ??
+        DateTime.now(),
+    isMine: j['is_mine'] == true,
+  );
 }

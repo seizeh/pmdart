@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../services/auth_service.dart';
 import '../../services/session.dart';
 import '../main_screen.dart';
@@ -46,8 +46,9 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         AppPageRoute(
-            builder: (_) =>
-                isAdmin ? const AdminHomeScreen() : const MainScreen()),
+          builder: (_) =>
+              isAdmin ? const AdminHomeScreen() : const MainScreen(),
+        ),
         (route) => false,
       );
     } else {
@@ -64,9 +65,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.colors.cream,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.colors.cream,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -87,22 +88,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 '다시 만나서\n반가워요',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                   height: 1.3,
                 ),
               ),
               const SizedBox(height: 28),
               TextField(
                 controller: _idCtrl,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: '아이디',
-                  prefixIcon:
-                      Icon(Icons.person_outline, color: AppColors.textSecondary),
+                  prefixIcon: Icon(
+                    Icons.person_outline,
+                    color: context.colors.textSecondary,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -111,12 +114,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: _obscure,
                 decoration: InputDecoration(
                   labelText: '비밀번호',
-                  prefixIcon: const Icon(Icons.lock_outline,
-                      color: AppColors.textSecondary),
+                  prefixIcon: Icon(
+                    Icons.lock_outline,
+                    color: context.colors.textSecondary,
+                  ),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscure ? Icons.visibility_off : Icons.visibility,
-                      color: AppColors.textTertiary,
+                      color: context.colors.textTertiary,
                     ),
                     onPressed: () => setState(() => _obscure = !_obscure),
                   ),
@@ -128,8 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: TextButton(
                   onPressed: () => Navigator.push(
                     context,
-                    AppPageRoute(
-                        builder: (_) => const ResetPasswordScreen()),
+                    AppPageRoute(builder: (_) => const ResetPasswordScreen()),
                   ),
                   child: const Text('비밀번호를 잊으셨나요?'),
                 ),
@@ -138,12 +142,12 @@ class _LoginScreenState extends State<LoginScreen> {
               ElevatedButton(
                 onPressed: _loading ? null : _login,
                 child: _loading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.4,
-                          color: AppColors.textOnPrimary,
+                          color: context.colors.textOnPrimary,
                         ),
                       )
                     : const Text('로그인'),
@@ -152,18 +156,17 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     '아직 회원이 아니신가요?',
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: context.colors.textSecondary,
                     ),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pushReplacement(
                       context,
-                      AppPageRoute(
-                          builder: (_) => const SignupPhoneScreen()),
+                      AppPageRoute(builder: (_) => const SignupPhoneScreen()),
                     ),
                     child: const Text('회원가입'),
                   ),

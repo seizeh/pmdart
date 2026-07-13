@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// 약관·처리방침 전문 뷰어 — 번들 에셋(assets/terms/*.md)을 표시.
 /// 가입 동의 단계의 "보기" 와 내정보 하단 링크에서 공용.
@@ -20,21 +20,24 @@ class TermsScreen extends StatefulWidget {
 
   /// 서비스 이용약관.
   static TermsScreen service({bool agree = false}) => TermsScreen(
-      title: '서비스 이용약관',
-      assetPath: 'assets/terms/terms_of_service.md',
-      requireReadToAgree: agree);
+    title: '서비스 이용약관',
+    assetPath: 'assets/terms/terms_of_service.md',
+    requireReadToAgree: agree,
+  );
 
   /// 위치기반서비스 이용약관.
   static TermsScreen location({bool agree = false}) => TermsScreen(
-      title: '위치기반서비스 이용약관',
-      assetPath: 'assets/terms/location_terms.md',
-      requireReadToAgree: agree);
+    title: '위치기반서비스 이용약관',
+    assetPath: 'assets/terms/location_terms.md',
+    requireReadToAgree: agree,
+  );
 
   /// 개인정보 처리방침.
   static TermsScreen privacy({bool agree = false}) => TermsScreen(
-      title: '개인정보 처리방침',
-      assetPath: 'assets/terms/privacy_policy.md',
-      requireReadToAgree: agree);
+    title: '개인정보 처리방침',
+    assetPath: 'assets/terms/privacy_policy.md',
+    requireReadToAgree: agree,
+  );
 
   @override
   State<TermsScreen> createState() => _TermsScreenState();
@@ -69,7 +72,7 @@ class _TermsScreenState extends State<TermsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: Text(widget.title)),
       body: FutureBuilder<String>(
         future: rootBundle.loadString(widget.assetPath),
@@ -80,8 +83,10 @@ class _TermsScreenState extends State<TermsScreen> {
           // 본문이 화면보다 짧으면 스크롤 여지가 없으므로 즉시 읽음 처리.
           if (widget.requireReadToAgree && !_readToEnd) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && _scroll.hasClients &&
-                  _scroll.position.maxScrollExtent <= 0 && !_readToEnd) {
+              if (mounted &&
+                  _scroll.hasClients &&
+                  _scroll.position.maxScrollExtent <= 0 &&
+                  !_readToEnd) {
                 setState(() => _readToEnd = true);
               }
             });
@@ -93,10 +98,10 @@ class _TermsScreenState extends State<TermsScreen> {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
               child: SelectableText(
                 _plain(snap.data!),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13.5,
                   height: 1.65,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
             ),
@@ -116,10 +121,10 @@ class _TermsScreenState extends State<TermsScreen> {
                         ? () => Navigator.pop(context, true)
                         : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: context.colors.primary,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor: AppColors.border,
-                      disabledForegroundColor: AppColors.textTertiary,
+                      disabledBackgroundColor: context.colors.border,
+                      disabledForegroundColor: context.colors.textTertiary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
@@ -128,7 +133,9 @@ class _TermsScreenState extends State<TermsScreen> {
                     child: Text(
                       _readToEnd ? '동의합니다' : '약관을 끝까지 읽어주세요',
                       style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),

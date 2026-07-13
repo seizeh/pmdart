@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
 import '../services/keyboard_barrier.dart';
+import '../theme/app_palette.dart';
 import 'tabs/community_tab.dart';
 import 'tabs/map_tab.dart';
 import 'tabs/user_search_tab.dart';
@@ -42,7 +43,7 @@ class _MainScreenState extends State<MainScreen>
     const UserSearchTab(),
     CommunityTab(isGuest: widget.isGuest, chromeVisible: _navVisible),
     ChatTab(isGuest: widget.isGuest),
-    MyInfoTab(isGuest: widget.isGuest),
+    MyInfoTab(isGuest: widget.isGuest, chromeVisible: _navVisible),
   ];
 
   static const _navItems = [
@@ -103,7 +104,7 @@ class _MainScreenState extends State<MainScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       // body 를 하단 바 뒤까지 확장 → 바가 숨을 때 콘텐츠가 화면 끝까지 차서
       // 흰 여백이 생기지 않는다(각 탭은 바 높이만큼 하단 패딩으로 가림 방지).
       extendBody: true,

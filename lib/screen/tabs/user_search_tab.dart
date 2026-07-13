@@ -1,7 +1,7 @@
 import 'dart:async';
 import '../../motion/motion.dart';
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../models/social.dart';
 import '../../models/pet_search.dart';
 import '../../services/social_repository.dart';
@@ -47,7 +47,10 @@ class _UserSearchTabState extends State<UserSearchTab> {
   }
 
   /// 타일 자리에서 [page] 를 펼친다. rect 를 못 구하면 표준 라우트로 폴백.
-  Future<void> _openFromTile(String tileId, Widget Function(Rect? rect) page) async {
+  Future<void> _openFromTile(
+    String tileId,
+    Widget Function(Rect? rect) page,
+  ) async {
     final rect = _tileRect(tileId);
     if (rect != null) setState(() => _openedTileId = tileId);
     await Navigator.push<void>(
@@ -152,7 +155,7 @@ class _UserSearchTabState extends State<UserSearchTab> {
     final topInset = MediaQuery.of(context).padding.top;
     // 메인(커뮤니티)과 동일하게: 결과 리스트가 상단 그라데이션 헤더 아래로 스크롤되며 페이드.
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       body: Stack(
         children: [
           // 헤더가 상태바 아래로 8 떠 있으므로 그만큼 리스트 시작점도 내린다.
@@ -164,12 +167,12 @@ class _UserSearchTabState extends State<UserSearchTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '사용자 검색',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.primaryDark,
+                      color: context.colors.primaryDark,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -243,10 +246,10 @@ class _UserSearchTabState extends State<UserSearchTab> {
     padding: const EdgeInsets.only(top: 12, bottom: 4),
     child: Text(
       label,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w700,
-        color: AppColors.textSecondary,
+        color: context.colors.textSecondary,
       ),
     ),
   );
@@ -258,18 +261,18 @@ class _UserSearchTabState extends State<UserSearchTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.person_search_outlined,
               size: 56,
-              color: AppColors.textTertiary,
+              color: context.colors.textTertiary,
             ),
             const SizedBox(height: 12),
             Text(
               msg,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: AppColors.textSecondary,
+                color: context.colors.textSecondary,
                 height: 1.5,
               ),
             ),
@@ -297,13 +300,14 @@ class PetSearchTile extends StatelessWidget {
     ].join('  ·  ');
 
     return InkWell(
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () => Navigator.push(
-                context,
-                AppPageRoute(
-                  builder: (_) => PetProfileScreen(petId: pet.id, preview: pet),
-                ),
-              ),
+            context,
+            AppPageRoute(
+              builder: (_) => PetProfileScreen(petId: pet.id, preview: pet),
+            ),
+          ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
@@ -312,7 +316,7 @@ class PetSearchTile extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
+                color: context.colors.primarySoft,
                 borderRadius: BorderRadius.circular(14),
                 image: pet.imageUrl != null
                     ? DecorationImage(
@@ -322,9 +326,9 @@ class PetSearchTile extends StatelessWidget {
                     : null,
               ),
               child: pet.imageUrl == null
-                  ? const Icon(
+                  ? Icon(
                       Icons.pets,
-                      color: AppColors.primaryDark,
+                      color: context.colors.primaryDark,
                       size: 22,
                     )
                   : null,
@@ -336,26 +340,26 @@ class PetSearchTile extends StatelessWidget {
                 children: [
                   Text(
                     pet.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.textSecondary,
+                        color: context.colors.textSecondary,
                       ),
                     ),
                   ],
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+            Icon(Icons.chevron_right, color: context.colors.textTertiary),
           ],
         ),
       ),

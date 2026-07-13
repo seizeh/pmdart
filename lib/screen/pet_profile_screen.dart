@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/community.dart';
 import '../models/pet_search.dart';
 import '../services/community_repository.dart';
@@ -177,7 +177,7 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
       cardRadius: widget.cardRadius,
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: context.colors.background,
         // 뒤로가기 버튼 없음 — 아래로 당겨 축소(CollapsibleView) 또는 시스템 뒤로.
         body: _body(physics, topInset),
       ),
@@ -189,9 +189,11 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_notFound || _pet == null) {
-      return const Center(
-        child: Text('찾을 수 없는 반려동물이에요',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+      return Center(
+        child: Text(
+          '찾을 수 없는 반려동물이에요',
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+        ),
       );
     }
     final pet = _pet!;
@@ -240,9 +242,9 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
             height: 360,
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: AppColors.primarySoft,
+              color: context.colors.primarySoft,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.border, width: 0.5),
+              border: Border.all(color: context.colors.border, width: 0.5),
             ),
             child: Stack(
               fit: StackFit.expand,
@@ -276,23 +278,28 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
                     right: 14,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.92),
                         borderRadius: BorderRadius.circular(100),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.verified,
-                              size: 13, color: AppColors.primaryDark),
+                          Icon(
+                            Icons.verified,
+                            size: 13,
+                            color: context.colors.primaryDark,
+                          ),
                           SizedBox(width: 3),
                           Text(
                             '인증',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.primaryDark,
+                              color: context.colors.primaryDark,
                             ),
                           ),
                         ],
@@ -353,14 +360,17 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 20),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: context.colors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border, width: 0.5),
+            border: Border.all(color: context.colors.border, width: 0.5),
           ),
           child: Text(
             pet.bio!,
-            style: const TextStyle(
-                fontSize: 14, color: AppColors.textPrimary, height: 1.5),
+            style: TextStyle(
+              fontSize: 14,
+              color: context.colors.textPrimary,
+              height: 1.5,
+            ),
           ),
         ),
       ],
@@ -406,12 +416,16 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
                   ),
                 ),
               if (guardians.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
                   child: Center(
-                    child: Text('보호자 정보를 불러오지 못했어요',
-                        style: TextStyle(
-                            fontSize: 13, color: AppColors.textTertiary)),
+                    child: Text(
+                      '보호자 정보를 불러오지 못했어요',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: context.colors.textTertiary,
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -434,13 +448,17 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 20),
             padding: const EdgeInsets.symmetric(vertical: 28),
             decoration: BoxDecoration(
-              color: AppColors.surfaceMuted,
+              color: context.colors.surfaceMuted,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Center(
-              child: Text('아직 함께한 게시글이 없어요',
-                  style: TextStyle(
-                      fontSize: 13, color: AppColors.textTertiary)),
+            child: Center(
+              child: Text(
+                '아직 함께한 게시글이 없어요',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.textTertiary,
+                ),
+              ),
             ),
           )
         else
@@ -455,10 +473,7 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
                     child: Opacity(
                       key: _postKeys.putIfAbsent(post.id, GlobalKey.new),
                       opacity: _openedPostId == post.id ? 0 : 1,
-                      child: PostCard(
-                        post: post,
-                        onTap: () => _openPost(post),
-                      ),
+                      child: PostCard(post: post, onTap: () => _openPost(post)),
                     ),
                   ),
               ],
@@ -469,31 +484,31 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
   }
 
   Widget _sectionTitle(String label, {int? count}) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            if (count != null && count > 0) ...[
-              const SizedBox(width: 6),
-              Text(
-                '$count',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textTertiary,
-                ),
-              ),
-            ],
-          ],
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: context.colors.textPrimary,
+          ),
         ),
-      );
+        if (count != null && count > 0) ...[
+          const SizedBox(width: 6),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textTertiary,
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 /// 보호자 한 명 — 사용자 검색 타일(UserTile)과 동일한 프로스트 문법:
@@ -512,19 +527,22 @@ class _GuardianTile extends StatelessWidget {
     // 사진 없는 보호자는 프로필 상세 헤더와 동일한 primaryDark 배경으로(UserTile 과 동일).
     final hasPhoto = photo != null;
     return Pressable(
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () => Navigator.push(
-                context,
-                AppPageRoute(
-                  builder: (_) => UserProfileScreen(
-                      userId: g.userId, previewNickname: g.nickname),
-                ),
+            context,
+            AppPageRoute(
+              builder: (_) => UserProfileScreen(
+                userId: g.userId,
+                previewNickname: g.nickname,
               ),
+            ),
+          ),
       child: Container(
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: hasPhoto ? null : AppColors.primaryDark,
+          color: hasPhoto ? null : context.colors.primaryDark,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Stack(
@@ -549,8 +567,8 @@ class _GuardianTile extends StatelessWidget {
                 ),
               ),
             if (photo != null)
-              const Positioned.fill(
-                child: ColoredBox(color: Color(0xB3FFFFFF)),
+              Positioned.fill(
+                child: ColoredBox(color: context.colors.photoVeil),
               ),
             Container(
               width: double.infinity,
@@ -562,10 +580,11 @@ class _GuardianTile extends StatelessWidget {
                     g.isOwner ? '대표 보호자' : '공동보호자',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        fontSize: 11,
-                        color: hasPhoto
-                            ? AppColors.textTertiary
-                            : Colors.white70),
+                      fontSize: 11,
+                      color: hasPhoto
+                          ? context.colors.textTertiary
+                          : Colors.white70,
+                    ),
                   ),
                   const SizedBox(height: 3),
                   Text(
@@ -577,8 +596,8 @@ class _GuardianTile extends StatelessWidget {
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: hasPhoto
-                          ? AppColors.textPrimary
-                          : AppColors.textOnPrimary,
+                          ? context.colors.textPrimary
+                          : context.colors.textOnPrimary,
                     ),
                   ),
                 ],
@@ -594,10 +613,10 @@ class _GuardianTile extends StatelessWidget {
 class _HeroPlaceholder extends StatelessWidget {
   const _HeroPlaceholder();
   @override
-  Widget build(BuildContext context) => const ColoredBox(
-        color: AppColors.primarySoft,
-        child: Center(
-          child: Icon(Icons.pets, size: 80, color: AppColors.primaryDark),
-        ),
-      );
+  Widget build(BuildContext context) => ColoredBox(
+    color: context.colors.primarySoft,
+    child: Center(
+      child: Icon(Icons.pets, size: 80, color: context.colors.primaryDark),
+    ),
+  );
 }

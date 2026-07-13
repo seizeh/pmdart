@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../data/review_categories.dart';
 import '../services/activity_repository.dart';
@@ -62,7 +62,7 @@ class _ListScaffoldState extends State<_ListScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: Text(widget.title)),
       body: SafeArea(child: _body()),
     );
@@ -90,12 +90,16 @@ class _ListScaffoldState extends State<_ListScaffold> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.inbox_outlined,
-              size: 48, color: AppColors.textTertiary),
+          Icon(
+            Icons.inbox_outlined,
+            size: 48,
+            color: context.colors.textTertiary,
+          ),
           const SizedBox(height: 12),
-          Text(msg,
-              style: const TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary)),
+          Text(
+            msg,
+            style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+          ),
           if (retry) ...[
             const SizedBox(height: 12),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
@@ -106,26 +110,27 @@ class _ListScaffoldState extends State<_ListScaffold> {
   }
 }
 
-Widget _card({required Widget child}) => Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: child,
-    );
+Widget _card(BuildContext context, {required Widget child}) => Container(
+  padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(
+    color: context.colors.surface,
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: context.colors.border, width: 0.5),
+  ),
+  child: child,
+);
 
 Widget _statusBadge(String label, Color color) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, color: color)),
-    );
+  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+  decoration: BoxDecoration(
+    color: color.withValues(alpha: 0.12),
+    borderRadius: BorderRadius.circular(100),
+  ),
+  child: Text(
+    label,
+    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+  ),
+);
 
 /// 내 지원 내역
 class MyApplicationsScreen extends StatelessWidget {
@@ -141,37 +146,52 @@ class MyApplicationsScreen extends StatelessWidget {
         final post = a['posts'] as Map<String, dynamic>?;
         final status = (a['status'] ?? 'pending') as String;
         return _card(
+          context,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   if (post != null)
-                    _statusBadge(categoryLabel(post['category'] as String),
-                        AppColors.primary),
+                    _statusBadge(
+                      categoryLabel(post['category'] as String),
+                      context.colors.primary,
+                    ),
                   const Spacer(),
-                  _statusBadge(_appStatus(status), _appStatusColor(status)),
+                  _statusBadge(
+                    _appStatus(status),
+                    _appStatusColor(context, status),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
                 post?['title'] as String? ?? '(삭제된 게시글)',
-                style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textPrimary,
+                ),
               ),
               if (a['message'] != null &&
                   (a['message'] as String).isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text(a['message'] as String,
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
+                Text(
+                  a['message'] as String,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
               ],
               const SizedBox(height: 8),
-              Text(timeAgo(_date(a['created_at'])!),
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary)),
+              Text(
+                timeAgo(_date(a['created_at'])!),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.colors.textTertiary,
+                ),
+              ),
             ],
           ),
         );
@@ -180,18 +200,18 @@ class MyApplicationsScreen extends StatelessWidget {
   }
 
   String _appStatus(String s) => switch (s) {
-        'pending' => '대기 중',
-        'accepted' => '수락됨',
-        'rejected' => '거절됨',
-        'cancelled' => '취소됨',
-        'completed' => '완료',
-        _ => s,
-      };
-  Color _appStatusColor(String s) => switch (s) {
-        'accepted' || 'completed' => AppColors.success,
-        'rejected' || 'cancelled' => AppColors.danger,
-        _ => AppColors.warning,
-      };
+    'pending' => '대기 중',
+    'accepted' => '수락됨',
+    'rejected' => '거절됨',
+    'cancelled' => '취소됨',
+    'completed' => '완료',
+    _ => s,
+  };
+  Color _appStatusColor(BuildContext context, String s) => switch (s) {
+    'accepted' || 'completed' => context.colors.success,
+    'rejected' || 'cancelled' => context.colors.danger,
+    _ => context.colors.warning,
+  };
 }
 
 /// 약속 — 완료 처리 + 완료된 약속에 평가하기.
@@ -233,7 +253,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
           if (a['post_owner_id'] == _uid)
             a['applicant_id'] as String
           else
-            a['post_owner_id'] as String
+            a['post_owner_id'] as String,
       };
       final names = await _repo.fetchNicknames(otherIds.toList());
       if (!mounted) return;
@@ -264,10 +284,13 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         content: const Text('완료하면 서로 평가를 남길 수 있어요. 되돌릴 수 없습니다.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark),
+            style: FilledButton.styleFrom(
+              backgroundColor: context.colors.primaryDark,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('완료'),
           ),
@@ -311,7 +334,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('약속')),
       body: SafeArea(child: _body()),
     );
@@ -321,16 +344,24 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
-          TextButton(onPressed: _load, child: const Text('다시 시도')),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
+        ),
       );
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text('진행 중인 약속이 없어요',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+      return Center(
+        child: Text(
+          '진행 중인 약속이 없어요',
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+        ),
       );
     }
     return RefreshIndicator(
@@ -353,6 +384,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     final busy = _busy == a['id'];
 
     return _card(
+      context,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -363,10 +395,11 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
                   post?['title'] as String? ?? '(삭제된 게시글)',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -376,20 +409,34 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.person_outline,
-                  size: 15, color: AppColors.textTertiary),
+              Icon(
+                Icons.person_outline,
+                size: 15,
+                color: context.colors.textTertiary,
+              ),
               const SizedBox(width: 6),
-              Text(otherName,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary)),
+              Text(
+                otherName,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.colors.textSecondary,
+                ),
+              ),
               if (at != null) ...[
                 const SizedBox(width: 12),
-                const Icon(Icons.event_outlined,
-                    size: 15, color: AppColors.primaryDark),
+                Icon(
+                  Icons.event_outlined,
+                  size: 15,
+                  color: context.colors.primaryDark,
+                ),
                 const SizedBox(width: 6),
-                Text('${at.year}.${at.month}.${at.day} ${at.hour}시',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
+                Text(
+                  '${at.year}.${at.month}.${at.day} ${at.hour}시',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
               ],
             ],
           ),
@@ -403,7 +450,11 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
   }
 
   Widget _actionRow(
-      Map<String, dynamic> a, String status, bool reviewed, bool busy) {
+    Map<String, dynamic> a,
+    String status,
+    bool reviewed,
+    bool busy,
+  ) {
     if (status == 'scheduled') {
       return Align(
         alignment: Alignment.centerRight,
@@ -414,26 +465,37 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
               : const Icon(Icons.check_circle_outline, size: 18),
           label: const Text('약속 완료'),
           style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryDark,
-              minimumSize: const Size(0, 40)),
+            backgroundColor: context.colors.primaryDark,
+            minimumSize: const Size(0, 40),
+          ),
         ),
       );
     }
     // completed
     if (reviewed) {
       return Row(
-        children: const [
-          Icon(Icons.verified_outlined, size: 18, color: AppColors.success),
+        children: [
+          Icon(
+            Icons.verified_outlined,
+            size: 18,
+            color: context.colors.success,
+          ),
           SizedBox(width: 6),
-          Text('평가 완료',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.success)),
+          Text(
+            '평가 완료',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: context.colors.success,
+            ),
+          ),
         ],
       );
     }
@@ -444,24 +506,25 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         icon: const Icon(Icons.star_outline, size: 18),
         label: const Text('평가하기'),
         style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.primaryDark,
-            side: const BorderSide(color: AppColors.primaryDark),
-            minimumSize: const Size(0, 40)),
+          foregroundColor: context.colors.primaryDark,
+          side: BorderSide(color: context.colors.primaryDark),
+          minimumSize: const Size(0, 40),
+        ),
       ),
     );
   }
 
   String _apptStatus(String s) => switch (s) {
-        'scheduled' => '예정',
-        'completed' => '완료',
-        'cancelled' => '취소',
-        _ => s,
-      };
+    'scheduled' => '예정',
+    'completed' => '완료',
+    'cancelled' => '취소',
+    _ => s,
+  };
   Color _apptColor(String s) => switch (s) {
-        'completed' => AppColors.success,
-        'cancelled' => AppColors.danger,
-        _ => AppColors.info,
-      };
+    'completed' => context.colors.success,
+    'cancelled' => context.colors.danger,
+    _ => context.colors.info,
+  };
 }
 
 /// 받은 평가 — 8개 카테고리별로 얼마나 받았는지 수치화.
@@ -504,15 +567,13 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
     }
   }
 
-  int get _total =>
-      _counts.values.fold(0, (sum, v) => sum + v);
-  int get _maxCount =>
-      _counts.values.fold(1, (m, v) => v > m ? v : m);
+  int get _total => _counts.values.fold(0, (sum, v) => sum + v);
+  int get _maxCount => _counts.values.fold(1, (m, v) => v > m ? v : m);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('받은 평가')),
       body: SafeArea(child: _body()),
     );
@@ -522,10 +583,16 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
-          TextButton(onPressed: _load, child: const Text('다시 시도')),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
+        ),
       );
     }
     return RefreshIndicator(
@@ -533,15 +600,18 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('총 $_total개의 평가를 받았어요',
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary)),
+          Text(
+            '총 $_total개의 평가를 받았어요',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 24),
-          _section('긍정 평가', ReviewCategories.positive, AppColors.success),
+          _section('긍정 평가', ReviewCategories.positive, context.colors.success),
           const SizedBox(height: 20),
-          _section('부정 평가', ReviewCategories.negative, AppColors.danger),
+          _section('부정 평가', ReviewCategories.negative, context.colors.danger),
         ],
       ),
     );
@@ -551,11 +621,14 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary)),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textSecondary,
+          ),
+        ),
         const SizedBox(height: 12),
         ...cats.map((c) => _bar(c, _counts[c] ?? 0, color)),
       ],
@@ -572,17 +645,23 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
           Row(
             children: [
               Expanded(
-                child: Text(label,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary)),
-              ),
-              Text('$count',
+                child: Text(
+                  label,
                   style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: count > 0 ? color : AppColors.textTertiary)),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+              ),
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: count > 0 ? color : context.colors.textTertiary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -591,9 +670,10 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
             child: LinearProgressIndicator(
               value: ratio.clamp(0.0, 1.0),
               minHeight: 8,
-              backgroundColor: AppColors.surfaceMuted,
+              backgroundColor: context.colors.surfaceMuted,
               valueColor: AlwaysStoppedAnimation(
-                  count > 0 ? color : AppColors.surfaceMuted),
+                count > 0 ? color : context.colors.surfaceMuted,
+              ),
             ),
           ),
         ],

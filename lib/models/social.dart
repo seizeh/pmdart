@@ -26,20 +26,20 @@ class Connection {
   });
 
   factory Connection.fromJson(Map<String, dynamic> j) => Connection(
-        userId: (j['user_id'] ?? j['id']) as String,
-        nickname: (j['nickname'] ?? '알 수 없음') as String,
-        userType: (j['user_type'] ?? '') as String,
-        iFollowBack: j['i_follow_back'] as bool?,
-        following: j['following'] as bool?,
-        profileImageUrl: j['profile_image_url'] as String?,
-      );
+    userId: (j['user_id'] ?? j['id']) as String,
+    nickname: (j['nickname'] ?? '알 수 없음') as String,
+    userType: (j['user_type'] ?? '') as String,
+    iFollowBack: j['i_follow_back'] as bool?,
+    following: j['following'] as bool?,
+    profileImageUrl: j['profile_image_url'] as String?,
+  );
 
   Connection copyWith({bool? following, bool? iFollowBack}) => Connection(
-        userId: userId,
-        nickname: nickname,
-        userType: userType,
-        profileImageUrl: profileImageUrl,
-        iFollowBack: iFollowBack ?? this.iFollowBack,
-        following: following ?? this.following,
-      );
+    userId: userId,
+    nickname: nickname,
+    userType: userType,
+    profileImageUrl: profileImageUrl,
+    iFollowBack: iFollowBack ?? this.iFollowBack,
+    following: following ?? this.following,
+  );
 }

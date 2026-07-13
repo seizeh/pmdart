@@ -31,8 +31,10 @@ class HeartButton extends StatefulWidget {
 class _HeartButtonState extends State<HeartButton>
     with TickerProviderStateMixin {
   // 하트 팝(스프링) — 0 안착, 1 눌림 직후 상태.
-  late final AnimationController _pop =
-      AnimationController.unbounded(vsync: this, value: 0);
+  late final AnimationController _pop = AnimationController.unbounded(
+    vsync: this,
+    value: 0,
+  );
   // 입자/링 버스트 — 0→1 한 번 재생.
   late final AnimationController _burst = AnimationController(
     vsync: this,
@@ -62,7 +64,9 @@ class _HeartButtonState extends State<HeartButton>
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.active ? const Color(0xFFC97565) : const Color(0xFFB6AC9A);
+    final color = widget.active
+        ? const Color(0xFFC97565)
+        : const Color(0xFFB6AC9A);
 
     return GestureDetector(
       onTap: _handleTap,

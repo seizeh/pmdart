@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../motion/motion.dart';
 import '../../services/facility_repository.dart';
 import '../../services/community_repository.dart';
@@ -39,12 +39,22 @@ Color _colorFor(String category) {
   for (final c in _facilityCats) {
     if (c.$1 == category) return c.$3;
   }
-  return AppColors.primaryDark;
+  // 마커는 지도 이미지 위 비트맵이라 모드 무관 — 정적 브라운 유지.
+  return const Color(0xFF5A4E3A);
 }
 
-// 카테고리 칩 통일 색(선택 배경) + 마커 아이콘 색(진한 브라운).
+// 카테고리 칩 통일 색(선택 배경).
 const _catAccent = Color(0xFFAC9466);
-const _markerIconColor = Color(0xFF5A4E38);
+// 마커 아이콘 단색 — 라이트: 기존 진브라운, 다크: 검색 핀 테두리와 같은 골드.
+// 지도와의 대비는 색 대신 부드러운 그림자로 확보한다.
+const _markerIconLight = Color(0xFF5A4E38);
+const _markerIconDark = _catAccent;
+const _markerShadow = Color(0x73000000);
+// 지도 위 마커 캡션/틴트 — 지도 모드(라이트 타일/나이트 타일) 기준 색.
+const _markerCaptionLight = Color(0xFF5A4E3A);
+const _markerCaptionDark = Color(0xFFE8E2D5);
+const _markerHaloLight = Colors.white;
+const _markerHaloDark = Color(0xFF1E1E1E);
 
 IconData _iconForCat(String code) => switch (code) {
   'animal_hospital' => Icons.local_hospital_outlined,
@@ -150,6 +160,22 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     _searchFocus.addListener(_onSearchFocus);
   }
 
+  // 테마(라이트↔다크) 전환 감지 — 지도는 나이트 모드로 자동 전환되지만,
+  // 이미 그려진 마커 캡션 색은 남아 있으므로 다시 그린다.
+  Brightness? _lastBrightness;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final b = Theme.of(context).brightness;
+    if (_lastBrightness != null && _lastBrightness != b) {
+      _catIcons.clear(); // 마커 아이콘 색이 모드별로 달라 다시 렌더
+      final center = _loadedCenter;
+      if (center != null) _loadFacilities(center);
+    }
+    _lastBrightness = b;
+  }
+
   @override
   void dispose() {
     _suggestDebounce?.cancel();
@@ -186,6 +212,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   Future<void> _loadFacilities(NLatLng center) async {
     final c = _controller;
     if (c == null) return;
+    // 마커 캡션 색 — 지도 모드에 맞춰(await 전에 캡처).
+    final dark = context.isDark;
+    final capColor = dark ? _markerCaptionDark : _markerCaptionLight;
+    final capHalo = dark ? _markerHaloDark : _markerHaloLight;
     setState(() => _loadingFac = true);
     try {
       // 공공데이터(DB) 카테고리만 — 'pet_cafe'(실시간)·'posts'(게시글)는 제외.
@@ -237,8 +267,8 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
             NOverlayCaption(
               text: warn ? '⚠ ${_wrapCaption(f.name)}' : _wrapCaption(f.name),
               textSize: 11,
-              color: AppColors.textPrimary,
-              haloColor: Colors.white,
+              color: capColor,
+              haloColor: capHalo,
             ),
           )
           ..setIsHideCollidedCaptions(true)
@@ -470,9 +500,11 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   /// 카테고리 마커 아이콘(캐시). PNG 를 흰 원형 핀에 합성해 일관/또렷하게.
   Future<NOverlayImage?> _iconFor(String category) async {
     if (_catIcons.containsKey(category)) return _catIcons[category];
+    // 모드별 아이콘 색 — await 전에 캡처(빌드 컨텍스트 안전).
+    final color = context.isDark ? _markerIconDark : _markerIconLight;
     NOverlayImage? out;
     try {
-      out = await _renderMarkerIcon(category);
+      out = await _renderMarkerIcon(category, color);
     } catch (_) {
       out = null;
     }
@@ -508,7 +540,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
 
   /// 마커 아이콘: 분양은 IMG_4.png, 나머지는 채운 Material 아이콘을 #5a4e38 로 렌더.
   /// 흰 배경 없음. 가독성용 흰 외곽선은 블러 없이 오프셋으로 그려 Impeller 안전.
-  Future<NOverlayImage?> _renderMarkerIcon(String category) async {
+  Future<NOverlayImage?> _renderMarkerIcon(
+    String category,
+    Color iconColor,
+  ) async {
     const iconSize = 88.0;
     const pad = 8.0;
     const target = iconSize + pad * 2;
@@ -516,7 +551,8 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     final canvas = Canvas(recorder);
 
     if (category == 'pet_sales') {
-      // 분양: IMG_4.png 를 투명 여백 잘라 중앙 배치.
+      // 분양: IMG_4.png(브라운 발바닥)를 투명 여백 잘라 중앙 배치 —
+      // 다른 마커와 같은 흰색으로 틴트하고, 그림자로 지도와 대비.
       final data = await rootBundle.load('assets/images/IMG_4.png');
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
       final frame = await codec.getNextFrame();
@@ -525,11 +561,26 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       final s = iconSize / (src.width > src.height ? src.width : src.height);
       final dw = src.width * s, dh = src.height * s;
       final dx = (target - dw) / 2, dy = (target - dh) / 2;
+      final dst = Rect.fromLTWH(dx, dy, dw, dh);
       canvas.drawImageRect(
         img,
         src,
-        Rect.fromLTWH(dx, dy, dw, dh),
-        Paint()..filterQuality = FilterQuality.high,
+        dst.shift(const Offset(0, 2)),
+        Paint()
+          ..filterQuality = FilterQuality.high
+          ..colorFilter = const ui.ColorFilter.mode(
+            _markerShadow,
+            ui.BlendMode.srcIn,
+          )
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+      );
+      canvas.drawImageRect(
+        img,
+        src,
+        dst,
+        Paint()
+          ..filterQuality = FilterQuality.high
+          ..colorFilter = ui.ColorFilter.mode(iconColor, ui.BlendMode.srcIn),
       );
       img.dispose();
     } else {
@@ -549,26 +600,20 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           ..layout();
       }
 
-      final base = glyph(_markerIconColor);
+      final base = glyph(iconColor);
       final origin = Offset(
         (target - base.width) / 2,
         (target - base.height) / 2,
       );
-      // 흰 외곽선(8방향 오프셋, 블러 없음) → 지도 배경과 대비.
-      final stroke = glyph(Colors.white);
-      const o = 2.0;
-      for (final d in const [
-        Offset(-o, 0),
-        Offset(o, 0),
-        Offset(0, -o),
-        Offset(0, o),
-        Offset(-o, -o),
-        Offset(o, -o),
-        Offset(-o, o),
-        Offset(o, o),
-      ]) {
-        stroke.paint(canvas, origin + d);
-      }
+      // 아이콘 전체를 외곽선 색(흰색) 단색으로 — 부드러운 그림자만으로
+      // 라이트/나이트 지도 어느 쪽에서도 대비를 확보한다.
+      final shadow = glyph(_markerShadow);
+      canvas.saveLayer(
+        null,
+        Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+      );
+      shadow.paint(canvas, origin + const Offset(0, 2));
+      canvas.restore();
       base.paint(canvas, origin);
     }
 
@@ -621,6 +666,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   /// 검색 강조 마커 1건(id 'search'). 카테고리/반경과 무관하게 항상 최상단.
   /// 핀(IMG_3)은 끝이 아래를 향하므로 앵커는 하단 중앙. 로드 실패 시 기본 핀 폴백.
   Future<NMarker> _buildSearchMarker(Facility sr) async {
+    final dark = context.isDark; // await 전에 캡처
     final icon = await _loadSearchIcon();
     final m =
         NMarker(id: 'search', position: NLatLng(sr.lat, sr.lng), icon: icon)
@@ -630,15 +676,15 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
             NOverlayCaption(
               text: _wrapCaption(sr.name),
               textSize: 13,
-              color: AppColors.primaryDark,
-              haloColor: Colors.white,
+              color: dark ? _markerCaptionDark : _markerCaptionLight,
+              haloColor: dark ? _markerHaloDark : _markerHaloLight,
             ),
           )
           ..setOnTapListener((_) => _showFacilitySheet(sr));
     if (icon != null) {
       m.setAnchor(const NPoint(0.5, 1.0)); // 핀 끝(아래)이 좌표를 가리키게
     } else {
-      m.setIconTintColor(AppColors.primaryDark);
+      m.setIconTintColor(dark ? _markerCaptionDark : _markerCaptionLight);
     }
     return m;
   }
@@ -841,9 +887,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       margin: const EdgeInsets.only(top: 6),
       constraints: const BoxConstraints(maxHeight: 280),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        border: Border.all(color: context.colors.border, width: 0.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -853,12 +899,15 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         ],
       ),
       child: shown.isEmpty
-          ? const Padding(
+          ? Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text(
                   '해당 카테고리의 검색 결과가 없어요',
-                  style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: context.colors.textTertiary,
+                  ),
                 ),
               ),
             )
@@ -867,7 +916,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
               padding: const EdgeInsets.symmetric(vertical: 4),
               itemCount: shown.length,
               separatorBuilder: (_, _) =>
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: context.colors.border),
               itemBuilder: (_, i) {
                 final f = shown[i];
                 final dist = f.distanceM <= 0
@@ -892,10 +941,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
                                 f.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+                                  color: context.colors.textPrimary,
                                 ),
                               ),
                               if (f.address != null && f.address!.isNotEmpty)
@@ -903,9 +952,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
                                   f.address!,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: AppColors.textTertiary,
+                                    color: context.colors.textTertiary,
                                   ),
                                 ),
                             ],
@@ -916,9 +965,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
                             padding: const EdgeInsets.only(left: 8),
                             child: Text(
                               dist,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AppColors.textTertiary,
+                                color: context.colors.textTertiary,
                               ),
                             ),
                           ),
@@ -946,14 +995,21 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         if (!didPop && sheetOpen) _closeSheetOverMap();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: context.colors.background,
         body: Stack(
           children: [
             ClipRect(
               child: NaverMap(
                 options: NaverMapViewOptions(
                   initialCameraPosition: _lastCamera ?? _initialPosition,
-                  customStyleId: _customStyleId,
+                  // 다크: 내비 지도 + 야간 모드(nightModeEnable 은 navi 에서만
+                  // 공식 지원). 이 조합이어야 SDK 가 isDark 로 판단해 네이버
+                  // 로고를 다크용으로 자동 교체하고, 내비 지도라 상업 POI
+                  // 대부분이 숨겨져 라이트 커스텀 스타일(정보 최소화)과 비슷한
+                  // 밀도가 된다. 커스텀 스타일(라이트 전용)은 라이트에서만.
+                  mapType: context.isDark ? NMapType.navi : NMapType.basic,
+                  customStyleId: context.isDark ? null : _customStyleId,
+                  nightModeEnable: context.isDark,
                   locationButtonEnable: false,
                   consumeSymbolTapEvents: false,
                   // 네이버 로고를 하단 메뉴바 바로 위로 올린다(내 위치 버튼과 같은 높이).
@@ -1165,9 +1221,9 @@ class _CatChipState extends State<_CatChip>
         builder: (context, _) {
           final raw = _sel.value; // bounce 로 1 을 살짝 넘겼다 안착(팝)
           final t = raw.clamp(0.0, 1.0);
-          final bg = Color.lerp(AppColors.surface, _catAccent, t)!;
-          final border = Color.lerp(AppColors.border, _catAccent, t)!;
-          final fg = Color.lerp(AppColors.textPrimary, Colors.white, t)!;
+          final bg = Color.lerp(context.colors.surface, _catAccent, t)!;
+          final border = Color.lerp(context.colors.border, _catAccent, t)!;
+          final fg = Color.lerp(context.colors.textPrimary, Colors.white, t)!;
           final iconColor = Color.lerp(_catAccent, Colors.white, t)!;
           return Transform.scale(
             scale: 1 + 0.06 * raw, // 선택 시 살짝 커지며 오버슈트
@@ -1245,9 +1301,9 @@ class _MyLocationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface,
-      shape: const CircleBorder(
-        side: BorderSide(color: AppColors.border, width: 0.5),
+      color: context.colors.surface,
+      shape: CircleBorder(
+        side: BorderSide(color: context.colors.border, width: 0.5),
       ),
       elevation: 3,
       shadowColor: Colors.black.withValues(alpha: 0.2),
@@ -1259,17 +1315,19 @@ class _MyLocationButton extends StatelessWidget {
           height: 48,
           child: Center(
             child: loading
-                ? const SizedBox(
+                ? SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.4,
-                      valueColor: AlwaysStoppedAnimation(AppColors.primaryDark),
+                      valueColor: AlwaysStoppedAnimation(
+                        context.colors.primaryDark,
+                      ),
                     ),
                   )
-                : const Icon(
+                : Icon(
                     Icons.my_location,
-                    color: AppColors.primaryDark,
+                    color: context.colors.primaryDark,
                     size: 24,
                   ),
           ),

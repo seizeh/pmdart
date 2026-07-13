@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import '../motion/motion.dart';
 
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/community.dart';
 import '../models/profile.dart';
 import '../services/community_repository.dart';
@@ -165,17 +165,17 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               ),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.photo_camera_outlined,
-                color: AppColors.primaryDark,
+                color: context.colors.primaryDark,
               ),
               title: const Text('직접 촬영'),
               onTap: () => Navigator.pop(ctx, 'camera'),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.photo_library_outlined,
-                color: AppColors.primaryDark,
+                color: context.colors.primaryDark,
               ),
               title: const Text('갤러리에서 불러오기'),
               onTap: () => Navigator.pop(ctx, 'gallery'),
@@ -267,10 +267,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                 title: Text('${p.name}  ·  ${p.species}'),
                 subtitle: p.isIdentityVerified
                     ? null
-                    : const Text(
+                    : Text(
                         '신원 인증 필요',
                         style: TextStyle(
-                          color: AppColors.warning,
+                          color: context.colors.warning,
                           fontSize: 12,
                         ),
                       ),
@@ -352,7 +352,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(
         title: const Text('새 게시글'),
         actions: [
@@ -427,14 +427,14 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               const SizedBox(height: 20),
               _SectionLabel(_needsPhoto ? '사진 (촬영 인증)' : '사진 (선택)'),
               if (_needsPhoto)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(bottom: 8),
                   child: Text(
                     '아래에서 반려동물을 먼저 선택한 뒤, 그 아이를 카메라로 촬영하세요. '
                     '등록된 인증 사진과 대조해 실제 반려동물인지 확인합니다.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppColors.textSecondary,
+                      color: context.colors.textSecondary,
                       height: 1.4,
                     ),
                   ),
@@ -458,15 +458,18 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                       vertical: 16,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
+                      color: context.colors.surfaceMuted,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.border, width: 0.5),
+                      border: Border.all(
+                        color: context.colors.border,
+                        width: 0.5,
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.event,
-                          color: AppColors.primaryDark,
+                          color: context.colors.primaryDark,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
@@ -477,8 +480,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             color: _scheduledAt == null
-                                ? AppColors.textTertiary
-                                : AppColors.textPrimary,
+                                ? context.colors.textTertiary
+                                : context.colors.textPrimary,
                           ),
                         ),
                       ],
@@ -500,16 +503,16 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
+                      color: context.colors.surfaceMuted,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       _giveAway
                           ? '분양은 본인이 소유자인 반려동물이 있어야 작성할 수 있어요'
                           : '연결할 반려동물이 없어요. 먼저 반려동물을 등록해주세요',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textSecondary,
+                        color: context.colors.textSecondary,
                         height: 1.5,
                       ),
                     ),
@@ -549,13 +552,15 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: selected
-                                  ? AppColors.primarySoft.withValues(alpha: 0.3)
-                                  : AppColors.surface,
+                                  ? context.colors.primarySoft.withValues(
+                                      alpha: 0.3,
+                                    )
+                                  : context.colors.surface,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: selected
-                                    ? AppColors.primary
-                                    : AppColors.border,
+                                    ? context.colors.primary
+                                    : context.colors.border,
                                 width: selected ? 1.5 : 0.5,
                               ),
                             ),
@@ -566,17 +571,17 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                                       ? Icons.check_circle
                                       : Icons.radio_button_off,
                                   color: selected
-                                      ? AppColors.primary
-                                      : AppColors.textTertiary,
+                                      ? context.colors.primary
+                                      : context.colors.textTertiary,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
                                     '${p.name}  ·  ${p.species}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
+                                      color: context.colors.textPrimary,
                                     ),
                                   ),
                                 ),
@@ -597,24 +602,24 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.1),
+                      color: context.colors.warning.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.info_outline,
                           size: 16,
-                          color: AppColors.warning,
+                          color: context.colors.warning,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             '분양이 완료되면 소유권이 자동으로 입양자에게 이전됩니다.',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.textPrimary,
+                              color: context.colors.textPrimary,
                               height: 1.5,
                             ),
                           ),
@@ -728,26 +733,26 @@ class _RegionWarning extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.10),
+        color: context.colors.warning.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: AppColors.warning.withValues(alpha: 0.5),
+          color: context.colors.warning.withValues(alpha: 0.5),
           width: 0.5,
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 18, color: AppColors.warning),
+          Icon(Icons.info_outline, size: 18, color: context.colors.warning),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               '지금 계신 곳($current)이 인증 동네($verified)와 달라요.\n'
               '이 게시글은 인증 동네($verified) 기준으로 등록됩니다.',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 height: 1.45,
-                color: AppColors.textSecondary,
+                color: context.colors.textSecondary,
               ),
             ),
           ),
@@ -766,20 +771,24 @@ class _TrustBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.12),
+        color: context.colors.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(100),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.verified_outlined, size: 13, color: AppColors.primaryDark),
+          Icon(
+            Icons.verified_outlined,
+            size: 13,
+            color: context.colors.primaryDark,
+          ),
           SizedBox(width: 3),
           Text(
             '인증 면제',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppColors.primaryDark,
+              color: context.colors.primaryDark,
             ),
           ),
         ],
@@ -798,10 +807,10 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w700,
-          color: AppColors.textPrimary,
+          color: context.colors.textPrimary,
         ),
       ),
     );
@@ -831,9 +840,9 @@ class _PhotoPicker extends StatelessWidget {
       return Container(
         height: 180,
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+          color: context.colors.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Center(
           child: Column(
@@ -842,11 +851,11 @@ class _PhotoPicker extends StatelessWidget {
               const CircularProgressIndicator(),
               if (requireCamera) ...[
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   '사진을 인증하는 중이에요',
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.textSecondary,
+                    color: context.colors.textSecondary,
                   ),
                 ),
               ],
@@ -863,9 +872,9 @@ class _PhotoPicker extends StatelessWidget {
         child: Container(
           height: 100,
           decoration: BoxDecoration(
-            color: AppColors.surfaceMuted,
+            color: context.colors.surfaceMuted,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border, width: 0.5),
+            border: Border.all(color: context.colors.border, width: 0.5),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -874,15 +883,15 @@ class _PhotoPicker extends StatelessWidget {
                 requireCamera
                     ? Icons.photo_camera_outlined
                     : Icons.add_a_photo_outlined,
-                color: AppColors.primaryDark,
+                color: context.colors.primaryDark,
                 size: 26,
               ),
               const SizedBox(height: 6),
               Text(
                 requireCamera ? '사진 촬영' : '사진 추가',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
               ),
             ],
@@ -902,7 +911,7 @@ class _PhotoPicker extends StatelessWidget {
               width: double.infinity,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => Container(
-                color: AppColors.surfaceMuted,
+                color: context.colors.surfaceMuted,
                 child: const Center(child: Icon(Icons.image, size: 40)),
               ),
             ),

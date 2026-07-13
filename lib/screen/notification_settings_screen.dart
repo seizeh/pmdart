@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../services/activity_repository.dart';
 
 /// 알림 설정 — notification_preferences 토글.
@@ -46,8 +46,9 @@ class _NotificationSettingsScreenState
         setState(() => _prefs[key] = !value);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('변경에 실패했어요'),
-              behavior: SnackBarBehavior.floating),
+            content: Text('변경에 실패했어요'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
@@ -56,7 +57,7 @@ class _NotificationSettingsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('알림 설정')),
       body: SafeArea(
         child: _loading
@@ -67,13 +68,16 @@ class _NotificationSettingsScreenState
                   // 컬럼 기본값 true → 행이 없거나 값이 null 이면 켜짐으로 간주
                   final on = _prefs[e.key] != false;
                   return SwitchListTile(
-                    title: Text(e.value,
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary)),
+                    title: Text(
+                      e.value,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: context.colors.textPrimary,
+                      ),
+                    ),
                     value: on,
-                    activeThumbColor: AppColors.primary,
+                    activeThumbColor: context.colors.primary,
                     onChanged: (v) => _toggle(e.key, v),
                   );
                 }).toList(),

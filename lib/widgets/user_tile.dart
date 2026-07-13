@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/social.dart';
 import '../screen/user_profile_screen.dart';
 
@@ -25,19 +25,22 @@ class UserTile extends StatelessWidget {
     // 흰 타일 → 진갈색 프로필로 바뀌던 이질감 제거.
     final hasPhoto = photo != null;
     return Pressable(
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () => Navigator.push(
-                context,
-                AppPageRoute(
-                  builder: (_) => UserProfileScreen(
-                      userId: c.userId, previewNickname: c.nickname),
-                ),
+            context,
+            AppPageRoute(
+              builder: (_) => UserProfileScreen(
+                userId: c.userId,
+                previewNickname: c.nickname,
               ),
+            ),
+          ),
       child: Container(
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: hasPhoto ? null : AppColors.primaryDark,
+          color: hasPhoto ? null : context.colors.primaryDark,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Stack(
@@ -60,8 +63,8 @@ class UserTile extends StatelessWidget {
                 ),
               ),
             if (photo != null)
-              const Positioned.fill(
-                child: ColoredBox(color: Color(0xB3FFFFFF)),
+              Positioned.fill(
+                child: ColoredBox(color: context.colors.photoVeil),
               ),
             Container(
               width: double.infinity,
@@ -75,8 +78,8 @@ class UserTile extends StatelessWidget {
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: hasPhoto
-                      ? AppColors.textPrimary
-                      : AppColors.textOnPrimary,
+                      ? context.colors.textPrimary
+                      : context.colors.textOnPrimary,
                 ),
               ),
             ),

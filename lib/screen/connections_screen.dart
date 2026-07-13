@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/social.dart';
 import '../services/social_repository.dart';
 import '../widgets/user_tile.dart';
@@ -16,13 +16,13 @@ class ConnectionsScreen extends StatelessWidget {
       length: 2,
       initialIndex: initialIndex,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: context.colors.background,
         appBar: AppBar(
           title: const Text('내 친구'),
-          bottom: const TabBar(
-            labelColor: AppColors.primaryDark,
-            unselectedLabelColor: AppColors.textTertiary,
-            indicatorColor: AppColors.primary,
+          bottom: TabBar(
+            labelColor: context.colors.primaryDark,
+            unselectedLabelColor: context.colors.textTertiary,
+            indicatorColor: context.colors.primary,
             tabs: [
               Tab(text: 'Pawing (내가 팔로우)'),
               Tab(text: 'Pawmate (나를 팔로우)'),
@@ -97,9 +97,9 @@ class _ConnectionListState extends State<_ConnectionList>
       return _empty(_error!, retry: true);
     }
     if (_items.isEmpty) {
-      return _empty(widget.mode == _Mode.pawing
-          ? '아직 팔로우한 사람이 없어요'
-          : '아직 나를 팔로우한 사람이 없어요');
+      return _empty(
+        widget.mode == _Mode.pawing ? '아직 팔로우한 사람이 없어요' : '아직 나를 팔로우한 사람이 없어요',
+      );
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -107,7 +107,7 @@ class _ConnectionListState extends State<_ConnectionList>
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         itemCount: _items.length,
         separatorBuilder: (_, _) =>
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: context.colors.border),
         itemBuilder: (_, i) => UserTile(connection: _items[i]),
       ),
     );
@@ -118,12 +118,16 @@ class _ConnectionListState extends State<_ConnectionList>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.group_outlined,
-              size: 48, color: AppColors.textTertiary),
+          Icon(
+            Icons.group_outlined,
+            size: 48,
+            color: context.colors.textTertiary,
+          ),
           const SizedBox(height: 12),
-          Text(msg,
-              style: const TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary)),
+          Text(
+            msg,
+            style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+          ),
           if (retry) ...[
             const SizedBox(height: 12),
             TextButton(onPressed: _load, child: const Text('다시 시도')),

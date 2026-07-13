@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/community.dart' show kPostImageAspectRatio;
 
 /// 갤러리 사진을 게시 표시 비율(3:4)에 맞게 "보여질 영역"을 고르는 화면.
@@ -146,8 +146,9 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('이미지 처리에 실패했어요'),
-            behavior: SnackBarBehavior.floating),
+          content: Text('이미지 처리에 실패했어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
@@ -166,18 +167,25 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Center(
                 child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white)),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             )
           else
             TextButton(
               onPressed: _img == null ? null : _confirm,
-              child: const Text('완료',
-                  style: TextStyle(
-                      color: AppColors.primary, fontWeight: FontWeight.w700)),
+              child: Text(
+                '완료',
+                style: TextStyle(
+                  color: context.colors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
         ],
       ),
@@ -192,7 +200,8 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                   _initLayout(avail);
                   if (_img == null) {
                     return const Center(
-                        child: CircularProgressIndicator(color: Colors.white));
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
                   }
                   return GestureDetector(
                     onScaleStart: _onScaleStart,
@@ -228,7 +237,11 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
             child: Text(
               '3:4 틀을 끌어서 옮기고, 손가락을 벌려 크기를 조절하세요',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                height: 1.4,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -250,7 +263,10 @@ class _FramePainter extends CustomPainter {
       ..addRect(Offset.zero & size)
       ..addRRect(RRect.fromRectAndRadius(frame, const Radius.circular(8)))
       ..fillType = PathFillType.evenOdd;
-    canvas.drawPath(scrim, Paint()..color = Colors.black.withValues(alpha: 0.55));
+    canvas.drawPath(
+      scrim,
+      Paint()..color = Colors.black.withValues(alpha: 0.55),
+    );
 
     // 틀 테두리
     canvas.drawRRect(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show MockPet;
 import '../services/pet_repository.dart';
 import '../widgets/role_badge.dart';
@@ -99,13 +99,13 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       cardRadius: widget.cardRadius,
       scrollController: _scroll,
       builder: (context, physics) => Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: context.colors.background,
         body: CustomScrollView(
           controller: _scroll,
           physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
           slivers: [
             SliverAppBar(
-              backgroundColor: Colors.white,
+              backgroundColor: context.colors.background,
               elevation: 0,
               pinned: true,
               actions: [
@@ -137,7 +137,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   void _showOwnerMenu() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -150,30 +150,32 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: context.colors.border,
                 borderRadius: BorderRadius.circular(100),
               ),
             ),
             const SizedBox(height: 12),
             ListTile(
-              leading: const Icon(Icons.edit_outlined,
-                  color: AppColors.primaryDark),
+              leading: Icon(
+                Icons.edit_outlined,
+                color: context.colors.primaryDark,
+              ),
               title: const Text('펫 정보 수정'),
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 final changed = await Navigator.push<bool>(
                   context,
-                  AppPageRoute(
-                      builder: (_) => PetEditScreen(pet: _pet)),
+                  AppPageRoute(builder: (_) => PetEditScreen(pet: _pet)),
                 );
                 if (changed == true) _reloadPet();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline,
-                  color: AppColors.danger),
-              title: const Text('펫 삭제',
-                  style: TextStyle(color: AppColors.danger)),
+              leading: Icon(Icons.delete_outline, color: context.colors.danger),
+              title: Text(
+                '펫 삭제',
+                style: TextStyle(color: context.colors.danger),
+              ),
               onTap: () {
                 Navigator.pop(sheetCtx);
                 _confirmDelete();
@@ -194,8 +196,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         content: Text('${_pet.name}을(를) 삭제할까요? 되돌릴 수 없어요.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dCtx),
-              child: const Text('취소')),
+            onPressed: () => Navigator.pop(dCtx),
+            child: const Text('취소'),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(dCtx);
@@ -208,7 +211,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 _toast('삭제에 실패했어요');
               }
             },
-            child: const Text('삭제', style: TextStyle(color: AppColors.danger)),
+            child: Text('삭제', style: TextStyle(color: context.colors.danger)),
           ),
         ],
       ),
@@ -229,16 +232,17 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 20,
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+          left: 24,
+          right: 24,
+          top: 20,
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,31 +252,39 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.border,
+                  color: context.colors.border,
                   borderRadius: BorderRadius.circular(100),
                 ),
               ),
             ),
             const SizedBox(height: 20),
-            const Text('공동보호자 초대',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary)),
+            Text(
+              '공동보호자 초대',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textPrimary,
+              ),
+            ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               '전화번호로 초대장을 보내드려요.\n상대가 수락하면 보호자로 등록됩니다.',
               style: TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+                fontSize: 13,
+                color: context.colors.textSecondary,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 24),
             TextField(
               controller: phoneCtrl,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: '01012345678',
-                prefixIcon:
-                    Icon(Icons.phone_outlined, color: AppColors.textSecondary),
+                prefixIcon: Icon(
+                  Icons.phone_outlined,
+                  color: context.colors.textSecondary,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -286,9 +298,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 Navigator.pop(sheetCtx);
                 try {
                   final registered = await _repo.invite(_pet.id, phone);
-                  _toast(registered
-                      ? '초대를 보냈어요'
-                      : '가입 전 번호예요 — 문자로 초대 안내를 보냈어요');
+                  _toast(
+                    registered ? '초대를 보냈어요' : '가입 전 번호예요 — 문자로 초대 안내를 보냈어요',
+                  );
                 } on StateError {
                   _toast('이미 초대 중인 번호예요');
                 } catch (_) {
@@ -329,16 +341,21 @@ class _Header extends StatelessWidget {
               width: 140,
               height: 140,
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
+                color: context.colors.primarySoft,
                 borderRadius: BorderRadius.circular(48),
                 image: pet.imageUrl != null
                     ? DecorationImage(
-                        image: NetworkImage(pet.imageUrl!), fit: BoxFit.cover)
+                        image: NetworkImage(pet.imageUrl!),
+                        fit: BoxFit.cover,
+                      )
                     : null,
               ),
               child: pet.imageUrl == null
-                  ? const Icon(Icons.pets,
-                      color: AppColors.primaryDark, size: 64)
+                  ? Icon(
+                      Icons.pets,
+                      color: context.colors.primaryDark,
+                      size: 64,
+                    )
                   : null,
             ),
           ),
@@ -348,10 +365,10 @@ class _Header extends StatelessWidget {
               Expanded(
                 child: Text(
                   pet.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: context.colors.textPrimary,
                   ),
                 ),
               ),
@@ -366,24 +383,28 @@ class _Header extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 6),
-          Text(meta,
-              style: const TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary)),
+          Text(
+            meta,
+            style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+          ),
           if (pet.bio != null && pet.bio!.isNotEmpty) ...[
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
               width: double.infinity,
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: context.colors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border, width: 0.5),
+                border: Border.all(color: context.colors.border, width: 0.5),
               ),
-              child: Text(pet.bio!,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textPrimary,
-                      height: 1.5)),
+              child: Text(
+                pet.bio!,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: context.colors.textPrimary,
+                  height: 1.5,
+                ),
+              ),
             ),
           ],
         ],
@@ -416,24 +437,27 @@ class _GuardiansSection extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.colors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.group_outlined,
-                    color: AppColors.primaryDark, size: 20),
+                Icon(
+                  Icons.group_outlined,
+                  color: context.colors.primaryDark,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '보호자 ${loading ? '' : '${guardians.length}명'}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: context.colors.textPrimary,
                   ),
                 ),
                 const Spacer(),
@@ -443,7 +467,8 @@ class _GuardiansSection extends StatelessWidget {
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('초대'),
                     style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
               ],
             ),
@@ -468,38 +493,47 @@ class _GuardiansSection extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: AppColors.primarySoft,
+            backgroundColor: context.colors.primarySoft,
             child: Text(
               g.nickname.isEmpty ? '?' : g.nickname.characters.first,
-              style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: context.colors.primaryDark,
+              ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Row(
               children: [
-                Text(g.nickname,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary)),
+                Text(
+                  g.nickname,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
                 if (g.isMe) ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppColors.primarySoft,
+                      color: context.colors.primarySoft,
                       borderRadius: BorderRadius.circular(100),
                     ),
-                    child: const Text('나',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryDark)),
+                    child: Text(
+                      '나',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: context.colors.primaryDark,
+                      ),
+                    ),
                   ),
                 ],
               ],
@@ -509,8 +543,11 @@ class _GuardiansSection extends StatelessWidget {
           if (isOwner && !g.isMe && g.role != 'owner') ...[
             const SizedBox(width: 6),
             IconButton(
-              icon: const Icon(Icons.close,
-                  size: 18, color: AppColors.textTertiary),
+              icon: Icon(
+                Icons.close,
+                size: 18,
+                color: context.colors.textTertiary,
+              ),
               onPressed: () => onRemove(g),
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,

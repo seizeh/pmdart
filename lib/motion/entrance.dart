@@ -36,8 +36,10 @@ class _EntranceState extends State<Entrance>
     vsync: this,
     duration: MotionDurations.base,
   );
-  late final Animation<double> _a =
-      CurvedAnimation(parent: _c, curve: SpringCurve.lively);
+  late final Animation<double> _a = CurvedAnimation(
+    parent: _c,
+    curve: SpringCurve.lively,
+  );
   Timer? _timer;
 
   @override

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../services/pet_repository.dart';
 
@@ -49,8 +49,9 @@ class _GuardianInvitesScreenState extends State<GuardianInvitesScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _accept(GuardianInvite inv) async {
@@ -75,14 +76,17 @@ class _GuardianInvitesScreenState extends State<GuardianInvitesScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('초대를 거절할까요?'),
-        content: Text('${inv.inviterNickname}님의 ${inv.petName} 공동보호자 초대를 거절합니다.'),
+        content: Text(
+          '${inv.inviterNickname}님의 ${inv.petName} 공동보호자 초대를 거절합니다.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('거절', style: TextStyle(color: AppColors.danger)),
+            child: Text('거절', style: TextStyle(color: context.colors.danger)),
           ),
         ],
       ),
@@ -103,7 +107,7 @@ class _GuardianInvitesScreenState extends State<GuardianInvitesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('받은 보호자 초대')),
       body: SafeArea(child: _body()),
     );
@@ -116,21 +120,33 @@ class _GuardianInvitesScreenState extends State<GuardianInvitesScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.mail_outline, size: 48, color: AppColors.textTertiary),
+            Icon(
+              Icons.mail_outline,
+              size: 48,
+              color: context.colors.textTertiary,
+            ),
             SizedBox(height: 12),
-            Text('받은 초대가 없어요',
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            Text(
+              '받은 초대가 없어요',
+              style: TextStyle(
+                fontSize: 14,
+                color: context.colors.textSecondary,
+              ),
+            ),
           ],
         ),
       );
@@ -169,9 +185,9 @@ class _InviteCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        border: Border.all(color: context.colors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,17 +198,21 @@ class _InviteCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
+                  color: context.colors.primarySoft,
                   borderRadius: BorderRadius.circular(14),
                   image: invite.petImageUrl != null
                       ? DecorationImage(
                           image: NetworkImage(invite.petImageUrl!),
-                          fit: BoxFit.cover)
+                          fit: BoxFit.cover,
+                        )
                       : null,
                 ),
                 child: invite.petImageUrl == null
-                    ? const Icon(Icons.pets,
-                        color: AppColors.primaryDark, size: 22)
+                    ? Icon(
+                        Icons.pets,
+                        color: context.colors.primaryDark,
+                        size: 22,
+                      )
                     : null,
               ),
               const SizedBox(width: 12),
@@ -202,18 +222,18 @@ class _InviteCard extends StatelessWidget {
                   children: [
                     Text(
                       invite.petName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        color: context.colors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${invite.inviterNickname}님이 공동보호자로 초대했어요',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.textSecondary,
+                        color: context.colors.textSecondary,
                       ),
                     ),
                   ],
@@ -221,8 +241,10 @@ class _InviteCard extends StatelessWidget {
               ),
               Text(
                 timeAgo(invite.createdAt),
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.textTertiary),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.colors.textTertiary,
+                ),
               ),
             ],
           ),
@@ -233,8 +255,8 @@ class _InviteCard extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: busy ? null : onDecline,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    side: const BorderSide(color: AppColors.border),
+                    foregroundColor: context.colors.textSecondary,
+                    side: BorderSide(color: context.colors.border),
                     minimumSize: const Size(0, 42),
                   ),
                   child: const Text('거절'),
@@ -245,7 +267,7 @@ class _InviteCard extends StatelessWidget {
                 child: FilledButton(
                   onPressed: busy ? null : onAccept,
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
+                    backgroundColor: context.colors.primaryDark,
                     minimumSize: const Size(0, 42),
                   ),
                   child: busy
@@ -253,7 +275,10 @@ class _InviteCard extends StatelessWidget {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : const Text('수락'),
                 ),
               ),

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
 import '../../services/session.dart';
@@ -66,8 +66,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _setStatus(AdminUser u, String status) async {
@@ -84,17 +85,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   static String _statusLabel(String s) => switch (s) {
-        'active' => '활성',
-        'inactive' => '휴면',
-        'suspended' => '정지',
-        _ => s,
-      };
+    'active' => '활성',
+    'inactive' => '휴면',
+    'suspended' => '정지',
+    _ => s,
+  };
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: adminAppBar('회원 관리'),
+      backgroundColor: context.colors.background,
+      appBar: adminAppBar(context, '회원 관리'),
       body: SafeArea(
         child: Column(
           children: [
@@ -106,13 +107,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: '닉네임 · 아이디 · 전화로 검색',
-                  prefixIcon: const Icon(Icons.search,
-                      color: AppColors.textSecondary),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: context.colors.textSecondary,
+                  ),
                   suffixIcon: _ctrl.text.isEmpty
                       ? null
                       : IconButton(
-                          icon: const Icon(Icons.close,
-                              color: AppColors.textTertiary),
+                          icon: Icon(
+                            Icons.close,
+                            color: context.colors.textTertiary,
+                          ),
                           onPressed: () {
                             _ctrl.clear();
                             _load('');
@@ -135,16 +140,24 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
-            TextButton(onPressed: () => _load(_ctrl.text), child: const Text('다시 시도')),
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
+            TextButton(
+              onPressed: () => _load(_ctrl.text),
+              child: const Text('다시 시도'),
+            ),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text('회원이 없어요',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+      return Center(
+        child: Text(
+          '회원이 없어요',
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+        ),
       );
     }
     return RefreshIndicator(
@@ -153,7 +166,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _items.length,
         separatorBuilder: (_, _) =>
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: context.colors.border),
         itemBuilder: (_, i) => _UserRow(
           user: _items[i],
           busy: _busy == _items[i].id,
@@ -190,13 +203,14 @@ class _UserRow extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundColor: AppColors.primarySoft,
+            backgroundColor: context.colors.primarySoft,
             child: Text(
               user.nickname.isEmpty ? '?' : user.nickname.characters.first,
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryDark),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: context.colors.primaryDark,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -210,27 +224,32 @@ class _UserRow extends StatelessWidget {
                       child: Text(
                         user.nickname,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: context.colors.textPrimary,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 6),
-                    if (user.isAdmin) _tag('관리자', AppColors.primaryDark),
+                    if (user.isAdmin) _tag('관리자', context.colors.primaryDark),
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(sub,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textTertiary)),
+                Text(
+                  sub,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.colors.textTertiary,
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          _statusBadge(user.status),
+          _statusBadge(context, user.status),
           if (canModerate) ...[
             const SizedBox(width: 4),
             busy
@@ -243,18 +262,27 @@ class _UserRow extends StatelessWidget {
                     ),
                   )
                 : PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert,
-                        color: AppColors.textSecondary),
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: context.colors.textSecondary,
+                    ),
                     onSelected: onSetStatus,
                     itemBuilder: (_) => [
                       if (user.status != 'active')
-                        const PopupMenuItem(value: 'active', child: Text('활성으로')),
+                        const PopupMenuItem(
+                          value: 'active',
+                          child: Text('활성으로'),
+                        ),
                       if (user.status != 'suspended')
                         const PopupMenuItem(
-                            value: 'suspended', child: Text('정지')),
+                          value: 'suspended',
+                          child: Text('정지'),
+                        ),
                       if (user.status != 'inactive')
                         const PopupMenuItem(
-                            value: 'inactive', child: Text('휴면')),
+                          value: 'inactive',
+                          child: Text('휴면'),
+                        ),
                     ],
                   ),
           ],
@@ -263,24 +291,25 @@ class _UserRow extends StatelessWidget {
     );
   }
 
-  Widget _statusBadge(String status) {
+  Widget _statusBadge(BuildContext context, String status) {
     final (label, color) = switch (status) {
-      'active' => ('활성', AppColors.success),
-      'inactive' => ('휴면', AppColors.warning),
-      'suspended' => ('정지', AppColors.danger),
-      _ => (status, AppColors.textSecondary),
+      'active' => ('활성', context.colors.success),
+      'inactive' => ('휴면', context.colors.warning),
+      'suspended' => ('정지', context.colors.danger),
+      _ => (status, context.colors.textSecondary),
     };
     return _tag(label, color);
   }
 
   Widget _tag(String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(100),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700, color: color)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(100),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+    ),
+  );
 }

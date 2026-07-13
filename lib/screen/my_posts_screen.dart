@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/community.dart';
 import '../services/community_repository.dart';
 import '../services/session.dart';
@@ -69,18 +69,18 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
   }
 
   void _enterSelect() => setState(() {
-        _selectMode = true;
-        _selectedIds.clear();
-      });
+    _selectMode = true;
+    _selectedIds.clear();
+  });
 
   void _exitSelect() => setState(() {
-        _selectMode = false;
-        _selectedIds.clear();
-      });
+    _selectMode = false;
+    _selectedIds.clear();
+  });
 
   void _toggle(String id) => setState(() {
-        if (!_selectedIds.add(id)) _selectedIds.remove(id);
-      });
+    if (!_selectedIds.add(id)) _selectedIds.remove(id);
+  });
 
   Future<void> _openDetail(Post post) async {
     await Navigator.push(
@@ -100,10 +100,12 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
         content: Text('선택한 게시글 $n개를 삭제할까요?\n되돌릴 수 없어요.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('삭제', style: TextStyle(color: AppColors.danger)),
+            child: Text('삭제', style: TextStyle(color: context.colors.danger)),
           ),
         ],
       ),
@@ -123,24 +125,28 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('게시글 $n개를 삭제했어요'),
-            behavior: SnackBarBehavior.floating),
+          content: Text('게시글 $n개를 삭제했어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } catch (_) {
       if (!mounted) return;
       setState(() => _deleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('삭제에 실패했어요'), behavior: SnackBarBehavior.floating),
+          content: Text('삭제에 실패했어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final canSelect = _isMine && !_loading && _error == null && _posts.isNotEmpty;
+    final canSelect =
+        _isMine && !_loading && _error == null && _posts.isNotEmpty;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(
         // 선택 모드에선 닫기(X)로 빠져나간다 — 진입/이탈의 연속성.
         leading: _selectMode
@@ -160,9 +166,13 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
           else if (canSelect)
             TextButton(
               onPressed: _enterSelect,
-              child: const Text('삭제하기',
-                  style: TextStyle(
-                      color: AppColors.danger, fontWeight: FontWeight.w700)),
+              child: Text(
+                '삭제하기',
+                style: TextStyle(
+                  color: context.colors.danger,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
         ],
       ),
@@ -201,12 +211,16 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.article_outlined,
-              size: 48, color: AppColors.textTertiary),
+          Icon(
+            Icons.article_outlined,
+            size: 48,
+            color: context.colors.textTertiary,
+          ),
           const SizedBox(height: 12),
-          Text(msg,
-              style:
-                  const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+          Text(
+            msg,
+            style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+          ),
           if (retry) ...[
             const SizedBox(height: 12),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
@@ -239,8 +253,8 @@ class _SelectablePost extends StatelessWidget {
     final scale = !selectMode
         ? 1.0
         : selected
-            ? 0.93
-            : 0.96;
+        ? 0.93
+        : 0.96;
     return AnimatedScale(
       scale: scale,
       duration: MotionDurations.base,
@@ -258,11 +272,13 @@ class _SelectablePost extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: selected ? AppColors.danger : Colors.transparent,
+                      color: selected
+                          ? context.colors.danger
+                          : Colors.transparent,
                       width: 2,
                     ),
                     color: selected
-                        ? AppColors.danger.withValues(alpha: 0.06)
+                        ? context.colors.danger.withValues(alpha: 0.06)
                         : Colors.transparent,
                   ),
                 ),
@@ -298,13 +314,17 @@ class _SelectDot extends StatelessWidget {
         height: 26,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: selected ? AppColors.danger : Colors.white,
+          color: selected ? context.colors.danger : Colors.white,
           border: Border.all(
-            color: selected ? AppColors.danger : AppColors.border,
+            color: selected ? context.colors.danger : context.colors.border,
             width: 1.5,
           ),
           boxShadow: const [
-            BoxShadow(color: Color(0x14000000), blurRadius: 4, offset: Offset(0, 1)),
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 4,
+              offset: Offset(0, 1),
+            ),
           ],
         ),
         child: selected
@@ -321,8 +341,11 @@ class _DeleteAction extends StatelessWidget {
   final bool busy;
   final VoidCallback? onPressed;
 
-  const _DeleteAction(
-      {required this.count, required this.busy, required this.onPressed});
+  const _DeleteAction({
+    required this.count,
+    required this.busy,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -331,7 +354,10 @@ class _DeleteAction extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: 16),
         child: Center(
           child: SizedBox(
-              width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
       );
     }
@@ -341,7 +367,7 @@ class _DeleteAction extends StatelessWidget {
       child: Text(
         count > 0 ? '삭제 ($count)' : '삭제',
         style: TextStyle(
-          color: enabled ? AppColors.danger : AppColors.textTertiary,
+          color: enabled ? context.colors.danger : context.colors.textTertiary,
           fontWeight: FontWeight.w700,
         ),
       ),

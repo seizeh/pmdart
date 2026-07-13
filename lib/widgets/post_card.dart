@@ -1,6 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
 import '../motion/motion.dart';
@@ -21,7 +21,7 @@ class PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = categoryColor(post.category);
+    final color = categoryColor(context, post.category);
     final hasPhoto = post.imageUrl != null;
 
     return Pressable(
@@ -31,7 +31,7 @@ class PostCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: AspectRatio(
           aspectRatio: kPostImageAspectRatio, // 4284 : 5712
@@ -98,10 +98,10 @@ class PostCard extends StatelessWidget {
                         textAlign: TextAlign.center,
                         maxLines: 9,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                          color: context.colors.textPrimary,
                           height: 1.6,
                         ),
                       ),
@@ -203,16 +203,16 @@ class PostCard extends StatelessWidget {
                             onTap: post.userId.isEmpty
                                 ? null
                                 : () => Navigator.push(
-                                      context,
-                                      CollapseRoute(
-                                        builder: (_) => UserProfileScreen(
-                                          userId: post.userId,
-                                          previewNickname: post.authorNickname,
-                                          originRect: riseOriginRect(context),
-                                          cardRadius: 24,
-                                        ),
+                                    context,
+                                    CollapseRoute(
+                                      builder: (_) => UserProfileScreen(
+                                        userId: post.userId,
+                                        previewNickname: post.authorNickname,
+                                        originRect: riseOriginRect(context),
+                                        cardRadius: 24,
                                       ),
                                     ),
+                                  ),
                             child: Text(
                               post.authorNickname,
                               style: const TextStyle(
@@ -346,13 +346,13 @@ class _MetaPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppColors.textSecondary),
+          Icon(icon, size: 13, color: context.colors.textSecondary),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
-              color: AppColors.textSecondary,
+              color: context.colors.textSecondary,
               fontWeight: FontWeight.w500,
             ),
           ),

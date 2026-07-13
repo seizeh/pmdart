@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../models/notification.dart';
 import '../services/notification_repository.dart';
@@ -56,17 +56,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       _repo.markRead(n.id);
       final idx = _items.indexWhere((e) => e.id == n.id);
       if (idx >= 0) {
-        setState(() => _items[idx] = AppNotification(
-              id: n.id,
-              type: n.type,
-              title: n.title,
-              body: n.body,
-              isRead: true,
-              createdAt: n.createdAt,
-              resourceType: n.resourceType,
-              resourceId: n.resourceId,
-              aggregatedCount: n.aggregatedCount,
-            ));
+        setState(
+          () => _items[idx] = AppNotification(
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            body: n.body,
+            isRead: true,
+            createdAt: n.createdAt,
+            resourceType: n.resourceType,
+            resourceId: n.resourceId,
+            aggregatedCount: n.aggregatedCount,
+          ),
+        );
       }
     }
     await _navigate(n);
@@ -75,22 +77,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _navigate(AppNotification n) async {
     // 공동보호자 초대 알림은 리소스 없이 초대함으로 이동
     if (n.type == 'guardian_invite') {
-      Navigator.push(context,
-          AppPageRoute(builder: (_) => const GuardianInvitesScreen()));
+      Navigator.push(
+        context,
+        AppPageRoute(builder: (_) => const GuardianInvitesScreen()),
+      );
       return;
     }
     if (n.resourceId == null) return;
     try {
       if (n.resourceType == 'post') {
-        final post = await CommunityRepository.instance.fetchPost(n.resourceId!);
+        final post = await CommunityRepository.instance.fetchPost(
+          n.resourceId!,
+        );
         if (!mounted || post == null) return;
-        Navigator.push(context,
-            AppPageRoute(builder: (_) => PostDetailScreen(post: post)));
+        Navigator.push(
+          context,
+          AppPageRoute(builder: (_) => PostDetailScreen(post: post)),
+        );
       } else if (n.resourceType == 'chat_room') {
         final room = await ChatRepository.instance.fetchRoom(n.resourceId!);
         if (!mounted || room == null) return;
-        Navigator.push(context,
-            AppPageRoute(builder: (_) => ChatRoomScreen(room: room)));
+        Navigator.push(
+          context,
+          AppPageRoute(builder: (_) => ChatRoomScreen(room: room)),
+        );
       }
     } catch (_) {
       // 이동 실패는 조용히 무시 (읽음 처리는 이미 됨)
@@ -106,7 +116,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final hasUnread = _items.any((n) => !n.isRead);
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(
         title: const Text('알림'),
         actions: [
@@ -129,7 +139,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       child: ListView.separated(
         itemCount: _items.length,
         separatorBuilder: (_, _) =>
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: context.colors.border),
         itemBuilder: (_, i) => _NotificationTile(
           notification: _items[i],
           onTap: () => _onTap(_items[i]),
@@ -143,12 +153,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.notifications_none,
-              size: 56, color: AppColors.textTertiary),
+          Icon(
+            Icons.notifications_none,
+            size: 56,
+            color: context.colors.textTertiary,
+          ),
           const SizedBox(height: 12),
-          Text(msg,
-              style: const TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary)),
+          Text(
+            msg,
+            style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+          ),
           if (retry) ...[
             const SizedBox(height: 12),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
@@ -170,7 +184,9 @@ class _NotificationTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: n.isRead ? Colors.white : AppColors.primarySoft.withValues(alpha: 0.18),
+        color: n.isRead
+            ? Colors.white
+            : context.colors.primarySoft.withValues(alpha: 0.18),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,11 +194,11 @@ class _NotificationTile extends StatelessWidget {
             Container(
               width: 40,
               height: 40,
-              decoration: const BoxDecoration(
-                color: AppColors.primarySoft,
+              decoration: BoxDecoration(
+                color: context.colors.primarySoft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(n.icon, size: 20, color: AppColors.primaryDark),
+              child: Icon(n.icon, size: 20, color: context.colors.primaryDark),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -193,9 +209,8 @@ class _NotificationTile extends StatelessWidget {
                     n.displayTitle,
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight:
-                          n.isRead ? FontWeight.w600 : FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      fontWeight: n.isRead ? FontWeight.w600 : FontWeight.w700,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   if (n.body != null && n.body!.isNotEmpty) ...[
@@ -204,15 +219,19 @@ class _NotificationTile extends StatelessWidget {
                       n.body!,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: context.colors.textSecondary,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 4),
                   Text(
                     timeAgo(n.createdAt),
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textTertiary),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: context.colors.textTertiary,
+                    ),
                   ),
                 ],
               ),
@@ -222,8 +241,8 @@ class _NotificationTile extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 4, left: 6),
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(
-                  color: AppColors.danger,
+                decoration: BoxDecoration(
+                  color: context.colors.danger,
                   shape: BoxShape.circle,
                 ),
               ),

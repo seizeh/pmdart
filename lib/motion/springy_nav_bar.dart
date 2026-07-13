@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_motion.dart';
+import '../theme/app_palette.dart';
 
 class SpringyNavItem {
   const SpringyNavItem({
@@ -26,17 +27,19 @@ class SpringyNavBar extends StatefulWidget {
     required this.currentIndex,
     required this.onTap,
     required this.items,
-    this.activeColor = const Color(0xFF5A4E3A),
-    this.inactiveColor = const Color(0xFFB6AC9A),
-    this.pillColor = const Color(0x145A4E3A),
+    this.activeColor,
+    this.inactiveColor,
+    this.pillColor,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
   final List<SpringyNavItem> items;
-  final Color activeColor;
-  final Color inactiveColor;
-  final Color pillColor;
+
+  /// null 이면 테마 팔레트([AppPalette])에서 가져온다.
+  final Color? activeColor;
+  final Color? inactiveColor;
+  final Color? pillColor;
 
   @override
   State<SpringyNavBar> createState() => _SpringyNavBarState();
@@ -79,12 +82,12 @@ class _SpringyNavBarState extends State<SpringyNavBar>
       padding: EdgeInsets.fromLTRB(12, 0, 12, bottomInset + 8),
       child: Container(
         clipBehavior: Clip.antiAlias,
-        decoration: const BoxDecoration(
-          // 흰색 셀로판지(반투명) — 뒤 콘텐츠가 선명하게 비치며 덮인다(상단 헤더와 동일 효과).
-          color: Color(0xEBFFFFFF), // 흰색 alpha ≈ 0.92 (= AppColors.frostFilm)
-          borderRadius: BorderRadius.all(Radius.circular(24)),
+        decoration: BoxDecoration(
+          // 셀로판지(반투명) — 뒤 콘텐츠가 선명하게 비치며 덮인다(상단 헤더와 동일 효과).
+          color: context.colors.frostFilm,
+          borderRadius: const BorderRadius.all(Radius.circular(24)),
           // 하드 보더 대신 부드럽게 번지는 그림자로 본문과 분리.
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Color(0x14000000),
               blurRadius: 24,
@@ -109,6 +112,9 @@ class _SpringyNavBarState extends State<SpringyNavBar>
                   const pillH = 36.0;
                   final pillCenterX = (pos + 0.5) * itemW;
 
+                  final pill =
+                      widget.pillColor ??
+                      context.colors.primaryDark.withValues(alpha: 0.08);
                   return Stack(
                     children: [
                       // 흐르는 알약 인디케이터
@@ -122,7 +128,7 @@ class _SpringyNavBarState extends State<SpringyNavBar>
                             width: pillW,
                             height: pillH,
                             decoration: BoxDecoration(
-                              color: widget.pillColor,
+                              color: pill,
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
@@ -150,8 +156,8 @@ class _SpringyNavBarState extends State<SpringyNavBar>
     // 알약과의 근접도(0~1): 가까울수록 활성에 가깝게 보간된다.
     final proximity = (1 - (pos - i).abs()).clamp(0.0, 1.0);
     final color = Color.lerp(
-      widget.inactiveColor,
-      widget.activeColor,
+      widget.inactiveColor ?? context.colors.textTertiary,
+      widget.activeColor ?? context.colors.primaryDark,
       proximity,
     )!;
     final lift = -3.0 * proximity; // 떠오름

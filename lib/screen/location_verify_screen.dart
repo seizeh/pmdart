@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../services/location_repository.dart';
 import '../services/location_service.dart';
 
@@ -35,7 +35,10 @@ class _LocationVerifyScreenState extends State<LocationVerifyScreen> {
 
     if (res.verified) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res.message), behavior: SnackBarBehavior.floating),
+        SnackBar(
+          content: Text(res.message),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       // 성공 시 잠시 결과를 보여준 뒤 내정보로 복귀.
       await Future.delayed(const Duration(milliseconds: 900));
@@ -72,7 +75,7 @@ class _LocationVerifyScreenState extends State<LocationVerifyScreen> {
   Widget build(BuildContext context) {
     final isReverify = widget.currentRegion != null;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: Text(isReverify ? '동네 재인증' : '동네 인증')),
       body: SafeArea(
         child: Padding(
@@ -86,30 +89,33 @@ class _LocationVerifyScreenState extends State<LocationVerifyScreen> {
                   width: 96,
                   height: 96,
                   decoration: BoxDecoration(
-                    color: AppColors.primarySoft.withValues(alpha: 0.5),
+                    color: context.colors.primarySoft.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(32),
                   ),
-                  child: const Icon(Icons.my_location,
-                      size: 44, color: AppColors.primaryDark),
+                  child: Icon(
+                    Icons.my_location,
+                    size: 44,
+                    color: context.colors.primaryDark,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
               Text(
                 isReverify ? '활동 지역을 다시 인증해요' : '현재 계신 동네를 인증해요',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 '실제 위치(GPS)로 동네를 인증합니다.\n위치 권한이 필요해요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                   height: 1.5,
                 ),
               ),
@@ -127,7 +133,9 @@ class _LocationVerifyScreenState extends State<LocationVerifyScreen> {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Text('이 위치로 인증'),
               ),
@@ -139,18 +147,19 @@ class _LocationVerifyScreenState extends State<LocationVerifyScreen> {
   }
 
   Widget _chip(String text) => Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceMuted,
-            borderRadius: BorderRadius.circular(100),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Text(text,
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary)),
-        ),
-      );
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceMuted,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: context.colors.border),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
+      ),
+    ),
+  );
 }
 
 class _ResultBanner extends StatelessWidget {
@@ -160,7 +169,7 @@ class _ResultBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ok = result.verified;
-    final color = ok ? AppColors.success : AppColors.danger;
+    final color = ok ? context.colors.success : context.colors.danger;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -170,16 +179,20 @@ class _ResultBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(ok ? Icons.check_circle_outline : Icons.error_outline,
-              color: color, size: 22),
+          Icon(
+            ok ? Icons.check_circle_outline : Icons.error_outline,
+            color: color,
+            size: 22,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               result.message,
               style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w500),
+                fontSize: 14,
+                color: context.colors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

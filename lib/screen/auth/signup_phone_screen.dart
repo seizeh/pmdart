@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
 import 'package:flutter/services.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../services/phone_auth_service.dart';
 import '../../services/auth_service.dart';
 import '../main_screen.dart';
@@ -84,9 +84,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.colors.cream,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.colors.cream,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -109,17 +109,16 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
               const SizedBox(height: 32),
               Expanded(child: _stepContent()),
               ElevatedButton(
-                onPressed:
-                    _loading || (_step == 0 && !_allRequiredAgreed)
-                        ? null
-                        : _next,
+                onPressed: _loading || (_step == 0 && !_allRequiredAgreed)
+                    ? null
+                    : _next,
                 child: _loading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.4,
-                          color: AppColors.textOnPrimary,
+                          color: context.colors.textOnPrimary,
                         ),
                       )
                     : Text(switch (_step) {
@@ -159,12 +158,12 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '서비스 이용을 위해\n동의가 필요해요',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: context.colors.textPrimary,
               height: 1.3,
             ),
           ),
@@ -177,11 +176,13 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: _allAgreed
-                    ? AppColors.primarySoft.withValues(alpha: 0.3)
-                    : AppColors.surface,
+                    ? context.colors.primarySoft.withValues(alpha: 0.3)
+                    : context.colors.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: _allAgreed ? AppColors.primary : AppColors.border,
+                  color: _allAgreed
+                      ? context.colors.primary
+                      : context.colors.border,
                   width: _allAgreed ? 1.5 : 0.5,
                 ),
               ),
@@ -192,16 +193,16 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                         ? Icons.check_circle
                         : Icons.check_circle_outline,
                     color: _allAgreed
-                        ? AppColors.primary
-                        : AppColors.textTertiary,
+                        ? context.colors.primary
+                        : context.colors.textTertiary,
                   ),
                   const SizedBox(width: 12),
-                  const Text(
+                  Text(
                     '전체 동의',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                 ],
@@ -243,12 +244,15 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             onChanged: (v) => setState(() => _agreeMarketing = v),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '필수 항목에 모두 동의해야 가입을 진행할 수 있어요.\n'
             '약관은 끝까지 읽어야 동의할 수 있습니다.\n'
             '마케팅 수신은 동의하지 않아도 이용에 제한이 없습니다.',
-            style: TextStyle(fontSize: 12, color: AppColors.textTertiary,
-                height: 1.5),
+            style: TextStyle(
+              fontSize: 12,
+              color: context.colors.textTertiary,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -293,23 +297,24 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   }
 
   ({bool read, void Function() markRead, void Function(bool) agree}) _docState(
-      _Doc doc) {
+    _Doc doc,
+  ) {
     return switch (doc) {
       _Doc.tos => (
-          read: _readTos,
-          markRead: () => _readTos = true,
-          agree: (v) => _agreeTos = v,
-        ),
+        read: _readTos,
+        markRead: () => _readTos = true,
+        agree: (v) => _agreeTos = v,
+      ),
       _Doc.lbs => (
-          read: _readLbs,
-          markRead: () => _readLbs = true,
-          agree: (v) => _agreeLbs = v,
-        ),
+        read: _readLbs,
+        markRead: () => _readLbs = true,
+        agree: (v) => _agreeLbs = v,
+      ),
       _Doc.privacy => (
-          read: _readPrivacy,
-          markRead: () => _readPrivacy = true,
-          agree: (v) => _agreePrivacy = v,
-        ),
+        read: _readPrivacy,
+        markRead: () => _readPrivacy = true,
+        agree: (v) => _agreePrivacy = v,
+      ),
     };
   }
 
@@ -344,19 +349,19 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '전화번호를\n입력해주세요',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+            color: context.colors.textPrimary,
             height: 1.3,
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           'SMS로 6자리 인증코드를 보내드려요',
-          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
         ),
         const SizedBox(height: 28),
         TextField(
@@ -366,10 +371,12 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(11),
           ],
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: '01012345678',
-            prefixIcon: Icon(Icons.phone_outlined,
-                color: AppColors.textSecondary),
+            prefixIcon: Icon(
+              Icons.phone_outlined,
+              color: context.colors.textSecondary,
+            ),
           ),
         ),
       ],
@@ -380,20 +387,19 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '인증코드를\n입력해주세요',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+            color: context.colors.textPrimary,
             height: 1.3,
           ),
         ),
         const SizedBox(height: 12),
         Text(
           '${_formatPhone(_phoneCtrl.text)}로 보낸 6자리 코드',
-          style: const TextStyle(
-              fontSize: 14, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
         ),
         const SizedBox(height: 28),
         TextField(
@@ -406,11 +412,11 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             hintText: '------',
             counterText: '',
           ),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w700,
             letterSpacing: 12,
-            color: AppColors.primaryDark,
+            color: context.colors.primaryDark,
           ),
         ),
         const SizedBox(height: 12),
@@ -430,12 +436,12 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '프로필 정보를\n설정해주세요',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: context.colors.textPrimary,
               height: 1.3,
             ),
           ),
@@ -451,8 +457,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                     LengthLimitingTextInputFormatter(20),
                   ],
                   decoration: const InputDecoration(
-                      labelText: '아이디',
-                      hintText: '영문/숫자 4~20자'),
+                    labelText: '아이디',
+                    hintText: '영문/숫자 4~20자',
+                  ),
                   // 입력이 바뀌면 직전 중복확인 결과는 무효화
                   onChanged: (_) {
                     if (_idAvailable || _idCheckMsg != null) {
@@ -492,7 +499,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
               _idCheckMsg!,
               style: TextStyle(
                 fontSize: 12,
-                color: _idCheckOk ? AppColors.primaryDark : AppColors.danger,
+                color: _idCheckOk
+                    ? context.colors.primaryDark
+                    : context.colors.danger,
               ),
             ),
           ],
@@ -501,8 +510,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             controller: _pwCtrl,
             obscureText: true,
             decoration: const InputDecoration(
-                labelText: '비밀번호',
-                hintText: '영문 + 숫자 포함 8자 이상'),
+              labelText: '비밀번호',
+              hintText: '영문 + 숫자 포함 8자 이상',
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -511,8 +521,8 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             decoration: InputDecoration(
               labelText: '비밀번호 확인',
               hintText: '비밀번호를 한 번 더 입력해주세요',
-              errorText: _pw2Ctrl.text.isNotEmpty &&
-                      _pw2Ctrl.text != _pwCtrl.text
+              errorText:
+                  _pw2Ctrl.text.isNotEmpty && _pw2Ctrl.text != _pwCtrl.text
                   ? '비밀번호가 일치하지 않아요'
                   : null,
             ),
@@ -533,12 +543,12 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '사용자 유형을\n선택해주세요',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: context.colors.textPrimary,
               height: 1.3,
             ),
           ),
@@ -568,18 +578,21 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           ),
           if (_userType == 'pet_owner') ...[
             const SizedBox(height: 28),
-            const Text(
+            Text(
               '반려동물 정보를 입력해주세요',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+                color: context.colors.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               '지금 입력하면 가입 후 바로 등록이 이어져요 (선택 · 나중에 내정보에서도 등록 가능)',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(
+                fontSize: 12,
+                color: context.colors.textSecondary,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -603,7 +616,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                   child: TextField(
                     controller: _petBreedCtrl,
                     decoration: const InputDecoration(
-                        labelText: '품종', hintText: '예: 말티즈'),
+                      labelText: '품종',
+                      hintText: '예: 말티즈',
+                    ),
                   ),
                 ),
               ],
@@ -647,50 +662,55 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               '공동보호자가 있다면 전화번호를 입력해주세요',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+                color: context.colors.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               '입력한 번호로 자동 초대장이 발송됩니다 (선택)',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(
+                fontSize: 12,
+                color: context.colors.textSecondary,
+              ),
             ),
             const SizedBox(height: 12),
-            ..._coGuardianCtrls.asMap().entries.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: e.value,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(11),
-                      ],
-                      decoration: const InputDecoration(
-                        hintText: '01012345678',
+            ..._coGuardianCtrls.asMap().entries.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: e.value,
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(11),
+                        ],
+                        decoration: const InputDecoration(
+                          hintText: '01012345678',
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => setState(() {
-                      _coGuardianCtrls.removeAt(e.key);
-                    }),
-                    icon: const Icon(Icons.remove_circle_outline),
-                    color: AppColors.textTertiary,
-                  ),
-                ],
+                    IconButton(
+                      onPressed: () => setState(() {
+                        _coGuardianCtrls.removeAt(e.key);
+                      }),
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: context.colors.textTertiary,
+                    ),
+                  ],
+                ),
               ),
-            )),
+            ),
             OutlinedButton.icon(
-              onPressed: () => setState(() =>
-                  _coGuardianCtrls.add(TextEditingController())),
+              onPressed: () =>
+                  setState(() => _coGuardianCtrls.add(TextEditingController())),
               icon: const Icon(Icons.add),
               label: const Text('공동보호자 추가'),
               style: OutlinedButton.styleFrom(
@@ -736,8 +756,10 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     setState(() => _loading = false);
     if (result.ok) {
       // 가입 직후 자동 로그인하여 세션(JWT) 발급.
-      final loginResult =
-          await AuthService.instance.login(_idCtrl.text.trim(), _pwCtrl.text);
+      final loginResult = await AuthService.instance.login(
+        _idCtrl.text.trim(),
+        _pwCtrl.text,
+      );
       if (!mounted) return;
       if (loginResult.ok) {
         // 세션 발급 성공 → 메인으로. 펫 정보를 입력했다면 등록 화면으로 이어간다
@@ -750,8 +772,8 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             .where((p) => p.length >= 10 && p != myPhone)
             .toSet()
             .toList();
-        final petDraft = (_userType == 'pet_owner' &&
-                _petNameCtrl.text.trim().isNotEmpty)
+        final petDraft =
+            (_userType == 'pet_owner' && _petNameCtrl.text.trim().isNotEmpty)
             ? PetDraft(
                 name: _petNameCtrl.text.trim(),
                 speciesKind: _petKind,
@@ -820,8 +842,10 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       return;
     }
     setState(() => _loading = true);
-    final result = await PhoneAuthService.instance
-        .verifyCode(_phoneCtrl.text.trim(), code);
+    final result = await PhoneAuthService.instance.verifyCode(
+      _phoneCtrl.text.trim(),
+      code,
+    );
     if (!mounted) return;
     setState(() => _loading = false);
     if (result.verified) {
@@ -835,7 +859,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   /// 인증코드 재발송.
   Future<void> _resend() async {
     setState(() => _loading = true);
-    final result = await PhoneAuthService.instance.sendCode(_phoneCtrl.text.trim());
+    final result = await PhoneAuthService.instance.sendCode(
+      _phoneCtrl.text.trim(),
+    );
     if (!mounted) return;
     setState(() => _loading = false);
     _toast(result.message);
@@ -927,7 +953,7 @@ class _ProgressBar extends StatelessWidget {
             margin: EdgeInsets.only(right: i < total - 1 ? 6 : 0),
             height: 4,
             decoration: BoxDecoration(
-              color: active ? AppColors.primary : AppColors.border,
+              color: active ? context.colors.primary : context.colors.border,
               borderRadius: BorderRadius.circular(100),
             ),
           ),
@@ -968,7 +994,9 @@ class _ConsentRow extends StatelessWidget {
             Icon(
               checked ? Icons.check_circle : Icons.check_circle_outline,
               size: 22,
-              color: checked ? AppColors.primary : AppColors.textTertiary,
+              color: checked
+                  ? context.colors.primary
+                  : context.colors.textTertiary,
             ),
             const SizedBox(width: 10),
             Text(
@@ -976,29 +1004,31 @@ class _ConsentRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: required_ ? AppColors.primaryDark : AppColors.textTertiary,
+                color: required_
+                    ? context.colors.primaryDark
+                    : context.colors.textTertiary,
               ),
             ),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
             ),
             if (onView != null)
               GestureDetector(
                 onTap: onView,
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   child: Text(
                     '보기',
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: context.colors.textSecondary,
                       decoration: TextDecoration.underline,
                     ),
                   ),
@@ -1035,10 +1065,12 @@ class _UserTypeOption extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primarySoft.withValues(alpha: 0.3) : AppColors.surface,
+          color: selected
+              ? context.colors.primarySoft.withValues(alpha: 0.3)
+              : context.colors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.border,
+            color: selected ? context.colors.primary : context.colors.border,
             width: selected ? 1.5 : 0.5,
           ),
         ),
@@ -1046,7 +1078,9 @@ class _UserTypeOption extends StatelessWidget {
           children: [
             Icon(
               selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: selected ? AppColors.primary : AppColors.textTertiary,
+              color: selected
+                  ? context.colors.primary
+                  : context.colors.textTertiary,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -1055,17 +1089,19 @@ class _UserTypeOption extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.colors.textSecondary,
+                    ),
                   ),
                 ],
               ),

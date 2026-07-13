@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/review_categories.dart';
 import '../services/activity_repository.dart';
 
@@ -55,15 +55,18 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('평가를 남겼어요'), behavior: SnackBarBehavior.floating),
+          content: Text('평가를 남겼어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       Navigator.pop(context, true);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('이미 평가했거나 평가할 수 없는 약속이에요'),
-            behavior: SnackBarBehavior.floating),
+          content: Text('이미 평가했거나 평가할 수 없는 약속이에요'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       setState(() => _submitting = false);
     }
@@ -72,7 +75,7 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('평가하기')),
       body: SafeArea(
         child: ListView(
@@ -80,20 +83,32 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
           children: [
             Text(
               '${widget.revieweeNickname} 님은 어떠셨나요?',
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textPrimary,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               '최대 ${ReviewCategories.maxSelectable}개까지 선택할 수 있어요 (${_selected.length}/${ReviewCategories.maxSelectable})',
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              style: TextStyle(
+                fontSize: 13,
+                color: context.colors.textSecondary,
+              ),
             ),
             const SizedBox(height: 24),
-            _group('이런 점이 좋았어요', ReviewCategories.positive, AppColors.success),
+            _group(
+              '이런 점이 좋았어요',
+              ReviewCategories.positive,
+              context.colors.success,
+            ),
             const SizedBox(height: 24),
-            _group('이런 점이 아쉬웠어요', ReviewCategories.negative, AppColors.danger),
+            _group(
+              '이런 점이 아쉬웠어요',
+              ReviewCategories.negative,
+              context.colors.danger,
+            ),
           ],
         ),
       ),
@@ -104,20 +119,25 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
           child: FilledButton(
             onPressed: _selected.isEmpty || _submitting ? null : _submit,
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryDark,
-              disabledBackgroundColor: AppColors.borderStrong,
+              backgroundColor: context.colors.primaryDark,
+              disabledBackgroundColor: context.colors.borderStrong,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             child: _submitting
                 ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
-                : const Text('평가 남기기',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    '평가 남기기',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
           ),
         ),
       ),
@@ -128,11 +148,14 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary)),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textSecondary,
+          ),
+        ),
         const SizedBox(height: 12),
         Wrap(
           spacing: 10,
@@ -144,15 +167,19 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
               onTap: disabled ? null : () => _toggle(c),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  color: selected ? accent : AppColors.surface,
+                  color: selected ? accent : context.colors.surface,
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(
                     color: selected
                         ? accent
-                        : (disabled ? AppColors.border : AppColors.borderStrong),
+                        : (disabled
+                              ? context.colors.border
+                              : context.colors.borderStrong),
                   ),
                 ),
                 child: Text(
@@ -163,8 +190,8 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
                     color: selected
                         ? Colors.white
                         : (disabled
-                            ? AppColors.textTertiary
-                            : AppColors.textPrimary),
+                              ? context.colors.textTertiary
+                              : context.colors.textPrimary),
                   ),
                 ),
               ),

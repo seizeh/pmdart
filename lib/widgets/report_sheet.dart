@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../services/report_repository.dart';
 
 /// 신고 바텀시트를 띄운다. 접수 성공 시 true 를 반환한다.
@@ -16,7 +16,7 @@ Future<bool> showReportSheet(
   final ok = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: context.colors.background,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -81,13 +81,10 @@ class _ReportSheetState extends State<_ReportSheet> {
       final msg = (e is StateError)
           ? e.message
           : (e is ArgumentError)
-              ? e.message.toString()
-              : '신고 접수에 실패했어요. 잠시 후 다시 시도해주세요';
+          ? e.message.toString()
+          : '신고 접수에 실패했어요. 잠시 후 다시 시도해주세요';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
       );
     }
   }
@@ -109,7 +106,7 @@ class _ReportSheetState extends State<_ReportSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: context.colors.border,
                     borderRadius: BorderRadius.circular(100),
                   ),
                 ),
@@ -117,10 +114,10 @@ class _ReportSheetState extends State<_ReportSheet> {
               const SizedBox(height: 16),
               Text(
                 '${widget.targetLabel} 신고',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 4),
@@ -128,58 +125,65 @@ class _ReportSheetState extends State<_ReportSheet> {
                 widget.targetTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AppColors.textTertiary,
+                  color: context.colors.textTertiary,
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 '신고 사유 (중복 선택 가능)',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
               ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children:
-                    ReportRepository.categoriesFor(widget.targetType).map((c) {
-                  final on = _selected.contains(c);
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      if (on) {
-                        _selected.remove(c);
-                      } else {
-                        _selected.add(c);
-                      }
-                    }),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: on ? AppColors.primaryDark : AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(100),
-                        border: Border.all(
-                          color: on ? AppColors.primaryDark : AppColors.border,
+                children: ReportRepository.categoriesFor(widget.targetType).map(
+                  (c) {
+                    final on = _selected.contains(c);
+                    return GestureDetector(
+                      onTap: () => setState(() {
+                        if (on) {
+                          _selected.remove(c);
+                        } else {
+                          _selected.add(c);
+                        }
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 9,
                         ),
-                      ),
-                      child: Text(
-                        c,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                        decoration: BoxDecoration(
                           color: on
-                              ? AppColors.textOnPrimary
-                              : AppColors.textSecondary,
+                              ? context.colors.primaryDark
+                              : context.colors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(
+                            color: on
+                                ? context.colors.primaryDark
+                                : context.colors.border,
+                          ),
+                        ),
+                        child: Text(
+                          c,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: on
+                                ? context.colors.textOnPrimary
+                                : context.colors.textSecondary,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  },
+                ).toList(),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -193,16 +197,18 @@ class _ReportSheetState extends State<_ReportSheet> {
                       ? "'기타' 사유를 자세히 적어주세요 (필수)"
                       : '상세 내용을 적어주세요 (선택)',
                   filled: true,
-                  fillColor: AppColors.surfaceMuted,
+                  fillColor: context.colors.surfaceMuted,
                   contentPadding: const EdgeInsets.all(14),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: context.colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide:
-                        const BorderSide(color: AppColors.primary, width: 1.2),
+                    borderSide: BorderSide(
+                      color: context.colors.primary,
+                      width: 1.2,
+                    ),
                   ),
                 ),
               ),
@@ -210,8 +216,8 @@ class _ReportSheetState extends State<_ReportSheet> {
               ElevatedButton(
                 onPressed: _canSubmit ? _submit : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.danger,
-                  foregroundColor: AppColors.textOnPrimary,
+                  backgroundColor: context.colors.danger,
+                  foregroundColor: context.colors.textOnPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 child: _submitting
@@ -219,11 +225,17 @@ class _ReportSheetState extends State<_ReportSheet> {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Text('신고하기',
+                    : const Text(
+                        '신고하기',
                         style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
               ),
             ],
           ),

@@ -1,7 +1,7 @@
 import 'dart:async';
 import '../../motion/motion.dart';
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import '../../data/mock_data.dart' show timeAgo, categoryLabel;
 import '../../services/admin_repository.dart';
 import 'admin_theme.dart';
@@ -66,8 +66,9 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _setVisibility(AdminPost p, String vis) async {
@@ -79,12 +80,13 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
           content: const Text('이 게시글을 삭제(숨김) 처리할까요?'),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('취소')),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소'),
+            ),
             TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('삭제',
-                    style: TextStyle(color: AppColors.danger))),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('삭제', style: TextStyle(color: context.colors.danger)),
+            ),
           ],
         ),
       );
@@ -104,8 +106,8 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: adminAppBar('게시글/댓글 관리'),
+      backgroundColor: context.colors.background,
+      appBar: adminAppBar(context, '게시글/댓글 관리'),
       body: SafeArea(
         child: Column(
           children: [
@@ -117,13 +119,17 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: '제목 · 내용으로 검색',
-                  prefixIcon: const Icon(Icons.search,
-                      color: AppColors.textSecondary),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: context.colors.textSecondary,
+                  ),
                   suffixIcon: _ctrl.text.isEmpty
                       ? null
                       : IconButton(
-                          icon: const Icon(Icons.close,
-                              color: AppColors.textTertiary),
+                          icon: Icon(
+                            Icons.close,
+                            color: context.colors.textTertiary,
+                          ),
                           onPressed: () {
                             _ctrl.clear();
                             _load('');
@@ -146,16 +152,24 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
-            TextButton(onPressed: () => _load(_ctrl.text), child: const Text('다시 시도')),
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
+            TextButton(
+              onPressed: () => _load(_ctrl.text),
+              child: const Text('다시 시도'),
+            ),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text('게시글이 없어요',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+      return Center(
+        child: Text(
+          '게시글이 없어요',
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+        ),
       );
     }
     return RefreshIndicator(
@@ -171,8 +185,11 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
           onComments: () => Navigator.push(
             context,
             AppPageRoute(
-                builder: (_) => AdminPostCommentsScreen(
-                    postId: _items[i].id, postTitle: _items[i].title)),
+              builder: (_) => AdminPostCommentsScreen(
+                postId: _items[i].id,
+                postTitle: _items[i].title,
+              ),
+            ),
           ),
         ),
       ),
@@ -200,108 +217,136 @@ class _PostCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        border: Border.all(color: context.colors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(categoryLabel(p.category),
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryDark)),
+              Text(
+                categoryLabel(p.category),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.primaryDark,
+                ),
+              ),
               const SizedBox(width: 8),
-              _visBadge(p.visibilityStatus),
+              _visBadge(context, p.visibilityStatus),
               const Spacer(),
               if (busy)
                 const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               else
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert,
-                      color: AppColors.textSecondary, size: 20),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: context.colors.textSecondary,
+                    size: 20,
+                  ),
                   onSelected: onSetVisibility,
                   itemBuilder: (_) => [
                     if (_hidden)
                       const PopupMenuItem(
-                          value: 'visible', child: Text('공개로 전환')),
+                        value: 'visible',
+                        child: Text('공개로 전환'),
+                      ),
                     if (p.visibilityStatus != 'hidden_by_admin')
                       const PopupMenuItem(
-                          value: 'hidden_by_admin', child: Text('숨김')),
-                    const PopupMenuItem(
-                        value: 'deleted_by_admin',
-                        child: Text('삭제',
-                            style: TextStyle(color: AppColors.danger))),
+                        value: 'hidden_by_admin',
+                        child: Text('숨김'),
+                      ),
+                    PopupMenuItem(
+                      value: 'deleted_by_admin',
+                      child: Text(
+                        '삭제',
+                        style: TextStyle(color: context.colors.danger),
+                      ),
+                    ),
                   ],
                 ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(p.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary)),
+          Text(
+            p.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(p.content,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
+          Text(
+            p.content,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: context.colors.textSecondary,
+              height: 1.4,
+            ),
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
-              Text('${p.authorNickname}  ·  ${timeAgo(p.createdAt)}',
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary)),
+              Text(
+                '${p.authorNickname}  ·  ${timeAgo(p.createdAt)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.colors.textTertiary,
+                ),
+              ),
               const Spacer(),
-              _stat(Icons.favorite_border, p.heartCount),
+              _stat(context, Icons.favorite_border, p.heartCount),
               const SizedBox(width: 10),
-              _stat(Icons.visibility_outlined, p.viewCount),
+              _stat(context, Icons.visibility_outlined, p.viewCount),
             ],
           ),
           const SizedBox(height: 8),
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: context.colors.border),
           TextButton.icon(
             onPressed: onComments,
             icon: const Icon(Icons.mode_comment_outlined, size: 16),
             label: Text('댓글 ${p.commentCount} 관리'),
             style: TextButton.styleFrom(
-                foregroundColor: AppColors.primaryDark,
-                visualDensity: VisualDensity.compact),
+              foregroundColor: context.colors.primaryDark,
+              visualDensity: VisualDensity.compact,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _stat(IconData icon, int v) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: AppColors.textTertiary),
-          const SizedBox(width: 3),
-          Text('$v',
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textTertiary)),
-        ],
-      );
+  Widget _stat(BuildContext context, IconData icon, int v) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 14, color: context.colors.textTertiary),
+      const SizedBox(width: 3),
+      Text(
+        '$v',
+        style: TextStyle(fontSize: 11, color: context.colors.textTertiary),
+      ),
+    ],
+  );
 
-  Widget _visBadge(String status) {
+  Widget _visBadge(BuildContext context, String status) {
     final (label, color) = switch (status) {
-      'visible' => ('공개', AppColors.success),
-      'hidden_by_admin' => ('숨김(관리자)', AppColors.danger),
-      'hidden_by_user' => ('숨김(작성자)', AppColors.textSecondary),
-      'deleted_by_admin' => ('삭제(관리자)', AppColors.danger),
-      'deleted_by_user' => ('삭제(작성자)', AppColors.textSecondary),
-      _ => (status, AppColors.textSecondary),
+      'visible' => ('공개', context.colors.success),
+      'hidden_by_admin' => ('숨김(관리자)', context.colors.danger),
+      'hidden_by_user' => ('숨김(작성자)', context.colors.textSecondary),
+      'deleted_by_admin' => ('삭제(관리자)', context.colors.danger),
+      'deleted_by_user' => ('삭제(작성자)', context.colors.textSecondary),
+      _ => (status, context.colors.textSecondary),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -309,9 +354,14 @@ class _PostCard extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(100),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }
@@ -320,8 +370,11 @@ class _PostCard extends StatelessWidget {
 class AdminPostCommentsScreen extends StatefulWidget {
   final String postId;
   final String postTitle;
-  const AdminPostCommentsScreen(
-      {super.key, required this.postId, required this.postTitle});
+  const AdminPostCommentsScreen({
+    super.key,
+    required this.postId,
+    required this.postTitle,
+  });
 
   @override
   State<AdminPostCommentsScreen> createState() =>
@@ -363,8 +416,9 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _toggle(AdminComment c) async {
@@ -382,8 +436,8 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: adminAppBar('댓글 관리'),
+      backgroundColor: context.colors.background,
+      appBar: adminAppBar(context, '댓글 관리'),
       body: SafeArea(child: _body()),
     );
   }
@@ -395,16 +449,21 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            Text(
+              _error!,
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text('댓글이 없어요',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+      return Center(
+        child: Text(
+          '댓글이 없어요',
+          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
+        ),
       );
     }
     return RefreshIndicator(
@@ -412,7 +471,8 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.all(20),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 20, color: AppColors.border),
+        separatorBuilder: (_, _) =>
+            Divider(height: 20, color: context.colors.border),
         itemBuilder: (_, i) {
           final c = _items[i];
           return Row(
@@ -424,44 +484,61 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
                   children: [
                     Row(
                       children: [
-                        Text(c.authorNickname,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary)),
+                        Text(
+                          c.authorNickname,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: context.colors.textPrimary,
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Text(timeAgo(c.createdAt),
-                            style: const TextStyle(
-                                fontSize: 11, color: AppColors.textTertiary)),
+                        Text(
+                          timeAgo(c.createdAt),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: context.colors.textTertiary,
+                          ),
+                        ),
                         if (c.isDeleted) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: AppColors.danger.withValues(alpha: 0.12),
+                              color: context.colors.danger.withValues(
+                                alpha: 0.12,
+                              ),
                               borderRadius: BorderRadius.circular(100),
                             ),
-                            child: const Text('숨김',
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.danger)),
+                            child: Text(
+                              '숨김',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: context.colors.danger,
+                              ),
+                            ),
                           ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(c.content,
-                        style: TextStyle(
-                            fontSize: 14,
-                            height: 1.4,
-                            color: c.isDeleted
-                                ? AppColors.textTertiary
-                                : AppColors.textPrimary,
-                            decoration: c.isDeleted
-                                ? TextDecoration.lineThrough
-                                : null)),
+                    Text(
+                      c.content,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.4,
+                        color: c.isDeleted
+                            ? context.colors.textTertiary
+                            : context.colors.textPrimary,
+                        decoration: c.isDeleted
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -470,14 +547,18 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : TextButton(
                       onPressed: () => _toggle(c),
-                      child: Text(c.isDeleted ? '복원' : '숨김',
-                          style: TextStyle(
-                              color: c.isDeleted
-                                  ? AppColors.primaryDark
-                                  : AppColors.danger)),
+                      child: Text(
+                        c.isDeleted ? '복원' : '숨김',
+                        style: TextStyle(
+                          color: c.isDeleted
+                              ? context.colors.primaryDark
+                              : context.colors.danger,
+                        ),
+                      ),
                     ),
             ],
           );

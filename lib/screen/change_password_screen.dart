@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../services/auth_service.dart';
 
 /// 비밀번호 변경 — 현재 비밀번호 확인 후 새 비밀번호로 변경.
@@ -28,8 +28,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _submit() async {
@@ -67,7 +68,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('비밀번호 변경')),
       body: SafeArea(
         child: ListView(
@@ -102,7 +103,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Text('변경하기'),
             ),
           ],
@@ -120,19 +124,24 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: context.colors.textSecondary,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           obscureText: obscure,
           decoration: InputDecoration(
             suffixIcon: IconButton(
-              icon: Icon(obscure ? Icons.visibility_off : Icons.visibility,
-                  color: AppColors.textTertiary),
+              icon: Icon(
+                obscure ? Icons.visibility_off : Icons.visibility,
+                color: context.colors.textTertiary,
+              ),
               onPressed: onToggle,
             ),
           ),

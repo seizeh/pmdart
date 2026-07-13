@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:video_thumbnail/video_thumbnail.dart';
 
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../services/pet_enroll_repository.dart';
 import '../services/storage_service.dart';
 
@@ -145,7 +145,7 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       appBar: AppBar(title: const Text('신원 인증')),
       body: SafeArea(
         child: Padding(
@@ -155,19 +155,19 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
             children: [
               Text(
                 '${widget.petName}의 신원을 인증할게요',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '반려동물이 또렷이 보이게 약 5초 영상을 촬영해주세요. '
                 '영상은 저장되지 않고 인증에만 사용돼요.',
                 style: TextStyle(
                   fontSize: 13,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                   height: 1.5,
                 ),
               ),
@@ -175,10 +175,10 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: AppColors.primarySoft.withValues(alpha: 0.3),
+                  color: context.colors.primarySoft.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -186,7 +186,7 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.primaryDark,
+                        color: context.colors.primaryDark,
                       ),
                     ),
                     SizedBox(height: 12),
@@ -203,9 +203,9 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
                 Center(
                   child: Text(
                     _status ?? '처리 중…',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: context.colors.textSecondary,
                     ),
                   ),
                 ),
@@ -214,7 +214,7 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
                 FilledButton.icon(
                   onPressed: _captureAndEnroll,
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
+                    backgroundColor: context.colors.primaryDark,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   icon: const Icon(Icons.videocam),
@@ -244,18 +244,18 @@ class _Tip extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.check_circle_outline,
             size: 16,
-            color: AppColors.primaryDark,
+            color: context.colors.primaryDark,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: AppColors.textPrimary,
+                color: context.colors.textPrimary,
                 height: 1.4,
               ),
             ),

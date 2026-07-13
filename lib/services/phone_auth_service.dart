@@ -123,14 +123,16 @@ class PhoneAuthService {
     } on FunctionException catch (e) {
       // 코드 불일치/만료는 400 + { verified:false, error:'code_mismatch_or_expired' }
       final detail = e.details;
-      final errorCode =
-          detail is Map ? detail['error'] as String? : null;
+      final errorCode = detail is Map ? detail['error'] as String? : null;
       return PhoneVerifyResult(
         verified: false,
         errorCode: errorCode ?? 'verify_failed',
       );
     } catch (_) {
-      return const PhoneVerifyResult(verified: false, errorCode: 'network_error');
+      return const PhoneVerifyResult(
+        verified: false,
+        errorCode: 'network_error',
+      );
     }
   }
 }
@@ -161,17 +163,16 @@ class PhoneCodeResult {
 
   /// 사용자에게 보여줄 한글 메시지.
   String get message => switch (errorCode) {
-        'invalid_phone' => '전화번호 형식이 올바르지 않아요',
-        'phone_taken' => '이미 가입된 전화번호예요. 로그인하거나 비밀번호 찾기를 이용해주세요',
-        'user_not_found' => '가입되지 않은 전화번호예요',
-        'rate_limited' =>
-          '잠시 후 다시 시도해주세요 (${retryAfterSec ?? 60}초 후 재발송 가능)',
-        'sms_send_failed' => '문자 발송에 실패했어요. 잠시 후 다시 시도해주세요',
-        'server_misconfigured' => '서버 설정 오류로 발송할 수 없어요',
-        'network_error' => '네트워크 연결을 확인해주세요',
-        null => '인증번호를 보냈어요',
-        _ => '인증번호 발송에 실패했어요',
-      };
+    'invalid_phone' => '전화번호 형식이 올바르지 않아요',
+    'phone_taken' => '이미 가입된 전화번호예요. 로그인하거나 비밀번호 찾기를 이용해주세요',
+    'user_not_found' => '가입되지 않은 전화번호예요',
+    'rate_limited' => '잠시 후 다시 시도해주세요 (${retryAfterSec ?? 60}초 후 재발송 가능)',
+    'sms_send_failed' => '문자 발송에 실패했어요. 잠시 후 다시 시도해주세요',
+    'server_misconfigured' => '서버 설정 오류로 발송할 수 없어요',
+    'network_error' => '네트워크 연결을 확인해주세요',
+    null => '인증번호를 보냈어요',
+    _ => '인증번호 발송에 실패했어요',
+  };
 }
 
 /// 회원가입 결과.
@@ -183,19 +184,19 @@ class SignupResult {
   const SignupResult({required this.ok, this.userId, this.errorCode});
 
   String get message => switch (errorCode) {
-        'invalid_username' => '아이디는 영문/숫자 4~20자로 입력해주세요',
-        'invalid_password' => '비밀번호는 영문과 숫자를 포함해 8자 이상이어야 해요',
-        'invalid_nickname' => '닉네임을 입력해주세요',
-        'invalid_user_type' => '사용자 유형을 선택해주세요',
-        'invalid_phone' => '전화번호 형식이 올바르지 않아요',
-        'phone_not_verified' => '전화번호 인증을 먼저 완료해주세요',
-        'username_taken' => '이미 사용 중인 아이디예요',
-        'nickname_taken' => '이미 사용 중인 닉네임이에요',
-        'phone_taken' => '이미 가입된 전화번호예요',
-        'network_error' => '네트워크 연결을 확인해주세요',
-        null => '가입이 완료됐어요',
-        _ => '회원가입에 실패했어요',
-      };
+    'invalid_username' => '아이디는 영문/숫자 4~20자로 입력해주세요',
+    'invalid_password' => '비밀번호는 영문과 숫자를 포함해 8자 이상이어야 해요',
+    'invalid_nickname' => '닉네임을 입력해주세요',
+    'invalid_user_type' => '사용자 유형을 선택해주세요',
+    'invalid_phone' => '전화번호 형식이 올바르지 않아요',
+    'phone_not_verified' => '전화번호 인증을 먼저 완료해주세요',
+    'username_taken' => '이미 사용 중인 아이디예요',
+    'nickname_taken' => '이미 사용 중인 닉네임이에요',
+    'phone_taken' => '이미 가입된 전화번호예요',
+    'network_error' => '네트워크 연결을 확인해주세요',
+    null => '가입이 완료됐어요',
+    _ => '회원가입에 실패했어요',
+  };
 }
 
 /// 검증 결과.
@@ -206,12 +207,12 @@ class PhoneVerifyResult {
   const PhoneVerifyResult({required this.verified, this.errorCode});
 
   String get message => switch (errorCode) {
-        'code_mismatch_or_expired' => '인증번호가 일치하지 않거나 만료됐어요',
-        'invalid_code' => '6자리 인증번호를 입력해주세요',
-        'network_error' => '네트워크 연결을 확인해주세요',
-        null => '인증되었어요',
-        _ => '인증에 실패했어요',
-      };
+    'code_mismatch_or_expired' => '인증번호가 일치하지 않거나 만료됐어요',
+    'invalid_code' => '6자리 인증번호를 입력해주세요',
+    'network_error' => '네트워크 연결을 확인해주세요',
+    null => '인증되었어요',
+    _ => '인증에 실패했어요',
+  };
 }
 
 /// 비밀번호 재설정 결과.
@@ -222,14 +223,14 @@ class ResetPasswordResult {
   const ResetPasswordResult({required this.ok, this.errorCode});
 
   String get message => switch (errorCode) {
-        'invalid_phone' => '전화번호 형식이 올바르지 않아요',
-        'invalid_password' => '비밀번호는 영문과 숫자를 포함해 8자 이상이어야 해요',
-        'phone_not_verified' => '전화번호 인증을 먼저 완료해주세요',
-        'user_not_found' => '해당 번호로 가입된 계정이 없어요',
-        'network_error' => '네트워크 연결을 확인해주세요',
-        null => '비밀번호가 변경됐어요',
-        _ => '비밀번호 재설정에 실패했어요',
-      };
+    'invalid_phone' => '전화번호 형식이 올바르지 않아요',
+    'invalid_password' => '비밀번호는 영문과 숫자를 포함해 8자 이상이어야 해요',
+    'phone_not_verified' => '전화번호 인증을 먼저 완료해주세요',
+    'user_not_found' => '해당 번호로 가입된 계정이 없어요',
+    'network_error' => '네트워크 연결을 확인해주세요',
+    null => '비밀번호가 변경됐어요',
+    _ => '비밀번호 재설정에 실패했어요',
+  };
 }
 
 /// 아이디 중복확인 결과.

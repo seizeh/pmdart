@@ -19,7 +19,8 @@ class NotificationRepository {
     final rows = await _c
         .from('notifications')
         .select(
-            'id, notification_type, title, body, is_read, created_at, resource_type, resource_id, aggregated_count')
+          'id, notification_type, title, body, is_read, created_at, resource_type, resource_id, aggregated_count',
+        )
         .eq('user_id', uid)
         .eq('is_silent', false)
         .order('created_at', ascending: false)

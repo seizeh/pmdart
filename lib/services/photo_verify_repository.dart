@@ -84,12 +84,20 @@ class PhotoVerifyRepository {
     final loc = await LocationService.instance.getCurrentPosition();
     switch (loc.status) {
       case LocationStatus.serviceDisabled:
-        return const PhotoVerifyResult(pass: false, errorCode: 'service_disabled');
+        return const PhotoVerifyResult(
+          pass: false,
+          errorCode: 'service_disabled',
+        );
       case LocationStatus.denied:
-        return const PhotoVerifyResult(pass: false, errorCode: 'permission_denied');
+        return const PhotoVerifyResult(
+          pass: false,
+          errorCode: 'permission_denied',
+        );
       case LocationStatus.deniedForever:
         return const PhotoVerifyResult(
-            pass: false, errorCode: 'permission_denied_forever');
+          pass: false,
+          errorCode: 'permission_denied_forever',
+        );
       case LocationStatus.timeout:
         return const PhotoVerifyResult(pass: false, errorCode: 'timeout');
       case LocationStatus.error:
@@ -134,7 +142,9 @@ class PhotoVerifyRepository {
       final detail = e.details;
       final code = detail is Map ? detail['reason'] ?? detail['error'] : null;
       return PhotoVerifyResult(
-          pass: false, errorCode: code as String? ?? 'verify_failed');
+        pass: false,
+        errorCode: code as String? ?? 'verify_failed',
+      );
     } catch (_) {
       return const PhotoVerifyResult(pass: false, errorCode: 'network_error');
     }

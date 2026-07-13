@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../motion/motion.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 import 'login_screen.dart';
 
 /// 비회원이 쓰기 액션(글 작성/댓글/지원/하트/pawing/채팅)을 시도하면 띄우는 팝업.
@@ -8,25 +8,21 @@ import 'login_screen.dart';
 class AuthWallDialog extends StatelessWidget {
   final String message;
 
-  const AuthWallDialog({
-    super.key,
-    this.message = '이 기능은 로그인 후 이용할 수 있어요',
-  });
+  const AuthWallDialog({super.key, this.message = '이 기능은 로그인 후 이용할 수 있어요'});
 
   static Future<void> show(BuildContext context, {String? message}) {
     return showDialog(
       context: context,
       barrierColor: Colors.black54,
-      builder: (_) => AuthWallDialog(
-        message: message ?? '이 기능은 로그인 후 이용할 수 있어요',
-      ),
+      builder: (_) =>
+          AuthWallDialog(message: message ?? '이 기능은 로그인 후 이용할 수 있어요'),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 32),
       child: Padding(
@@ -38,28 +34,31 @@ class AuthWallDialog extends StatelessWidget {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
+                color: context.colors.primarySoft,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(Icons.lock_outline,
-                  size: 32, color: AppColors.primaryDark),
+              child: Icon(
+                Icons.lock_outline,
+                size: 32,
+                color: context.colors.primaryDark,
+              ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               '로그인이 필요해요',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                color: context.colors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: AppColors.textSecondary,
+                color: context.colors.textSecondary,
                 height: 1.5,
               ),
             ),
@@ -84,7 +83,7 @@ class AuthWallDialog extends StatelessWidget {
                 onPressed: () => Navigator.pop(context),
                 style: TextButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  foregroundColor: AppColors.textSecondary,
+                  foregroundColor: context.colors.textSecondary,
                 ),
                 child: const Text('나중에 할래요'),
               ),

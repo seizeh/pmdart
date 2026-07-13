@@ -30,7 +30,8 @@ class ActivityRepository {
     final rows = await _c
         .from('appointments')
         .select(
-            'id, status, scheduled_at, created_at, post_owner_id, applicant_id, posts(id, title, category)')
+          'id, status, scheduled_at, created_at, post_owner_id, applicant_id, posts(id, title, category)',
+        )
         .or('applicant_id.eq.$uid,post_owner_id.eq.$uid')
         .order('created_at', ascending: false);
     return (rows as List).cast<Map<String, dynamic>>();
@@ -44,7 +45,7 @@ class ActivityRepository {
         .select('id, nickname')
         .inFilter('id', ids);
     return {
-      for (final p in rows as List) p['id'] as String: p['nickname'] as String
+      for (final p in rows as List) p['id'] as String: p['nickname'] as String,
     };
   }
 
@@ -61,7 +62,8 @@ class ActivityRepository {
   Future<void> completeAppointment(String appointmentId) async {
     await _c
         .from('appointments')
-        .update({'status': 'completed'}).eq('id', appointmentId);
+        .update({'status': 'completed'})
+        .eq('id', appointmentId);
     AppEvents.instance.notifyProfile();
   }
 
@@ -88,7 +90,7 @@ class ActivityRepository {
         .eq('user_id', userId ?? _uid);
     return {
       for (final r in rows as List)
-        r['category'] as String: (r['count'] as num).toInt()
+        r['category'] as String: (r['count'] as num).toInt(),
     };
   }
 
@@ -108,11 +110,11 @@ class ActivityRepository {
         .select('id, nickname')
         .inFilter('id', ids);
     final nameById = {
-      for (final p in profs as List) p['id'] as String: p['nickname'] as String
+      for (final p in profs as List) p['id'] as String: p['nickname'] as String,
     };
     return [
       for (final r in list)
-        {...r, 'nickname': nameById[r['applicant_id']] ?? '알 수 없음'}
+        {...r, 'nickname': nameById[r['applicant_id']] ?? '알 수 없음'},
     ];
   }
 
@@ -120,7 +122,8 @@ class ActivityRepository {
   Future<void> acceptApplication(String applicationId) async {
     await _c
         .from('applications')
-        .update({'status': 'accepted'}).eq('id', applicationId);
+        .update({'status': 'accepted'})
+        .eq('id', applicationId);
     AppEvents.instance.notifyProfile();
   }
 
@@ -147,10 +150,10 @@ class ActivityRepository {
 
   /// 알림 설정 항목 변경 (upsert).
   Future<void> setNotificationPref(String key, bool value) async {
-    await _c.from('notification_preferences').upsert(
-      {'user_id': _uid, key: value},
-      onConflict: 'user_id',
-    );
+    await _c.from('notification_preferences').upsert({
+      'user_id': _uid,
+      key: value,
+    }, onConflict: 'user_id');
   }
 
   // ── 차단 ──────────────────────────────────────────────────
@@ -168,7 +171,7 @@ class ActivityRepository {
         .select('id, nickname')
         .inFilter('id', ids);
     final nameById = {
-      for (final p in profs as List) p['id'] as String: p['nickname']
+      for (final p in profs as List) p['id'] as String: p['nickname'],
     };
     return [
       for (final r in list)
@@ -176,7 +179,7 @@ class ActivityRepository {
           'blocked_id': r['blocked_id'],
           'created_at': r['created_at'],
           'nickname': nameById[r['blocked_id']] ?? '알 수 없음',
-        }
+        },
     ];
   }
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// 개체 인증 신뢰도 배지 (0019).
 /// 검증 카테고리 게시글에서 등록 펫과 개체가 일치한 누적 횟수([matchCount])로 단계를 보여준다.
@@ -8,7 +8,11 @@ class PetTrustBadge extends StatelessWidget {
   final int matchCount;
   final bool compact;
 
-  const PetTrustBadge({super.key, required this.matchCount, this.compact = false});
+  const PetTrustBadge({
+    super.key,
+    required this.matchCount,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,10 +20,10 @@ class PetTrustBadge extends StatelessWidget {
 
     // 단계: 1‑2 입문 / 3‑9 신뢰 / 10+ 우수
     final (label, color) = matchCount >= 10
-        ? ('개체 인증 우수', AppColors.primary)
+        ? ('개체 인증 우수', context.colors.primary)
         : matchCount >= 3
-            ? ('개체 인증', AppColors.primaryDark)
-            : ('개체 인증', AppColors.info);
+        ? ('개체 인증', context.colors.primaryDark)
+        : ('개체 인증', context.colors.info);
 
     return Container(
       padding: EdgeInsets.symmetric(

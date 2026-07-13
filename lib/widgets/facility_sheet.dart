@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../models/facility_review.dart';
 import '../services/facility_repository.dart';
 import '../services/facility_review_repository.dart';
@@ -19,11 +19,12 @@ class FacilityDetailContent extends StatefulWidget {
   final Facility facility;
   final Color color;
   final String label;
-  const FacilityDetailContent(
-      {super.key,
-      required this.facility,
-      required this.color,
-      required this.label});
+  const FacilityDetailContent({
+    super.key,
+    required this.facility,
+    required this.color,
+    required this.label,
+  });
 
   @override
   State<FacilityDetailContent> createState() => _FacilityDetailContentState();
@@ -59,8 +60,10 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
       final f = widget.facility;
       // 카페는 마커 id 가 가짜라, 승격된 실제 facility_id 를 해석(없으면 후기 0).
       final fid = f.isNaver
-          ? await FacilityReviewRepository.instance
-              .naverFacilityId(f.name, f.address)
+          ? await FacilityReviewRepository.instance.naverFacilityId(
+              f.name,
+              f.address,
+            )
           : f.id;
       final r = fid == null
           ? const <FacilityReview>[]
@@ -79,9 +82,9 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
 
   Future<void> _writeReview() async {
     if (!SessionManager.instance.isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('후기는 로그인 후 남길 수 있어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('후기는 로그인 후 남길 수 있어요')));
       return;
     }
     FacilityReview? mine;
@@ -102,15 +105,19 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     final f = widget.facility;
     final name = Uri.encodeComponent(f.name);
     final app = Uri.parse(
-        'nmap://place?lat=${f.lat}&lng=${f.lng}&name=$name&appname=com.seizeh.pawmate');
-    final web =
-        Uri.parse('https://map.naver.com/p/?c=${f.lng},${f.lat},17,0,0,0,dh');
+      'nmap://place?lat=${f.lat}&lng=${f.lng}&name=$name&appname=com.seizeh.pawmate',
+    );
+    final web = Uri.parse(
+      'https://map.naver.com/p/?c=${f.lng},${f.lat},17,0,0,0,dh',
+    );
     try {
       if (await canLaunchUrl(app) &&
           await launchUrl(app, mode: LaunchMode.externalApplication)) {
         return;
       }
-    } catch (_) {/* 앱 없음 */}
+    } catch (_) {
+      /* 앱 없음 */
+    }
     await launchUrl(web, mode: LaunchMode.externalApplication);
   }
 
@@ -124,157 +131,208 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     // 폭은 MapBottomSheet 가 Align>SizedBox 로 고정해 준다. 여기선 본문 ListView 만.
     // 무한 너비에서 죽는 위젯 금지(Container 탭/Text 만).
     return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            children: [
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    // 겹치는 업종 전부(예: 동물병원 · 위탁·호텔 · 미용) 칩으로 표기.
-                    for (final cat in _displayCategories)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: widget.color.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: Text(kFacilityLabels[cat] ?? cat,
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: widget.color)),
-                      ),
-                    Text(dist,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textTertiary)),
-                  ],
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      children: [
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            // 겹치는 업종 전부(예: 동물병원 · 위탁·호텔 · 미용) 칩으로 표기.
+            for (final cat in _displayCategories)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
                 ),
-                const SizedBox(height: 10),
-                Text(f.name,
-                    style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary)),
-                if (evaluatePetSales(f) case final s?) ...[
-                  const SizedBox(height: 12),
-                  _PetSalesTrustCard(score: s),
-                ],
-                if (reviews != null && reviews.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    const Icon(Icons.star, size: 16, color: Color(0xFFFFB300)),
-                    const SizedBox(width: 3),
-                    Text(_avg.toStringAsFixed(1),
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary)),
-                    const SizedBox(width: 4),
-                    Text('· 후기 ${reviews.length}',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textTertiary)),
-                  ]),
-                ],
-                if (f.address != null && f.address!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _row(Icons.place_outlined, f.address!),
-                ],
-                if (f.phone != null && f.phone!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  _row(Icons.call_outlined, f.phone!),
-                ],
-                const SizedBox(height: 16),
-                // 머티리얼 버튼은 무한 너비에서 maximumSize(∞)로 채우려다 터진다(이
-                // 화면 본문은 너비 제약이 깨져 무한이 들어옴, #28). Container 는 intrinsic
-                // 크기라 무한에서도 안전 → GestureDetector+Container 로 버튼을 구성.
-                Row(
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  kFacilityLabels[cat] ?? cat,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: widget.color,
+                  ),
+                ),
+              ),
+            Text(
+              dist,
+              style: TextStyle(
+                fontSize: 12,
+                color: context.colors.textTertiary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          f.name,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: context.colors.textPrimary,
+          ),
+        ),
+        if (evaluatePetSales(f) case final s?) ...[
+          const SizedBox(height: 12),
+          _PetSalesTrustCard(score: s),
+        ],
+        if (reviews != null && reviews.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.star, size: 16, color: Color(0xFFFFB300)),
+              const SizedBox(width: 3),
+              Text(
+                _avg.toStringAsFixed(1),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '· 후기 ${reviews.length}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.colors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (f.address != null && f.address!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _row(Icons.place_outlined, f.address!),
+        ],
+        if (f.phone != null && f.phone!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _row(Icons.call_outlined, f.phone!),
+        ],
+        const SizedBox(height: 16),
+        // 머티리얼 버튼은 무한 너비에서 maximumSize(∞)로 채우려다 터진다(이
+        // 화면 본문은 너비 제약이 깨져 무한이 들어옴, #28). Container 는 intrinsic
+        // 크기라 무한에서도 안전 → GestureDetector+Container 로 버튼을 구성.
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: _writeReview,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: context.colors.primaryDark,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    GestureDetector(
-                      onTap: _writeReview,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryDark,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.rate_review_outlined,
-                              size: 18, color: Colors.white),
-                          SizedBox(width: 6),
-                          Text('후기 쓰기',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700)),
-                        ]),
-                      ),
+                    Icon(
+                      Icons.rate_review_outlined,
+                      size: 18,
+                      color: Colors.white,
                     ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: _openInNaverMap,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.map_outlined,
-                              size: 18, color: AppColors.textSecondary),
-                          SizedBox(width: 6),
-                          Text('네이버',
-                              style: TextStyle(color: AppColors.textSecondary)),
-                        ]),
+                    SizedBox(width: 6),
+                    Text(
+                      '후기 쓰기',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
-                const Divider(height: 1, color: AppColors.border),
-                const SizedBox(height: 14),
-                const Text('후기',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary)),
-                const SizedBox(height: 10),
-                if (reviews == null)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                        child: CircularProgressIndicator(strokeWidth: 2.4)),
-                  )
-                else if (reviews.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Center(
-                      child: Text('아직 후기가 없어요. 첫 후기를 남겨보세요!',
-                          style: TextStyle(color: AppColors.textTertiary)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _openInNaverMap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: context.colors.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.map_outlined,
+                      size: 18,
+                      color: context.colors.textSecondary,
                     ),
-                  )
-                else
-                  for (final r in reviews) _ReviewItem(review: r),
-            ],
+                    SizedBox(width: 6),
+                    Text(
+                      '네이버',
+                      style: TextStyle(color: context.colors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Divider(height: 1, color: context.colors.border),
+        const SizedBox(height: 14),
+        Text(
+          '후기',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: context.colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (reviews == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
+          )
+        else if (reviews.isEmpty)
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: Text(
+                '아직 후기가 없어요. 첫 후기를 남겨보세요!',
+                style: TextStyle(color: context.colors.textTertiary),
+              ),
+            ),
+          )
+        else
+          for (final r in reviews) _ReviewItem(review: r),
+      ],
     );
   }
 
   // 시트 본문은 폭이 유한(스냅샷 위)이라 Expanded 로 긴 주소를 줄바꿈해도 안전.
   Widget _row(IconData icon, String text) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textSecondary, height: 1.4)),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 16, color: context.colors.textSecondary),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 14,
+            color: context.colors.textSecondary,
+            height: 1.4,
           ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 }
 
 /// 분양(반려동물판매업) 신뢰도 안내 카드.
@@ -288,23 +346,23 @@ class _PetSalesTrustCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg, icon, title) = switch (score.level) {
       PetSalesTrust.likely => (
-          const Color(0xFFE8F5E9),
-          const Color(0xFF2E7D32),
-          Icons.verified_outlined,
-          '분양 전문점으로 보여요',
-        ),
+        const Color(0xFFE8F5E9),
+        const Color(0xFF2E7D32),
+        Icons.verified_outlined,
+        '분양 전문점으로 보여요',
+      ),
       PetSalesTrust.unclear => (
-          const Color(0xFFFFF8E1),
-          const Color(0xFFF57F17),
-          Icons.help_outline,
-          '분양 전문 여부가 불분명해요',
-        ),
+        const Color(0xFFFFF8E1),
+        const Color(0xFFF57F17),
+        Icons.help_outline,
+        '분양 전문 여부가 불분명해요',
+      ),
       PetSalesTrust.caution => (
-          const Color(0xFFFFEBEE),
-          const Color(0xFFC62828),
-          Icons.warning_amber_rounded,
-          '분양 전문점이 아닐 수 있어요',
-        ),
+        const Color(0xFFFFEBEE),
+        const Color(0xFFC62828),
+        Icons.warning_amber_rounded,
+        '분양 전문점이 아닐 수 있어요',
+      ),
     };
     final pts = score.score > 0 ? '+${score.score}' : '${score.score}';
     return Container(
@@ -321,30 +379,40 @@ class _PetSalesTrustCard extends StatelessWidget {
               Icon(icon, size: 18, color: fg),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(title,
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: fg)),
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: fg.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(100),
                 ),
-                child: Text('신뢰도 $pts',
-                    style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w800, color: fg)),
+                child: Text(
+                  '신뢰도 $pts',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             "사업자 업종은 '반려동물판매업'이지만, 상호명으로 추정한 점수예요. 실제 분양 여부는 직접 확인하세요.",
             style: TextStyle(
-                fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+              fontSize: 12,
+              color: context.colors.textSecondary,
+              height: 1.4,
+            ),
           ),
           if (score.positives.isNotEmpty || score.negatives.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -365,15 +433,16 @@ class _PetSalesTrustCard extends StatelessWidget {
   }
 
   Widget _kwChip(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(text,
-            style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700, color: color)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+    ),
+  );
 }
 
 class _ReviewItem extends StatelessWidget {
@@ -392,23 +461,34 @@ class _ReviewItem extends StatelessWidget {
             children: [
               // 긴 닉네임이 가로로 넘치지 않게 Flexible + ellipsis(폭 유한이라 안전).
               Flexible(
-                child: Text(review.authorNickname,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                child: Text(
+                  review.authorNickname,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
               ),
               if (review.isMine) ...[
                 const SizedBox(width: 4),
-                const Text('(내 후기)',
-                    style:
-                        TextStyle(fontSize: 11, color: AppColors.primaryDark)),
+                Text(
+                  '(내 후기)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: context.colors.primaryDark,
+                  ),
+                ),
               ],
               const Spacer(),
-              Text('${d.year}.${d.month}.${d.day}',
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary)),
+              Text(
+                '${d.year}.${d.month}.${d.day}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.colors.textTertiary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
@@ -416,18 +496,25 @@ class _ReviewItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (var i = 1; i <= 5; i++)
-                Icon(i <= review.rating ? Icons.star : Icons.star_border,
-                    size: 14,
-                    color: i <= review.rating
-                        ? const Color(0xFFFFB300)
-                        : AppColors.border),
+                Icon(
+                  i <= review.rating ? Icons.star : Icons.star_border,
+                  size: 14,
+                  color: i <= review.rating
+                      ? const Color(0xFFFFB300)
+                      : context.colors.border,
+                ),
             ],
           ),
           if (review.content != null && review.content!.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(review.content!,
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textSecondary, height: 1.45)),
+            Text(
+              review.content!,
+              style: TextStyle(
+                fontSize: 14,
+                color: context.colors.textSecondary,
+                height: 1.45,
+              ),
+            ),
           ],
           if (review.photoUrls.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -438,8 +525,12 @@ class _ReviewItem extends StatelessWidget {
                 for (final url in review.photoUrls)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: Image.network(url,
-                        width: 84, height: 84, fit: BoxFit.cover),
+                    child: Image.network(
+                      url,
+                      width: 84,
+                      height: 84,
+                      fit: BoxFit.cover,
+                    ),
                   ),
               ],
             ),

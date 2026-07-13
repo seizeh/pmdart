@@ -60,19 +60,26 @@ class LocationRepository {
     switch (loc.status) {
       case LocationStatus.serviceDisabled:
         return const LocationVerifyResult(
-            verified: false, errorCode: 'service_disabled');
+          verified: false,
+          errorCode: 'service_disabled',
+        );
       case LocationStatus.denied:
         return const LocationVerifyResult(
-            verified: false, errorCode: 'permission_denied');
+          verified: false,
+          errorCode: 'permission_denied',
+        );
       case LocationStatus.deniedForever:
         return const LocationVerifyResult(
-            verified: false, errorCode: 'permission_denied_forever');
+          verified: false,
+          errorCode: 'permission_denied_forever',
+        );
       case LocationStatus.timeout:
         return const LocationVerifyResult(
-            verified: false, errorCode: 'timeout');
+          verified: false,
+          errorCode: 'timeout',
+        );
       case LocationStatus.error:
-        return const LocationVerifyResult(
-            verified: false, errorCode: 'error');
+        return const LocationVerifyResult(verified: false, errorCode: 'error');
       case LocationStatus.ok:
         break;
     }
@@ -109,10 +116,14 @@ class LocationRepository {
       final detail = e.details;
       final code = detail is Map ? detail['reason'] ?? detail['error'] : null;
       return LocationVerifyResult(
-          verified: false, errorCode: code as String? ?? 'verify_failed');
+        verified: false,
+        errorCode: code as String? ?? 'verify_failed',
+      );
     } catch (_) {
       return const LocationVerifyResult(
-          verified: false, errorCode: 'network_error');
+        verified: false,
+        errorCode: 'network_error',
+      );
     }
   }
 }

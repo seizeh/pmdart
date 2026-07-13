@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// 사진 없는 게시글의 뿌연 색 배경 — 카테고리 색 블롭들을 강하게 블러시킨
 /// 아웃포커스 필드. [seed](게시글 id 등)로 블롭의 개수·위치·크기·색을
@@ -35,7 +35,7 @@ class BlobBackground extends StatelessWidget {
           boosted,
           shift(28),
           shift(-28),
-          AppColors.primarySoft,
+          context.colors.primarySoft,
         ];
 
         final count = 3 + rnd.nextInt(3); // 3~5개
@@ -45,8 +45,9 @@ class BlobBackground extends StatelessWidget {
             left: (rnd.nextDouble() * 1.2 - 0.35) * w,
             top: (rnd.nextDouble() * 1.2 - 0.35) * h,
             size: size,
-            color: palette[rnd.nextInt(palette.length)]
-                .withValues(alpha: 0.35 + rnd.nextDouble() * 0.3),
+            color: palette[rnd.nextInt(palette.length)].withValues(
+              alpha: 0.35 + rnd.nextDouble() * 0.3,
+            ),
           );
         });
 
@@ -57,7 +58,7 @@ class BlobBackground extends StatelessWidget {
             ColoredBox(
               color: Color.alphaBlend(
                 boosted.withValues(alpha: 0.10),
-                AppColors.background,
+                context.colors.cream,
               ),
             ),
             ImageFiltered(

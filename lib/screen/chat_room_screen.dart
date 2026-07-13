@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../motion/motion.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../models/chat.dart';
 import '../services/chat_repository.dart';
@@ -20,11 +20,7 @@ class ChatRoomScreen extends StatefulWidget {
   /// 채팅 목록 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 인터랙션용. null 이면 일반 화면.
   final Rect? originRect;
 
-  const ChatRoomScreen({
-    super.key,
-    required this.room,
-    this.originRect,
-  });
+  const ChatRoomScreen({super.key, required this.room, this.originRect});
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
@@ -74,8 +70,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   Future<void> _openOtherProfile() async {
     final uid = widget.room.otherUserId;
     if (uid == null) return; // 고객센터/알 수 없음
-    final box =
-        _profileBarKey.currentContext?.findRenderObject() as RenderBox?;
+    final box = _profileBarKey.currentContext?.findRenderObject() as RenderBox?;
     final rect = (box != null && box.hasSize)
         ? box.localToGlobal(Offset.zero) & box.size
         : null;
@@ -102,8 +97,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     duration: const Duration(milliseconds: 420),
   );
   // 텍스트 이동이 뚝뚝 끊기지 않도록 감속 이징(선형 forward 대신).
-  late final CurvedAnimation _morphCurved =
-      CurvedAnimation(parent: _morph, curve: Curves.easeOutCubic);
+  late final CurvedAnimation _morphCurved = CurvedAnimation(
+    parent: _morph,
+    curve: Curves.easeOutCubic,
+  );
 
   List<ChatMessage> _messages = [];
   bool _loading = true;
@@ -125,7 +122,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       if (mounted) {
         setState(() => _otherImageUrl = row?['profile_image_url'] as String?);
       }
-    } catch (_) {/* 실패 시 무사진 헤더 유지 */}
+    } catch (_) {
+      /* 실패 시 무사진 헤더 유지 */
+    }
   }
 
   @override
@@ -235,9 +234,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       context: context,
       builder: (dialogCtx) => AlertDialog(
         title: const Text('채팅방 나가기'),
-        content: const Text('나가면 채팅 목록에서 사라지고,\n'
-            '서로 새 메시지를 보낼 수 없어요.\n'
-            '내가 다시 채팅을 시작하면 대화가 이어져요.'),
+        content: const Text(
+          '나가면 채팅 목록에서 사라지고,\n'
+          '서로 새 메시지를 보낼 수 없어요.\n'
+          '내가 다시 채팅을 시작하면 대화가 이어져요.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, false),
@@ -245,7 +246,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            style: TextButton.styleFrom(foregroundColor: context.colors.danger),
             child: const Text('나가기'),
           ),
         ],
@@ -272,7 +273,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     final otherId = widget.room.otherUserId;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.colors.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -282,8 +283,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
           children: [
             if (otherId != null)
               ListTile(
-                leading:
-                    const Icon(Icons.flag_outlined, color: AppColors.danger),
+                leading: Icon(
+                  Icons.flag_outlined,
+                  color: context.colors.danger,
+                ),
                 title: const Text('사용자 신고'),
                 onTap: () {
                   Navigator.pop(sheetCtx);
@@ -296,8 +299,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                 },
               ),
             ListTile(
-              leading:
-                  const Icon(Icons.logout_outlined, color: AppColors.danger),
+              leading: Icon(
+                Icons.logout_outlined,
+                color: context.colors.danger,
+              ),
               title: const Text('채팅방 나가기'),
               onTap: () {
                 Navigator.pop(sheetCtx);
@@ -356,64 +361,65 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: CollapsibleView(
-      originRect: widget.originRect,
-      cardRadius: 16, // 채팅 목록 타일과 동일 곡률 — 안착 시 곡률 튐 방지.
-      // 축소 도착 지점의 카드 = 방 프로필(m=0). 목록 타일이 아니라 방 헤더 모습이라
-      // 축소 중 목록 타일이 비쳐 겹치는 투명 트렌지션이 생기지 않는다.
-      card: (ctx) => _MorphCard(
-        room: widget.room,
-        imageUrl: _otherImageUrl,
-        morph: _morphCurved,
-        onMenu: _openRoomMenu,
-      ),
-      // 2단계: 축소가 타일 위치에 안착하면 방 프로필 → 목록 타일로 변형 후 pop.
-      onSettled: () => _morph.forward(),
-      // 축소는 헤더(프로필 바)를 잡아 내릴 때만 — 메시지 스크롤과 충돌 방지.
-      dragHandleTest: _inHeader,
-      scrollController: _scroll,
-      // 채팅 목록 타일에서 확장되는 느낌을 강조 — 살짝 튕기며 열리고 시간도 조금 길게.
-      expandDuration: const Duration(milliseconds: 520),
-      expandCurve: Curves.easeOutBack,
-      builder: (context, physics) => Scaffold(
-        backgroundColor: Colors.white,
-        body: Stack(
-          children: [
-            // 메시지 — 헤더 바 위(상태바 영역)와 입력창 아래(홈 인디케이터)까지
-            // 풀블리드로 확장되어, 오버레이 패널 뒤로 비치며 스크롤된다
-            // (탭 화면들의 플로팅 패널과 동일한 문법).
-            Positioned.fill(child: _buildMessages(physics)),
-            // 헤더 바 — 위 오버레이(블러 배경이라 뒤 메시지가 비친다).
-            // 이 영역이 축소 드래그 핸들이다(_inHeader).
-            Align(
-              alignment: Alignment.topCenter,
-              child: KeyedSubtree(
-                key: _headerKey,
-                child: _ChatHeader(
-                  room: widget.room,
-                  imageUrl: _otherImageUrl,
-                  onMenu: _openRoomMenu,
-                  onProfileTap:
-                      widget.room.otherUserId == null ? null : _openOtherProfile,
-                  barKey: _profileBarKey,
-                  barHidden: _profileOpen,
+        originRect: widget.originRect,
+        cardRadius: 16, // 채팅 목록 타일과 동일 곡률 — 안착 시 곡률 튐 방지.
+        // 축소 도착 지점의 카드 = 방 프로필(m=0). 목록 타일이 아니라 방 헤더 모습이라
+        // 축소 중 목록 타일이 비쳐 겹치는 투명 트렌지션이 생기지 않는다.
+        card: (ctx) => _MorphCard(
+          room: widget.room,
+          imageUrl: _otherImageUrl,
+          morph: _morphCurved,
+          onMenu: _openRoomMenu,
+        ),
+        // 2단계: 축소가 타일 위치에 안착하면 방 프로필 → 목록 타일로 변형 후 pop.
+        onSettled: () => _morph.forward(),
+        // 축소는 헤더(프로필 바)를 잡아 내릴 때만 — 메시지 스크롤과 충돌 방지.
+        dragHandleTest: _inHeader,
+        scrollController: _scroll,
+        // 채팅 목록 타일에서 확장되는 느낌을 강조 — 살짝 튕기며 열리고 시간도 조금 길게.
+        expandDuration: const Duration(milliseconds: 520),
+        expandCurve: Curves.easeOutBack,
+        builder: (context, physics) => Scaffold(
+          backgroundColor: context.colors.background,
+          body: Stack(
+            children: [
+              // 메시지 — 헤더 바 위(상태바 영역)와 입력창 아래(홈 인디케이터)까지
+              // 풀블리드로 확장되어, 오버레이 패널 뒤로 비치며 스크롤된다
+              // (탭 화면들의 플로팅 패널과 동일한 문법).
+              Positioned.fill(child: _buildMessages(physics)),
+              // 헤더 바 — 위 오버레이(블러 배경이라 뒤 메시지가 비친다).
+              // 이 영역이 축소 드래그 핸들이다(_inHeader).
+              Align(
+                alignment: Alignment.topCenter,
+                child: KeyedSubtree(
+                  key: _headerKey,
+                  child: _ChatHeader(
+                    room: widget.room,
+                    imageUrl: _otherImageUrl,
+                    onMenu: _openRoomMenu,
+                    onProfileTap: widget.room.otherUserId == null
+                        ? null
+                        : _openOtherProfile,
+                    barKey: _profileBarKey,
+                    barHidden: _profileOpen,
+                  ),
                 ),
               ),
-            ),
-            // 입력창 — 아래 오버레이. 상대가 나간 방은 입력을 잠근다(서버도 INSERT 차단).
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: widget.room.otherLeft
-                  ? const _LockedBar()
-                  : _Composer(
-                      controller: _ctrl,
-                      sending: _sending,
-                      onSend: _send,
-                      onPickImage: _sendImage,
-                    ),
-            ),
-          ],
+              // 입력창 — 아래 오버레이. 상대가 나간 방은 입력을 잠근다(서버도 INSERT 차단).
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: widget.room.otherLeft
+                    ? const _LockedBar()
+                    : _Composer(
+                        controller: _ctrl,
+                        sending: _sending,
+                        onSend: _send,
+                        onPickImage: _sendImage,
+                      ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -423,10 +429,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       return const Center(child: CircularProgressIndicator());
     }
     if (_messages.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           '첫 메시지를 보내보세요',
-          style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+          style: TextStyle(fontSize: 13, color: context.colors.textTertiary),
         ),
       );
     }
@@ -543,14 +549,17 @@ class _ChatBlurBg extends StatelessWidget {
             fit: BoxFit.cover,
             cacheWidth: 400,
             errorBuilder: (_, _, _) =>
-                const ColoredBox(color: AppColors.primaryDark),
+                ColoredBox(color: context.colors.primaryDark),
           )
         : (nickname == '고객센터'
-            ? Image.asset('assets/images/cs_profile.png',
-                fit: BoxFit.cover, cacheWidth: 400)
-            : null);
+              ? Image.asset(
+                  'assets/images/cs_profile.png',
+                  fit: BoxFit.cover,
+                  cacheWidth: 400,
+                )
+              : null);
     if (photoImage == null) {
-      return const ColoredBox(color: AppColors.primaryDark);
+      return ColoredBox(color: context.colors.primaryDark);
     }
     return ImageFiltered(
       imageFilter: ui.ImageFilter.blur(
@@ -587,16 +596,15 @@ class _ChatBarForeground extends StatelessWidget {
     // 완전히 동일·또렷)가 되게 한다 → pop 시 굵기/선명도 튐 없음.
     final nameScale = ui.lerpDouble(18.0 / 15.0, 1.0, t)!;
     final nameColor = hasPhoto
-        ? Color.lerp(Colors.white, AppColors.textPrimary, t)!
-        : AppColors.textOnPrimary;
+        ? Color.lerp(Colors.white, context.colors.textPrimary, t)!
+        : context.colors.textOnPrimary;
     // 스크림: 방(어두움) → 타일(밝음). 사진 없으면 스크림 없음(primaryDark 유지).
     final scrim = hasPhoto
-        ? Color.lerp(const Color(0x33000000), const Color(0xB3FFFFFF), t)!
+        ? Color.lerp(const Color(0x33000000), context.colors.photoVeil, t)!
         : null;
-    final msg =
-        room.lastMessage.isEmpty ? '대화를 시작해보세요' : room.lastMessage;
-    final msgColor = hasPhoto ? AppColors.textSecondary : Colors.white70;
-    final timeColor = hasPhoto ? AppColors.textTertiary : Colors.white70;
+    final msg = room.lastMessage.isEmpty ? '대화를 시작해보세요' : room.lastMessage;
+    final msgColor = hasPhoto ? context.colors.textSecondary : Colors.white70;
+    final timeColor = hasPhoto ? context.colors.textTertiary : Colors.white70;
 
     return Stack(
       fit: StackFit.expand,
@@ -608,7 +616,11 @@ class _ChatBarForeground extends StatelessWidget {
         // 페이드 인 → 닉네임이 위로 이동하는 거리가 길어져 뚝 끊기지 않는다.
         Positioned.fill(
           child: Align(
-            alignment: Alignment.lerp(Alignment.center, Alignment.topCenter, t)!,
+            alignment: Alignment.lerp(
+              Alignment.center,
+              Alignment.topCenter,
+              t,
+            )!,
             child: Padding(
               padding: EdgeInsets.only(top: 16.0 * t),
               child: Column(
@@ -639,7 +651,10 @@ class _ChatBarForeground extends StatelessWidget {
                         opacity: t,
                         child: Padding(
                           padding: const EdgeInsets.only(
-                              top: 4, left: 60, right: 60),
+                            top: 4,
+                            left: 60,
+                            right: 60,
+                          ),
                           child: Text(
                             msg,
                             maxLines: 1,
@@ -718,8 +733,10 @@ class _MorphCard extends StatelessWidget {
         children: [
           // 정적 블러 배경 — 캐시해 변형 중 매 프레임 재블러 방지.
           RepaintBoundary(
-            child:
-                _ChatBlurBg(imageUrl: imageUrl, nickname: room.otherNickname),
+            child: _ChatBlurBg(
+              imageUrl: imageUrl,
+              nickname: room.otherNickname,
+            ),
           ),
           // 전경만 morph(이징된 CurvedAnimation) 진행도로 다시 그린다.
           Positioned.fill(
@@ -753,18 +770,25 @@ class _LockedBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           // 흰색 셀로판지 — 뒤로 지나가는 메시지가 비친다(입력창과 동일).
-          color: AppColors.frostFilm,
+          color: context.colors.frostFilm,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.block_outlined, size: 15, color: AppColors.textTertiary),
+            Icon(
+              Icons.block_outlined,
+              size: 15,
+              color: context.colors.textTertiary,
+            ),
             SizedBox(width: 6),
             Text(
               '상대가 채팅방을 나가 메시지를 보낼 수 없어요',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              style: TextStyle(
+                fontSize: 13,
+                color: context.colors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -794,17 +818,17 @@ class _Composer extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
         decoration: BoxDecoration(
           // 흰색 셀로판지 — 뒤로 지나가는 메시지가 비친다(상단 헤더·탭 패널과 동일).
-          color: AppColors.frostFilm,
+          color: context.colors.frostFilm,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          border: Border.all(color: context.colors.border, width: 0.5),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.add_photo_alternate_outlined,
-                color: AppColors.primaryDark,
+                color: context.colors.primaryDark,
               ),
               onPressed: sending ? null : onPickImage,
             ),
@@ -817,7 +841,7 @@ class _Composer extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: '메시지를 입력하세요',
                     filled: true,
-                    fillColor: AppColors.surfaceMuted,
+                    fillColor: context.colors.surfaceMuted,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,
@@ -828,8 +852,8 @@ class _Composer extends StatelessWidget {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(100),
-                      borderSide: const BorderSide(
-                        color: AppColors.primary,
+                      borderSide: BorderSide(
+                        color: context.colors.primary,
                         width: 1.2,
                       ),
                     ),
@@ -839,23 +863,23 @@ class _Composer extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Container(
-              decoration: const BoxDecoration(
-                color: AppColors.primaryDark,
+              decoration: BoxDecoration(
+                color: context.colors.primaryDark,
                 shape: BoxShape.circle,
               ),
               child: IconButton(
                 icon: sending
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.textOnPrimary,
+                          color: context.colors.textOnPrimary,
                         ),
                       )
-                    : const Icon(
+                    : Icon(
                         Icons.arrow_upward,
-                        color: AppColors.textOnPrimary,
+                        color: context.colors.textOnPrimary,
                       ),
                 onPressed: sending ? null : onSend,
               ),
@@ -891,9 +915,9 @@ class _MessageBubble extends StatelessWidget {
           if (mine) ...[
             Text(
               timeStr,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
-                color: AppColors.textTertiary,
+                color: context.colors.textTertiary,
               ),
             ),
             const SizedBox(width: 6),
@@ -905,16 +929,16 @@ class _MessageBubble extends StatelessWidget {
             child: GestureDetector(
               onLongPress: mine ? null : () => onReport(message),
               onTap: message.isImage ? () => _openImage(context) : null,
-              child: message.isImage ? _imageBody() : _textBody(mine),
+              child: message.isImage ? _imageBody() : _textBody(context, mine),
             ),
           ),
           if (!mine) ...[
             const SizedBox(width: 6),
             Text(
               timeStr,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
-                color: AppColors.textTertiary,
+                color: context.colors.textTertiary,
               ),
             ),
           ],
@@ -924,11 +948,11 @@ class _MessageBubble extends StatelessWidget {
   }
 
   /// 텍스트 버블.
-  Widget _textBody(bool mine) {
+  Widget _textBody(BuildContext context, bool mine) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: mine ? AppColors.primaryDark : AppColors.surface,
+        color: mine ? context.colors.primaryDark : context.colors.surface,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(18),
           topRight: const Radius.circular(18),
@@ -936,14 +960,16 @@ class _MessageBubble extends StatelessWidget {
           bottomRight: Radius.circular(mine ? 4 : 18),
         ),
         border: Border.all(
-          color: mine ? AppColors.primaryDark : AppColors.border,
+          color: mine ? context.colors.primaryDark : context.colors.border,
           width: 0.5,
         ),
       ),
       child: Text(
         message.content,
         style: TextStyle(
-          color: mine ? AppColors.textOnPrimary : AppColors.textPrimary,
+          color: mine
+              ? context.colors.textOnPrimary
+              : context.colors.textPrimary,
           fontSize: 14,
           height: 1.4,
         ),
@@ -965,7 +991,7 @@ class _MessageBubble extends StatelessWidget {
               : Container(
                   width: 200,
                   height: 200,
-                  color: AppColors.surfaceMuted,
+                  color: context.colors.surfaceMuted,
                   child: const Center(
                     child: SizedBox(
                       width: 22,
@@ -974,13 +1000,15 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-          errorBuilder: (_, _, _) => Container(
+          errorBuilder: (context, _, _) => Container(
             width: 200,
             height: 140,
-            color: AppColors.surfaceMuted,
-            child: const Center(
-              child: Icon(Icons.broken_image_outlined,
-                  color: AppColors.textTertiary),
+            color: context.colors.surfaceMuted,
+            child: Center(
+              child: Icon(
+                Icons.broken_image_outlined,
+                color: context.colors.textTertiary,
+              ),
             ),
           ),
         ),

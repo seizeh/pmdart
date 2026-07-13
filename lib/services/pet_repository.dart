@@ -70,8 +70,10 @@ class PetRepository {
     if (speciesKind != null) data['species_kind'] = speciesKind;
     if (gender != null) data['gender'] = gender;
     if (birthDate != null) {
-      data['birth_date'] =
-          birthDate.toIso8601String().split('T').first; // date only
+      data['birth_date'] = birthDate
+          .toIso8601String()
+          .split('T')
+          .first; // date only
     }
     if (bio != null && bio.isNotEmpty) data['bio'] = bio;
     if (imageUrl != null) data['image_url'] = imageUrl;
@@ -117,7 +119,8 @@ class PetRepository {
     final p = await _c
         .from('pets')
         .select(
-            'id, name, species, species_kind, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count')
+          'id, name, species, species_kind, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count',
+        )
         .eq('id', petId)
         .maybeSingle();
     if (p == null || p['pet_status'] == 'deleted') return null;
@@ -128,8 +131,10 @@ class PetRepository {
         .eq('pet_id', petId)
         .eq('user_id', uid)
         .maybeSingle();
-    final guardianRows =
-        await _c.from('pet_guardians').select('user_id').eq('pet_id', petId);
+    final guardianRows = await _c
+        .from('pet_guardians')
+        .select('user_id')
+        .eq('pet_id', petId);
     final ownerId = p['primary_guardian_id'] as String?;
     var ownerName = '';
     if (ownerId != null) {
@@ -165,7 +170,8 @@ class PetRepository {
     final p = await _c
         .from('pets')
         .select(
-            'id, name, species, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count')
+          'id, name, species, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count',
+        )
         .eq('id', petId)
         .maybeSingle();
     if (p == null || p['pet_status'] == 'deleted') return null;
@@ -280,23 +286,28 @@ class PetRepository {
     final list = (rows as List).cast<Map<String, dynamic>>();
     if (list.isEmpty) return const [];
 
-    final petIds = <String>{for (final r in list) r['pet_id'] as String}.toList();
-    final inviterIds =
-        <String>{for (final r in list) r['inviter_id'] as String}.toList();
+    final petIds = <String>{
+      for (final r in list) r['pet_id'] as String,
+    }.toList();
+    final inviterIds = <String>{
+      for (final r in list) r['inviter_id'] as String,
+    }.toList();
 
     final pets = await _c
         .from('pets')
         .select('id, name, species, image_url')
         .inFilter('id', petIds);
     final petById = {
-      for (final p in pets as List) p['id'] as String: p as Map<String, dynamic>
+      for (final p in pets as List)
+        p['id'] as String: p as Map<String, dynamic>,
     };
     final profs = await _c
         .from('public_profiles')
         .select('id, nickname')
         .inFilter('id', inviterIds);
     final nameById = {
-      for (final p in profs as List) p['id'] as String: (p['nickname'] ?? '') as String
+      for (final p in profs as List)
+        p['id'] as String: (p['nickname'] ?? '') as String,
     };
 
     return [
@@ -309,7 +320,7 @@ class PetRepository {
           petImageUrl: petById[r['pet_id']]?['image_url'] as String?,
           inviterNickname: nameById[r['inviter_id']] ?? '알 수 없음',
           createdAt: DateTime.parse(r['created_at'] as String).toLocal(),
-        )
+        ),
     ];
   }
 
@@ -318,7 +329,8 @@ class PetRepository {
   Future<void> acceptInvite(String inviteId) async {
     await _c
         .from('pet_guardian_invites')
-        .update({'status': 'accepted'}).eq('id', inviteId);
+        .update({'status': 'accepted'})
+        .eq('id', inviteId);
     AppEvents.instance.notifyProfile();
   }
 
@@ -326,7 +338,8 @@ class PetRepository {
   Future<void> declineInvite(String inviteId) async {
     await _c
         .from('pet_guardian_invites')
-        .update({'status': 'declined'}).eq('id', inviteId);
+        .update({'status': 'declined'})
+        .eq('id', inviteId);
     AppEvents.instance.notifyProfile();
   }
 

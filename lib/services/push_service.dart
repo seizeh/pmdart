@@ -30,12 +30,18 @@ class PushService {
     if (_inited) return;
     _inited = true;
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    final settings =
-        await _fm.requestPermission(alert: true, badge: true, sound: true);
+    final settings = await _fm.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
     debugPrint('push: 알림 권한 = ${settings.authorizationStatus}');
     // iOS 포그라운드에서도 배너/사운드 표시.
     await _fm.setForegroundNotificationPresentationOptions(
-        alert: true, badge: true, sound: true);
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
     _fm.onTokenRefresh.listen(_register);
     FirebaseMessaging.onMessage.listen((m) {
@@ -57,7 +63,9 @@ class PushService {
         String? apns;
         for (var i = 0; i < 10 && apns == null; i++) {
           apns = await _fm.getAPNSToken();
-          if (apns == null) await Future.delayed(const Duration(milliseconds: 500));
+          if (apns == null) {
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
         }
         debugPrint('push: APNs token ${apns == null ? '없음' : '수신됨'}');
         if (apns == null) return; // getToken 이 어차피 실패 — 다음 onTokenRefresh 에 맡김
@@ -73,11 +81,14 @@ class PushService {
   Future<void> _register(String token) async {
     if (!SessionManager.instance.isLoggedIn) return;
     try {
-      await Supabase.instance.client.rpc('register_device_token', params: {
-        'p_token': token,
-        'p_platform': Platform.isIOS ? 'ios' : 'android',
-        'p_device_name': null,
-      });
+      await Supabase.instance.client.rpc(
+        'register_device_token',
+        params: {
+          'p_token': token,
+          'p_platform': Platform.isIOS ? 'ios' : 'android',
+          'p_device_name': null,
+        },
+      );
       debugPrint('push: 서버에 디바이스 토큰 등록 완료');
     } catch (e) {
       debugPrint('push: 서버 토큰 등록 실패 — $e'); // 네트워크/권한 — 다음 기회에 재등록
@@ -94,6 +105,9 @@ class PushService {
   void _handleOpen(RemoteMessage m) {
     final d = m.data;
     onOpen?.call(
-        (d['type'] ?? '') as String, d['resource_type'] as String?, d['resource_id'] as String?);
+      (d['type'] ?? '') as String,
+      d['resource_type'] as String?,
+      d['resource_id'] as String?,
+    );
   }
 }

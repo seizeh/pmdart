@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_palette.dart';
 
 /// 관리자 화면 공용 AppBar — 딥 슬레이트 색으로 일반 화면과 구분.
-AppBar adminAppBar(String title,
-    {List<Widget>? actions, PreferredSizeWidget? bottom}) {
+AppBar adminAppBar(
+  BuildContext context,
+  String title, {
+  List<Widget>? actions,
+  PreferredSizeWidget? bottom,
+}) {
   return AppBar(
     title: Text(title),
-    backgroundColor: AppColors.adminAccent,
-    foregroundColor: AppColors.adminOnAccent,
+    backgroundColor: context.colors.adminAccent,
+    foregroundColor: context.colors.adminOnAccent,
     elevation: 0,
     actions: actions,
     bottom: bottom,
@@ -21,8 +25,12 @@ class AdminBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = light ? Colors.white.withValues(alpha: 0.18) : AppColors.adminAccentSoft;
-    final fg = light ? AppColors.adminOnAccent : AppColors.adminAccent;
+    final bg = light
+        ? Colors.white.withValues(alpha: 0.18)
+        : context.colors.adminAccentSoft;
+    final fg = light
+        ? context.colors.adminOnAccent
+        : context.colors.adminAccent;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -34,9 +42,14 @@ class AdminBadge extends StatelessWidget {
         children: [
           Icon(Icons.shield_outlined, size: 12, color: fg),
           const SizedBox(width: 4),
-          Text('관리자',
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
+          Text(
+            '관리자',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
         ],
       ),
     );

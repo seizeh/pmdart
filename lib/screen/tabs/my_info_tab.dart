@@ -304,10 +304,11 @@ class _MyInfoTabState extends State<MyInfoTab> {
       edgeOffset: topPad,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        // 헤더 아래에서 시작, 하단은 플로팅 메뉴바(62+여백) 뒤로 확장되는 만큼 여백.
+        // 헤더 아래에서 시작, 하단은 플로팅 메뉴바(62 + 아래 8) 위 16 간격까지만 —
+        // 필요 이상 위로 오버스크롤되지 않게 여백을 최소로 잡는다.
         padding: EdgeInsets.only(
           top: topPad + 14,
-          bottom: 62 + bottomInset + 32,
+          bottom: 62 + bottomInset + 8 + 16,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -330,10 +331,9 @@ class _MyInfoTabState extends State<MyInfoTab> {
             const SizedBox(height: 28),
             // 내가 작성한 게시글 — 공개 프로필과 동일한 2열 사진 그리드.
             // (내 활동·활동 범위·관심·설정은 프로필 수정 화면으로 이동)
+            // 약관·처리방침 열람은 내정보 수정 화면의 '약관 및 정책' 항목에서
+            // (게스트 화면 푸터는 유지 — 로그인 전 접근 경로).
             _myPostsSection(),
-            const SizedBox(height: 24),
-            // 약관·처리방침 상시 열람(게시 의무).
-            const _GuestFooter(),
           ],
         ),
       ),

@@ -29,6 +29,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
   );
   late DateTime? _scheduledAt = widget.post.scheduledAt;
   bool _saving = false;
+  bool _deleting = false;
 
   // 사진 편집(자유/입양만). null=사진 없음. 변경 시 _imageEdited=true.
   late String? _imageUrl = widget.post.imageUrl;
@@ -162,6 +163,50 @@ class _PostEditScreenState extends State<PostEditScreen> {
     }
   }
 
+  /// 삭제(소프트) — 확인 후 delete_my_post. 성공 시 pop(true) → 상세가 재조회로 닫힌다.
+  Future<void> _confirmDelete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('게시글 삭제'),
+        content: const Text('이 게시글을 삭제할까요? 되돌릴 수 없어요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await _repo.deletePost(widget.post.id);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('게시글을 삭제했어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('삭제에 실패했어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -169,8 +214,23 @@ class _PostEditScreenState extends State<PostEditScreen> {
       appBar: AppBar(
         title: const Text('게시글 수정'),
         actions: [
+          // 삭제 — 저장 왼쪽. 진행 중엔 서로 비활성화.
           TextButton(
-            onPressed: (_canSave && !_saving) ? _save : null,
+            onPressed: (_saving || _deleting) ? null : _confirmDelete,
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: _deleting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    '삭제',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+          ),
+          TextButton(
+            onPressed: (_canSave && !_saving && !_deleting) ? _save : null,
             child: _saving
                 ? const SizedBox(
                     width: 18,

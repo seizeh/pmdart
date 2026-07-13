@@ -6,6 +6,7 @@ import '../services/profile_repository.dart';
 import '../services/storage_service.dart';
 import '../services/session.dart';
 import '../services/auth_service.dart';
+import '../services/theme_controller.dart';
 import 'location_verify_screen.dart';
 import 'connections_screen.dart';
 import 'my_posts_screen.dart';
@@ -660,6 +661,12 @@ class _SettingsSection extends StatelessWidget {
       title: '설정',
       items: [
         _Item(
+          icon: Icons.dark_mode_outlined,
+          label: '화면 테마',
+          trailing: ThemeController.label(ThemeController.mode.value),
+          onTap: () => _showThemePicker(context),
+        ),
+        _Item(
           icon: Icons.notifications_outlined,
           label: '알림 설정',
           onTap: () => _push(context, const NotificationSettingsScreen()),
@@ -690,6 +697,61 @@ class _SettingsSection extends StatelessWidget {
           onTap: () => _confirmWithdraw(context),
         ),
       ],
+    );
+  }
+
+  /// 화면 테마 선택 — 시스템/라이트/다크. 선택 즉시 반영·저장.
+  void _showThemePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: context.colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '화면 테마',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+            for (final m in ThemeMode.values)
+              ListTile(
+                leading: Icon(switch (m) {
+                  ThemeMode.system => Icons.brightness_auto_outlined,
+                  ThemeMode.light => Icons.light_mode_outlined,
+                  ThemeMode.dark => Icons.dark_mode_outlined,
+                }, color: context.colors.textSecondary),
+                title: Text(
+                  ThemeController.label(m),
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+                trailing: ThemeController.mode.value == m
+                    ? Icon(Icons.check, color: context.colors.primary)
+                    : null,
+                onTap: () {
+                  ThemeController.set(m);
+                  Navigator.pop(sheetCtx);
+                },
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
     );
   }
 

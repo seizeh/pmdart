@@ -15,6 +15,7 @@ import 'services/session.dart';
 import 'services/push_service.dart';
 import 'services/realtime_service.dart';
 import 'services/keyboard_barrier.dart';
+import 'services/theme_controller.dart';
 import 'widgets/app_toast.dart';
 
 /// 강제 로그아웃(세션 무효화) 시 라우팅·안내를 위한 전역 키.
@@ -38,6 +39,9 @@ Future<void> main() async {
 
   // 저장된 로그인 세션 복원
   await SessionManager.instance.load();
+
+  // 저장된 테마 모드(시스템/라이트/다크) 복원.
+  await ThemeController.load();
 
   // 네이버 지도 SDK 초기화 (NCP Maps 신규 인증 - Client ID)
   await FlutterNaverMap().init(
@@ -166,75 +170,78 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      scaffoldMessengerKey: messengerKey,
-      title: 'PawMate',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system, // 시스템 설정 따름(앱 내 토글은 후속 단계)
-      // 전 화면 공통 키보드 해제:
-      //  · 스크롤: 하위 스크롤뷰의 드래그 시작을 받아 해제(알림은 계속 전파).
-      //  · 탭: 키보드가 떠 있을 때만 전체 화면에 배리어를 깔아, 화면 탭을 '키보드 닫기'
-      //    로 흡수(opaque)한다. 이 탭은 아래 위젯(게시글 등)에 전달되지 않으므로
-      //    "키보드 닫으려다 게시글이 눌리는" 문제가 없다. 키보드가 없으면 배리어도
-      //    없어 평소 탭은 정상 동작.
-      builder: (context, child) {
-        final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
-        // 상태바 아이콘 기본값을 테마 밝기에 따라 — 개별 화면의 AnnotatedRegion
-        // (사진 히어로 등)이 더 안쪽이라 필요한 곳은 여전히 덮어쓴다.
-        final overlay = Theme.of(context).brightness == Brightness.dark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark;
-        return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: overlay,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (n) {
-              // 세로 스크롤만 키보드를 닫는다 — 가로 스크롤(카테고리 칩 등 캐러셀)은
-              // 검색 도중의 필터 조작이므로 키보드·포커스를 유지해야 한다
-              // (닫으면 searchActive 가 풀려 칩이 함께 사라지는 문제).
-              if (n is ScrollStartNotification &&
-                  n.dragDetails != null &&
-                  n.metrics.axis == Axis.vertical) {
-                FocusManager.instance.primaryFocus?.unfocus();
-              }
-              return false;
-            },
-            child: ValueListenableBuilder<bool>(
-              valueListenable: keyboardBarrierEnabled,
-              builder: (_, barrierOn, _) => Stack(
-                fit: StackFit.expand,
-                children: [
-                  child ?? const SizedBox.shrink(),
-                  // 지도 등 자체 처리 화면(barrierOn=false)에서는 배리어를 끈다.
-                  // translucent — 탭은 배리어가 아레나에서 먼저 이겨 '키보드 닫기'로
-                  // 흡수하되(아래 위젯 안 눌림), 드래그는 아래로 통과해 스크롤이
-                  // 정상 동작한다(스크롤 시작 시 위 리스너가 키보드를 닫음).
-                  // opaque 였을 때 키보드가 뜬 동안 카테고리 칩 가로 스크롤 등
-                  // 모든 스크롤이 먹통이 되던 문제 수정.
-                  if (keyboardUp && barrierOn)
-                    Positioned.fill(
-                      // 예외 영역(카테고리 칩 등)은 배리어 히트 자체를 건너뛴다.
-                      child: KeyboardBarrierHitFilter(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onTap: () =>
-                              FocusManager.instance.primaryFocus?.unfocus(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.mode,
+      builder: (context, themeMode, _) => MaterialApp(
+        navigatorKey: navigatorKey,
+        scaffoldMessengerKey: messengerKey,
+        title: 'PawMate',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: themeMode, // 설정(내정보 수정 > 화면 테마)에서 변경·저장
+        // 전 화면 공통 키보드 해제:
+        //  · 스크롤: 하위 스크롤뷰의 드래그 시작을 받아 해제(알림은 계속 전파).
+        //  · 탭: 키보드가 떠 있을 때만 전체 화면에 배리어를 깔아, 화면 탭을 '키보드 닫기'
+        //    로 흡수(opaque)한다. 이 탭은 아래 위젯(게시글 등)에 전달되지 않으므로
+        //    "키보드 닫으려다 게시글이 눌리는" 문제가 없다. 키보드가 없으면 배리어도
+        //    없어 평소 탭은 정상 동작.
+        builder: (context, child) {
+          final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
+          // 상태바 아이콘 기본값을 테마 밝기에 따라 — 개별 화면의 AnnotatedRegion
+          // (사진 히어로 등)이 더 안쪽이라 필요한 곳은 여전히 덮어쓴다.
+          final overlay = Theme.of(context).brightness == Brightness.dark
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark;
+          return AnnotatedRegion<SystemUiOverlayStyle>(
+            value: overlay,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                // 세로 스크롤만 키보드를 닫는다 — 가로 스크롤(카테고리 칩 등 캐러셀)은
+                // 검색 도중의 필터 조작이므로 키보드·포커스를 유지해야 한다
+                // (닫으면 searchActive 가 풀려 칩이 함께 사라지는 문제).
+                if (n is ScrollStartNotification &&
+                    n.dragDetails != null &&
+                    n.metrics.axis == Axis.vertical) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                }
+                return false;
+              },
+              child: ValueListenableBuilder<bool>(
+                valueListenable: keyboardBarrierEnabled,
+                builder: (_, barrierOn, _) => Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    child ?? const SizedBox.shrink(),
+                    // 지도 등 자체 처리 화면(barrierOn=false)에서는 배리어를 끈다.
+                    // translucent — 탭은 배리어가 아레나에서 먼저 이겨 '키보드 닫기'로
+                    // 흡수하되(아래 위젯 안 눌림), 드래그는 아래로 통과해 스크롤이
+                    // 정상 동작한다(스크롤 시작 시 위 리스너가 키보드를 닫음).
+                    // opaque 였을 때 키보드가 뜬 동안 카테고리 칩 가로 스크롤 등
+                    // 모든 스크롤이 먹통이 되던 문제 수정.
+                    if (keyboardUp && barrierOn)
+                      Positioned.fill(
+                        // 예외 영역(카테고리 칩 등)은 배리어 히트 자체를 건너뛴다.
+                        child: KeyboardBarrierHitFilter(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: () =>
+                                FocusManager.instance.primaryFocus?.unfocus(),
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
-      home: !SessionManager.instance.isLoggedIn
-          ? const WelcomeScreen()
-          : SessionManager.instance.isAdmin
-          ? const AdminHomeScreen()
-          : const MainScreen(),
+          );
+        },
+        home: !SessionManager.instance.isLoggedIn
+            ? const WelcomeScreen()
+            : SessionManager.instance.isAdmin
+            ? const AdminHomeScreen()
+            : const MainScreen(),
+      ),
     );
   }
 }

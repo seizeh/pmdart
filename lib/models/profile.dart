@@ -22,6 +22,10 @@ class ProfileData {
   final bool isLocationVerified;
   final int? activityRadiusM; // 활동 범위(인증 동 기준 반경, 0.5~7km). 미설정이면 null.
 
+  // 업체 인증(0025) — 승인 여부는 모드와 무관한 신뢰 정보, 상호는 업체 모드일 때만 옴.
+  final bool isBusiness;
+  final String? businessName;
+
   const ProfileData({
     required this.nickname,
     required this.username,
@@ -38,6 +42,8 @@ class ProfileData {
     this.address,
     this.isLocationVerified = false,
     this.activityRadiusM,
+    this.isBusiness = false,
+    this.businessName,
   });
 
   /// 표시용 동네명(행정동) — address 의 마지막 토큰. 미인증이면 null.
@@ -74,6 +80,10 @@ class PublicProfileData {
   final String? address;
   final bool isLocationVerified;
 
+  // 업체 인증(0025) — 공개 뷰 노출(배지용).
+  final bool isBusiness;
+  final String? businessName;
+
   final int reviewCount; // 받은 평가
   final int pawingCount; // 그 사용자가 팔로우
   final int pawmateCount; // 그 사용자를 팔로우
@@ -89,6 +99,8 @@ class PublicProfileData {
     this.profileImageUrl,
     this.address,
     this.isLocationVerified = false,
+    this.isBusiness = false,
+    this.businessName,
     required this.reviewCount,
     required this.pawingCount,
     required this.pawmateCount,

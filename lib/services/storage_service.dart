@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'session.dart';
@@ -84,6 +85,64 @@ class StorageService {
     final url = _c.storage.from('media').getPublicUrl(path);
     return UploadedImage(url: url, mime: mime, size: bytes.length);
   }
+
+  // ── 업체 서류(0025 §3.3) — 비공개 business-docs 버킷. 공개 URL 없음, 경로만 저장하고
+  //    열람은 signed URL 로만(본인·관리자 RLS SELECT).
+
+  /// 사업자등록증 등 문서 선택 — 사진(jpg/png/webp)과 PDF 허용.
+  Future<PickedDoc?> pickDocument() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+      withData: true,
+    );
+    final f = result?.files.firstOrNull;
+    if (f == null || f.bytes == null) return null;
+    final ext = (f.extension ?? 'jpg').toLowerCase();
+    return PickedDoc(
+      bytes: f.bytes!,
+      ext: ext,
+      mime: ext == 'pdf' ? 'application/pdf' : 'image/${ext == 'jpg' ? 'jpeg' : ext}',
+      name: f.name,
+    );
+  }
+
+  /// 비공개 버킷 업로드 — 반환값은 URL 이 아니라 '경로'(`<uid>/<kind>/<ts>.<ext>`).
+  Future<String> uploadBusinessDoc(PickedDoc doc, {required String kind}) async {
+    final uid = SessionManager.instance.user?.id;
+    if (uid == null) throw StateError('로그인이 필요합니다');
+    final path = '$uid/$kind/${DateTime.now().millisecondsSinceEpoch}.${doc.ext}';
+    await _c.storage
+        .from('business-docs')
+        .uploadBinary(
+          path,
+          doc.bytes,
+          fileOptions: FileOptions(contentType: doc.mime, upsert: false),
+        );
+    return path;
+  }
+
+  /// 비공개 서류 열람용 signed URL (기본 60초 — 화면 미리보기 용도).
+  Future<String?> businessDocSignedUrl(String path, {int expiresIn = 60}) async {
+    try {
+      return await _c.storage.from('business-docs').createSignedUrl(path, expiresIn);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+class PickedDoc {
+  final Uint8List bytes;
+  final String ext;
+  final String mime;
+  final String name;
+  const PickedDoc({
+    required this.bytes,
+    required this.ext,
+    required this.mime,
+    required this.name,
+  });
 }
 
 class UploadedImage {

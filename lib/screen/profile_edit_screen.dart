@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../motion/motion.dart';
 import '../theme/app_palette.dart';
 import '../models/profile.dart';
+import '../services/business_repository.dart';
 import '../services/profile_repository.dart';
 import '../services/storage_service.dart';
 import '../services/session.dart';
@@ -17,6 +18,7 @@ import 'notification_settings_screen.dart';
 import 'blocked_users_screen.dart';
 import 'welcome_screen.dart';
 import 'terms_screen.dart';
+import 'business_register_screen.dart';
 
 /// 화면 이동 공용 헬퍼.
 void _push(BuildContext context, Widget screen) {
@@ -320,6 +322,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 _ActivityRangeSection(profile: widget.profile!),
                 const SizedBox(height: 12),
                 _InterestSection(profile: widget.profile!),
+                const SizedBox(height: 12),
+                const _BusinessSection(),
                 const SizedBox(height: 12),
                 _SettingsSection(profile: widget.profile!),
               ],
@@ -646,6 +650,118 @@ class _InterestSection extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// 업체 — 등록 신청·상태 확인·계정 전환 (0025 §7).
+/// 상태별 분기: 미신청→등록 버튼 / pending→심사중 / rejected→사유·재신청 / approved→정보+전환.
+class _BusinessSection extends StatefulWidget {
+  const _BusinessSection();
+
+  @override
+  State<_BusinessSection> createState() => _BusinessSectionState();
+}
+
+class _BusinessSectionState extends State<_BusinessSection> {
+  BusinessProfile? _biz;
+  String _mode = 'personal';
+  bool _loaded = false;
+  bool _switching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final biz = await BusinessRepository.instance.fetchMine();
+    final mode = await BusinessRepository.instance.fetchActiveMode();
+    if (!mounted) return;
+    setState(() {
+      _biz = biz;
+      _mode = mode;
+      _loaded = true;
+    });
+  }
+
+  Future<void> _openRegister(BuildContext context) async {
+    await Navigator.push(
+      context,
+      AppPageRoute(builder: (_) => const BusinessRegisterScreen()),
+    );
+    _load(); // 신청/재신청 결과 반영
+  }
+
+  /// 일반 ↔ 업체 모드 토글 — 서버(switch_account_mode)가 approved 게이트.
+  Future<void> _toggleMode() async {
+    if (_switching) return;
+    setState(() => _switching = true);
+    final target = _mode == 'business' ? 'personal' : 'business';
+    final result = await BusinessRepository.instance.switchMode(target);
+    if (!mounted) return;
+    setState(() {
+      _switching = false;
+      if (result != null) _mode = result;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result == null
+              ? '전환에 실패했어요. 잠시 후 다시 시도해주세요'
+              : result == 'business'
+              ? '업체 모드로 전환했어요 — 프로필에 상호가 표시돼요'
+              : '일반 모드로 전환했어요',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    final biz = _biz;
+    return _SectionCard(
+      title: '업체',
+      items: [
+        if (biz == null)
+          _Item(
+            icon: Icons.storefront_outlined,
+            label: '업체 등록',
+            trailing: '사업자 인증',
+            onTap: () => _openRegister(context),
+          )
+        else if (biz.isPending)
+          _Item(
+            icon: Icons.storefront_outlined,
+            label: '업체 등록',
+            trailing: '심사중',
+            onTap: () => _openRegister(context),
+          )
+        else if (biz.isRejected)
+          _Item(
+            icon: Icons.storefront_outlined,
+            label: '업체 등록',
+            trailing: '반려됨 · 재신청',
+            onTap: () => _openRegister(context),
+          )
+        else ...[
+          _Item(
+            icon: Icons.verified_outlined,
+            label: '업체 정보',
+            trailing: biz.businessName,
+            onTap: () => _openRegister(context),
+          ),
+          _Item(
+            icon: Icons.swap_horiz,
+            label: '계정 전환',
+            trailing: _mode == 'business' ? '업체 모드' : '일반 모드',
+            onTap: _toggleMode,
+          ),
+        ],
       ],
     );
   }

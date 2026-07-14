@@ -355,11 +355,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 헤더 바가 상태바 아래에 떠 있고 상태바 뒤로는 흰 메시지 영역이 비치므로
-    // 아이콘은 항상 어둡게(무사진 방에서 흰 아이콘이 안 보이던 문제 방지).
+    // 헤더 바가 상태바 아래에 떠 있고 상태바 뒤로는 메시지 영역 배경이 비치므로
+    // 아이콘은 배경 밝기에 맞춘다 — 라이트에선 어둡게(무사진 방에서 흰 아이콘이
+    // 안 보이던 문제 방지), 다크에선 밝게(검정 아이콘이 안 보이던 문제 방지).
     // 타일에서 펼쳐지고/아래로 당기면 타일로 축소되는 공통 래퍼(게시글 상세와 동일 언어).
+    final overlay = Theme.of(context).brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: overlay,
       child: CollapsibleView(
         originRect: widget.originRect,
         cardRadius: 16, // 채팅 목록 타일과 동일 곡률 — 안착 시 곡률 튐 방지.

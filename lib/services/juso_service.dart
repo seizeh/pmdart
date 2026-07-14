@@ -16,7 +16,7 @@ class JusoService {
   /// --dart-define=JUSO_API_KEY=... 로 덮어쓸 수 있다.
   static const _key = String.fromEnvironment(
     'JUSO_API_KEY',
-    defaultValue: 'U01TX0FVVEgyMDI2MDcxNDE1NDc0NTExOTcyMjU=',
+    defaultValue: 'U01TX0FVVEgyMDI2MDcxNDE2MDExMTExOTcyMzE=',
   );
 
   bool get enabled => _key.isNotEmpty;

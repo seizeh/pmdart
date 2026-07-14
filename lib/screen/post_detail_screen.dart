@@ -346,11 +346,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final hasImage = _post.imageUrl != null;
 
     // 카드에서 펼쳐지고/아래로 당기면 카드로 축소되는 공통 래퍼. physics 를 리스트에 전달.
-    // AnnotatedRegion — 사진 유무와 무관하게 전역 기본과 같은 어두운 상태바
-    // 아이콘 유지(사진 글에서 시간·배터리가 흰색으로 바뀌던 문제 해결).
+    // AnnotatedRegion — 사진 유무와 무관하게 전역 기본과 같은 테마 밝기 기준
+    // 상태바 아이콘 유지(사진 글에서 시간·배터리가 흰색으로 바뀌던 문제 해결).
     // 어두운 사진 위 가독성은 히어로 상단의 밝은 스크림이 담당한다.
+    final overlay = Theme.of(context).brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: overlay,
       child: CollapsibleView(
         originRect: widget.originRect,
         card: widget.cardBuilder,

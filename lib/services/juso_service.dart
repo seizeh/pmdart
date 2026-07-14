@@ -12,8 +12,12 @@ class JusoService {
   JusoService._();
   static final JusoService instance = JusoService._();
 
-  /// 발급받은 confmKey. --dart-define=JUSO_API_KEY=... 로 주입(기본 빈값 = 비활성).
-  static const _key = String.fromEnvironment('JUSO_API_KEY');
+  /// 발급받은 confmKey — 클라이언트 키(네이버 지도 clientId 와 같은 취급).
+  /// --dart-define=JUSO_API_KEY=... 로 덮어쓸 수 있다.
+  static const _key = String.fromEnvironment(
+    'JUSO_API_KEY',
+    defaultValue: 'U01TX0FVVEgyMDI2MDcxNDE1NDc0NTExOTcyMjU=',
+  );
 
   bool get enabled => _key.isNotEmpty;
 

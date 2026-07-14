@@ -693,7 +693,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          _userTypeLabel(p.userType),
+          // 인증 업체 배지(0025 §2.3) — 업체 모드면 상호까지 노출(public_profiles 가 제어)
+          p.isBusiness
+              ? (p.businessName != null
+                    ? '${p.businessName} · 인증 업체'
+                    : '인증 업체 · ${_userTypeLabel(p.userType)}')
+              : _userTypeLabel(p.userType),
           style: const TextStyle(fontSize: 12, color: Color(0xE6FFFFFF)),
         ),
         if (region != null) ...[

@@ -956,7 +956,10 @@ class _ProfileHeroCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          _userTypeLabel(profile.userType),
+          // 인증 업체는 user_type(펫 보유 축)과 별개의 배지로 표시 (0025 §2.3)
+          profile.isBusiness
+              ? '인증 업체 · ${_userTypeLabel(profile.userType)}'
+              : _userTypeLabel(profile.userType),
           style: const TextStyle(fontSize: 12, color: Color(0xE6FFFFFF)),
         ),
         if (region != null) ...[
@@ -998,6 +1001,7 @@ class _ProfileHeroCard extends StatelessWidget {
     ],
   );
 
+  // 'business' 는 백필 전 레거시 계정 표시용으로만 남김 — 신규는 is_business 배지 (0025 §1.1)
   String _userTypeLabel(String t) => switch (t) {
     'pet_owner' => '반려동물 보호자',
     'no_pet' => '반려동물 미보유',

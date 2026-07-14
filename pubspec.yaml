@@ -45,6 +45,8 @@ dependencies:
   flutter_naver_map: ^1.4.4
   geolocator: ^13.0.0 # 동네 인증용 고정확도 좌표 + accuracy/isMocked (0017)
   url_launcher: ^6.3.0 # 시설 → 네이버 지도 링크 아웃(영업시간 등) (0021)
+  http: ^1.2.0 # 주소검색(행안부 juso) REST 호출 (0025)
+  file_picker: ^8.1.2 # 사업자등록증 PDF 업로드 (0025 §7.1)
 
 dev_dependencies:
   flutter_test:

@@ -20,7 +20,7 @@ class ProfileRepository {
     final profile = await _c
         .from('public_profiles')
         .select(
-          'nickname, user_type, profile_image_url, address, is_location_verified, activity_radius_m',
+          'nickname, user_type, profile_image_url, address, is_location_verified, activity_radius_m, is_business, business_name',
         )
         .eq('id', uid)
         .maybeSingle();
@@ -54,6 +54,8 @@ class ProfileRepository {
       address: profile?['address'] as String?,
       isLocationVerified: profile?['is_location_verified'] == true,
       activityRadiusM: (profile?['activity_radius_m'] as num?)?.toInt(),
+      isBusiness: profile?['is_business'] == true,
+      businessName: profile?['business_name'] as String?,
     );
   }
 
@@ -120,7 +122,7 @@ class ProfileRepository {
     final profile = await _c
         .from('public_profiles')
         .select(
-          'nickname, user_type, profile_image_url, address, is_location_verified',
+          'nickname, user_type, profile_image_url, address, is_location_verified, is_business, business_name',
         )
         .eq('id', userId)
         .maybeSingle();
@@ -144,6 +146,8 @@ class ProfileRepository {
       profileImageUrl: profile['profile_image_url'] as String?,
       address: profile['address'] as String?,
       isLocationVerified: profile['is_location_verified'] == true,
+      isBusiness: profile['is_business'] == true,
+      businessName: profile['business_name'] as String?,
       reviewCount: counts[0],
       pawingCount: counts[1],
       pawmateCount: counts[2],

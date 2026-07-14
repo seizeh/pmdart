@@ -6,16 +6,22 @@ import '../../services/phone_auth_service.dart';
 import '../../services/auth_service.dart';
 import '../main_screen.dart';
 import '../pet_edit_screen.dart';
+import '../business_register_screen.dart';
 import '../terms_screen.dart';
 import 'login_screen.dart';
 import '../../main.dart' show navigatorKey;
 
-/// 회원가입 — 전화 OTP 기반 다단계 흐름.
+/// 회원가입 — 전화 OTP 기반 다단계 흐름 (0025 §1.3).
 /// 1) 약관 동의 (필수 전부 동의해야 다음 진행 가능)
-/// 2) 전화번호 입력 → SMS 코드 발송 (phone_verifications.purpose='signup')
-/// 3) 6자리 코드 검증
-/// 4) 아이디·비밀번호·닉네임
-/// 5) 사용자 유형 + 펫 등록 (선택, pet_owner 인 경우)
+/// 2) 유형 선택 — 일반 사용자 / 업체 등록 (펫 보유 여부는 묻지 않음)
+/// 3) 전화번호 입력 → SMS 코드 발송 (phone_verifications.purpose='signup')
+/// 4) 6자리 코드 검증
+/// 5) 아이디·비밀번호·닉네임
+/// 6) (일반만) 펫 등록 — 선택
+///
+/// user_type 은 항상 'no_pet' 으로 전송 — 펫 보유는 펫 등록 시 DB 트리거가
+/// pet_owner 로 자동 승격하고, 업체 여부는 business_profiles(가입 후 업체등록
+/// 화면)로 분리되어 있다. 유형 선택은 가입 후 라우팅에만 쓰는 로컬 플래그.
 class SignupPhoneScreen extends StatefulWidget {
   const SignupPhoneScreen({super.key});
 
@@ -24,15 +30,19 @@ class SignupPhoneScreen extends StatefulWidget {
 }
 
 class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
-  int _step = 0; // 0: 동의 → 1: 전화 → 2: 코드 → 3: 정보 → 4: 유형/펫
+  int _step = 0; // 0: 동의 → 1: 유형 → 2: 전화 → 3: 코드 → 4: 정보 → 5: 펫(일반만)
   final _phoneCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
   final _idCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
   final _pw2Ctrl = TextEditingController(); // 비밀번호 재확인
   final _nickCtrl = TextEditingController();
-  String _userType = 'pet_owner';
+  bool _isBusiness = false; // 라우팅 전용 — 서버에는 항상 no_pet 전송
   final List<TextEditingController> _coGuardianCtrls = [];
+
+  // 업체 흐름은 펫 단계가 없어 총 단계 수가 다르다 (일반 6 / 업체 5).
+  int get _totalSteps => _isBusiness ? 5 : 6;
+  bool get _isLastStep => _step == (_isBusiness ? 4 : 5);
 
   // 반려동물 정보(보호자 선택 시, 선택 입력) — 가입 직후 등록 화면으로 이어진다.
   // 정식 등록은 AI 신원 인증이 필수라 여기서 pets 를 직접 만들지 않는다.
@@ -97,7 +107,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             }
           },
         ),
-        title: Text('회원가입  ${_step + 1} / 5'),
+        title: Text('회원가입  ${_step + 1} / $_totalSteps'),
       ),
       body: SafeArea(
         child: Padding(
@@ -105,7 +115,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _ProgressBar(step: _step, total: 5),
+              _ProgressBar(step: _step, total: _totalSteps),
               const SizedBox(height: 32),
               Expanded(child: _stepContent()),
               ElevatedButton(
@@ -121,12 +131,15 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                           color: context.colors.textOnPrimary,
                         ),
                       )
-                    : Text(switch (_step) {
-                        0 => '동의하고 계속하기',
-                        1 => '인증번호 받기',
-                        4 => '가입 완료',
-                        _ => '다음',
-                      }),
+                    : Text(
+                        _isLastStep
+                            ? '가입 완료'
+                            : switch (_step) {
+                                0 => '동의하고 계속하기',
+                                2 => '인증번호 받기',
+                                _ => '다음',
+                              },
+                      ),
               ),
             ],
           ),
@@ -140,15 +153,60 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       case 0:
         return _consentStep();
       case 1:
-        return _phoneStep();
+        return _typeStep();
       case 2:
-        return _codeStep();
+        return _phoneStep();
       case 3:
-        return _profileStep();
+        return _codeStep();
       case 4:
+        return _profileStep();
+      case 5:
         return _petStep();
     }
     return const SizedBox.shrink();
+  }
+
+  // ── 1단계: 유형 선택 — 일반/업체 2択 (0025 §1.3).
+  //    펫 보유는 묻지 않는다(등록 시 자동 승격). 업체는 가입 완료 후 업체등록 화면으로.
+
+  Widget _typeStep() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '어떤 회원으로\n시작할까요?',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textPrimary,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _UserTypeOption(
+            value: 'general',
+            group: _isBusiness ? 'business' : 'general',
+            title: '일반 사용자',
+            subtitle: '반려동물이 있어도, 아직 없어도 좋아요',
+            onChanged: (_) => setState(() => _isBusiness = false),
+          ),
+          const SizedBox(height: 10),
+          _UserTypeOption(
+            value: 'business',
+            group: _isBusiness ? 'business' : 'general',
+            title: '업체 등록',
+            subtitle: '분양·위탁·동물병원·미용 등 운영자 — 가입 후 사업자 인증이 이어져요',
+            onChanged: (_) => setState(() => _isBusiness = true),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '일반 사용자도 나중에 내정보 수정에서 업체 등록을 할 수 있어요.',
+            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── 0단계: 약관 동의 — 필수 전부 동의해야 전화번호 인증으로 진행 ──
@@ -538,13 +596,16 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     );
   }
 
+  // ── 마지막 단계(일반만): 펫 등록 — 선택. 입력하면 가입 직후 등록 화면으로 이어진다.
+  //    보유 여부는 서버에 따로 보내지 않는다 — 펫 정식 등록 시 트리거가 pet_owner 승격.
+
   Widget _petStep() {
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '사용자 유형을\n선택해주세요',
+            '반려동물이 있다면\n알려주세요',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
@@ -552,49 +613,13 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
               height: 1.3,
             ),
           ),
-          const SizedBox(height: 24),
-          _UserTypeOption(
-            value: 'pet_owner',
-            group: _userType,
-            title: '반려동물 보호자',
-            subtitle: '동반산책·돌봄·분양까지 모든 카테고리 작성 가능',
-            onChanged: (v) => setState(() => _userType = v),
+          const SizedBox(height: 8),
+          Text(
+            '지금 입력하면 가입 후 바로 등록이 이어져요 (선택 · 건너뛰어도 나중에 내정보에서 등록 가능)',
+            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
           ),
-          const SizedBox(height: 10),
-          _UserTypeOption(
-            value: 'no_pet',
-            group: _userType,
-            title: '반려동물 미보유',
-            subtitle: '자유·입양 글 작성 가능, 다른 활동은 지원/관전 위주',
-            onChanged: (v) => setState(() => _userType = v),
-          ),
-          const SizedBox(height: 10),
-          _UserTypeOption(
-            value: 'business',
-            group: _userType,
-            title: '업체 / 사업자',
-            subtitle: '미용실·병원·카페 등 운영자',
-            onChanged: (v) => setState(() => _userType = v),
-          ),
-          if (_userType == 'pet_owner') ...[
-            const SizedBox(height: 28),
-            Text(
-              '반려동물 정보를 입력해주세요',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: context.colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '지금 입력하면 가입 후 바로 등록이 이어져요 (선택 · 나중에 내정보에서도 등록 가능)',
-              style: TextStyle(
-                fontSize: 12,
-                color: context.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 12),
+          ...[
+            const SizedBox(height: 20),
             TextField(
               controller: _petNameCtrl,
               decoration: const InputDecoration(labelText: '이름'),
@@ -726,17 +751,24 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   Future<void> _next() async {
     switch (_step) {
       case 0:
-        // 필수 동의 완료 → 전화번호 인증으로 (버튼 자체가 미동의 시 비활성).
+        // 필수 동의 완료 → 유형 선택으로 (버튼 자체가 미동의 시 비활성).
         if (!_allRequiredAgreed) return;
         setState(() => _step = 1);
       case 1:
-        await _sendCode();
+        setState(() => _step = 2);
       case 2:
-        await _verifyCode();
+        await _sendCode();
       case 3:
-        if (!_validateProfile()) return;
-        setState(() => _step = 4);
+        await _verifyCode();
       case 4:
+        if (!_validateProfile()) return;
+        // 업체 흐름은 펫 단계 없이 바로 가입 완료(업체등록 화면이 뒤따른다).
+        if (_isBusiness) {
+          await _completeSignup();
+        } else {
+          setState(() => _step = 5);
+        }
+      case 5:
         await _completeSignup();
     }
   }
@@ -748,7 +780,8 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       username: _idCtrl.text.trim(),
       password: _pwCtrl.text,
       nickname: _nickCtrl.text.trim(),
-      userType: _userType,
+      // 항상 no_pet — 펫 보유는 등록 트리거 승격, 업체는 business_profiles (0025 §1.3)
+      userType: 'no_pet',
       phone: _phoneCtrl.text.trim(),
       marketingOptIn: _agreeMarketing,
     );
@@ -773,7 +806,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             .toSet()
             .toList();
         final petDraft =
-            (_userType == 'pet_owner' && _petNameCtrl.text.trim().isNotEmpty)
+            (!_isBusiness && _petNameCtrl.text.trim().isNotEmpty)
             ? PetDraft(
                 name: _petNameCtrl.text.trim(),
                 speciesKind: _petKind,
@@ -788,7 +821,13 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           AppPageRoute(builder: (_) => const MainScreen()),
           (route) => false,
         );
-        if (petDraft != null) {
+        if (_isBusiness) {
+          // 업체 흐름: 등록증 업로드가 로그인 상태를 요구해 가입 완료 후에만 가능(0025 §1.2).
+          // 이탈해도 내정보 수정의 업체등록 버튼으로 이어서 신청할 수 있다.
+          navigatorKey.currentState?.push(
+            AppPageRoute(builder: (_) => const BusinessRegisterScreen()),
+          );
+        } else if (petDraft != null) {
           navigatorKey.currentState?.push(
             AppPageRoute(builder: (_) => PetEditScreen(draft: petDraft)),
           );
@@ -811,12 +850,12 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           result.errorCode == 'invalid_username' ||
           result.errorCode == 'invalid_password' ||
           result.errorCode == 'invalid_nickname') {
-        setState(() => _step = 3);
+        setState(() => _step = 4);
       }
     }
   }
 
-  /// 전화 단계(1) → 인증코드 발송 후 코드 입력 단계(2)로.
+  /// 전화 단계(2) → 인증코드 발송 후 코드 입력 단계(3)로.
   Future<void> _sendCode() async {
     final phone = _phoneCtrl.text.trim();
     if (!_phoneRe.hasMatch(phone)) {
@@ -830,11 +869,11 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     _toast(result.message);
     if (result.ok) {
       _codeCtrl.clear();
-      setState(() => _step = 2);
+      setState(() => _step = 3);
     }
   }
 
-  /// 코드 단계(2) → 인증코드 검증 후 정보 입력 단계(3)로.
+  /// 코드 단계(3) → 인증코드 검증 후 정보 입력 단계(4)로.
   Future<void> _verifyCode() async {
     final code = _codeCtrl.text.trim();
     if (code.length != 6) {
@@ -850,7 +889,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     setState(() => _loading = false);
     if (result.verified) {
       _toast('전화번호 인증이 완료되었어요');
-      setState(() => _step = 3);
+      setState(() => _step = 4);
     } else {
       _toast(result.message);
     }

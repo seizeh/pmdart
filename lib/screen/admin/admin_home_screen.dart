@@ -7,6 +7,7 @@ import '../../services/session.dart';
 import '../welcome_screen.dart';
 import '../change_password_screen.dart';
 import 'admin_theme.dart';
+import 'admin_business_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_posts_screen.dart';
@@ -141,6 +142,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 label: '신고 처리',
                 badge: _stats?.reportsOpen ?? 0,
                 onTap: () => _open(const AdminReportsScreen()),
+              ),
+              _MenuTile(
+                icon: Icons.storefront_outlined,
+                label: '업체 인증 심사',
+                onTap: () => _open(const AdminBusinessScreen()),
               ),
               _MenuTile(
                 icon: Icons.support_agent_outlined,

@@ -392,6 +392,91 @@ class PhotoVerifyFailure {
   );
 }
 
+/// 관리자가 보는 업체 인증 신청 1건 (0025 §6).
+class AdminBusinessApplication {
+  final String userId;
+  final String nickname;
+  final String businessRegNo;
+  final String declaredCategory;
+  final String businessName;
+  final String? storefrontName;
+  final String? prevBusinessName;
+  final String businessAddress;
+  final String? businessAddressJibun;
+  final String? businessPhone;
+  final String? representativeName;
+  final String contactEmail;
+  final String licenseImagePath;
+  final String? extraDocPath;
+  final String? matchedFacilityName;
+  final int? matchScore;
+  final Map<String, dynamic> matchDetail;
+  final String reviewTrack; // auto / review / new_business
+  final bool autoApproved;
+  final String status; // pending / approved / rejected
+  final String? rejectedReason;
+  final String? reviewNote;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const AdminBusinessApplication({
+    required this.userId,
+    required this.nickname,
+    required this.businessRegNo,
+    required this.declaredCategory,
+    required this.businessName,
+    required this.storefrontName,
+    required this.prevBusinessName,
+    required this.businessAddress,
+    required this.businessAddressJibun,
+    required this.businessPhone,
+    required this.representativeName,
+    required this.contactEmail,
+    required this.licenseImagePath,
+    required this.extraDocPath,
+    required this.matchedFacilityName,
+    required this.matchScore,
+    required this.matchDetail,
+    required this.reviewTrack,
+    required this.autoApproved,
+    required this.status,
+    required this.rejectedReason,
+    required this.reviewNote,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  /// 자동승인 트랙이 아니면 승인이 override(사유 필수)로 처리된다 (0025 §6-2).
+  bool get approveNeedsReason => reviewTrack != 'auto';
+
+  factory AdminBusinessApplication.fromJson(Map j) => AdminBusinessApplication(
+    userId: j['user_id'] as String,
+    nickname: (j['nickname'] ?? '') as String,
+    businessRegNo: (j['business_reg_no'] ?? '') as String,
+    declaredCategory: (j['declared_category'] ?? '') as String,
+    businessName: (j['business_name'] ?? '') as String,
+    storefrontName: j['storefront_name'] as String?,
+    prevBusinessName: j['prev_business_name'] as String?,
+    businessAddress: (j['business_address'] ?? '') as String,
+    businessAddressJibun: j['business_address_jibun'] as String?,
+    businessPhone: j['business_phone'] as String?,
+    representativeName: j['representative_name'] as String?,
+    contactEmail: (j['contact_email'] ?? '') as String,
+    licenseImagePath: (j['license_image_path'] ?? '') as String,
+    extraDocPath: j['extra_doc_path'] as String?,
+    matchedFacilityName: j['matched_facility_name'] as String?,
+    matchScore: (j['match_score'] as num?)?.toInt(),
+    matchDetail: (j['match_detail'] as Map?)?.cast<String, dynamic>() ?? const {},
+    reviewTrack: (j['review_track'] ?? 'review') as String,
+    autoApproved: j['auto_approved'] == true,
+    status: (j['status'] ?? 'pending') as String,
+    rejectedReason: j['rejected_reason'] as String?,
+    reviewNote: j['review_note'] as String?,
+    createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+    updatedAt: DateTime.parse(j['updated_at'] as String).toLocal(),
+  );
+}
+
 /// 관리자 전용 데이터 접근. 모든 호출은 DB 에서 app.is_admin() 으로 검증된다.
 class AdminRepository {
   AdminRepository._();
@@ -425,6 +510,40 @@ class AdminRepository {
     await _c.rpc(
       'admin_set_user_status',
       params: {'p_user': userId, 'p_status': status},
+    );
+  }
+
+  /// 업체 인증 신청 목록 (0025 §6). [status]=null 이면 전체.
+  Future<List<AdminBusinessApplication>> listBusinessApplications({
+    String? status = 'pending',
+    String? track,
+    bool autoOnly = false,
+  }) async {
+    final res = await _c.rpc(
+      'admin_list_business_applications',
+      params: {
+        'p_status': status,
+        'p_track': track,
+        'p_auto_only': autoOnly,
+        'p_limit': 100,
+        'p_offset': 0,
+      },
+    );
+    return (res as List)
+        .map((r) => AdminBusinessApplication.fromJson(r as Map))
+        .toList();
+  }
+
+  /// 업체 인증 승인/반려. 반려는 사유 필수, 자동승인 조건 미달(review/new_business
+  /// 트랙) 승인은 override 사유 필수 — 서버가 검증한다.
+  Future<void> setBusinessStatus(
+    String userId,
+    String status, {
+    String? reason,
+  }) async {
+    await _c.rpc(
+      'admin_set_business_status',
+      params: {'p_user': userId, 'p_status': status, 'p_reason': reason},
     );
   }
 

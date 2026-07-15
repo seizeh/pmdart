@@ -243,7 +243,8 @@ class PetRepository {
 
   /// 공동보호자 초대 (전화번호). owner 만 — Edge Function 이 검증한다.
   /// 가입자면 인앱 알림, 미가입 번호면 서버가 초대 안내 SMS 를 보낸다.
-  /// 반환: 이미 가입된 번호였는지. 중복 초대는 [StateError]('already_invited').
+  /// 반환: 이미 가입된 번호였는지.
+  /// 중복 초대는 [StateError]('already_invited'), 본인 번호는 [StateError]('self_invite').
   Future<bool> invite(String petId, String phone) async {
     try {
       final res = await _c.functions.invoke(
@@ -255,6 +256,7 @@ class PetRepository {
     } on FunctionException catch (e) {
       final err = (e.details is Map) ? (e.details as Map)['error'] : null;
       if (err == 'already_invited') throw StateError('already_invited');
+      if (err == 'self_invite') throw StateError('self_invite');
       rethrow;
     }
   }

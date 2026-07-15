@@ -56,12 +56,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController _nickCtrl = TextEditingController(
     text: widget.initialNickname,
   );
-  // 업체 모드에서는 이 화면의 사진이 '대표 사진'(업체 얼굴, 지도 동기화)이다 —
-  // 개인 사진과 분리(0026). 미리보기도 대표 사진으로 시작한다.
-  bool get _isBizMode => widget.profile?.activeMode == 'business';
-  late String? _imageUrl = _isBizMode
-      ? widget.profile?.businessPhotoUrl
-      : null;
+  // 현재 모드 — 화면 안에서 계정 전환하면 즉시 반영되도록 로컬 상태로 든다
+  // (widget.profile 은 진입 시점 스냅샷이라 전환 후 낡은 값이 되는 문제 방지).
+  // 업체 모드면 이 화면 전체가 '업체 관리'로 바뀐다 — 개인 프로필 편집과 업체
+  // 관리가 같은 폼을 공유하지 않는다(0026, 사진 결합 혼란의 근원 제거).
+  late String _mode = widget.profile?.activeMode ?? 'personal';
+  bool get _isBizMode => _mode == 'business';
+
+  String? _imageUrl;
   bool _uploading = false;
   bool _saving = false;
 
@@ -85,26 +87,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (file == null) return;
     setState(() => _uploading = true);
     try {
-      // 업체 모드: 대표 사진 교체 — 즉시 저장(setPhoto)되어 업체 프로필·지도에 반영.
-      // 세로 초점은 기존 값 유지(재조절은 업체 화면의 '위치 조절').
-      if (_isBizMode) {
-        final up = await StorageService.instance.upload(
-          file,
-          category: 'business',
-        );
-        final mine = await BusinessRepository.instance.fetchMine();
-        final ok = await BusinessRepository.instance.setPhoto(
-          url: up.url,
-          alignY: mine?.photoAlignY ?? 0,
-        );
-        if (!mounted) return;
-        setState(() {
-          if (ok) _imageUrl = up.url;
-          _uploading = false;
-        });
-        _toast(ok ? '대표 사진을 변경했어요 — 업체 프로필·지도에 반영돼요' : '변경에 실패했어요');
-        return;
-      }
       final up = await StorageService.instance.upload(
         file,
         category: 'profile',
@@ -126,8 +108,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     try {
       await ProfileRepository.instance.updateProfile(
         nickname: _nickCtrl.text.trim(),
-        // 업체 모드의 사진은 대표 사진(별도 저장) — 개인 사진을 덮지 않는다.
-        profileImageUrl: _isBizMode ? null : _imageUrl,
+        profileImageUrl: _imageUrl,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -137,6 +118,55 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       setState(() => _saving = false);
       _toast('저장에 실패했어요');
     }
+  }
+
+  /// 업체 모드 본문 — 개인 프로필 폼 없이 업체 관리(정보·대표 사진)와 전환·설정만.
+  /// "같은 수정 화면을 두 얼굴이 공유"하던 혼란(개인 사진을 바꾸면 업체도 바뀌어
+  /// 보이는 문제)의 구조적 해소: 업체 것은 여기서만, 개인 것은 일반 모드에서만.
+  Widget _businessBody() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: context.colors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: context.colors.border, width: 0.5),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.storefront,
+                  size: 20,
+                  color: context.colors.primaryDark,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '업체 모드로 활동 중이에요.\n개인 프로필(닉네임·사진·활동 지역)은 일반 모드에서 수정할 수 있어요.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.5,
+                      color: context.colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _BusinessSection(
+          isBizMode: true,
+          onModeChanged: (m) => setState(() => _mode = m),
+        ),
+        const SizedBox(height: 12),
+        if (widget.profile != null) _SettingsSection(profile: widget.profile!),
+      ],
+    );
   }
 
   /// 활동 지역은 자유 입력이 아니라 GPS 인증으로만 바뀐다(보안: 게시글 지역 게이팅).
@@ -176,21 +206,26 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     return Scaffold(
       backgroundColor: context.colors.background,
       appBar: AppBar(
-        title: const Text('내정보 수정'),
+        // 업체 모드는 화면 전체가 '업체 관리' — 개인 프로필 폼(저장 버튼 포함) 없음.
+        title: Text(_isBizMode ? '업체 관리' : '내정보 수정'),
         actions: [
-          TextButton(
-            onPressed: _canSave ? _save : null,
-            child: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text(
-                    '저장',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-          ),
+          if (!_isBizMode)
+            TextButton(
+              onPressed: _canSave ? _save : null,
+              child: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      '저장',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
         ],
       ),
       body: SafeArea(
@@ -198,7 +233,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           // 섹션 카드(내 활동 등)는 자체 좌우 20 패딩을 가지므로 스크롤뷰는
           // 상하 패딩만 주고, 편집 폼 부분만 좌우 24 를 따로 감싼다.
           padding: const EdgeInsets.symmetric(vertical: 24),
-          child: Column(
+          child: _isBizMode
+              ? _businessBody()
+              : Column(
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -239,7 +276,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     TextButton.icon(
                       onPressed: _uploading ? null : _pickImage,
                       icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                      label: Text(_isBizMode ? '대표 사진 변경' : '사진 변경'),
+                      label: const Text('사진 변경'),
                     ),
                     const SizedBox(height: 16),
                     Align(
@@ -259,23 +296,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       onChanged: (_) => setState(() {}),
                       decoration: const InputDecoration(hintText: '닉네임'),
                     ),
-                    // 업체 모드: 지역인증은 개인 활동용(사업장 주소는 인증에서 이미
-                    // 확보) — 개인 전용 요소를 숨겨 분리된 계정임을 유지(0025).
-                    if (widget.profile?.activeMode == 'business') ...[
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '업체 모드에서 바꾸는 사진은 대표 사진으로, 업체 프로필과 지도에 반영돼요. 닉네임은 일반(개인) 프로필에 사용돼요.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.5,
-                            color: context.colors.textTertiary,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (widget.profile?.activeMode != 'business') ...[
                     const SizedBox(height: 24),
                     Align(
                       alignment: Alignment.centerLeft,
@@ -351,26 +371,27 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         ),
                       ),
                     ),
-                    ],
                   ],
                 ),
               ),
               // 내 활동/활동 범위/관심/설정 — 내정보 탭에서 이동해온 섹션들.
               if (widget.profile != null) ...[
                 const SizedBox(height: 28),
-                // 내 활동·활동 범위·관심은 개인 활동 — 업체 모드에선 숨긴다(0025 분리).
-                if (widget.profile!.activeMode != 'business') ...[
-                  _ActivitySection(
-                    profile: widget.profile!,
-                    pendingInvites: widget.pendingInvites,
-                  ),
-                  const SizedBox(height: 12),
-                  _ActivityRangeSection(profile: widget.profile!),
-                  const SizedBox(height: 12),
-                  _InterestSection(profile: widget.profile!),
-                  const SizedBox(height: 12),
-                ],
-                const _BusinessSection(),
+                _ActivitySection(
+                  profile: widget.profile!,
+                  pendingInvites: widget.pendingInvites,
+                ),
+                const SizedBox(height: 12),
+                _ActivityRangeSection(profile: widget.profile!),
+                const SizedBox(height: 12),
+                _InterestSection(profile: widget.profile!),
+                const SizedBox(height: 12),
+                // 개인 화면의 업체 섹션은 등록/전환만 — 업체 정보·사진 관리는
+                // 업체 모드(업체 관리 화면) 전용(0026, 사진 결합 혼란 제거).
+                _BusinessSection(
+                  isBizMode: false,
+                  onModeChanged: (m) => setState(() => _mode = m),
+                ),
                 const SizedBox(height: 12),
                 _SettingsSection(profile: widget.profile!),
               ],
@@ -702,10 +723,16 @@ class _InterestSection extends StatelessWidget {
   }
 }
 
-/// 업체 — 등록 신청·상태 확인·계정 전환 (0025 §7).
-/// 상태별 분기: 미신청→등록 버튼 / pending→심사중 / rejected→사유·재신청 / approved→정보+전환.
+/// 업체 — 등록 신청·상태 확인·계정 전환 (0025 §7 · 0026 개편).
+/// 개인 화면(isBizMode=false): 등록/심사 상태 + 계정 전환만 — 업체 정보·사진은 없음.
+/// 업체 관리(isBizMode=true): 업체 정보·대표 사진(→ 업체 화면) + 일반 모드 전환.
 class _BusinessSection extends StatefulWidget {
-  const _BusinessSection();
+  final bool isBizMode;
+
+  /// 계정 전환 성공 시 새 모드를 부모에 알린다 — 수정 화면이 즉시 얼굴을 바꾼다.
+  final ValueChanged<String>? onModeChanged;
+
+  const _BusinessSection({required this.isBizMode, this.onModeChanged});
 
   @override
   State<_BusinessSection> createState() => _BusinessSectionState();
@@ -753,6 +780,7 @@ class _BusinessSectionState extends State<_BusinessSection> {
       _switching = false;
       if (result != null) _mode = result;
     });
+    if (result != null) widget.onModeChanged?.call(result);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -772,7 +800,7 @@ class _BusinessSectionState extends State<_BusinessSection> {
     if (!_loaded) return const SizedBox.shrink();
     final biz = _biz;
     return _SectionCard(
-      title: '업체',
+      title: widget.isBizMode ? '업체 관리' : '업체',
       items: [
         if (biz == null)
           _Item(
@@ -796,16 +824,19 @@ class _BusinessSectionState extends State<_BusinessSection> {
             onTap: () => _openRegister(context),
           )
         else ...[
-          _Item(
-            icon: Icons.verified_outlined,
-            label: '업체 정보',
-            trailing: biz.businessName,
-            onTap: () => _openRegister(context),
-          ),
+          // 업체 정보·대표 사진 관리는 업체 모드에서만 — 개인 화면에는 전환만
+          // 남겨 두 얼굴의 수정 경로를 섞지 않는다(0026).
+          if (widget.isBizMode)
+            _Item(
+              icon: Icons.verified_outlined,
+              label: '업체 정보 · 대표 사진',
+              trailing: biz.businessName,
+              onTap: () => _openRegister(context),
+            ),
           _Item(
             icon: Icons.swap_horiz,
             label: '계정 전환',
-            trailing: _mode == 'business' ? '업체 모드' : '일반 모드',
+            trailing: _mode == 'business' ? '일반 모드로' : '업체 모드로',
             onTap: _toggleMode,
           ),
         ],

@@ -36,6 +36,17 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
   List<FacilityReview>? _reviews;
   List<String>? _categories; // 같은 업체의 겹치는 카테고리 전부(로드되면 헤더에 모두 표기)
 
+  // 대표 사진 히어로의 제자리 수축(타사용자 프로필 헤더와 동일 문법)용 스크롤.
+  final _scroll = ScrollController();
+  static const double _kHeroMax = 240;
+  static const double _kHeroMin = 64;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -132,14 +143,35 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     final reviews = _reviews;
     // 폭은 MapBottomSheet 가 Align>SizedBox 로 고정해 준다. 여기선 본문 ListView 만.
     // 무한 너비에서 죽는 위젯 금지(Container 탭/Text 만).
+    // 인증 업주가 대표 사진을 설정한 시설: 커뮤니티 게시글처럼 큰 사진 히어로.
+    // 스크롤하면 히어로가 상단에서 제자리 수축(타사용자 프로필 헤더와 동일 문법) —
+    // 콘텐츠가 그 뒤로 지나가고, 이름은 끝까지 남는다.
+    if (f.ownerPhotoUrl != null) {
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: ListView(
+              controller: _scroll,
+              padding: const EdgeInsets.fromLTRB(20, _kHeroMax + 22, 20, 24),
+              children: _bodyItems(f, reviews),
+            ),
+          ),
+          Positioned(
+            top: 8,
+            left: 20,
+            right: 20,
+            child: AnimatedBuilder(
+              animation: _scroll,
+              builder: (context, _) => _heroHeader(f, dist, reviews),
+            ),
+          ),
+        ],
+      );
+    }
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        // 인증 업주가 대표 사진을 설정한 시설: 커뮤니티 게시글처럼 큰 사진 히어로 +
-        // 하단 점진 블러 위에 기존 정보(업종 칩·이름·별점·거리)를 얹는다.
-        if (f.ownerPhotoUrl != null)
-          _heroHeader(f, dist, reviews)
-        else ...[
+        ...[
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -184,13 +216,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
             ),
           ),
         ],
-        if (evaluatePetSales(f) case final s?) ...[
-          const SizedBox(height: 12),
-          _PetSalesTrustCard(score: s),
-        ],
-        if (f.ownerPhotoUrl == null &&
-            reviews != null &&
-            reviews.isNotEmpty) ...[
+        if (reviews != null && reviews.isNotEmpty) ...[
           const SizedBox(height: 6),
           Row(
             children: [
@@ -214,6 +240,18 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
               ),
             ],
           ),
+        ],
+        ..._bodyItems(f, reviews),
+      ],
+    );
+  }
+
+  /// 헤더 아래 공통 본문(신뢰 카드·주소·전화·버튼·후기) — 사진 유무 양쪽 공용.
+  List<Widget> _bodyItems(Facility f, List<FacilityReview>? reviews) {
+    return [
+        if (evaluatePetSales(f) case final s?) ...[
+          const SizedBox(height: 12),
+          _PetSalesTrustCard(score: s),
         ],
         if (f.address != null && f.address!.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -321,18 +359,21 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
           )
         else
           for (final r in reviews) _ReviewItem(review: r),
-      ],
-    );
+    ];
   }
 
   /// 대표 사진 히어로 — 프로필/게시글 히어로와 동일 문법(점진 블러 + 스크림 +
   /// 하단 정보). 사진의 세로 초점은 업주가 조절한 owner_photo_align_y 를 따른다.
+  /// 스크롤 오프셋만큼 제자리 수축(240→64)하며 칩·별점은 페이드아웃, 이름은 남는다.
   Widget _heroHeader(Facility f, String dist, List<FacilityReview>? reviews) {
     final align = Alignment(0, f.ownerPhotoAlignY.clamp(-1.0, 1.0));
+    final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+    final h = (_kHeroMax - offset).clamp(_kHeroMin, _kHeroMax);
+    final t = ((h - _kHeroMin) / (_kHeroMax - _kHeroMin)).clamp(0.0, 1.0);
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: SizedBox(
-        height: 240,
+        height: h,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -399,39 +440,44 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      for (final cat in _displayCategories)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.22),
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          child: Text(
-                            kFacilityLabels[cat] ?? cat,
+                  // 수축 중반부터 칩·별점은 사라지고 이름만 남는다(닉네임 바 문법).
+                  if (t > 0.35)
+                    Opacity(
+                      opacity: ((t - 0.35) / 0.65).clamp(0.0, 1.0),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          for (final cat in _displayCategories)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.22),
+                                borderRadius: BorderRadius.circular(100),
+                              ),
+                              child: Text(
+                                kFacilityLabels[cat] ?? cat,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          Text(
+                            dist,
                             style: const TextStyle(
                               fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: Color(0xCCFFFFFF),
                             ),
                           ),
-                        ),
-                      Text(
-                        dist,
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xCCFFFFFF),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
                   const SizedBox(height: 6),
                   Row(
                     children: [
@@ -452,25 +498,28 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                       const Icon(Icons.verified, size: 17, color: Colors.white),
                     ],
                   ),
-                  if (reviews != null && reviews.isNotEmpty) ...[
+                  if (t > 0.35 && reviews != null && reviews.isNotEmpty) ...[
                     const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.star,
-                          size: 14,
-                          color: Color(0xFFFFB300),
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${_avg.toStringAsFixed(1)} · 후기 ${reviews.length}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xE6FFFFFF),
+                    Opacity(
+                      opacity: ((t - 0.35) / 0.65).clamp(0.0, 1.0),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            size: 14,
+                            color: Color(0xFFFFB300),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 3),
+                          Text(
+                            '${_avg.toStringAsFixed(1)} · 후기 ${reviews.length}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xE6FFFFFF),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ],

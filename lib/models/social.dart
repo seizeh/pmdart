@@ -16,6 +16,10 @@ class Connection {
   /// 프로필 사진 — 검색 타일 블러 배경용(없으면 null).
   final String? profileImageUrl;
 
+  /// 업체 인증(0025) — 배지 표시용. 상호는 업체 모드 계정만 온다.
+  final bool isBusiness;
+  final String? businessName;
+
   const Connection({
     required this.userId,
     required this.nickname,
@@ -23,6 +27,8 @@ class Connection {
     this.iFollowBack,
     this.following,
     this.profileImageUrl,
+    this.isBusiness = false,
+    this.businessName,
   });
 
   factory Connection.fromJson(Map<String, dynamic> j) => Connection(
@@ -32,6 +38,8 @@ class Connection {
     iFollowBack: j['i_follow_back'] as bool?,
     following: j['following'] as bool?,
     profileImageUrl: j['profile_image_url'] as String?,
+    isBusiness: j['is_business'] == true,
+    businessName: j['business_name'] as String?,
   );
 
   Connection copyWith({bool? following, bool? iFollowBack}) => Connection(
@@ -41,5 +49,7 @@ class Connection {
     profileImageUrl: profileImageUrl,
     iFollowBack: iFollowBack ?? this.iFollowBack,
     following: following ?? this.following,
+    isBusiness: isBusiness,
+    businessName: businessName,
   );
 }

@@ -69,18 +69,50 @@ class UserTile extends StatelessWidget {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              child: Text(
-                c.nickname,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: hasPhoto
-                      ? context.colors.textPrimary
-                      : context.colors.textOnPrimary,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    // 업체 모드 계정은 상호가 이름 자리에 (0025 프로필 분리)
+                    c.businessName ?? c.nickname,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: hasPhoto
+                          ? context.colors.textPrimary
+                          : context.colors.textOnPrimary,
+                    ),
+                  ),
+                  if (c.isBusiness) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.verified,
+                          size: 12,
+                          color: hasPhoto
+                              ? context.colors.primaryDark
+                              : context.colors.textOnPrimary,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          '인증 업체',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: hasPhoto
+                                ? context.colors.textSecondary
+                                : context.colors.textOnPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
           ],

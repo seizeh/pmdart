@@ -81,10 +81,15 @@ class SocialRepository {
     final q = query.trim();
     if (q.isEmpty) return const [];
     final uid = _uid;
+    // 업체 모드 계정은 상호(business_name)로도 검색 — 닉네임 OR 상호.
+    // PostgREST or() 문법 문자는 검색어에서 제거(쉼표·괄호가 필터를 깨뜨림).
+    final safe = q.replaceAll(RegExp(r'[,()]'), ' ').trim();
     final rows = await _c
         .from('public_profiles')
-        .select('id, nickname, user_type, profile_image_url')
-        .ilike('nickname', '%$q%')
+        .select(
+          'id, nickname, user_type, profile_image_url, is_business, business_name',
+        )
+        .or('nickname.ilike.%$safe%,business_name.ilike.%$safe%')
         .neq('id', uid)
         .limit(30);
 

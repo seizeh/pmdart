@@ -924,12 +924,12 @@ class _StatusView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    // 대표 사진·버튼이 늘어나 화면을 넘칠 수 있다 — 스크롤 가능한 리스트로
+    // (Column 고정 배치는 사진 설정 시 오버플로우, #83 후속 버그 수정).
+    return ListView(
       padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 32),
+      children: [
+          const SizedBox(height: 8),
           Icon(icon, size: 56, color: context.colors.primary),
           const SizedBox(height: 16),
           Text(
@@ -1057,8 +1057,7 @@ class _StatusView extends StatelessWidget {
               ),
             ),
           ],
-        ],
-      ),
+      ],
     );
   }
 

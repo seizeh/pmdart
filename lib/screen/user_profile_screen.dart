@@ -8,6 +8,8 @@ import '../models/profile.dart';
 import '../services/community_repository.dart';
 import '../services/profile_repository.dart';
 import '../services/social_repository.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
 import '../services/session.dart';
 import '../data/mock_data.dart' show MockPet;
@@ -56,6 +58,9 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   PublicProfileData? _profile;
   List<Post> _posts = [];
+
+  // 업체 모드 프로필의 방문 후기(매칭 시설, 0025 분리) — 일반 프로필이면 빈 목록.
+  List<BizFacilityReview> _bizReviews = const [];
   bool _loading = true;
   bool _error = false;
 
@@ -99,16 +104,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       });
     }
     try {
-      final results = await Future.wait([
-        ProfileRepository.instance.fetchPublicProfile(widget.userId),
-        CommunityRepository.instance
-            .fetchUserPosts(widget.userId)
-            .catchError((_) => const <Post>[]),
-      ]);
+      // 프로필 먼저 — 업체 모드 여부에 따라 게시글 필터·방문 후기 로드가 갈린다(0025 분리).
+      final p = await ProfileRepository.instance.fetchPublicProfile(
+        widget.userId,
+      );
+      final posts = await CommunityRepository.instance
+          .fetchUserPosts(
+            widget.userId,
+            authoredAs: p.isBusinessMode ? 'business' : 'personal',
+          )
+          .catchError((_) => const <Post>[]);
+      final bizReviews = (p.isBusinessMode && p.businessFacilityId != null)
+          ? await BusinessRepository.instance.fetchFacilityReviews(
+              p.businessFacilityId!,
+            )
+          : const <BizFacilityReview>[];
       if (!mounted) return;
       setState(() {
-        _profile = results[0] as PublicProfileData;
-        _posts = results[1] as List<Post>;
+        _profile = p;
+        _posts = posts;
+        _bizReviews = bizReviews;
         _loading = false;
       });
     } catch (_) {
@@ -253,11 +268,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     // 뒤에는 계단 전체가 콘텐츠와 함께 위로 밀려 닉네임 바 뒤로 사라진다.
     // 타이틀을 탭하면 그 섹션 위치로, 닉네임을 탭하면 최상단으로 이동.
     final headerMax = topInset + 8 + _kHeaderCardH + 12;
-    final titles = [
-      ('키우는 반려동물', p.pets.length),
-      ('받은 평가', p.reviewCount),
-      ('작성한 게시글', _posts.length),
-    ];
+    // 업체 모드 프로필은 분리된 얼굴 — 반려동물 대신 업체 정보, 평가 대신 방문 후기.
+    final titles = p.isBusinessMode
+        ? [
+            ('업체 정보', 0),
+            ('방문 후기', _bizReviews.length),
+            ('업체 게시글', _posts.length),
+          ]
+        : [
+            ('키우는 반려동물', p.pets.length),
+            ('받은 평가', p.reviewCount),
+            ('작성한 게시글', _posts.length),
+          ];
     return Stack(
       children: [
         Positioned.fill(
@@ -287,10 +309,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ),
                       const SizedBox(height: 20),
                       _inlineTitle(0, titles),
-                      Entrance(index: 1, child: _petContent(p)),
+                      Entrance(
+                        index: 1,
+                        child: p.isBusinessMode
+                            ? _businessInfoContent(p)
+                            : _petContent(p),
+                      ),
                       const SizedBox(height: 24),
                       _inlineTitle(1, titles),
-                      Entrance(index: 2, child: _reviewContent(p)),
+                      Entrance(
+                        index: 2,
+                        child: p.isBusinessMode
+                            ? _bizReviewContent()
+                            : _reviewContent(p),
+                      ),
                       const SizedBox(height: 24),
                       _inlineTitle(2, titles),
                       Entrance(index: 3, child: _postContent()),
@@ -539,7 +571,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   opacity: barOpacity,
                   child: Center(
                     child: Text(
-                      p.nickname,
+                      p.businessName ?? p.nickname,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -631,7 +663,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               children: [
                 if (hasPhoto) ...[
                   Text(
-                    p.nickname,
+                    p.businessName ?? p.nickname,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -670,7 +702,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Padding(
           padding: const EdgeInsets.only(bottom: 100, left: 24, right: 24),
           child: Text(
-            p.nickname,
+            p.businessName ?? p.nickname,
             maxLines: 2,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
@@ -777,9 +809,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () => openDirectChat(context, p.userId),
+            // 업체 프로필에서 시작한 채팅은 '업체 문의' 방 — 개인 방과 분리(0025)
+            onPressed: () =>
+                openDirectChat(context, p.userId, business: p.isBusinessMode),
             icon: const Icon(Icons.chat_bubble_outline, size: 18),
-            label: const Text('채팅'),
+            label: Text(p.isBusinessMode ? '업체 문의' : '채팅'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
@@ -802,6 +836,161 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               openedPetId: _openedPetId,
               onTap: _openPet,
             ),
+    );
+  }
+
+  // ── 업체 정보: 업종·주소·전화 카드 (업체 모드 프로필, 0025 분리) ──
+
+  Widget _businessInfoContent(PublicProfileData p) {
+    Widget row(IconData icon, String text, {VoidCallback? onTap}) => InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 17, color: context.colors.textSecondary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.4,
+                  color: onTap == null
+                      ? context.colors.textPrimary
+                      : context.colors.primaryDark,
+                  fontWeight: onTap == null
+                      ? FontWeight.w400
+                      : FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.colors.border, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.verified, size: 16, color: context.colors.primaryDark),
+                const SizedBox(width: 5),
+                Text(
+                  '사업자 인증을 완료한 업체예요',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.primaryDark,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (p.businessCategory != null)
+              row(Icons.storefront_outlined,
+                  businessCategoryLabel(p.businessCategory!)),
+            if ((p.businessAddress ?? '').isNotEmpty)
+              row(Icons.place_outlined, p.businessAddress!),
+            if ((p.businessPhone ?? '').isNotEmpty)
+              row(
+                Icons.call_outlined,
+                p.businessPhone!,
+                onTap: () =>
+                    launchUrl(Uri.parse('tel:${p.businessPhone!}')),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 방문 후기: 매칭 시설의 시설 후기 (업체 모드 프로필) ──
+
+  Widget _bizReviewContent() {
+    if (_bizReviews.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: _emptyBox('아직 방문 후기가 없어요'),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Column(
+        children: [
+          for (final r in _bizReviews.take(10))
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: context.colors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: context.colors.border, width: 0.5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      for (var i = 0; i < 5; i++)
+                        Icon(
+                          i < r.rating ? Icons.star : Icons.star_border,
+                          size: 14,
+                          color: i < r.rating
+                              ? const Color(0xFFFFB300)
+                              : context.colors.border,
+                        ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          r.authorNickname,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: context.colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      if (r.createdAt != null)
+                        Text(
+                          '${r.createdAt!.year}.${r.createdAt!.month}.${r.createdAt!.day}',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: context.colors.textTertiary,
+                          ),
+                        ),
+                    ],
+                  ),
+                  if ((r.content ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      r.content!,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        height: 1.5,
+                        color: context.colors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 

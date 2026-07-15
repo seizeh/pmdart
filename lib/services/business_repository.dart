@@ -147,6 +147,11 @@ class BusinessRepository {
     final mine = await fetchMine();
     final fid = mine?.matchedFacilityId;
     if (fid == null) return const [];
+    return fetchFacilityReviews(fid);
+  }
+
+  /// 특정 시설의 방문 후기 — 타사용자가 보는 업체 프로필에서도 사용(공개 뷰).
+  Future<List<BizFacilityReview>> fetchFacilityReviews(String fid) async {
     try {
       final rows = await _c
           .from('v_facility_reviews')

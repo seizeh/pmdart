@@ -84,9 +84,16 @@ class PublicProfileData {
   final String? address;
   final bool isLocationVerified;
 
-  // 업체 인증(0025) — 공개 뷰 노출(배지용).
+  // 업체 인증(0025) — 공개 뷰 노출. 상호·사업장 정보는 업체 모드일 때만 온다.
   final bool isBusiness;
   final String? businessName;
+  final String? businessCategory;
+  final String? businessAddress;
+  final String? businessPhone;
+  final String? businessFacilityId; // 매칭 시설 — 방문 후기 조회용
+
+  /// 이 프로필이 지금 '업체 얼굴'인지 — 상호는 업체 모드에서만 노출되므로 그걸로 판정.
+  bool get isBusinessMode => businessName != null;
 
   final int reviewCount; // 받은 평가
   final int pawingCount; // 그 사용자가 팔로우
@@ -105,6 +112,10 @@ class PublicProfileData {
     this.isLocationVerified = false,
     this.isBusiness = false,
     this.businessName,
+    this.businessCategory,
+    this.businessAddress,
+    this.businessPhone,
+    this.businessFacilityId,
     required this.reviewCount,
     required this.pawingCount,
     required this.pawmateCount,

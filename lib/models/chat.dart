@@ -29,7 +29,12 @@ class ChatRoomSummary {
     required this.unreadCount,
     this.otherLeft = false,
     this.otherProfileImageUrl,
+    this.context = 'personal',
   });
+
+  /// 방 컨텍스트 — 'business' 면 업체 문의 방(상대가 상호로 표시된다, 0025 분리).
+  final String context;
+  bool get isBusinessInquiry => context == 'business';
 
   /// 고객센터(admin_inquiry) 방 여부 — v_chat_rooms 가 상대를 '고객센터'로 표기한다.
   bool get isSupport => otherNickname == '고객센터';
@@ -45,6 +50,7 @@ class ChatRoomSummary {
     unreadCount: (j['unread_count'] as num?)?.toInt() ?? 0,
     otherLeft: j['other_left'] == true,
     otherProfileImageUrl: j['other_profile_image_url'] as String?,
+    context: (j['context'] as String?) ?? 'personal',
   );
 }
 

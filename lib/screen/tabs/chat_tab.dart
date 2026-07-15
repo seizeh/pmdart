@@ -229,18 +229,48 @@ class _ChatRoomTile extends StatelessWidget {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 72),
-                        child: Text(
-                          room.otherNickname,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: hasPhoto
-                                ? context.colors.textPrimary
-                                : context.colors.textOnPrimary,
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                room.otherNickname,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: hasPhoto
+                                      ? context.colors.textPrimary
+                                      : context.colors.textOnPrimary,
+                                ),
+                              ),
+                            ),
+                            // 업체 문의 방 — 개인 대화와 분리된 방임을 표시(0025)
+                            if (room.isBusinessInquiry) ...[
+                              const SizedBox(width: 5),
+                              Icon(
+                                Icons.storefront_outlined,
+                                size: 13,
+                                color: hasPhoto
+                                    ? context.colors.textSecondary
+                                    : context.colors.textOnPrimary,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                '업체',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: hasPhoto
+                                      ? context.colors.textSecondary
+                                      : context.colors.textOnPrimary,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       const SizedBox(height: 4),

@@ -19,10 +19,14 @@ class ChatRepository {
 
   /// 상대와의 1:1 채팅방 find-or-create 후 방 요약 반환.
   /// 상대 멤버십 INSERT 는 RLS 로 막히므로 SECURITY DEFINER RPC(start_direct_chat)로 처리.
-  Future<ChatRoomSummary> startDirectChat(String otherUserId) async {
+  /// [context]='business' 는 업체 문의 — 같은 상대라도 개인 방과 별개의 방(0025 분리).
+  Future<ChatRoomSummary> startDirectChat(
+    String otherUserId, {
+    String context = 'personal',
+  }) async {
     final roomId = await _c.rpc(
       'start_direct_chat',
-      params: {'p_other': otherUserId},
+      params: {'p_other': otherUserId, 'p_context': context},
     ) as String;
     final row = await _c
         .from('v_chat_rooms')

@@ -5,14 +5,22 @@ import 'chat_repository.dart';
 
 /// 상대 user_id 로 1:1 채팅방을 열어준다 (find-or-create 후 화면 이동).
 /// 게시글 상세 / pawmate 목록 / 사용자 검색 등에서 공통 사용.
-Future<void> openDirectChat(BuildContext context, String otherUserId) async {
+/// [business]=true 면 업체 문의 방 — 개인 대화와 별개의 방으로 분리(0025).
+Future<void> openDirectChat(
+  BuildContext context,
+  String otherUserId, {
+  bool business = false,
+}) async {
   showDialog(
     context: context,
     barrierDismissible: false,
     builder: (_) => const Center(child: CircularProgressIndicator()),
   );
   try {
-    final room = await ChatRepository.instance.startDirectChat(otherUserId);
+    final room = await ChatRepository.instance.startDirectChat(
+      otherUserId,
+      context: business ? 'business' : 'personal',
+    );
     if (!context.mounted) return;
     Navigator.pop(context); // 로딩 닫기
     Navigator.push(

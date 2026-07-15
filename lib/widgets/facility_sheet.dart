@@ -150,10 +150,20 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
       return Stack(
         children: [
           Positioned.fill(
-            child: ListView(
-              controller: _scroll,
-              padding: const EdgeInsets.fromLTRB(20, _kHeroMax + 22, 20, 24),
-              children: _bodyItems(f, reviews),
+            // 콘텐츠가 히어로 '뒤로 비치지' 않게 — 히어로 하단 테두리를 경계로
+            // 클리핑해 그 위로는 보이지 않는다(스크롤 오프셋 따라 경계 갱신).
+            child: AnimatedBuilder(
+              animation: _scroll,
+              builder: (context, child) {
+                final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+                final h = (_kHeroMax - offset).clamp(_kHeroMin, _kHeroMax);
+                return ClipRect(clipper: _TopClip(8 + h), child: child!);
+              },
+              child: ListView(
+                controller: _scroll,
+                padding: const EdgeInsets.fromLTRB(20, _kHeroMax + 22, 20, 24),
+                children: _bodyItems(f, reviews),
+              ),
             ),
           ),
           Positioned(
@@ -549,6 +559,18 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
       ),
     ],
   );
+}
+
+/// 상단 [top] 아래만 그리는 클리퍼 — 히어로 테두리를 콘텐츠 소실 경계로.
+class _TopClip extends CustomClipper<Rect> {
+  final double top;
+  const _TopClip(this.top);
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(0, top, size.width, size.height);
+
+  @override
+  bool shouldReclip(_TopClip old) => old.top != top;
 }
 
 /// 분양(반려동물판매업) 신뢰도 안내 카드.

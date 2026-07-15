@@ -378,6 +378,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                   photoUrls: r.photoUrls,
                   isMine: r.isMine,
                   visitNo: r.visitNo,
+                  seed: r.id,
                 ),
             ],
           ),

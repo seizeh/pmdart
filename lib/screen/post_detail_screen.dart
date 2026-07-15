@@ -600,6 +600,9 @@ class _AuthorRow extends StatelessWidget {
                           previewNickname: post.authorNickname,
                           originRect: riseOriginRect(context),
                           cardRadius: 24,
+                          // 작성 모드가 얼굴을 결정 — 개인 글 작성자는 개인 얼굴만
+                          // (업체 글은 상호로 표시되고 업체 얼굴로 연다, 0025)
+                          forcePersonalFace: post.authoredAs != 'business',
                         ),
                       ),
                     ),

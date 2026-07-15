@@ -32,7 +32,10 @@ class UserTile extends StatelessWidget {
             AppPageRoute(
               builder: (_) => UserProfileScreen(
                 userId: c.userId,
-                previewNickname: c.nickname,
+                previewNickname: c.businessName ?? c.nickname,
+                // 상호가 없는 항목은 개인 맥락 — 상대가 업체 모드여도 개인 얼굴만
+                // (어떤 사용자가 어떤 업체를 운영하는지 연결 차단, 0025)
+                forcePersonalFace: c.businessName == null,
               ),
             ),
           ),
@@ -86,7 +89,8 @@ class UserTile extends StatelessWidget {
                           : context.colors.textOnPrimary,
                     ),
                   ),
-                  if (c.isBusiness) ...[
+                  // 배지는 업체 얼굴(상호 노출) 항목에만 — 개인 얼굴에 운영 사실 비노출
+                  if (c.businessName != null) ...[
                     const SizedBox(height: 3),
                     Row(
                       mainAxisSize: MainAxisSize.min,

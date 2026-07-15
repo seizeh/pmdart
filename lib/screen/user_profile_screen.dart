@@ -41,6 +41,11 @@ class UserProfileScreen extends StatefulWidget {
   /// 새 화면을 쌓지 않고 pop 으로 되돌아간다(A→펫→A 무한 스택 방지).
   final String? fromPetId;
 
+  /// 진입 맥락이 '개인'이면 true — 상대가 업체 모드여도 개인 얼굴(닉네임·펫·개인
+  /// 게시글)만 보여준다. 어떤 사용자가 어떤 업체를 운영하는지 연결되지 않게(0025).
+  /// 업체 맥락(상호 검색·업체 글·업체 문의)에서만 false 로 업체 얼굴을 연다.
+  final bool forcePersonalFace;
+
   const UserProfileScreen({
     super.key,
     required this.userId,
@@ -49,6 +54,7 @@ class UserProfileScreen extends StatefulWidget {
     this.cardBuilder,
     this.cardRadius = 16,
     this.fromPetId,
+    this.forcePersonalFace = false,
   });
 
   @override
@@ -61,6 +67,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   // 업체 모드 프로필의 방문 후기(매칭 시설, 0025 분리) — 일반 프로필이면 빈 목록.
   List<BizFacilityReview> _bizReviews = const [];
+
+  /// 이 화면이 '업체 얼굴'을 보여주는가 — 상대가 업체 모드이면서 진입 맥락도
+  /// 업체일 때만. 개인 맥락 진입은 항상 개인 얼굴(정체성 연결 차단).
+  bool get _bizFace =>
+      !widget.forcePersonalFace && (_profile?.isBusinessMode ?? false);
+
+  String _displayName(PublicProfileData p) =>
+      _bizFace ? (p.businessName ?? p.nickname) : p.nickname;
   bool _loading = true;
   bool _error = false;
 
@@ -108,13 +122,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final p = await ProfileRepository.instance.fetchPublicProfile(
         widget.userId,
       );
+      final biz = p.isBusinessMode && !widget.forcePersonalFace;
       final posts = await CommunityRepository.instance
           .fetchUserPosts(
             widget.userId,
-            authoredAs: p.isBusinessMode ? 'business' : 'personal',
+            authoredAs: biz ? 'business' : 'personal',
           )
           .catchError((_) => const <Post>[]);
-      final bizReviews = (p.isBusinessMode && p.businessFacilityId != null)
+      final bizReviews = (biz && p.businessFacilityId != null)
           ? await BusinessRepository.instance.fetchFacilityReviews(
               p.businessFacilityId!,
             )
@@ -269,7 +284,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     // 타이틀을 탭하면 그 섹션 위치로, 닉네임을 탭하면 최상단으로 이동.
     final headerMax = topInset + 8 + _kHeaderCardH + 12;
     // 업체 모드 프로필은 분리된 얼굴 — 반려동물 대신 업체 정보, 평가 대신 방문 후기.
-    final titles = p.isBusinessMode
+    final titles = _bizFace
         ? [
             ('업체 정보', 0),
             ('방문 후기', _bizReviews.length),
@@ -311,7 +326,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       _inlineTitle(0, titles),
                       Entrance(
                         index: 1,
-                        child: p.isBusinessMode
+                        child: _bizFace
                             ? _businessInfoContent(p)
                             : _petContent(p),
                       ),
@@ -319,7 +334,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       _inlineTitle(1, titles),
                       Entrance(
                         index: 2,
-                        child: p.isBusinessMode
+                        child: _bizFace
                             ? _bizReviewContent()
                             : _reviewContent(p),
                       ),
@@ -571,7 +586,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   opacity: barOpacity,
                   child: Center(
                     child: Text(
-                      p.businessName ?? p.nickname,
+                      _displayName(p),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -663,7 +678,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               children: [
                 if (hasPhoto) ...[
                   Text(
-                    p.businessName ?? p.nickname,
+                    _displayName(p),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -702,7 +717,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Padding(
           padding: const EdgeInsets.only(bottom: 100, left: 24, right: 24),
           child: Text(
-            p.businessName ?? p.nickname,
+            _displayName(p),
             maxLines: 2,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
@@ -725,12 +740,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          // 인증 업체 배지(0025 §2.3) — 업체 모드면 상호까지 노출(public_profiles 가 제어)
-          p.isBusiness
-              ? (p.businessName != null
-                    ? '${p.businessName} · 인증 업체'
-                    : '인증 업체 · ${_userTypeLabel(p.userType)}')
-              : _userTypeLabel(p.userType),
+          // 배지는 업체 '얼굴'에서만 — 개인 얼굴에 업체 운영 사실을 노출하지 않는다
+          // (어떤 사용자가 어떤 업체를 운영하는지 연결 차단, 0025).
+          _bizFace ? '인증 업체' : _userTypeLabel(p.userType),
           style: const TextStyle(fontSize: 12, color: Color(0xE6FFFFFF)),
         ),
         if (region != null) ...[
@@ -809,11 +821,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton.icon(
-            // 업체 프로필에서 시작한 채팅은 '업체 문의' 방 — 개인 방과 분리(0025)
+            // 업체 얼굴에서 시작한 채팅은 '업체 문의' 방 — 개인 방과 분리(0025)
             onPressed: () =>
-                openDirectChat(context, p.userId, business: p.isBusinessMode),
+                openDirectChat(context, p.userId, business: _bizFace),
             icon: const Icon(Icons.chat_bubble_outline, size: 18),
-            label: Text(p.isBusinessMode ? '업체 문의' : '채팅'),
+            label: Text(_bizFace ? '업체 문의' : '채팅'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),

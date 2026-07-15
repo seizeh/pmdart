@@ -154,6 +154,7 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
       fromPetId: widget.petId,
       originRect: rect,
       cardBuilder: rect == null ? null : (_) => _GuardianTile(guardian: g),
+      forcePersonalFace: true, // 보호자 목록 = 개인 맥락(업체 연결 차단, 0025)
     );
     if (rect != null) setState(() => _openedGuardianId = g.userId);
     await Navigator.push<void>(
@@ -535,6 +536,7 @@ class _GuardianTile extends StatelessWidget {
               builder: (_) => UserProfileScreen(
                 userId: g.userId,
                 previewNickname: g.nickname,
+                forcePersonalFace: true, // 보호자 = 개인 맥락(0025)
               ),
             ),
           ),

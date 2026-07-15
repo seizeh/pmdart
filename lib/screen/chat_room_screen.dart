@@ -80,6 +80,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       originRect: rect,
       cardBuilder: rect == null ? null : (_) => _headerBarCard(),
       cardRadius: 16, // 헤더 바 곡률과 동일
+      // 개인 대화방에서 연 프로필은 개인 얼굴 고정 — 업체 문의 방에서만 업체 얼굴
+      // (어떤 사용자가 어떤 업체를 운영하는지 연결 차단, 0025)
+      forcePersonalFace: !widget.room.isBusinessInquiry,
     );
     if (rect != null) setState(() => _profileOpen = true);
     await Navigator.push(

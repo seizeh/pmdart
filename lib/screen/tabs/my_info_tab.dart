@@ -1019,7 +1019,11 @@ class _ProfileHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasPhoto = profile.profileImageUrl != null;
+    // 얼굴별 사진 분리(0026) — 업체 모드 히어로는 대표 사진(개인 사진 미사용).
+    final photo = profile.activeMode == 'business'
+        ? profile.businessPhotoUrl
+        : profile.profileImageUrl;
+    final hasPhoto = photo != null;
     return Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(24),
@@ -1035,7 +1039,7 @@ class _ProfileHeroCard extends StatelessWidget {
           children: [
             if (hasPhoto)
               Image.network(
-                profile.profileImageUrl!,
+                photo,
                 fit: BoxFit.cover,
                 cacheWidth: 1200,
                 errorBuilder: (_, _, _) => _noPhotoBackground(context),
@@ -1064,7 +1068,7 @@ class _ProfileHeroCard extends StatelessWidget {
                       tileMode: ui.TileMode.clamp,
                     ),
                     child: Image.network(
-                      profile.profileImageUrl!,
+                      photo,
                       fit: BoxFit.cover,
                       cacheWidth: 400, // 블러 사본 — 저해상 디코딩으로 충분
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),

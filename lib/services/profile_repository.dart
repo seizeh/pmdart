@@ -20,7 +20,7 @@ class ProfileRepository {
     final profile = await _c
         .from('public_profiles')
         .select(
-          'nickname, user_type, profile_image_url, address, is_location_verified, activity_radius_m, is_business, business_name',
+          'nickname, user_type, profile_image_url, address, is_location_verified, activity_radius_m, is_business, business_name, business_photo_url',
         )
         .eq('id', uid)
         .maybeSingle();
@@ -68,6 +68,7 @@ class ProfileRepository {
       isBusiness: profile?['is_business'] == true,
       businessName: profile?['business_name'] as String?,
       activeMode: activeMode,
+      businessPhotoUrl: profile?['business_photo_url'] as String?,
     );
   }
 
@@ -134,7 +135,7 @@ class ProfileRepository {
     final profile = await _c
         .from('public_profiles')
         .select(
-          'nickname, user_type, profile_image_url, address, is_location_verified, is_business, business_name, business_category, business_address, business_phone, business_facility_id',
+          'nickname, user_type, profile_image_url, address, is_location_verified, is_business, business_name, business_category, business_address, business_phone, business_facility_id, business_photo_url',
         )
         .eq('id', userId)
         .maybeSingle();
@@ -164,6 +165,7 @@ class ProfileRepository {
       businessAddress: profile['business_address'] as String?,
       businessPhone: profile['business_phone'] as String?,
       businessFacilityId: profile['business_facility_id'] as String?,
+      businessPhotoUrl: profile['business_photo_url'] as String?,
       reviewCount: counts[0],
       pawingCount: counts[1],
       pawmateCount: counts[2],

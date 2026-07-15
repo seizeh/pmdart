@@ -608,13 +608,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// 사진을 이어받아 점진 블러 처리된 구간에 닉네임·활동지역·통계를 올린다.
   /// 사진이 없으면 닉네임을 카드 중앙에 크게 넣고, 블러 구간에는 닉네임을 뺀다.
   Widget _fullHeaderCard(PublicProfileData p) {
-    final hasPhoto = p.profileImageUrl != null;
+    // 얼굴별 사진 분리(0026) — 업체 얼굴은 대표 사진만, 개인 사진 미노출
+    // (같은 사진이 두 얼굴을 잇는 연결이 되지 않게).
+    final photo = _bizFace ? p.businessPhotoUrl : p.profileImageUrl;
+    final hasPhoto = photo != null;
     return Stack(
       fit: StackFit.expand,
       children: [
         if (hasPhoto)
           Image.network(
-            p.profileImageUrl!,
+            photo,
             fit: BoxFit.cover,
             errorBuilder: (_, _, _) => _noPhotoBackground(p),
           )
@@ -643,7 +646,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   tileMode: ui.TileMode.clamp,
                 ),
                 child: Image.network(
-                  p.profileImageUrl!,
+                  photo,
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) => const SizedBox.shrink(),
                 ),

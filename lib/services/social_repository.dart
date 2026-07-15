@@ -85,7 +85,8 @@ class SocialRepository {
     // 상호 매칭 = 업체 얼굴 결과(승인 업체는 주인 모드와 무관하게 상시 공개).
     // 개인 얼굴 결과에서는 business_name 을 비워 배지·업체 라우팅이 붙지 않게 —
     // 어떤 사용자가 어떤 업체를 운영하는지의 연결 비노출은 그대로 유지된다.
-    const cols = 'id, nickname, user_type, profile_image_url, business_name';
+    const cols =
+        'id, nickname, user_type, profile_image_url, business_name, business_photo_url';
     final results = await Future.wait([
       _c
           .from('public_profiles')
@@ -112,7 +113,8 @@ class SocialRepository {
       userId: r['id'] as String,
       nickname: (r['nickname'] ?? '알 수 없음') as String,
       userType: (r['user_type'] ?? '') as String,
-      profileImageUrl: r['profile_image_url'] as String?,
+      // 업체 얼굴 타일 배경은 대표 사진 — 개인 사진 미노출(사진 연결 차단)
+      profileImageUrl: r['business_photo_url'] as String?,
       isBusiness: true,
       businessName: r['business_name'] as String?,
     );

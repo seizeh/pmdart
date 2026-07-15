@@ -23,9 +23,14 @@ Future<void> openDirectChat(
     );
     if (!context.mounted) return;
     Navigator.pop(context); // 로딩 닫기
+    // 프로필 등에서 연 채팅방도 목록에서 연 것과 동일한 언어로 — 아래에서 떠오르고,
+    // 헤더(프로필 바)를 잡아 아래로 내리면 닫힌다(가로 스와이프 back 대체).
     Navigator.push(
       context,
-      AppPageRoute(builder: (_) => ChatRoomScreen(room: room)),
+      CollapseRoute(
+        builder: (_) =>
+            ChatRoomScreen(room: room, originRect: riseOriginRect(context)),
+      ),
     );
   } catch (_) {
     if (!context.mounted) return;

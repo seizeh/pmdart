@@ -386,19 +386,16 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
   }
 
   /// 히어로(대표 사진) 탭 → 인증 업주의 업체 프로필로(업체 얼굴 진입점).
-  /// 가로 밀기 back 대신 타사용자 프로필과 동일한 언어 — 아래에서 떠오르고,
-  /// 끌어내리면 아래로 사라지며 닫힌다(rise + CollapseRoute).
+  /// ⚠️ 여기는 라이브 네이버 지도(플랫폼 뷰) 위 — 투명 라우트(CollapseRoute+rise)가
+  /// 지도 위에서 렌더링되지 않아 '탭해도 안 넘어가는' 회귀가 있었다(#95→원복).
+  /// 같은 시트의 후기 쓰기처럼 검증된 일반(불투명) 라우트로 연다.
   void _openOwnerProfile(Facility f) {
     final uid = f.ownerUserId;
     if (uid == null) return;
     Navigator.push(
       context,
-      CollapseRoute(
-        builder: (_) => UserProfileScreen(
-          userId: uid,
-          previewNickname: f.name,
-          originRect: riseOriginRect(context),
-        ),
+      AppPageRoute(
+        builder: (_) => UserProfileScreen(userId: uid, previewNickname: f.name),
       ),
     );
   }

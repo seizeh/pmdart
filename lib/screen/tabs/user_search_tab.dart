@@ -31,6 +31,9 @@ class _UserSearchTabState extends State<UserSearchTab> {
   bool _loading = false;
   bool _searched = false;
 
+  // 검색 전 기본 화면에 보여줄 승인 업체 목록(진입 시 1회 로드).
+  List<Connection> _businesses = [];
+
   // 타일별 GlobalKey — 탭 시 타일의 화면 위치를 캡처해 프로필을 그 자리에서
   // 펼치고, 당기면 그 자리로 축소시키는 CollapseRoute 에 넘긴다(커뮤니티와 동일).
   final _tileKeys = <String, GlobalKey>{};
@@ -89,6 +92,22 @@ class _UserSearchTabState extends State<UserSearchTab> {
         cardBuilder: rect == null ? null : (_) => PetSearchTile(pet: pet),
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBusinesses();
+  }
+
+  Future<void> _loadBusinesses() async {
+    try {
+      final list = await SocialRepository.instance.listBusinesses();
+      if (!mounted) return;
+      setState(() => _businesses = list);
+    } catch (_) {
+      // 실패해도 기본 화면은 안내 문구로 폴백 — 검색 기능엔 영향 없음.
+    }
   }
 
   @override
@@ -207,7 +226,17 @@ class _UserSearchTabState extends State<UserSearchTab> {
       );
     }
     if (!_searched) {
-      return _hint('닉네임이나 반려동물 이름을 입력해\n보호자를 찾아보세요', topPad);
+      // 검색 전 기본 화면 — 승인 업체 프로필 목록(없으면 안내 문구).
+      if (_businesses.isEmpty) {
+        return _hint('닉네임이나 반려동물 이름을 입력해\n보호자를 찾아보세요', topPad);
+      }
+      return ListView(
+        padding: EdgeInsets.only(top: topPad, left: 20, right: 20, bottom: 20),
+        children: [
+          _sectionHeader('인증 업체'),
+          for (final c in _businesses) _userTile(c),
+        ],
+      );
     }
     if (_results.isEmpty && _petResults.isEmpty) {
       return _hint('검색 결과가 없어요', topPad);
@@ -231,19 +260,21 @@ class _UserSearchTabState extends State<UserSearchTab> {
         ],
         if (_results.isNotEmpty) ...[
           _sectionHeader('보호자'),
-          for (final c in _results)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Opacity(
-                key: _tileKeys.putIfAbsent('user:${c.userId}', GlobalKey.new),
-                opacity: _openedTileId == 'user:${c.userId}' ? 0 : 1,
-                child: UserTile(connection: c, onTap: () => _openUser(c)),
-              ),
-            ),
+          for (final c in _results) _userTile(c),
         ],
       ],
     );
   }
+
+  // 프로필이 열린 타일은 빈자리로 — 축소가 겹침 없이 안착.
+  Widget _userTile(Connection c) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Opacity(
+      key: _tileKeys.putIfAbsent('user:${c.userId}', GlobalKey.new),
+      opacity: _openedTileId == 'user:${c.userId}' ? 0 : 1,
+      child: UserTile(connection: c, onTap: () => _openUser(c)),
+    ),
+  );
 
   Widget _sectionHeader(String label) => Padding(
     padding: const EdgeInsets.only(top: 12, bottom: 4),

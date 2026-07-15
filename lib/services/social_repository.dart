@@ -109,30 +109,33 @@ class SocialRepository {
       profileImageUrl: r['profile_image_url'] as String?,
       // 개인 얼굴 — 업체 정보는 싣지 않는다(배지·업체 얼굴 라우팅 차단)
     );
-    Connection businessFace(Map<String, dynamic> r) => Connection(
-      userId: r['id'] as String,
-      nickname: (r['nickname'] ?? '알 수 없음') as String,
-      userType: (r['user_type'] ?? '') as String,
-      // 업체 얼굴 타일 배경은 대표 사진 — 개인 사진 미노출(사진 연결 차단)
-      profileImageUrl: r['business_photo_url'] as String?,
-      isBusiness: true,
-      businessName: r['business_name'] as String?,
-    );
-
     final list = <Connection>[
       for (final r in (results[1] as List).cast<Map<String, dynamic>>())
-        businessFace(r),
+        _businessFace(r),
       for (final r in (results[0] as List).cast<Map<String, dynamic>>())
         personalFace(r),
     ];
-    if (list.isEmpty) return list;
+    return _withFollowing(list);
+  }
 
-    // 내가 팔로우 중인 대상 표시
+  /// 업체 얼굴 Connection — 타일 배경은 대표 사진, 개인 사진 미노출(사진 연결 차단).
+  Connection _businessFace(Map<String, dynamic> r) => Connection(
+    userId: r['id'] as String,
+    nickname: (r['nickname'] ?? '알 수 없음') as String,
+    userType: (r['user_type'] ?? '') as String,
+    profileImageUrl: r['business_photo_url'] as String?,
+    isBusiness: true,
+    businessName: r['business_name'] as String?,
+  );
+
+  /// 내가 팔로우 중인 대상 표시.
+  Future<List<Connection>> _withFollowing(List<Connection> list) async {
+    if (list.isEmpty) return list;
     final ids = list.map((c) => c.userId).toList();
     final following = await _c
         .from('pawings')
         .select('following_id')
-        .eq('follower_id', uid)
+        .eq('follower_id', _uid)
         .inFilter('following_id', ids);
     final followingSet = {
       for (final f in following as List) f['following_id'] as String,
@@ -140,6 +143,24 @@ class SocialRepository {
     return list
         .map((c) => c.copyWith(following: followingSet.contains(c.userId)))
         .toList();
+  }
+
+  /// 승인 업체 전체 목록(업체 얼굴, 상호 가나다순) — 검색 전 기본 화면용.
+  /// public_profiles 는 승인(approved) 업체만 business_name 을 노출한다.
+  Future<List<Connection>> listBusinesses() async {
+    const cols =
+        'id, nickname, user_type, profile_image_url, business_name, business_photo_url';
+    final rows = await _c
+        .from('public_profiles')
+        .select(cols)
+        .not('business_name', 'is', null)
+        .neq('id', _uid)
+        .order('business_name', ascending: true)
+        .limit(100);
+    return _withFollowing([
+      for (final r in (rows as List).cast<Map<String, dynamic>>())
+        _businessFace(r),
+    ]);
   }
 
   /// 반려동물 이름으로 검색. 삭제된 펫 제외. 결과 탭의 '반려동물' 섹션용.

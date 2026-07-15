@@ -393,7 +393,9 @@ class _MyInfoTabState extends State<MyInfoTab>
               // 반려동물이 주인공 — 큰 히어로 카드/캐러셀을 최상단에.
               _PetHero(pets: profile.pets),
               const SizedBox(height: 20),
-            ],
+            ] else
+              // 업체 모드: 펫 히어로가 빠져 헤더와 프로필 카드가 붙어 보임 — 숨 고를 간격.
+              const SizedBox(height: 12),
             // 유저 정보 — 다른 사용자가 보는 공개 프로필 헤더와 동일한 히어로 카드.
             // 탭하면 그 자리에서 프로필 수정 화면으로 펼쳐진다.
             Padding(

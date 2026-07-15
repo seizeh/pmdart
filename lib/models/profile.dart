@@ -84,7 +84,8 @@ class PublicProfileData {
   final String? address;
   final bool isLocationVerified;
 
-  // 업체 인증(0025) — 공개 뷰 노출. 상호·사업장 정보는 업체 모드일 때만 온다.
+  // 업체 인증(0025) — 공개 뷰 노출. 상호·사업장 정보는 승인 업체면 상시 공개
+  // (0026 §2 개정 — 주인 모드와 무관, 얼굴 선택은 진입 맥락이 담당).
   final bool isBusiness;
   final String? businessName;
   final String? businessCategory;
@@ -92,7 +93,7 @@ class PublicProfileData {
   final String? businessPhone;
   final String? businessFacilityId; // 매칭 시설 — 방문 후기 조회용
 
-  /// 이 프로필이 지금 '업체 얼굴'인지 — 상호는 업체 모드에서만 노출되므로 그걸로 판정.
+  /// 승인 업체 얼굴이 존재하는가 — 실제 표시는 forcePersonalFace(진입 맥락)와 조합.
   bool get isBusinessMode => businessName != null;
 
   final int reviewCount; // 받은 평가

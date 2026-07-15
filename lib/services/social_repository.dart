@@ -81,25 +81,48 @@ class SocialRepository {
     final q = query.trim();
     if (q.isEmpty) return const [];
     final uid = _uid;
-    // 검색 정체성은 현재 모드를 따른다(0025 분리): 업체 모드 계정은 상호로만,
-    // 일반 모드 계정은 닉네임으로만 — 업체 모드인데 닉네임으로 노출되는 누수 방지.
-    // (business_name 은 업체 모드일 때만 non-null 이라 모드 판별자로 쓴다.)
-    // PostgREST or() 문법 문자는 검색어에서 제거(쉼표·괄호가 필터를 깨뜨림).
-    final safe = q.replaceAll(RegExp(r'[,()]'), ' ').trim();
-    final rows = await _c
-        .from('public_profiles')
-        .select(
-          'id, nickname, user_type, profile_image_url, is_business, business_name',
-        )
-        .or(
-          'and(business_name.is.null,nickname.ilike.%$safe%),business_name.ilike.%$safe%',
-        )
-        .neq('id', uid)
-        .limit(30);
+    // 두 얼굴은 각자 검색된다(0026 §2 개정): 닉네임 매칭 = 개인 얼굴 결과,
+    // 상호 매칭 = 업체 얼굴 결과(승인 업체는 주인 모드와 무관하게 상시 공개).
+    // 개인 얼굴 결과에서는 business_name 을 비워 배지·업체 라우팅이 붙지 않게 —
+    // 어떤 사용자가 어떤 업체를 운영하는지의 연결 비노출은 그대로 유지된다.
+    const cols = 'id, nickname, user_type, profile_image_url, business_name';
+    final results = await Future.wait([
+      _c
+          .from('public_profiles')
+          .select(cols)
+          .ilike('nickname', '%$q%')
+          .neq('id', uid)
+          .limit(30),
+      _c
+          .from('public_profiles')
+          .select(cols)
+          .ilike('business_name', '%$q%')
+          .neq('id', uid)
+          .limit(30),
+    ]);
 
-    final list = (rows as List)
-        .map((r) => Connection.fromJson(r as Map<String, dynamic>))
-        .toList();
+    Connection personalFace(Map<String, dynamic> r) => Connection(
+      userId: r['id'] as String,
+      nickname: (r['nickname'] ?? '알 수 없음') as String,
+      userType: (r['user_type'] ?? '') as String,
+      profileImageUrl: r['profile_image_url'] as String?,
+      // 개인 얼굴 — 업체 정보는 싣지 않는다(배지·업체 얼굴 라우팅 차단)
+    );
+    Connection businessFace(Map<String, dynamic> r) => Connection(
+      userId: r['id'] as String,
+      nickname: (r['nickname'] ?? '알 수 없음') as String,
+      userType: (r['user_type'] ?? '') as String,
+      profileImageUrl: r['profile_image_url'] as String?,
+      isBusiness: true,
+      businessName: r['business_name'] as String?,
+    );
+
+    final list = <Connection>[
+      for (final r in (results[1] as List).cast<Map<String, dynamic>>())
+        businessFace(r),
+      for (final r in (results[0] as List).cast<Map<String, dynamic>>())
+        personalFace(r),
+    ];
     if (list.isEmpty) return list;
 
     // 내가 팔로우 중인 대상 표시

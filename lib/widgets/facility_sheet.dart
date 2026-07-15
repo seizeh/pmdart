@@ -374,14 +374,19 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
   }
 
   /// 히어로(대표 사진) 탭 → 인증 업주의 업체 프로필로(업체 얼굴 진입점).
+  /// 가로 밀기 back 대신 타사용자 프로필과 동일한 언어 — 아래에서 떠오르고,
+  /// 끌어내리면 아래로 사라지며 닫힌다(rise + CollapseRoute).
   void _openOwnerProfile(Facility f) {
     final uid = f.ownerUserId;
     if (uid == null) return;
     Navigator.push(
       context,
-      AppPageRoute(
-        builder: (_) =>
-            UserProfileScreen(userId: uid, previewNickname: f.name),
+      CollapseRoute(
+        builder: (_) => UserProfileScreen(
+          userId: uid,
+          previewNickname: f.name,
+          originRect: riseOriginRect(context),
+        ),
       ),
     );
   }

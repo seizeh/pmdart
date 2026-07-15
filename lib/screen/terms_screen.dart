@@ -96,13 +96,9 @@ class _TermsScreenState extends State<TermsScreen> {
             child: SingleChildScrollView(
               controller: _scroll,
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-              child: SelectableText(
-                _plain(snap.data!),
-                style: TextStyle(
-                  fontSize: 13.5,
-                  height: 1.65,
-                  color: context.colors.textPrimary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _buildBlocks(context, snap.data!),
               ),
             ),
           );
@@ -144,16 +140,176 @@ class _TermsScreenState extends State<TermsScreen> {
     );
   }
 
-  /// 마크다운 문서를 읽기 쉬운 평문으로 정리.
-  /// 헤더(#)·굵게(**)·불릿 기호만 정리하고, 표는 내용 보존을 위해 그대로 둔다
-  /// (구분선 |---| 행만 제거).
-  String _plain(String md) {
-    return md
-        .replaceAll(RegExp(r'^#{1,6}\s*', multiLine: true), '')
-        .replaceAll('**', '')
-        .replaceAll(RegExp(r'^\s*[-*]\s', multiLine: true), '· ')
-        .replaceAll(RegExp(r'^\|[\s|:-]+\|$\n?', multiLine: true), '')
-        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
-        .trim();
+  // ── 경량 마크다운 렌더러 — 약관 문서가 쓰는 문법만 지원:
+  //    제목(#~######)·굵게(**)·표(|…|)·불릿(-/*)·구분선(---).
+  //    표를 평문으로 뭉개면 | 구분자가 그대로 노출돼 가독성이 무너지던 문제 수정.
+
+  List<Widget> _buildBlocks(BuildContext context, String md) {
+    final lines = md.split('\n');
+    final blocks = <Widget>[];
+    final para = <String>[];
+
+    void flushPara() {
+      if (para.isEmpty) return;
+      blocks.add(_paragraph(context, para.join('\n')));
+      para.clear();
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      final t = lines[i].trim();
+      if (t.isEmpty) {
+        flushPara();
+        continue;
+      }
+      if (RegExp(r'^-{3,}$').hasMatch(t)) {
+        flushPara();
+        blocks.add(
+          Divider(height: 28, color: context.colors.border, thickness: 0.5),
+        );
+        continue;
+      }
+      final h = RegExp(r'^(#{1,6})\s*(.*)$').firstMatch(t);
+      if (h != null) {
+        flushPara();
+        blocks.add(_heading(context, h.group(1)!.length, h.group(2)!));
+        continue;
+      }
+      if (t.startsWith('|')) {
+        flushPara();
+        final tableLines = <String>[];
+        while (i < lines.length && lines[i].trim().startsWith('|')) {
+          tableLines.add(lines[i].trim());
+          i++;
+        }
+        i--;
+        blocks.add(_table(context, tableLines));
+        continue;
+      }
+      para.add(lines[i]);
+    }
+    flushPara();
+    return blocks;
+  }
+
+  Widget _heading(BuildContext context, int level, String text) {
+    final (size, weight) = switch (level) {
+      1 => (19.0, FontWeight.w800),
+      2 => (16.5, FontWeight.w800),
+      _ => (14.5, FontWeight.w700),
+    };
+    return Padding(
+      padding: EdgeInsets.only(top: level <= 2 ? 18 : 14, bottom: 6),
+      child: Text(
+        _stripBold(text),
+        style: TextStyle(
+          fontSize: size,
+          fontWeight: weight,
+          height: 1.4,
+          color: context.colors.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget _paragraph(BuildContext context, String text) {
+    final body = text.replaceAll(RegExp(r'^\s*[-*]\s', multiLine: true), '· ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SelectableText.rich(
+        TextSpan(
+          children: _boldSpans(context, body),
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.65,
+            color: context.colors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// **굵게** 인라인 파싱.
+  List<TextSpan> _boldSpans(BuildContext context, String text) {
+    final spans = <TextSpan>[];
+    var rest = text;
+    final re = RegExp(r'\*\*(.+?)\*\*');
+    while (true) {
+      final m = re.firstMatch(rest);
+      if (m == null) {
+        if (rest.isNotEmpty) spans.add(TextSpan(text: rest));
+        break;
+      }
+      if (m.start > 0) spans.add(TextSpan(text: rest.substring(0, m.start)));
+      spans.add(
+        TextSpan(
+          text: m.group(1),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      );
+      rest = rest.substring(m.end);
+    }
+    return spans;
+  }
+
+  String _stripBold(String s) => s.replaceAll('**', '');
+
+  Widget _table(BuildContext context, List<String> tableLines) {
+    // 셀 분해 — 앞뒤 빈 조각 제거, |---|:--| 구분선 행 제외.
+    final rows = <List<String>>[];
+    for (final line in tableLines) {
+      final cells = line
+          .split('|')
+          .map((c) => c.trim())
+          .toList()
+          .sublist(1); // 선행 | 앞의 빈 조각 제거
+      if (cells.isNotEmpty && cells.last.isEmpty) cells.removeLast();
+      if (cells.isEmpty) continue;
+      if (cells.every((c) => RegExp(r'^[:\-\s]*$').hasMatch(c))) continue;
+      rows.add(cells.map(_stripBold).toList());
+    }
+    if (rows.isEmpty) return const SizedBox.shrink();
+    final colCount = rows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
+
+    // 열 폭: 내용이 긴 열이 넓게 — 열별 최장 셀 길이에 비례(과도 편중 방지 클램프).
+    final widths = <int, TableColumnWidth>{};
+    for (var c = 0; c < colCount; c++) {
+      var maxLen = 0;
+      for (final r in rows) {
+        if (c < r.length && r[c].length > maxLen) maxLen = r[c].length;
+      }
+      widths[c] = FlexColumnWidth(maxLen.clamp(6, 30).toDouble());
+    }
+
+    TableRow buildRow(List<String> cells, {required bool header}) => TableRow(
+      decoration: header ? BoxDecoration(color: context.colors.surface) : null,
+      children: List.generate(colCount, (c) {
+        final text = c < cells.length ? cells[c] : '';
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.45,
+              fontWeight: header ? FontWeight.w700 : FontWeight.w400,
+              color: context.colors.textPrimary,
+            ),
+          ),
+        );
+      }),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Table(
+        border: TableBorder.all(color: context.colors.border, width: 0.5),
+        columnWidths: widths,
+        defaultVerticalAlignment: TableCellVerticalAlignment.top,
+        children: [
+          buildRow(rows.first, header: true),
+          for (final r in rows.skip(1)) buildRow(r, header: false),
+        ],
+      ),
+    );
   }
 }

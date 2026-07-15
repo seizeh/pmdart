@@ -29,6 +29,9 @@ class ProfileData {
   /// 현재 계정 모드 ('personal' | 'business') — 업체 모드 프로필 분리 표시에 사용.
   final String activeMode;
 
+  /// 업체 얼굴 사진(대표 사진) — 업체 모드 내정보 히어로에 사용(개인 사진과 분리).
+  final String? businessPhotoUrl;
+
   const ProfileData({
     required this.nickname,
     required this.username,
@@ -48,6 +51,7 @@ class ProfileData {
     this.isBusiness = false,
     this.businessName,
     this.activeMode = 'personal',
+    this.businessPhotoUrl,
   });
 
   /// 표시용 동네명(행정동) — address 의 마지막 토큰. 미인증이면 null.
@@ -92,6 +96,7 @@ class PublicProfileData {
   final String? businessAddress;
   final String? businessPhone;
   final String? businessFacilityId; // 매칭 시설 — 방문 후기 조회용
+  final String? businessPhotoUrl; // 업체 얼굴 사진(대표 사진) — 개인 사진과 분리
 
   /// 승인 업체 얼굴이 존재하는가 — 실제 표시는 forcePersonalFace(진입 맥락)와 조합.
   bool get isBusinessMode => businessName != null;
@@ -117,6 +122,7 @@ class PublicProfileData {
     this.businessAddress,
     this.businessPhone,
     this.businessFacilityId,
+    this.businessPhotoUrl,
     required this.reviewCount,
     required this.pawingCount,
     required this.pawmateCount,

@@ -56,7 +56,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController _nickCtrl = TextEditingController(
     text: widget.initialNickname,
   );
-  String? _imageUrl;
+  // 업체 모드에서는 이 화면의 사진이 '대표 사진'(업체 얼굴, 지도 동기화)이다 —
+  // 개인 사진과 분리(0026). 미리보기도 대표 사진으로 시작한다.
+  bool get _isBizMode => widget.profile?.activeMode == 'business';
+  late String? _imageUrl = _isBizMode
+      ? widget.profile?.businessPhotoUrl
+      : null;
   bool _uploading = false;
   bool _saving = false;
 
@@ -80,6 +85,26 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (file == null) return;
     setState(() => _uploading = true);
     try {
+      // 업체 모드: 대표 사진 교체 — 즉시 저장(setPhoto)되어 업체 프로필·지도에 반영.
+      // 세로 초점은 기존 값 유지(재조절은 업체 화면의 '위치 조절').
+      if (_isBizMode) {
+        final up = await StorageService.instance.upload(
+          file,
+          category: 'business',
+        );
+        final mine = await BusinessRepository.instance.fetchMine();
+        final ok = await BusinessRepository.instance.setPhoto(
+          url: up.url,
+          alignY: mine?.photoAlignY ?? 0,
+        );
+        if (!mounted) return;
+        setState(() {
+          if (ok) _imageUrl = up.url;
+          _uploading = false;
+        });
+        _toast(ok ? '대표 사진을 변경했어요 — 업체 프로필·지도에 반영돼요' : '변경에 실패했어요');
+        return;
+      }
       final up = await StorageService.instance.upload(
         file,
         category: 'profile',
@@ -101,7 +126,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     try {
       await ProfileRepository.instance.updateProfile(
         nickname: _nickCtrl.text.trim(),
-        profileImageUrl: _imageUrl,
+        // 업체 모드의 사진은 대표 사진(별도 저장) — 개인 사진을 덮지 않는다.
+        profileImageUrl: _isBizMode ? null : _imageUrl,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -213,7 +239,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     TextButton.icon(
                       onPressed: _uploading ? null : _pickImage,
                       icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                      label: const Text('사진 변경'),
+                      label: Text(_isBizMode ? '대표 사진 변경' : '사진 변경'),
                     ),
                     const SizedBox(height: 16),
                     Align(
@@ -240,7 +266,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          '닉네임과 사진은 일반(개인) 프로필에 사용돼요. 업체 정보 관리는 아래 업체 섹션에서 할 수 있어요.',
+                          '업체 모드에서 바꾸는 사진은 대표 사진으로, 업체 프로필과 지도에 반영돼요. 닉네임은 일반(개인) 프로필에 사용돼요.',
                           style: TextStyle(
                             fontSize: 12,
                             height: 1.5,

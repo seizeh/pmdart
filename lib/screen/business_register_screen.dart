@@ -149,11 +149,103 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
                   title: '인증된 업체예요',
                   message: '내정보 수정에서 업체 모드로 전환할 수 있어요.',
                   profile: _mine!,
+                  onEdit: _openInfoEdit,
                 ),
                 _ => _form(), // 미신청 또는 반려(재신청)
               },
       ),
     );
+  }
+
+  // ── 승인 업체 정보 수정 — 간판명·전화는 지도(매칭 시설)에도 반영 ──
+
+  Future<void> _openInfoEdit() async {
+    final mine = _mine;
+    if (mine == null) return;
+    final nameCtrl = TextEditingController(
+      text: mine.storefrontName ?? mine.businessName,
+    );
+    final phoneCtrl = TextEditingController(text: mine.businessPhone ?? '');
+    final emailCtrl = TextEditingController(text: mine.contactEmail);
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20, 20, 20, 20 + MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '업체 정보 수정',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: sheetCtx.colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '간판명·전화는 지도 시설 정보에도 바로 반영돼요. 사업자번호·주소·업종 변경은 재인증이 필요해요.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: sheetCtx.colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: '사업장명(간판명)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[\d\-]')),
+                LengthLimitingTextInputFormatter(13),
+              ],
+              decoration: const InputDecoration(labelText: '업장 전화'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: '연락받을 이메일'),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(sheetCtx, true),
+                child: const Text('저장'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved != true || !mounted) return;
+    final email = emailCtrl.text.trim();
+    if (email.isNotEmpty && !_emailRe.hasMatch(email)) {
+      _toast('이메일 형식을 확인해주세요');
+      return;
+    }
+    final ok = await BusinessRepository.instance.updateMyInfo(
+      storefrontName: nameCtrl.text.trim(),
+      phone: phoneCtrl.text,
+      email: email,
+    );
+    if (!mounted) return;
+    _toast(ok ? '저장했어요 — 지도 정보에도 반영됐어요' : '저장에 실패했어요. 잠시 후 다시 시도해주세요');
+    if (ok) await _loadMine();
   }
 
   // ── 신청 폼 ──
@@ -737,12 +829,14 @@ class _StatusView extends StatelessWidget {
   final String title;
   final String message;
   final BusinessProfile profile;
+  final VoidCallback? onEdit; // 승인 상태에서만 — 정보 수정(지도 동기화)
 
   const _StatusView({
     required this.icon,
     required this.title,
     required this.message,
     required this.profile,
+    this.onEdit,
   });
 
   @override
@@ -795,6 +889,17 @@ class _StatusView extends StatelessWidget {
               ],
             ),
           ),
+          if (onEdit != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('업체 정보 수정'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+          ],
         ],
       ),
     );

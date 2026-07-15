@@ -155,6 +155,28 @@ class BusinessRepository {
     }
   }
 
+  /// 승인 업체 정보 수정 — 사업장명·업장 전화·연락 이메일만(심사 근거인 사업자번호·
+  /// 주소·업종은 재신청 경로). 간판명·전화는 매칭 시설(지도)에도 서버가 동기화한다.
+  Future<bool> updateMyInfo({
+    String? storefrontName,
+    String? phone,
+    String? email,
+  }) async {
+    try {
+      await _c.rpc(
+        'update_my_business_info',
+        params: {
+          'p_storefront_name': storefrontName,
+          'p_phone': phone,
+          'p_email': email,
+        },
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// 계정 전환 — business 는 승인(approved) 상태에서만 서버가 허용.
   Future<String?> switchMode(String mode) async {
     try {

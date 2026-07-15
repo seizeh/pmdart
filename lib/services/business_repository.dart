@@ -172,6 +172,7 @@ class BusinessRepository {
               for (final u in (r['photo_urls'] as List? ?? const []))
                 u as String,
             ],
+            visitNo: (r['visit_no'] as num?)?.toInt(),
           ),
       ];
     } catch (_) {
@@ -317,12 +318,14 @@ class BizFacilityReview {
   final String? content;
   final DateTime? createdAt;
   final List<String> photoUrls;
+  final int? visitNo; // 같은 사용자의 몇 번째 방문 후기인지
   const BizFacilityReview({
     required this.authorNickname,
     required this.rating,
     this.content,
     this.createdAt,
     this.photoUrls = const [],
+    this.visitNo,
   });
 }
 

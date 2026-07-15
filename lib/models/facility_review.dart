@@ -1,4 +1,4 @@
-/// 시설 후기 1건 (v_facility_reviews 기준).
+/// 시설 후기 1건 (facility_reviews_of RPC 기준).
 class FacilityReview {
   final String id;
   final String facilityId;
@@ -10,6 +10,9 @@ class FacilityReview {
   final DateTime createdAt;
   final bool isMine;
 
+  /// 같은 사용자의 몇 번째 방문 후기인지(1부터) — 복수 후기 허용에 따른 순번.
+  final int? visitNo;
+
   const FacilityReview({
     required this.id,
     this.facilityId = '',
@@ -20,6 +23,7 @@ class FacilityReview {
     required this.photoUrls,
     required this.createdAt,
     required this.isMine,
+    this.visitNo,
   });
 
   factory FacilityReview.fromJson(Map<String, dynamic> j) => FacilityReview(
@@ -36,5 +40,6 @@ class FacilityReview {
         DateTime.tryParse((j['created_at'] ?? '') as String)?.toLocal() ??
         DateTime.now(),
     isMine: j['is_mine'] == true,
+    visitNo: (j['visit_no'] as num?)?.toInt(),
   );
 }

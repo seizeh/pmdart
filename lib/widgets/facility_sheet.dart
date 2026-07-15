@@ -102,15 +102,11 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
       ).showSnackBar(const SnackBar(content: Text('후기는 로그인 후 남길 수 있어요')));
       return;
     }
-    FacilityReview? mine;
-    for (final r in _reviews ?? const <FacilityReview>[]) {
-      if (r.isMine) mine = r;
-    }
+    // 복수 후기 허용 — 항상 새 후기 작성(방문 차수는 서버가 순번으로 표시).
     final ok = await Navigator.push<bool>(
       context,
       AppPageRoute(
-        builder: (_) =>
-            FacilityReviewScreen(facility: widget.facility, existing: mine),
+        builder: (_) => FacilityReviewScreen(facility: widget.facility),
       ),
     );
     if (ok == true) _load();
@@ -300,12 +296,9 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                       color: Colors.white,
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      // 시설당 1인 1후기 — 이미 썼다면 덮어쓰기(수정)임을 명시.
-                      (_reviews?.any((r) => r.isMine) ?? false)
-                          ? '내 후기 수정'
-                          : '후기 쓰기',
-                      style: const TextStyle(
+                    const Text(
+                      '후기 쓰기',
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
                       ),
@@ -384,6 +377,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                   createdAt: r.createdAt,
                   photoUrls: r.photoUrls,
                   isMine: r.isMine,
+                  visitNo: r.visitNo,
                 ),
             ],
           ),
@@ -418,6 +412,8 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     final h = (_kHeroMax - offset).clamp(_kHeroMin, _kHeroMax);
     final t = ((h - _kHeroMin) / (_kHeroMax - _kHeroMin)).clamp(0.0, 1.0);
     return GestureDetector(
+      // 자식 페인트에 의존하지 않고 히어로 전체 영역이 확실히 탭을 받도록 opaque.
+      behavior: HitTestBehavior.opaque,
       onTap: f.ownerUserId == null ? null : () => _openOwnerProfile(f),
       child: _heroBody(f, dist, reviews, align, h, t),
     );
@@ -492,6 +488,37 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                 ),
               ),
             ),
+            // 상단 우측: 업체 프로필 진입 안내 — 히어로 어디를 탭해도 이동하지만,
+            // 탭 가능함이 보이도록 명시적 배지를 함께 둔다.
+            if (f.ownerUserId != null)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0x66000000),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '업체 프로필',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, size: 14, color: Colors.white),
+                    ],
+                  ),
+                ),
+              ),
             // 정보 — 블러 구간 위.
             Positioned(
               left: 14,

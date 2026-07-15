@@ -38,6 +38,17 @@ class ProfileRepository {
 
     final pets = await _fetchMyPets(uid);
 
+    // 계정 모드(개인/업체) — 본인 컬럼만 GRANT 되어 있어 직접 조회. 실패 시 personal.
+    var activeMode = 'personal';
+    try {
+      final row = await _c
+          .from('users')
+          .select('active_mode')
+          .eq('id', uid)
+          .maybeSingle();
+      activeMode = (row?['active_mode'] as String?) ?? 'personal';
+    } catch (_) {}
+
     return ProfileData(
       nickname: (profile?['nickname'] ?? user.nickname) as String,
       username: user.username,
@@ -56,6 +67,7 @@ class ProfileRepository {
       activityRadiusM: (profile?['activity_radius_m'] as num?)?.toInt(),
       isBusiness: profile?['is_business'] == true,
       businessName: profile?['business_name'] as String?,
+      activeMode: activeMode,
     );
   }
 

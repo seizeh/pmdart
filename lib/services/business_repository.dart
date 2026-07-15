@@ -127,6 +127,34 @@ class BusinessRepository {
     }
   }
 
+  /// 내 업소(매칭 시설)에 달린 후기 — 업체 프로필의 후기 관리 UI 용.
+  /// 매칭 시설이 없으면(신규개업 트랙 등) 빈 목록.
+  Future<List<BizFacilityReview>> fetchMyFacilityReviews() async {
+    final mine = await fetchMine();
+    final fid = mine?.matchedFacilityId;
+    if (fid == null) return const [];
+    try {
+      final rows = await _c
+          .from('v_facility_reviews')
+          .select('author_nickname, rating, content, created_at')
+          .eq('facility_id', fid)
+          .order('created_at', ascending: false)
+          .limit(50);
+      return [
+        for (final r in (rows as List).cast<Map<String, dynamic>>())
+          BizFacilityReview(
+            authorNickname: (r['author_nickname'] as String?) ?? '알 수 없음',
+            rating: (r['rating'] as num?)?.toInt() ?? 0,
+            content: r['content'] as String?,
+            createdAt:
+                DateTime.tryParse(r['created_at'] as String? ?? '')?.toLocal(),
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// 계정 전환 — business 는 승인(approved) 상태에서만 서버가 허용.
   Future<String?> switchMode(String mode) async {
     try {
@@ -184,6 +212,7 @@ class BusinessProfile {
   final String? rejectedReason;
   final DateTime? reviewedAt;
   final DateTime createdAt;
+  final String? matchedFacilityId; // 공공데이터 매칭 시설 — 업체 후기 조회에 사용
 
   const BusinessProfile({
     required this.businessRegNo,
@@ -200,6 +229,7 @@ class BusinessProfile {
     this.rejectedReason,
     this.reviewedAt,
     required this.createdAt,
+    this.matchedFacilityId,
   });
 
   factory BusinessProfile.fromMap(Map<String, dynamic> m) => BusinessProfile(
@@ -220,11 +250,26 @@ class BusinessProfile {
         : DateTime.tryParse(m['reviewed_at'] as String),
     createdAt:
         DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
+    matchedFacilityId: m['matched_facility_id'] as String?,
   );
 
   bool get isPending => status == 'pending';
   bool get isApproved => status == 'approved';
   bool get isRejected => status == 'rejected';
+}
+
+/// 내 업소에 달린 시설 후기 1건 (업체 프로필 후기 관리 UI).
+class BizFacilityReview {
+  final String authorNickname;
+  final int rating; // 1~5
+  final String? content;
+  final DateTime? createdAt;
+  const BizFacilityReview({
+    required this.authorNickname,
+    required this.rating,
+    this.content,
+    this.createdAt,
+  });
 }
 
 /// 업종 라벨 (0025 §4.2 — 사업자등록증 업태·종목 확인 고지와 함께 사용)

@@ -22,6 +22,9 @@ class ChatTab extends StatefulWidget {
 class _ChatTabState extends State<ChatTab> {
   final _repo = ChatRepository.instance;
   List<ChatRoomSummary> _rooms = [];
+
+  // 채팅 목록 분리(0026) — 업체 문의 방이 하나라도 있으면 개인/업체 탭 노출.
+  String _filter = 'personal'; // 'personal' | 'business'
   bool _loading = true;
   String? _error;
 
@@ -127,6 +130,60 @@ class _ChatTabState extends State<ChatTab> {
     );
   }
 
+  /// 개인/업체 문의 분리 탭 — 각 탭의 안 읽음 합계를 배지로.
+  Widget _filterChips() {
+    int unread(bool biz) => _rooms
+        .where((r) => r.isBusinessInquiry == biz)
+        .fold(0, (s, r) => s + r.unreadCount);
+    Widget chip(String value, String label, int unreadCount) {
+      final selected = _filter == value;
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: ChoiceChip(
+          label: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label),
+              if (unreadCount > 0) ...[
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: context.colors.danger,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    '$unreadCount',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          selected: selected,
+          onSelected: (_) => setState(() => _filter = value),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          chip('personal', '개인', unread(false)),
+          chip('business', '업체 문의', unread(true)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBody(double topPad) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
@@ -139,16 +196,37 @@ class _ChatTabState extends State<ChatTab> {
         message: '아직 진행 중인 대화가 없어요.\n게시글에서 상대에게 채팅을 시작해보세요!',
       );
     }
+    // 개인 대화와 업체 문의는 분리된 목록(0026) — 업체 문의 방이 있을 때만 탭 노출.
+    final hasBiz = _rooms.any((r) => r.isBusinessInquiry);
+    final rooms = !hasBiz
+        ? _rooms
+        : _rooms
+              .where((r) => (_filter == 'business') == r.isBusinessInquiry)
+              .toList();
+    final headerCount = hasBiz ? 1 : 0;
+    final emptyCount = (hasBiz && rooms.isEmpty) ? 1 : 0;
     return RefreshIndicator(
       onRefresh: _load,
       edgeOffset: topPad,
       child: ListView.separated(
         // 상단 헤더(상태바 아래 프로스트 패널)와 첫 타일 사이 간격을 넉넉히.
         padding: EdgeInsets.only(left: 20, right: 20, top: topPad + 26),
-        itemCount: _rooms.length,
+        itemCount: rooms.length + headerCount + emptyCount,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
-          final room = _rooms[i];
+          if (hasBiz && i == 0) return _filterChips();
+          if (emptyCount > 0 && i == 1) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Text(
+                  _filter == 'business' ? '업체 문의 대화가 없어요' : '개인 대화가 없어요',
+                  style: TextStyle(color: context.colors.textTertiary),
+                ),
+              ),
+            );
+          }
+          final room = rooms[i - headerCount];
           final key = _roomKeys.putIfAbsent(room.id, () => GlobalKey());
           return KeyedSubtree(
             key: key,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import '../motion/motion.dart';
+import '../services/business_repository.dart';
 import 'user_profile_screen.dart';
 import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
@@ -212,6 +213,37 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   Future<void> _apply() async {
     if (!_guard('지원은 로그인 후 할 수 있어요')) return;
+    // 매칭(지원→약속→평가)은 실제 만남 전제의 개인 활동 — 업체 모드에선 차단하고
+    // 일반 모드 전환을 유도한다(서버 트리거가 최종 방어선, 0026 §5-2).
+    final mode = await BusinessRepository.instance.fetchActiveMode();
+    if (!mounted) return;
+    if (mode == 'business') {
+      final switched = await showDialog<bool>(
+        context: context,
+        builder: (dCtx) => AlertDialog(
+          title: const Text('업체 모드에서는 지원할 수 없어요'),
+          content: const Text('산책·돌봄 매칭은 일반 모드에서 이용할 수 있어요.\n일반 모드로 전환하고 지원할까요?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('전환하고 지원'),
+            ),
+          ],
+        ),
+      );
+      if (switched != true || !mounted) return;
+      final result = await BusinessRepository.instance.switchMode('personal');
+      if (!mounted) return;
+      if (result != 'personal') {
+        _toast('모드 전환에 실패했어요. 잠시 후 다시 시도해주세요');
+        return;
+      }
+      _toast('일반 모드로 전환했어요');
+    }
     setState(() => _applying = true);
     try {
       await _repo.apply(_post.id);

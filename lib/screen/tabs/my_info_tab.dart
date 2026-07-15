@@ -80,6 +80,10 @@ class _MyInfoTabState extends State<MyInfoTab>
   bool _loading = true;
   String? _error;
 
+  // 업체 모드 히어로용 후기 요약(일반 모드면 null).
+  int? _bizReviewCount;
+  double? _bizReviewAvg;
+
   // 내가 작성한 게시글 — 공개 프로필과 동일한 2열 그리드로 표시.
   List<Post> _myPosts = [];
   final _postKeys = <String, GlobalKey>{};
@@ -115,7 +119,11 @@ class _MyInfoTabState extends State<MyInfoTab>
               originRect: rect,
               originRadius: 24, // 프로필 히어로 카드 곡률과 동일
               builder: (_) => page,
-              origin: (_) => _ProfileHeroCard(profile: p),
+              origin: (_) => _ProfileHeroCard(
+                profile: p,
+                bizReviewCount: _bizReviewCount,
+                bizReviewAvg: _bizReviewAvg,
+              ),
             ),
     );
     if (mounted) _load(silent: true); // 닉네임 등 수정 반영
@@ -287,11 +295,28 @@ class _MyInfoTabState extends State<MyInfoTab>
           );
         }
       } catch (_) {} // 게시글 조회 실패 시 기존 목록 유지
+      // 업체 모드 히어로의 후기 요약(후기 수·평점)
+      int? bizCount;
+      double? bizAvg;
+      if (p.activeMode == 'business') {
+        try {
+          final rs = await BusinessRepository.instance
+              .fetchMyFacilityReviews();
+          bizCount = rs.length;
+          bizAvg = rs.isEmpty
+              ? null
+              : rs.map((r) => r.rating).reduce((a, b) => a + b) / rs.length;
+        } catch (_) {
+          bizCount = 0;
+        }
+      }
       if (!mounted) return;
       setState(() {
         _profile = p;
         _pendingInvites = invites;
         _myPosts = posts;
+        _bizReviewCount = bizCount;
+        _bizReviewAvg = bizAvg;
         _loading = false;
         _error = null;
       });
@@ -405,6 +430,8 @@ class _MyInfoTabState extends State<MyInfoTab>
                 child: _ProfileHeroCard(
                   profile: profile,
                   onTap: _openProfileEdit,
+                  bizReviewCount: _bizReviewCount,
+                  bizReviewAvg: _bizReviewAvg,
                 ),
               ),
             ),
@@ -1015,7 +1042,16 @@ class _PetHeroPlaceholder extends StatelessWidget {
 class _ProfileHeroCard extends StatelessWidget {
   final ProfileData profile;
   final VoidCallback? onTap;
-  const _ProfileHeroCard({required this.profile, this.onTap});
+  // 업체 모드 히어로의 방문 후기 요약(null = 미로딩/일반 모드).
+  final int? bizReviewCount;
+  final double? bizReviewAvg;
+
+  const _ProfileHeroCard({
+    required this.profile,
+    this.onTap,
+    this.bizReviewCount,
+    this.bizReviewAvg,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1121,19 +1157,51 @@ class _ProfileHeroCard extends StatelessWidget {
                     ],
                     _metaLine(),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(child: _statCol('받은 평가', profile.reviewCount)),
-                        _statDivider(),
-                        Expanded(
-                          child: _statCol('Pawing', profile.pawingCount),
-                        ),
-                        _statDivider(),
-                        Expanded(
-                          child: _statCol('Pawmate', profile.pawmateCount),
-                        ),
-                      ],
-                    ),
+                    // 업체 모드: 개인 활동 지표 대신 방문 후기 요약(후기 수·평점),
+                    // 후기가 없으면 하나로 합쳐 안내(0026).
+                    if (profile.activeMode == 'business')
+                      (bizReviewCount == null || bizReviewCount == 0)
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Text(
+                                '아직 후기가 없어요',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xCCFFFFFF),
+                                ),
+                              ),
+                            )
+                          : Row(
+                              children: [
+                                Expanded(
+                                  child: _statCol('후기', bizReviewCount!),
+                                ),
+                                _statDivider(),
+                                Expanded(
+                                  child: _ratingCol(
+                                    bizReviewAvg?.toStringAsFixed(1) ?? '-',
+                                  ),
+                                ),
+                              ],
+                            )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _statCol('받은 평가', profile.reviewCount),
+                          ),
+                          _statDivider(),
+                          Expanded(
+                            child: _statCol('Pawing', profile.pawingCount),
+                          ),
+                          _statDivider(),
+                          Expanded(
+                            child: _statCol('Pawmate', profile.pawmateCount),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -1199,6 +1267,32 @@ class _ProfileHeroCard extends StatelessWidget {
 
   Widget _statDivider() =>
       Container(width: 1, height: 28, color: const Color(0x4DFFFFFF));
+
+  Widget _ratingCol(String value) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
+          const SizedBox(width: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 1),
+      const Text(
+        '평점',
+        style: TextStyle(fontSize: 10, color: Color(0xCCFFFFFF)),
+      ),
+    ],
+  );
 
   Widget _statCol(String label, int value) => Column(
     mainAxisSize: MainAxisSize.min,

@@ -694,15 +694,50 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ],
                 _metaLine(p),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(child: _statCol('받은 평가', p.reviewCount)),
-                    _statDivider(),
-                    Expanded(child: _statCol('Pawing', p.pawingCount)),
-                    _statDivider(),
-                    Expanded(child: _statCol('Pawmate', p.pawmateCount)),
-                  ],
-                ),
+                // 업체 얼굴: 개인 활동 지표(평가/팔로우) 대신 방문 후기 요약 —
+                // 후기 개수·평점 2칸, 후기가 없으면 하나로 합쳐 안내(0026).
+                if (_bizFace)
+                  _bizReviews.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            '아직 후기가 없어요',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xCCFFFFFF),
+                            ),
+                          ),
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: _statCol('후기', _bizReviews.length),
+                            ),
+                            _statDivider(),
+                            Expanded(
+                              child: _statText(
+                                '평점',
+                                (_bizReviews
+                                            .map((r) => r.rating)
+                                            .reduce((a, b) => a + b) /
+                                        _bizReviews.length)
+                                    .toStringAsFixed(1),
+                              ),
+                            ),
+                          ],
+                        )
+                else
+                  Row(
+                    children: [
+                      Expanded(child: _statCol('받은 평가', p.reviewCount)),
+                      _statDivider(),
+                      Expanded(child: _statCol('Pawing', p.pawingCount)),
+                      _statDivider(),
+                      Expanded(child: _statCol('Pawmate', p.pawmateCount)),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -767,6 +802,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Widget _statDivider() =>
       Container(width: 1, height: 28, color: const Color(0x4DFFFFFF));
+
+  Widget _statText(String label, String value) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star_rounded, size: 15, color: Color(0xFFFFB300)),
+          const SizedBox(width: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 1),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 10, color: Color(0xCCFFFFFF)),
+      ),
+    ],
+  );
 
   Widget _statCol(String label, int value) => Column(
     mainAxisSize: MainAxisSize.min,

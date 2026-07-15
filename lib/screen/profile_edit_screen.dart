@@ -126,35 +126,21 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   Widget _businessBody() {
     return Column(
       children: [
+        // 업체 수정이 최상단 — 프로필 한 번 탭으로 정보·대표 사진 수정에 바로 도달
+        // (기존: 항목을 한 번 더 탭해야 했음).
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: BusinessManagePanel(),
+        ),
+        const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: context.colors.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: context.colors.border, width: 0.5),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.storefront,
-                  size: 20,
-                  color: context.colors.primaryDark,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '업체 모드로 활동 중이에요.\n개인 프로필(닉네임·사진·활동 지역)은 일반 모드에서 수정할 수 있어요.',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      height: 1.5,
-                      color: context.colors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
+          child: Text(
+            '개인 프로필(닉네임·사진·활동 지역)은 일반 모드에서 수정할 수 있어요.',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: context.colors.textTertiary,
             ),
           ),
         ),
@@ -823,23 +809,15 @@ class _BusinessSectionState extends State<_BusinessSection> {
             trailing: '반려됨 · 재신청',
             onTap: () => _openRegister(context),
           )
-        else ...[
-          // 업체 정보·대표 사진 관리는 업체 모드에서만 — 개인 화면에는 전환만
-          // 남겨 두 얼굴의 수정 경로를 섞지 않는다(0026).
-          if (widget.isBizMode)
-            _Item(
-              icon: Icons.verified_outlined,
-              label: '업체 정보 · 대표 사진',
-              trailing: biz.businessName,
-              onTap: () => _openRegister(context),
-            ),
+        else
+          // 승인 후: 업체 정보·사진 수정은 업체 관리 패널(업체 모드 최상단)이
+          // 담당 — 섹션에는 전환만 남긴다(0026, 수정 경로 단일화).
           _Item(
             icon: Icons.swap_horiz,
             label: '계정 전환',
             trailing: _mode == 'business' ? '일반 모드로' : '업체 모드로',
             onTap: _toggleMode,
           ),
-        ],
       ],
     );
   }

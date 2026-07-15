@@ -147,9 +147,6 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
 
   // 네이버 지도 커스텀 스타일(지도 스타일 에디터에서 발급한 ID).
   static const _customStyleId = '430d08d6-8afd-4661-9ffe-bcbf5c4351f4';
-  // 다크 전용: 색상 정의 없이 심볼 제외만 담은 스타일. 내비 야간 색은 그대로
-  // 두고 라이트 커스텀 스타일과 같은 심볼만 숨긴다.
-  static const _darkSymbolStyleId = '02402e67-1834-487e-a46b-064c89b7d26b';
   static const _defaultZoom = 14.0;
   static const _seoul = NLatLng(37.5666, 126.9784);
   static const _initialPosition = NCameraPosition(
@@ -1009,12 +1006,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
                   // 공식 지원). 이 조합이어야 SDK 가 isDark 로 판단해 네이버
                   // 로고를 다크용으로 자동 교체하고, 내비 지도라 상업 POI
                   // 대부분이 숨겨져 라이트 커스텀 스타일(정보 최소화)과 비슷한
-                  // 밀도가 된다. 다크엔 심볼 제외만 담은 스타일을 얹어
-                  // 라이트와 동일한 심볼을 숨긴다(야간 색은 유지).
+                  // 밀도가 된다. 커스텀 스타일(라이트 전용)은 라이트에서만.
                   mapType: context.isDark ? NMapType.navi : NMapType.basic,
-                  customStyleId: context.isDark
-                      ? _darkSymbolStyleId
-                      : _customStyleId,
+                  customStyleId: context.isDark ? null : _customStyleId,
                   nightModeEnable: context.isDark,
                   locationButtonEnable: false,
                   consumeSymbolTapEvents: false,

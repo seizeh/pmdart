@@ -19,6 +19,7 @@ class Facility {
   // 인증 업주가 설정한 대표 사진 — 있으면 상세가 히어로(큰 사진+하단 블러) 레이아웃.
   final String? ownerPhotoUrl;
   final double ownerPhotoAlignY; // 세로 초점 -1(상단)~1(하단), 업주가 조절
+  final String? ownerUserId; // 매칭된 인증 업주 — 히어로 탭 시 업체 프로필로
 
   const Facility({
     required this.id,
@@ -35,6 +36,7 @@ class Facility {
     this.reviewCount = 0,
     this.ownerPhotoUrl,
     this.ownerPhotoAlignY = 0,
+    this.ownerUserId,
   });
 
   bool get isNaver => source == 'naver';
@@ -54,6 +56,7 @@ class Facility {
     reviewCount: (j['review_count'] as num?)?.toInt() ?? 0,
     ownerPhotoUrl: j['owner_photo_url'] as String?,
     ownerPhotoAlignY: (j['owner_photo_align_y'] as num?)?.toDouble() ?? 0,
+    ownerUserId: j['owner_user_id'] as String?,
   );
 }
 

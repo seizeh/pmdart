@@ -9,6 +9,7 @@ import '../services/facility_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/session.dart';
 import '../screen/facility_review_screen.dart';
+import '../screen/user_profile_screen.dart';
 
 /// 시설 상세 콘텐츠(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
 ///
@@ -372,14 +373,42 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     ];
   }
 
+  /// 히어로(대표 사진) 탭 → 인증 업주의 업체 프로필로(업체 얼굴 진입점).
+  void _openOwnerProfile(Facility f) {
+    final uid = f.ownerUserId;
+    if (uid == null) return;
+    Navigator.push(
+      context,
+      AppPageRoute(
+        builder: (_) =>
+            UserProfileScreen(userId: uid, previewNickname: f.name),
+      ),
+    );
+  }
+
   /// 대표 사진 히어로 — 프로필/게시글 히어로와 동일 문법(점진 블러 + 스크림 +
   /// 하단 정보). 사진의 세로 초점은 업주가 조절한 owner_photo_align_y 를 따른다.
   /// 스크롤 오프셋만큼 제자리 수축(240→64)하며 칩·별점은 페이드아웃, 이름은 남는다.
+  /// 탭하면 인증 업주의 업체 프로필로 이동한다.
   Widget _heroHeader(Facility f, String dist, List<FacilityReview>? reviews) {
     final align = Alignment(0, f.ownerPhotoAlignY.clamp(-1.0, 1.0));
     final offset = _scroll.hasClients ? _scroll.offset : 0.0;
     final h = (_kHeroMax - offset).clamp(_kHeroMin, _kHeroMax);
     final t = ((h - _kHeroMin) / (_kHeroMax - _kHeroMin)).clamp(0.0, 1.0);
+    return GestureDetector(
+      onTap: f.ownerUserId == null ? null : () => _openOwnerProfile(f),
+      child: _heroBody(f, dist, reviews, align, h, t),
+    );
+  }
+
+  Widget _heroBody(
+    Facility f,
+    String dist,
+    List<FacilityReview>? reviews,
+    Alignment align,
+    double h,
+    double t,
+  ) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: SizedBox(

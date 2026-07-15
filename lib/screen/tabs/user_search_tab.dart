@@ -68,7 +68,8 @@ class _UserSearchTabState extends State<UserSearchTab> {
       tileId,
       (rect) => UserProfileScreen(
         userId: c.userId,
-        previewNickname: c.nickname,
+        // 업체 결과는 미리보기(로딩 전 표시)도 상호로 — 닉네임 노출 방지
+        previewNickname: c.businessName ?? c.nickname,
         originRect: rect,
         cardBuilder: rect == null ? null : (_) => UserTile(connection: c),
       ),

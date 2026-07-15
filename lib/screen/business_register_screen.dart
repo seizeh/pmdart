@@ -56,6 +56,9 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
 
   bool _submitting = false;
 
+  // 업체 정보는 가입 동의 범위 밖(신청 시점 수집)이라 별도 필수 동의를 받는다 (처리방침 §1·§3)
+  bool _agreeCollect = false;
+
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   @override
@@ -119,7 +122,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
   bool get _hasAddress =>
       _address != null || _manualAddrCtrl.text.trim().isNotEmpty;
 
-  bool get _canSubmit => _doneCount == 7 && !_submitting;
+  bool get _canSubmit => _doneCount == 7 && _agreeCollect && !_submitting;
 
   @override
   Widget build(BuildContext context) {
@@ -317,6 +320,26 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
                     onPick: (d) => setState(() => _extraDoc = d),
                   ),
                 ],
+                const SizedBox(height: 20),
+                _foldToggle(
+                  '[필수] 업체 인증 심사를 위한 개인정보 수집·이용에 동의합니다',
+                  _agreeCollect,
+                  (v) => setState(() => _agreeCollect = v),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 28),
+                  child: Text(
+                    '항목: 사업자등록번호·상호·업종·사업장 주소·전화·이메일·증빙 서류 · '
+                    '목적: 사업자 상태 확인 및 인증 심사 · '
+                    '보유: 승인 시 인증 유지 기간, 반려 시 6개월, 탈퇴 시 30일 후 파기. '
+                    '자세한 내용은 개인정보 처리방침을 확인해주세요.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.5,
+                      color: context.colors.textTertiary,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
               ],
             ),

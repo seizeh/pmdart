@@ -144,185 +144,16 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
                       : '입력하신 정보를 확인하고 있어요.\n결과는 알림으로 알려드릴게요.',
                   profile: _mine!,
                 ),
-                'approved' => _StatusView(
-                  icon: Icons.verified_rounded,
-                  title: '인증된 업체예요',
-                  message: '내정보 수정에서 업체 모드로 전환할 수 있어요.',
-                  profile: _mine!,
-                  onEdit: _openInfoEdit,
-                  onSetPhoto: _pickAndSetPhoto,
-                  onAdjustPhoto: _mine!.photoUrl == null ? null : _adjustPhoto,
-                  onRemovePhoto: _mine!.photoUrl == null ? null : _removePhoto,
+                // 승인 후 관리는 공용 패널 — 업체 모드의 내정보(업체 관리) 최상단에도
+                // 동일 패널이 인라인된다(한 번의 탭으로 수정 도달).
+                'approved' => ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: const [BusinessManagePanel()],
                 ),
                 _ => _form(), // 미신청 또는 반려(재신청)
               },
       ),
     );
-  }
-
-  // ── 대표 사진(지도 상세 히어로) — 설정 시 위치 조절로 보일 영역을 정한다 ──
-
-  Future<void> _pickAndSetPhoto() async {
-    final mine = _mine;
-    if (mine == null) return;
-    final file = await StorageService.instance.pickImage();
-    if (file == null || !mounted) return;
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
-    final align = await _openAlignSheet(
-      image: MemoryImage(bytes),
-      initial: 0,
-      name: mine.storefrontName ?? mine.businessName,
-    );
-    if (align == null || !mounted) return;
-    try {
-      final up = await StorageService.instance.upload(
-        file,
-        category: 'business',
-      );
-      final ok = await BusinessRepository.instance.setPhoto(
-        url: up.url,
-        alignY: align,
-      );
-      if (!mounted) return;
-      _toast(ok ? '대표 사진을 설정했어요 — 지도 상세에 바로 반영돼요' : '설정에 실패했어요');
-      if (ok) await _loadMine();
-    } catch (_) {
-      if (mounted) _toast('사진 업로드에 실패했어요. 네트워크를 확인해주세요');
-    }
-  }
-
-  /// 기존 사진의 위치(세로 초점)만 다시 조절.
-  Future<void> _adjustPhoto() async {
-    final mine = _mine;
-    if (mine?.photoUrl == null) return;
-    final align = await _openAlignSheet(
-      image: NetworkImage(mine!.photoUrl!),
-      initial: mine.photoAlignY,
-      name: mine.storefrontName ?? mine.businessName,
-    );
-    if (align == null || !mounted) return;
-    final ok = await BusinessRepository.instance.setPhoto(
-      url: mine.photoUrl,
-      alignY: align,
-    );
-    if (!mounted) return;
-    _toast(ok ? '사진 위치를 저장했어요' : '저장에 실패했어요');
-    if (ok) await _loadMine();
-  }
-
-  Future<void> _removePhoto() async {
-    final ok = await BusinessRepository.instance.setPhoto(url: null);
-    if (!mounted) return;
-    _toast(ok ? '대표 사진을 제거했어요' : '제거에 실패했어요');
-    if (ok) await _loadMine();
-  }
-
-  Future<double?> _openAlignSheet({
-    required ImageProvider image,
-    required double initial,
-    required String name,
-  }) {
-    return showModalBottomSheet<double>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.colors.cream,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _PhotoAlignSheet(image: image, initial: initial, name: name),
-    );
-  }
-
-  // ── 승인 업체 정보 수정 — 간판명·전화는 지도(매칭 시설)에도 반영 ──
-
-  Future<void> _openInfoEdit() async {
-    final mine = _mine;
-    if (mine == null) return;
-    final nameCtrl = TextEditingController(
-      text: mine.storefrontName ?? mine.businessName,
-    );
-    final phoneCtrl = TextEditingController(text: mine.businessPhone ?? '');
-    final emailCtrl = TextEditingController(text: mine.contactEmail);
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.colors.cream,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetCtx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          20, 20, 20, 20 + MediaQuery.of(sheetCtx).viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '업체 정보 수정',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: sheetCtx.colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '간판명·전화는 지도 시설 정보에도 바로 반영돼요. 사업자번호·주소·업종 변경은 재인증이 필요해요.',
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.5,
-                color: sheetCtx.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: '사업장명(간판명)'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: phoneCtrl,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d\-]')),
-                LengthLimitingTextInputFormatter(13),
-              ],
-              decoration: const InputDecoration(labelText: '업장 전화'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: '연락받을 이메일'),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(sheetCtx, true),
-                child: const Text('저장'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (saved != true || !mounted) return;
-    final email = emailCtrl.text.trim();
-    if (email.isNotEmpty && !_emailRe.hasMatch(email)) {
-      _toast('이메일 형식을 확인해주세요');
-      return;
-    }
-    final ok = await BusinessRepository.instance.updateMyInfo(
-      storefrontName: nameCtrl.text.trim(),
-      phone: phoneCtrl.text,
-      email: email,
-    );
-    if (!mounted) return;
-    _toast(ok ? '저장했어요 — 지도 정보에도 반영됐어요' : '저장에 실패했어요. 잠시 후 다시 시도해주세요');
-    if (ok) await _loadMine();
   }
 
   // ── 신청 폼 ──
@@ -906,20 +737,11 @@ class _StatusView extends StatelessWidget {
   final String title;
   final String message;
   final BusinessProfile profile;
-  final VoidCallback? onEdit; // 승인 상태에서만 — 정보 수정(지도 동기화)
-  final VoidCallback? onSetPhoto; // 대표 사진 설정/변경
-  final VoidCallback? onAdjustPhoto; // 기존 사진 위치 조절
-  final VoidCallback? onRemovePhoto; // 사진 제거
-
   const _StatusView({
     required this.icon,
     required this.title,
     required this.message,
     required this.profile,
-    this.onEdit,
-    this.onSetPhoto,
-    this.onAdjustPhoto,
-    this.onRemovePhoto,
   });
 
   @override
@@ -972,91 +794,6 @@ class _StatusView extends StatelessWidget {
               ],
             ),
           ),
-          if (onSetPhoto != null) ...[
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '대표 사진',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textSecondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '설정하면 지도 상세가 사진 히어로 화면으로 바뀌어요.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: context.colors.textTertiary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (profile.photoUrl != null) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  height: 140,
-                  child: Image.network(
-                    profile.photoUrl!,
-                    fit: BoxFit.cover,
-                    alignment: Alignment(0, profile.photoAlignY),
-                    errorBuilder: (_, _, _) =>
-                        ColoredBox(color: context.colors.surfaceMuted),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onSetPhoto,
-                    icon: const Icon(Icons.photo_outlined, size: 18),
-                    label: Text(profile.photoUrl == null ? '사진 설정' : '사진 변경'),
-                  ),
-                ),
-                if (onAdjustPhoto != null) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onAdjustPhoto,
-                      icon: const Icon(Icons.open_with, size: 18),
-                      label: const Text('위치 조절'),
-                    ),
-                  ),
-                ],
-                if (onRemovePhoto != null) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: onRemovePhoto,
-                    tooltip: '사진 제거',
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: context.colors.danger,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
-          if (onEdit != null) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onEdit,
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('업체 정보 수정'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-            ),
-          ],
       ],
     );
   }
@@ -1352,5 +1089,360 @@ class _AddressSearchSheetState extends State<_AddressSearchSheet> {
         ],
       ),
     );
+  }
+}
+
+
+/// 승인 업체 관리 패널 — 업체 정보 요약·수정, 대표 사진 설정/위치 조절/제거.
+/// BusinessRegisterScreen(승인 상태)과 업체 모드의 내정보(업체 관리) 최상단에서
+/// 공용 — "프로필 한 번 탭으로 수정 도달" 요구의 구현체.
+class BusinessManagePanel extends StatefulWidget {
+  const BusinessManagePanel({super.key});
+
+  @override
+  State<BusinessManagePanel> createState() => _BusinessManagePanelState();
+}
+
+class _BusinessManagePanelState extends State<BusinessManagePanel> {
+  BusinessProfile? _mine;
+  bool _loading = true;
+
+  static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMine();
+  }
+
+  Future<void> _loadMine() async {
+    final mine = await BusinessRepository.instance.fetchMine();
+    if (!mounted) return;
+    setState(() {
+      _mine = mine;
+      _loading = false;
+    });
+  }
+
+  void _toast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ),
+      );
+    }
+    final mine = _mine;
+    if (mine == null || !mine.isApproved) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.verified, size: 18, color: context.colors.primaryDark),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                mine.storefrontName ?? mine.businessName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: context.colors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: context.colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.colors.border, width: 0.5),
+          ),
+          child: Column(
+            children: [
+              _row(context, '상호', mine.businessName),
+              if ((mine.storefrontName ?? '').isNotEmpty)
+                _row(context, '사업장명', mine.storefrontName!),
+              _row(context, '업종', businessCategoryLabel(mine.declaredCategory)),
+              _row(context, '주소', mine.businessAddress),
+              if ((mine.businessPhone ?? '').isNotEmpty)
+                _row(context, '전화', mine.businessPhone!),
+              _row(context, '이메일', mine.contactEmail),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '대표 사진',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '업체 프로필과 지도 상세에 쓰이는 사진이에요.',
+            style: TextStyle(fontSize: 12, color: context.colors.textTertiary),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (mine.photoUrl != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: SizedBox(
+              height: 140,
+              child: Image.network(
+                mine.photoUrl!,
+                fit: BoxFit.cover,
+                alignment: Alignment(0, mine.photoAlignY),
+                errorBuilder: (_, _, _) =>
+                    ColoredBox(color: context.colors.surfaceMuted),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _pickAndSetPhoto,
+                icon: const Icon(Icons.photo_outlined, size: 18),
+                label: Text(mine.photoUrl == null ? '사진 설정' : '사진 변경'),
+              ),
+            ),
+            if (mine.photoUrl != null) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _adjustPhoto,
+                  icon: const Icon(Icons.open_with, size: 18),
+                  label: const Text('위치 조절'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _removePhoto,
+                tooltip: '사진 제거',
+                icon: Icon(Icons.delete_outline, color: context.colors.danger),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _openInfoEdit,
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('업체 정보 수정'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+        ),
+      ],
+    );
+  }
+
+  Widget _row(BuildContext context, String k, String v) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 76,
+          child: Text(
+            k,
+            style: TextStyle(fontSize: 13, color: context.colors.textTertiary),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            v,
+            style: TextStyle(fontSize: 13.5, color: context.colors.textPrimary),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _pickAndSetPhoto() async {
+    final mine = _mine;
+    if (mine == null) return;
+    final file = await StorageService.instance.pickImage();
+    if (file == null || !mounted) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    final align = await _openAlignSheet(
+      image: MemoryImage(bytes),
+      initial: 0,
+      name: mine.storefrontName ?? mine.businessName,
+    );
+    if (align == null || !mounted) return;
+    try {
+      final up = await StorageService.instance.upload(
+        file,
+        category: 'business',
+      );
+      final ok = await BusinessRepository.instance.setPhoto(
+        url: up.url,
+        alignY: align,
+      );
+      if (!mounted) return;
+      _toast(ok ? '대표 사진을 설정했어요 — 지도 상세에 바로 반영돼요' : '설정에 실패했어요');
+      if (ok) await _loadMine();
+    } catch (_) {
+      if (mounted) _toast('사진 업로드에 실패했어요. 네트워크를 확인해주세요');
+    }
+  }
+
+  /// 기존 사진의 위치(세로 초점)만 다시 조절.
+  Future<void> _adjustPhoto() async {
+    final mine = _mine;
+    if (mine?.photoUrl == null) return;
+    final align = await _openAlignSheet(
+      image: NetworkImage(mine!.photoUrl!),
+      initial: mine.photoAlignY,
+      name: mine.storefrontName ?? mine.businessName,
+    );
+    if (align == null || !mounted) return;
+    final ok = await BusinessRepository.instance.setPhoto(
+      url: mine.photoUrl,
+      alignY: align,
+    );
+    if (!mounted) return;
+    _toast(ok ? '사진 위치를 저장했어요' : '저장에 실패했어요');
+    if (ok) await _loadMine();
+  }
+
+  Future<void> _removePhoto() async {
+    final ok = await BusinessRepository.instance.setPhoto(url: null);
+    if (!mounted) return;
+    _toast(ok ? '대표 사진을 제거했어요' : '제거에 실패했어요');
+    if (ok) await _loadMine();
+  }
+
+  Future<double?> _openAlignSheet({
+    required ImageProvider image,
+    required double initial,
+    required String name,
+  }) {
+    return showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _PhotoAlignSheet(image: image, initial: initial, name: name),
+    );
+  }
+
+  Future<void> _openInfoEdit() async {
+    final mine = _mine;
+    if (mine == null) return;
+    final nameCtrl = TextEditingController(
+      text: mine.storefrontName ?? mine.businessName,
+    );
+    final phoneCtrl = TextEditingController(text: mine.businessPhone ?? '');
+    final emailCtrl = TextEditingController(text: mine.contactEmail);
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20, 20, 20, 20 + MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '업체 정보 수정',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: sheetCtx.colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '간판명·전화는 지도 시설 정보에도 바로 반영돼요. 사업자번호·주소·업종 변경은 재인증이 필요해요.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: sheetCtx.colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: '사업장명(간판명)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[\d\-]')),
+                LengthLimitingTextInputFormatter(13),
+              ],
+              decoration: const InputDecoration(labelText: '업장 전화'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: '연락받을 이메일'),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(sheetCtx, true),
+                child: const Text('저장'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved != true || !mounted) return;
+    final email = emailCtrl.text.trim();
+    if (email.isNotEmpty && !_emailRe.hasMatch(email)) {
+      _toast('이메일 형식을 확인해주세요');
+      return;
+    }
+    final ok = await BusinessRepository.instance.updateMyInfo(
+      storefrontName: nameCtrl.text.trim(),
+      phone: phoneCtrl.text,
+      email: email,
+    );
+    if (!mounted) return;
+    _toast(ok ? '저장했어요 — 지도 정보에도 반영됐어요' : '저장에 실패했어요. 잠시 후 다시 시도해주세요');
+    if (ok) await _loadMine();
   }
 }

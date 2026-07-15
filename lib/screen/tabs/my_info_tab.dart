@@ -1100,8 +1100,11 @@ class _ProfileHeroCard extends StatelessWidget {
                   children: [
                     if (hasPhoto) ...[
                       Text(
-                        // 업체 모드는 상호가 이름 자리에 — 분리된 프로필 표현
-                        profile.businessName ?? profile.nickname,
+                        // 업체 '모드'일 때만 상호가 이름 자리에 — 상호는 이제 상시
+                        // 공개(0026 §2 개정)라 null 여부가 아닌 모드로 판별한다.
+                        profile.activeMode == 'business'
+                            ? (profile.businessName ?? profile.nickname)
+                            : profile.nickname,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -1144,7 +1147,9 @@ class _ProfileHeroCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 100, left: 24, right: 24),
         child: Text(
-          profile.businessName ?? profile.nickname,
+          profile.activeMode == 'business'
+              ? (profile.businessName ?? profile.nickname)
+              : profile.nickname,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,

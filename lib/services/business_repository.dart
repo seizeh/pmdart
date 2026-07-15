@@ -127,6 +127,20 @@ class BusinessRepository {
     }
   }
 
+  /// 대표 사진 설정/해제 — 매칭 시설(지도 상세 히어로)에도 서버가 동기화.
+  /// [url] null 이면 사진 제거. [alignY] 는 세로 초점 -1(상단)~1(하단).
+  Future<bool> setPhoto({required String? url, double alignY = 0}) async {
+    try {
+      await _c.rpc(
+        'set_my_business_photo',
+        params: {'p_url': url, 'p_align_y': alignY},
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// 내 업소(매칭 시설)에 달린 후기 — 업체 프로필의 후기 관리 UI 용.
   /// 매칭 시설이 없으면(신규개업 트랙 등) 빈 목록.
   Future<List<BizFacilityReview>> fetchMyFacilityReviews() async {
@@ -235,6 +249,8 @@ class BusinessProfile {
   final DateTime? reviewedAt;
   final DateTime createdAt;
   final String? matchedFacilityId; // 공공데이터 매칭 시설 — 업체 후기 조회에 사용
+  final String? photoUrl; // 대표 사진(지도 상세 히어로)
+  final double photoAlignY; // 사진 세로 초점 -1~1
 
   const BusinessProfile({
     required this.businessRegNo,
@@ -252,6 +268,8 @@ class BusinessProfile {
     this.reviewedAt,
     required this.createdAt,
     this.matchedFacilityId,
+    this.photoUrl,
+    this.photoAlignY = 0,
   });
 
   factory BusinessProfile.fromMap(Map<String, dynamic> m) => BusinessProfile(
@@ -273,6 +291,8 @@ class BusinessProfile {
     createdAt:
         DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
     matchedFacilityId: m['matched_facility_id'] as String?,
+    photoUrl: m['photo_url'] as String?,
+    photoAlignY: (m['photo_align_y'] as num?)?.toDouble() ?? 0,
   );
 
   bool get isPending => status == 'pending';

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pawmate/theme/app_theme.dart';
 import 'package:pawmate/services/community_repository.dart';
 import 'package:pawmate/widgets/region_posts_sheet.dart';
 
@@ -15,7 +16,8 @@ void main() {
   );
 
   testWidgets('동네 게시글 콘텐츠가 헤더를 표시하고 예외 없이 렌더된다', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light(),
       home: Scaffold(
         body: RegionPostsContent(cluster: cluster),
       ),

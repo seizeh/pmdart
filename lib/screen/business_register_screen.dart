@@ -150,10 +150,87 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
                   message: '내정보 수정에서 업체 모드로 전환할 수 있어요.',
                   profile: _mine!,
                   onEdit: _openInfoEdit,
+                  onSetPhoto: _pickAndSetPhoto,
+                  onAdjustPhoto: _mine!.photoUrl == null ? null : _adjustPhoto,
+                  onRemovePhoto: _mine!.photoUrl == null ? null : _removePhoto,
                 ),
                 _ => _form(), // 미신청 또는 반려(재신청)
               },
       ),
+    );
+  }
+
+  // ── 대표 사진(지도 상세 히어로) — 설정 시 위치 조절로 보일 영역을 정한다 ──
+
+  Future<void> _pickAndSetPhoto() async {
+    final mine = _mine;
+    if (mine == null) return;
+    final file = await StorageService.instance.pickImage();
+    if (file == null || !mounted) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    final align = await _openAlignSheet(
+      image: MemoryImage(bytes),
+      initial: 0,
+      name: mine.storefrontName ?? mine.businessName,
+    );
+    if (align == null || !mounted) return;
+    try {
+      final up = await StorageService.instance.upload(
+        file,
+        category: 'business',
+      );
+      final ok = await BusinessRepository.instance.setPhoto(
+        url: up.url,
+        alignY: align,
+      );
+      if (!mounted) return;
+      _toast(ok ? '대표 사진을 설정했어요 — 지도 상세에 바로 반영돼요' : '설정에 실패했어요');
+      if (ok) await _loadMine();
+    } catch (_) {
+      if (mounted) _toast('사진 업로드에 실패했어요. 네트워크를 확인해주세요');
+    }
+  }
+
+  /// 기존 사진의 위치(세로 초점)만 다시 조절.
+  Future<void> _adjustPhoto() async {
+    final mine = _mine;
+    if (mine?.photoUrl == null) return;
+    final align = await _openAlignSheet(
+      image: NetworkImage(mine!.photoUrl!),
+      initial: mine.photoAlignY,
+      name: mine.storefrontName ?? mine.businessName,
+    );
+    if (align == null || !mounted) return;
+    final ok = await BusinessRepository.instance.setPhoto(
+      url: mine.photoUrl,
+      alignY: align,
+    );
+    if (!mounted) return;
+    _toast(ok ? '사진 위치를 저장했어요' : '저장에 실패했어요');
+    if (ok) await _loadMine();
+  }
+
+  Future<void> _removePhoto() async {
+    final ok = await BusinessRepository.instance.setPhoto(url: null);
+    if (!mounted) return;
+    _toast(ok ? '대표 사진을 제거했어요' : '제거에 실패했어요');
+    if (ok) await _loadMine();
+  }
+
+  Future<double?> _openAlignSheet({
+    required ImageProvider image,
+    required double initial,
+    required String name,
+  }) {
+    return showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _PhotoAlignSheet(image: image, initial: initial, name: name),
     );
   }
 
@@ -830,6 +907,9 @@ class _StatusView extends StatelessWidget {
   final String message;
   final BusinessProfile profile;
   final VoidCallback? onEdit; // 승인 상태에서만 — 정보 수정(지도 동기화)
+  final VoidCallback? onSetPhoto; // 대표 사진 설정/변경
+  final VoidCallback? onAdjustPhoto; // 기존 사진 위치 조절
+  final VoidCallback? onRemovePhoto; // 사진 제거
 
   const _StatusView({
     required this.icon,
@@ -837,6 +917,9 @@ class _StatusView extends StatelessWidget {
     required this.message,
     required this.profile,
     this.onEdit,
+    this.onSetPhoto,
+    this.onAdjustPhoto,
+    this.onRemovePhoto,
   });
 
   @override
@@ -889,6 +972,80 @@ class _StatusView extends StatelessWidget {
               ],
             ),
           ),
+          if (onSetPhoto != null) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '대표 사진',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '설정하면 지도 상세가 사진 히어로 화면으로 바뀌어요.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.colors.textTertiary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (profile.photoUrl != null) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  height: 140,
+                  child: Image.network(
+                    profile.photoUrl!,
+                    fit: BoxFit.cover,
+                    alignment: Alignment(0, profile.photoAlignY),
+                    errorBuilder: (_, _, _) =>
+                        ColoredBox(color: context.colors.surfaceMuted),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onSetPhoto,
+                    icon: const Icon(Icons.photo_outlined, size: 18),
+                    label: Text(profile.photoUrl == null ? '사진 설정' : '사진 변경'),
+                  ),
+                ),
+                if (onAdjustPhoto != null) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onAdjustPhoto,
+                      icon: const Icon(Icons.open_with, size: 18),
+                      label: const Text('위치 조절'),
+                    ),
+                  ),
+                ],
+                if (onRemovePhoto != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: onRemovePhoto,
+                    tooltip: '사진 제거',
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: context.colors.danger,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
           if (onEdit != null) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
@@ -937,6 +1094,143 @@ class _StatusView extends StatelessWidget {
       ],
     ),
   );
+}
+
+// ── 대표 사진 위치 조절 — 지도 상세 히어로와 동일한 프레임으로 미리보기 ──
+
+class _PhotoAlignSheet extends StatefulWidget {
+  final ImageProvider image;
+  final double initial;
+  final String name; // 미리보기에 얹을 상호(실제 상세 화면 재현)
+  const _PhotoAlignSheet({
+    required this.image,
+    required this.initial,
+    required this.name,
+  });
+
+  @override
+  State<_PhotoAlignSheet> createState() => _PhotoAlignSheetState();
+}
+
+class _PhotoAlignSheetState extends State<_PhotoAlignSheet> {
+  late double _alignY = widget.initial.clamp(-1.0, 1.0);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20, 20, 20, 20 + MediaQuery.of(context).padding.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '사진 위치 조절',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '사진을 위아래로 움직여 지도 상세에서 보일 영역을 정해주세요. 아래 화면이 실제로 보이는 모습이에요.',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: context.colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          GestureDetector(
+            // 드래그 방향과 사진 이동이 일치하게: 아래로 끌면 사진이 내려가
+            // 윗부분이 보인다(align -1 방향).
+            onVerticalDragUpdate: (d) => setState(() {
+              _alignY = (_alignY - d.delta.dy / 120).clamp(-1.0, 1.0);
+            }),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: SizedBox(
+                height: 240, // 지도 상세 히어로와 동일 높이
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image(
+                      image: widget.image,
+                      fit: BoxFit.cover,
+                      alignment: Alignment(0, _alignY),
+                    ),
+                    // 실제 상세와 동일한 하단 스크림 + 정보 자리 미리보기.
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 120,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0x00000000), Color(0x59000000)],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 14,
+                      right: 14,
+                      bottom: 12,
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.verified,
+                            size: 17,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('취소'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, _alignY),
+                  child: const Text('이 위치로 저장'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── juso 주소검색 바텀시트 ──

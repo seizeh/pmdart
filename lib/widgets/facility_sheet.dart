@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -133,54 +135,62 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            // 겹치는 업종 전부(예: 동물병원 · 위탁·호텔 · 미용) 칩으로 표기.
-            for (final cat in _displayCategories)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: widget.color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Text(
-                  kFacilityLabels[cat] ?? cat,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: widget.color,
+        // 인증 업주가 대표 사진을 설정한 시설: 커뮤니티 게시글처럼 큰 사진 히어로 +
+        // 하단 점진 블러 위에 기존 정보(업종 칩·이름·별점·거리)를 얹는다.
+        if (f.ownerPhotoUrl != null)
+          _heroHeader(f, dist, reviews)
+        else ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              // 겹치는 업종 전부(예: 동물병원 · 위탁·호텔 · 미용) 칩으로 표기.
+              for (final cat in _displayCategories)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: widget.color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    kFacilityLabels[cat] ?? cat,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: widget.color,
+                    ),
                   ),
                 ),
+              Text(
+                dist,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.colors.textTertiary,
+                ),
               ),
-            Text(
-              dist,
-              style: TextStyle(
-                fontSize: 12,
-                color: context.colors.textTertiary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Text(
-          f.name,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: context.colors.textPrimary,
+            ],
           ),
-        ),
+          const SizedBox(height: 10),
+          Text(
+            f.name,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: context.colors.textPrimary,
+            ),
+          ),
+        ],
         if (evaluatePetSales(f) case final s?) ...[
           const SizedBox(height: 12),
           _PetSalesTrustCard(score: s),
         ],
-        if (reviews != null && reviews.isNotEmpty) ...[
+        if (f.ownerPhotoUrl == null &&
+            reviews != null &&
+            reviews.isNotEmpty) ...[
           const SizedBox(height: 6),
           Row(
             children: [
@@ -312,6 +322,163 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
         else
           for (final r in reviews) _ReviewItem(review: r),
       ],
+    );
+  }
+
+  /// 대표 사진 히어로 — 프로필/게시글 히어로와 동일 문법(점진 블러 + 스크림 +
+  /// 하단 정보). 사진의 세로 초점은 업주가 조절한 owner_photo_align_y 를 따른다.
+  Widget _heroHeader(Facility f, String dist, List<FacilityReview>? reviews) {
+    final align = Alignment(0, f.ownerPhotoAlignY.clamp(-1.0, 1.0));
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(
+        height: 240,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              f.ownerPhotoUrl!,
+              fit: BoxFit.cover,
+              alignment: align,
+              cacheWidth: 1200,
+              errorBuilder: (_, _, _) =>
+                  ColoredBox(color: context.colors.primaryDark),
+            ),
+            // 하단 점진 블러 — 정보 가독 영역.
+            Positioned.fill(
+              child: ShaderMask(
+                shaderCallback: (rect) => const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x00FFFFFF),
+                    Color(0x00FFFFFF),
+                    Color(0xFFFFFFFF),
+                  ],
+                  stops: [0.0, 0.45, 0.85],
+                ).createShader(rect),
+                blendMode: BlendMode.dstIn,
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(
+                    sigmaX: 20,
+                    sigmaY: 20,
+                    tileMode: ui.TileMode.clamp,
+                  ),
+                  child: Image.network(
+                    f.ownerPhotoUrl!,
+                    fit: BoxFit.cover,
+                    alignment: align,
+                    cacheWidth: 400, // 블러 사본 — 저해상 디코딩으로 충분
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            ),
+            // 가독용 스크림.
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 120,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x00000000), Color(0x59000000)],
+                  ),
+                ),
+              ),
+            ),
+            // 정보 — 블러 구간 위.
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: 12,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      for (final cat in _displayCategories)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          child: Text(
+                            kFacilityLabels[cat] ?? cat,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        dist,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: Color(0xCCFFFFFF),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          f.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // 대표 사진은 인증 업주만 설정 가능 — 관리 중인 업소 표시.
+                      const Icon(Icons.verified, size: 17, color: Colors.white),
+                    ],
+                  ),
+                  if (reviews != null && reviews.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star,
+                          size: 14,
+                          color: Color(0xFFFFB300),
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${_avg.toStringAsFixed(1)} · 후기 ${reviews.length}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xE6FFFFFF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -150,15 +150,16 @@ class BusinessRepository {
     return fetchFacilityReviews(fid);
   }
 
-  /// 특정 시설의 방문 후기 — 타사용자가 보는 업체 프로필에서도 사용(공개 뷰).
+  /// 특정 시설의 방문 후기 — 타사용자가 보는 업체 프로필에서도 사용.
+  /// 지도 상세와 동일한 RPC(facility_reviews_of) 사용 — 뷰가 아니라 RPC 가 정본
+  /// (존재하지 않는 v_facility_reviews 를 조회하던 버그 수정: 조용한 catch 로
+  /// 빈 목록이 되어 '후기 동기화 안 됨'으로 보였다).
   Future<List<BizFacilityReview>> fetchFacilityReviews(String fid) async {
     try {
-      final rows = await _c
-          .from('v_facility_reviews')
-          .select('author_nickname, rating, content, created_at')
-          .eq('facility_id', fid)
-          .order('created_at', ascending: false)
-          .limit(50);
+      final rows = await _c.rpc(
+        'facility_reviews_of',
+        params: {'p_facility': fid, 'p_limit': 50},
+      );
       return [
         for (final r in (rows as List).cast<Map<String, dynamic>>())
           BizFacilityReview(

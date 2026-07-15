@@ -16,6 +16,10 @@ class Facility {
   final double avgRating; // 평균 별점(캐시, 0이면 후기 없음/미승격)
   final int reviewCount;
 
+  // 인증 업주가 설정한 대표 사진 — 있으면 상세가 히어로(큰 사진+하단 블러) 레이아웃.
+  final String? ownerPhotoUrl;
+  final double ownerPhotoAlignY; // 세로 초점 -1(상단)~1(하단), 업주가 조절
+
   const Facility({
     required this.id,
     required this.category,
@@ -29,6 +33,8 @@ class Facility {
     this.source = 'localdata',
     this.avgRating = 0,
     this.reviewCount = 0,
+    this.ownerPhotoUrl,
+    this.ownerPhotoAlignY = 0,
   });
 
   bool get isNaver => source == 'naver';
@@ -46,6 +52,8 @@ class Facility {
     source: (j['source'] ?? 'localdata') as String,
     avgRating: (j['avg_rating'] as num?)?.toDouble() ?? 0,
     reviewCount: (j['review_count'] as num?)?.toInt() ?? 0,
+    ownerPhotoUrl: j['owner_photo_url'] as String?,
+    ownerPhotoAlignY: (j['owner_photo_align_y'] as num?)?.toDouble() ?? 0,
   );
 }
 

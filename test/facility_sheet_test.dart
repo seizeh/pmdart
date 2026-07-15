@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pawmate/theme/app_theme.dart';
 import 'package:pawmate/services/facility_repository.dart';
 import 'package:pawmate/widgets/facility_sheet.dart';
 import 'package:pawmate/widgets/map_bottom_sheet.dart';
@@ -21,7 +22,8 @@ void main() {
   );
 
   testWidgets('시설 상세 콘텐츠가 정보와 후기 버튼을 표시한다', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light(),
       home: Scaffold(
         body: FacilityDetailContent(
           facility: facility,
@@ -44,6 +46,7 @@ void main() {
   testWidgets('MapBottomSheet 가 콘텐츠를 띄우고 바깥 탭으로 닫힌다', (tester) async {
     var closed = false;
     await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light(),
       home: Scaffold(
         body: Stack(
           children: [

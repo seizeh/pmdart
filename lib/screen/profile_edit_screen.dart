@@ -233,6 +233,23 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       onChanged: (_) => setState(() {}),
                       decoration: const InputDecoration(hintText: '닉네임'),
                     ),
+                    // 업체 모드: 지역인증은 개인 활동용(사업장 주소는 인증에서 이미
+                    // 확보) — 개인 전용 요소를 숨겨 분리된 계정임을 유지(0025).
+                    if (widget.profile?.activeMode == 'business') ...[
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '닉네임과 사진은 일반(개인) 프로필에 사용돼요. 업체 정보 관리는 아래 업체 섹션에서 할 수 있어요.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.5,
+                            color: context.colors.textTertiary,
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (widget.profile?.activeMode != 'business') ...[
                     const SizedBox(height: 24),
                     Align(
                       alignment: Alignment.centerLeft,
@@ -308,21 +325,25 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         ),
                       ),
                     ),
+                    ],
                   ],
                 ),
               ),
               // 내 활동/활동 범위/관심/설정 — 내정보 탭에서 이동해온 섹션들.
               if (widget.profile != null) ...[
                 const SizedBox(height: 28),
-                _ActivitySection(
-                  profile: widget.profile!,
-                  pendingInvites: widget.pendingInvites,
-                ),
-                const SizedBox(height: 12),
-                _ActivityRangeSection(profile: widget.profile!),
-                const SizedBox(height: 12),
-                _InterestSection(profile: widget.profile!),
-                const SizedBox(height: 12),
+                // 내 활동·활동 범위·관심은 개인 활동 — 업체 모드에선 숨긴다(0025 분리).
+                if (widget.profile!.activeMode != 'business') ...[
+                  _ActivitySection(
+                    profile: widget.profile!,
+                    pendingInvites: widget.pendingInvites,
+                  ),
+                  const SizedBox(height: 12),
+                  _ActivityRangeSection(profile: widget.profile!),
+                  const SizedBox(height: 12),
+                  _InterestSection(profile: widget.profile!),
+                  const SizedBox(height: 12),
+                ],
                 const _BusinessSection(),
                 const SizedBox(height: 12),
                 _SettingsSection(profile: widget.profile!),

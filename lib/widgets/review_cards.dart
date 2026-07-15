@@ -11,6 +11,10 @@ class ReviewCardData {
   final DateTime? createdAt;
   final List<String> photoUrls;
   final bool isMine;
+
+  /// 같은 사용자의 몇 번째 방문 후기인지(1부터) — 복수 후기 순번 표시.
+  final int? visitNo;
+
   const ReviewCardData({
     required this.author,
     required this.rating,
@@ -18,6 +22,7 @@ class ReviewCardData {
     this.createdAt,
     this.photoUrls = const [],
     this.isMine = false,
+    this.visitNo,
   });
 }
 
@@ -102,6 +107,34 @@ class _ReviewCard extends StatelessWidget {
                   ),
                 ),
               ),
+            // 상단 좌측: 방문 차수 배지 — 재방문 후기임이 한눈에 보이게.
+            if (review.visitNo != null)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: photo != null
+                        ? const Color(0x66000000)
+                        : context.colors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    '${review.visitNo}번째 방문',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: photo != null
+                          ? Colors.white
+                          : context.colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
             // 하단: 평점(+내 후기 표시).
             Positioned(
               left: 10,
@@ -176,6 +209,17 @@ class _ReviewCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (review.visitNo != null) ...[
+                  Text(
+                    '${review.visitNo}번째 방문',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: context.colors.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 if (review.createdAt != null)
                   Text(
                     '${review.createdAt!.year}.${review.createdAt!.month}.${review.createdAt!.day}',

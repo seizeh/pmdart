@@ -562,6 +562,7 @@ class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
                     content: r.content,
                     createdAt: r.createdAt,
                     photoUrls: r.photoUrls,
+                    visitNo: r.visitNo,
                   ),
               ],
             ),

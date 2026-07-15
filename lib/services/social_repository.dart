@@ -81,7 +81,9 @@ class SocialRepository {
     final q = query.trim();
     if (q.isEmpty) return const [];
     final uid = _uid;
-    // 업체 모드 계정은 상호(business_name)로도 검색 — 닉네임 OR 상호.
+    // 검색 정체성은 현재 모드를 따른다(0025 분리): 업체 모드 계정은 상호로만,
+    // 일반 모드 계정은 닉네임으로만 — 업체 모드인데 닉네임으로 노출되는 누수 방지.
+    // (business_name 은 업체 모드일 때만 non-null 이라 모드 판별자로 쓴다.)
     // PostgREST or() 문법 문자는 검색어에서 제거(쉼표·괄호가 필터를 깨뜨림).
     final safe = q.replaceAll(RegExp(r'[,()]'), ' ').trim();
     final rows = await _c
@@ -89,7 +91,9 @@ class SocialRepository {
         .select(
           'id, nickname, user_type, profile_image_url, is_business, business_name',
         )
-        .or('nickname.ilike.%$safe%,business_name.ilike.%$safe%')
+        .or(
+          'and(business_name.is.null,nickname.ilike.%$safe%),business_name.ilike.%$safe%',
+        )
         .neq('id', uid)
         .limit(30);
 

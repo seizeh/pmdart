@@ -26,6 +26,9 @@ class ProfileData {
   final bool isBusiness;
   final String? businessName;
 
+  /// 현재 계정 모드 ('personal' | 'business') — 업체 모드 프로필 분리 표시에 사용.
+  final String activeMode;
+
   const ProfileData({
     required this.nickname,
     required this.username,
@@ -44,6 +47,7 @@ class ProfileData {
     this.activityRadiusM,
     this.isBusiness = false,
     this.businessName,
+    this.activeMode = 'personal',
   });
 
   /// 표시용 동네명(행정동) — address 의 마지막 토큰. 미인증이면 null.

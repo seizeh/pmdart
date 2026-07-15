@@ -73,15 +73,34 @@ class CommunityRepository {
   }
 
   /// 특정 사용자의 게시글 (내 게시글 등).
-  Future<List<Post>> fetchUserPosts(String userId) async {
+  /// [authoredAs] 지정 시 해당 모드('personal'|'business')로 작성한 글만 —
+  /// 업체/일반 프로필 분리(0025 후속). 피드 뷰에는 없는 컬럼이라 posts 에서
+  /// 모드 맵을 따로 읽어 필터한다(실패 시 전체 유지 — 표시 누락보다 안전).
+  Future<List<Post>> fetchUserPosts(String userId, {String? authoredAs}) async {
     final rows = await _c
         .from('v_post_feed')
         .select()
         .eq('user_id', userId)
         .order('created_at', ascending: false);
-    return (rows as List)
+    var posts = (rows as List)
         .map((r) => Post.fromJson(r as Map<String, dynamic>))
         .toList();
+    if (authoredAs != null && posts.isNotEmpty) {
+      try {
+        final modes = await _c
+            .from('posts')
+            .select('id, authored_as')
+            .eq('user_id', userId);
+        final byId = {
+          for (final m in (modes as List).cast<Map<String, dynamic>>())
+            m['id'] as String: (m['authored_as'] as String?) ?? 'personal',
+        };
+        posts = posts
+            .where((p) => (byId[p.id] ?? 'personal') == authoredAs)
+            .toList();
+      } catch (_) {}
+    }
+    return posts;
   }
 
   /// 특정 펫이 연결된(태그된) 공개 게시글 — 펫 공개 프로필용.

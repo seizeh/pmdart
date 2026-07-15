@@ -8,6 +8,7 @@ import '../../models/community.dart';
 import '../../models/profile.dart';
 import '../../services/profile_repository.dart';
 import '../../services/pet_repository.dart';
+import '../../services/business_repository.dart';
 import '../../services/community_repository.dart';
 import '../../services/app_events.dart';
 import '../../services/session.dart';
@@ -148,7 +149,7 @@ class _MyInfoTabState extends State<MyInfoTab>
     _load(silent: true); // 하트/댓글/삭제 변동 반영
   }
 
-  Widget _myPostsSection() {
+  Widget _myPostsSection({bool isBusinessMode = false}) {
     final posts = _myPosts;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,7 +159,7 @@ class _MyInfoTabState extends State<MyInfoTab>
           child: Row(
             children: [
               Text(
-                '내 게시글',
+                isBusinessMode ? '업체 게시글' : '내 게시글',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -179,6 +180,17 @@ class _MyInfoTabState extends State<MyInfoTab>
             ],
           ),
         ),
+        if (isBusinessMode)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
+            child: Text(
+              '업체 모드로 작성한 게시글만 보여요',
+              style: TextStyle(
+                fontSize: 12,
+                color: context.colors.textTertiary,
+              ),
+            ),
+          ),
         const SizedBox(height: 10),
         if (posts.isEmpty)
           Container(
@@ -190,7 +202,7 @@ class _MyInfoTabState extends State<MyInfoTab>
             ),
             child: Center(
               child: Text(
-                '작성한 게시글이 없어요',
+                isBusinessMode ? '업체 모드로 작성한 게시글이 없어요' : '작성한 게시글이 없어요',
                 style: TextStyle(
                   fontSize: 13,
                   color: context.colors.textTertiary,
@@ -268,7 +280,11 @@ class _MyInfoTabState extends State<MyInfoTab>
       try {
         final uid = SessionManager.instance.user?.id;
         if (uid != null) {
-          posts = await CommunityRepository.instance.fetchUserPosts(uid);
+          // 같은 계정이지만 분리된 프로필 — 현재 모드로 작성한 글만 (0025 후속)
+          posts = await CommunityRepository.instance.fetchUserPosts(
+            uid,
+            authoredAs: p.activeMode,
+          );
         }
       } catch (_) {} // 게시글 조회 실패 시 기존 목록 유지
       if (!mounted) return;
@@ -371,9 +387,13 @@ class _MyInfoTabState extends State<MyInfoTab>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 반려동물이 주인공 — 큰 히어로 카드/캐러셀을 최상단에.
-            _PetHero(pets: profile.pets),
-            const SizedBox(height: 20),
+            // 업체 모드는 분리된 프로필 — 반려동물 히어로 없이 업체 정보가 주인공
+            // (같은 계정이어도 두 얼굴이 섞이지 않게, 0025 후속).
+            if (profile.activeMode != 'business') ...[
+              // 반려동물이 주인공 — 큰 히어로 카드/캐러셀을 최상단에.
+              _PetHero(pets: profile.pets),
+              const SizedBox(height: 20),
+            ],
             // 유저 정보 — 다른 사용자가 보는 공개 프로필 헤더와 동일한 히어로 카드.
             // 탭하면 그 자리에서 프로필 수정 화면으로 펼쳐진다.
             Padding(
@@ -387,13 +407,199 @@ class _MyInfoTabState extends State<MyInfoTab>
               ),
             ),
             const SizedBox(height: 28),
+            // 업체 모드: 내 업소에 달린 후기 관리 — 프로필 바로 아래.
+            if (profile.activeMode == 'business') ...[
+              const _BusinessReviewsSection(),
+              const SizedBox(height: 28),
+            ],
             // 내가 작성한 게시글 — 공개 프로필과 동일한 2열 사진 그리드.
+            // 현재 모드로 작성한 글만 보인다(모드 분리).
             // (내 활동·활동 범위·관심·설정은 프로필 수정 화면으로 이동)
             // 약관·처리방침 열람은 내정보 수정 화면의 '약관 및 정책' 항목에서
             // (게스트 화면 푸터는 유지 — 로그인 전 접근 경로).
-            _myPostsSection(),
+            _myPostsSection(isBusinessMode: profile.activeMode == 'business'),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 업체 후기 — 내 업소(공공데이터 매칭 시설)에 타 사용자가 남긴 시설 후기 관리 UI.
+/// 매칭 시설이 없으면(신규개업 등) 그 사실을 안내한다.
+class _BusinessReviewsSection extends StatefulWidget {
+  const _BusinessReviewsSection();
+
+  @override
+  State<_BusinessReviewsSection> createState() =>
+      _BusinessReviewsSectionState();
+}
+
+class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
+  List<BizFacilityReview>? _reviews; // null = 로딩 중
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final reviews = await BusinessRepository.instance.fetchMyFacilityReviews();
+    if (mounted) setState(() => _reviews = reviews);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reviews = _reviews;
+    final avg = (reviews == null || reviews.isEmpty)
+        ? null
+        : reviews.map((r) => r.rating).reduce((a, b) => a + b) /
+              reviews.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Text(
+                '업체 후기',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: context.colors.textPrimary,
+                ),
+              ),
+              if (reviews != null && reviews.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                // 별점 색은 시설 후기 화면과 동일 컨벤션.
+                const Icon(Icons.star_rounded, size: 18, color: Color(0xFFFFB300)),
+                Text(
+                  '${avg!.toStringAsFixed(1)} · ${reviews.length}',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (reviews == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            ),
+          )
+        else if (reviews.isEmpty)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+            decoration: BoxDecoration(
+              color: context.colors.surfaceMuted,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: Text(
+                '아직 후기가 없어요\n지도 시설에 연결된 업체는 방문자 후기가 여기에 모여요',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.6,
+                  color: context.colors.textTertiary,
+                ),
+              ),
+            ),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                for (final r in reviews.take(5)) _reviewTile(context, r),
+                if (reviews.length > 5)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      '외 ${reviews.length - 5}건',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: context.colors.textTertiary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _reviewTile(BuildContext context, BizFacilityReview r) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.colors.border, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              for (var i = 0; i < 5; i++)
+                Icon(
+                  i < r.rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                  size: 15,
+                  color: i < r.rating
+                      ? const Color(0xFFFFB300)
+                      : context.colors.border,
+                ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  r.authorNickname,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
+              ),
+              if (r.createdAt != null)
+                Text(
+                  '${r.createdAt!.year}.${r.createdAt!.month}.${r.createdAt!.day}',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: context.colors.textTertiary,
+                  ),
+                ),
+            ],
+          ),
+          if ((r.content ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              r.content!,
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.5,
+                color: context.colors.textPrimary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -892,7 +1098,8 @@ class _ProfileHeroCard extends StatelessWidget {
                   children: [
                     if (hasPhoto) ...[
                       Text(
-                        profile.nickname,
+                        // 업체 모드는 상호가 이름 자리에 — 분리된 프로필 표현
+                        profile.businessName ?? profile.nickname,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -935,7 +1142,7 @@ class _ProfileHeroCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 100, left: 24, right: 24),
         child: Text(
-          profile.nickname,
+          profile.businessName ?? profile.nickname,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,

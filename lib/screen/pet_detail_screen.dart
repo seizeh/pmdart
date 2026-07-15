@@ -301,8 +301,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   _toast(
                     registered ? '초대를 보냈어요' : '가입 전 번호예요 — 문자로 초대 안내를 보냈어요',
                   );
-                } on StateError {
-                  _toast('이미 초대 중인 번호예요');
+                } on StateError catch (e) {
+                  _toast(
+                    e.message == 'self_invite'
+                        ? '본인 번호로는 초대할 수 없어요'
+                        : '이미 초대 중인 번호예요',
+                  );
                 } catch (_) {
                   _toast('초대에 실패했어요');
                 }

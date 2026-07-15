@@ -70,6 +70,8 @@ class _UserSearchTabState extends State<UserSearchTab> {
         userId: c.userId,
         // 업체 결과는 미리보기(로딩 전 표시)도 상호로 — 닉네임 노출 방지
         previewNickname: c.businessName ?? c.nickname,
+        // 상호로 찾은 결과만 업체 얼굴 — 닉네임 결과는 개인 얼굴 고정(연결 차단)
+        forcePersonalFace: c.businessName == null,
         originRect: rect,
         cardBuilder: rect == null ? null : (_) => UserTile(connection: c),
       ),

@@ -210,6 +210,9 @@ class PostCard extends StatelessWidget {
                                         previewNickname: post.authorNickname,
                                         originRect: riseOriginRect(context),
                                         cardRadius: 24,
+                                        // 작성 모드가 얼굴을 결정(0025 연결 차단)
+                                        forcePersonalFace:
+                                            post.authoredAs != 'business',
                                       ),
                                     ),
                                   ),

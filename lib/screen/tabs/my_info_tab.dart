@@ -1165,9 +1165,9 @@ class _ProfileHeroCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          // 인증 업체는 user_type(펫 보유 축)과 별개의 배지로 표시 (0025 §2.3)
-          profile.isBusiness
-              ? '인증 업체 · ${_userTypeLabel(profile.userType)}'
+          // 배지는 업체 모드에서만 — 개인 얼굴엔 업체 흔적을 남기지 않는다(0025 연결 차단)
+          profile.activeMode == 'business'
+              ? '인증 업체'
               : _userTypeLabel(profile.userType),
           style: const TextStyle(fontSize: 12, color: Color(0xE6FFFFFF)),
         ),

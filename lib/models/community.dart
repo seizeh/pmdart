@@ -33,6 +33,7 @@ class Post {
   final String? imageUrl;
   final String? authorAddress; // 작성자의 현재 활동지역(주소) — 이동 경고 비교용
   final DateTime? editedAt; // 내용 수정 시각(있으면 '수정됨' 표기)
+  final String authoredAs; // 작성 모드('personal'|'business') — 작성자 얼굴 라우팅용
 
   bool get isEdited => editedAt != null;
 
@@ -55,6 +56,7 @@ class Post {
     this.imageUrl,
     this.authorAddress,
     this.editedAt,
+    this.authoredAs = 'personal',
   });
 
   /// 글의 동(작성 당시)과 작성자 현재 동이 다르면 = 작성자가 다른 지역으로 이동.
@@ -84,6 +86,7 @@ class Post {
     imageUrl: j['image_url'] as String?,
     authorAddress: j['author_address'] as String?,
     editedAt: _parseDateNullable(j['edited_at']),
+    authoredAs: (j['authored_as'] as String?) ?? 'personal',
   );
 
   /// 하트 토글·조회수 등 낙관적 업데이트용.
@@ -106,6 +109,7 @@ class Post {
     imageUrl: imageUrl,
     authorAddress: authorAddress,
     editedAt: editedAt,
+    authoredAs: authoredAs,
   );
 }
 

@@ -10,6 +10,7 @@ import '../services/facility_review_repository.dart';
 import '../services/session.dart';
 import '../screen/facility_review_screen.dart';
 import '../screen/user_profile_screen.dart';
+import 'review_cards.dart';
 
 /// 시설 상세 콘텐츠(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
 ///
@@ -290,18 +291,21 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                   color: context.colors.primaryDark,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.rate_review_outlined,
                       size: 18,
                       color: Colors.white,
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
-                      '후기 쓰기',
-                      style: TextStyle(
+                      // 시설당 1인 1후기 — 이미 썼다면 덮어쓰기(수정)임을 명시.
+                      (_reviews?.any((r) => r.isMine) ?? false)
+                          ? '내 후기 수정'
+                          : '후기 쓰기',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
                       ),
@@ -369,7 +373,20 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
             ),
           )
         else
-          for (final r in reviews) _ReviewItem(review: r),
+          // 사진+평점 카드 그리드 — 탭하면 상세 시트(작성자·내용·사진 전체).
+          ReviewCardGrid(
+            reviews: [
+              for (final r in reviews)
+                ReviewCardData(
+                  author: r.authorNickname,
+                  rating: r.rating,
+                  content: r.content,
+                  createdAt: r.createdAt,
+                  photoUrls: r.photoUrls,
+                  isMine: r.isMine,
+                ),
+            ],
+          ),
     ];
   }
 
@@ -715,100 +732,4 @@ class _PetSalesTrustCard extends StatelessWidget {
       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
     ),
   );
-}
-
-class _ReviewItem extends StatelessWidget {
-  final FacilityReview review;
-  const _ReviewItem({required this.review});
-
-  @override
-  Widget build(BuildContext context) {
-    final d = review.createdAt;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // 긴 닉네임이 가로로 넘치지 않게 Flexible + ellipsis(폭 유한이라 안전).
-              Flexible(
-                child: Text(
-                  review.authorNickname,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: context.colors.textPrimary,
-                  ),
-                ),
-              ),
-              if (review.isMine) ...[
-                const SizedBox(width: 4),
-                Text(
-                  '(내 후기)',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: context.colors.primaryDark,
-                  ),
-                ),
-              ],
-              const Spacer(),
-              Text(
-                '${d.year}.${d.month}.${d.day}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: context.colors.textTertiary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 1; i <= 5; i++)
-                Icon(
-                  i <= review.rating ? Icons.star : Icons.star_border,
-                  size: 14,
-                  color: i <= review.rating
-                      ? const Color(0xFFFFB300)
-                      : context.colors.border,
-                ),
-            ],
-          ),
-          if (review.content != null && review.content!.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              review.content!,
-              style: TextStyle(
-                fontSize: 14,
-                color: context.colors.textSecondary,
-                height: 1.45,
-              ),
-            ),
-          ],
-          if (review.photoUrls.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final url in review.photoUrls)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      url,
-                      width: 84,
-                      height: 84,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 }

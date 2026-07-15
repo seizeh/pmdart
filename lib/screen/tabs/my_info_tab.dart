@@ -13,6 +13,7 @@ import '../../services/community_repository.dart';
 import '../../services/app_events.dart';
 import '../../services/session.dart';
 import '../../widgets/pet_card.dart';
+import '../../widgets/review_cards.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/gradient_header.dart';
 import '../pet_detail_screen.dart';
@@ -549,87 +550,23 @@ class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
             ),
           )
         else
+          // 사진+평점 카드 그리드 — 탭하면 상세 시트(지도 상세와 동일 언어).
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                for (final r in reviews.take(5)) _reviewTile(context, r),
-                if (reviews.length > 5)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      '외 ${reviews.length - 5}건',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: context.colors.textTertiary,
-                      ),
-                    ),
+            child: ReviewCardGrid(
+              reviews: [
+                for (final r in reviews)
+                  ReviewCardData(
+                    author: r.authorNickname,
+                    rating: r.rating,
+                    content: r.content,
+                    createdAt: r.createdAt,
+                    photoUrls: r.photoUrls,
                   ),
               ],
             ),
           ),
       ],
-    );
-  }
-
-  Widget _reviewTile(BuildContext context, BizFacilityReview r) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.colors.border, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              for (var i = 0; i < 5; i++)
-                Icon(
-                  i < r.rating ? Icons.star_rounded : Icons.star_outline_rounded,
-                  size: 15,
-                  color: i < r.rating
-                      ? const Color(0xFFFFB300)
-                      : context.colors.border,
-                ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  r.authorNickname,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.textSecondary,
-                  ),
-                ),
-              ),
-              if (r.createdAt != null)
-                Text(
-                  '${r.createdAt!.year}.${r.createdAt!.month}.${r.createdAt!.day}',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: context.colors.textTertiary,
-                  ),
-                ),
-            ],
-          ),
-          if ((r.content ?? '').isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              r.content!,
-              style: TextStyle(
-                fontSize: 13.5,
-                height: 1.5,
-                color: context.colors.textPrimary,
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

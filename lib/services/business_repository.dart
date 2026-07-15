@@ -168,6 +168,10 @@ class BusinessRepository {
             content: r['content'] as String?,
             createdAt:
                 DateTime.tryParse(r['created_at'] as String? ?? '')?.toLocal(),
+            photoUrls: [
+              for (final u in (r['photo_urls'] as List? ?? const []))
+                u as String,
+            ],
           ),
       ];
     } catch (_) {
@@ -312,11 +316,13 @@ class BizFacilityReview {
   final int rating; // 1~5
   final String? content;
   final DateTime? createdAt;
+  final List<String> photoUrls;
   const BizFacilityReview({
     required this.authorNickname,
     required this.rating,
     this.content,
     this.createdAt,
+    this.photoUrls = const [],
   });
 }
 

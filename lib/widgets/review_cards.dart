@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_palette.dart';
+import 'blob_background.dart';
 
 /// 후기 카드 그리드 — 사진+평점 타일(2열), 탭하면 상세 시트.
 /// 지도 시설 상세·업체 프로필(내정보/타사용자)의 후기 표시 공용 언어.
@@ -15,6 +16,9 @@ class ReviewCardData {
   /// 같은 사용자의 몇 번째 방문 후기인지(1부터) — 복수 후기 순번 표시.
   final int? visitNo;
 
+  /// 사진 없는 카드의 블롭 배경 시드 — 후기마다 다른 패턴, 같은 후기는 항상 동일.
+  final Object? seed;
+
   const ReviewCardData({
     required this.author,
     required this.rating,
@@ -23,6 +27,7 @@ class ReviewCardData {
     this.photoUrls = const [],
     this.isMine = false,
     this.visitNo,
+    this.seed,
   });
 }
 
@@ -75,8 +80,16 @@ class _ReviewCard extends StatelessWidget {
                 errorBuilder: (_, _, _) =>
                     ColoredBox(color: context.colors.surfaceMuted),
               )
-            else
-              // 사진 없는 후기 — 내용 미리보기로 채운다.
+            else ...[
+              // 사진 없는 후기 — 게시글과 동일하게 랜덤 블롭 배경(후기별 고정 패턴)
+              // 위에 내용 미리보기를 올린다.
+              Positioned.fill(
+                child: BlobBackground(
+                  seed: review.seed ??
+                      '${review.author}/${review.createdAt?.millisecondsSinceEpoch}',
+                  color: context.colors.primary,
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 34),
                 child: Text(
@@ -86,10 +99,12 @@ class _ReviewCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12.5,
                     height: 1.5,
-                    color: context.colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textPrimary,
                   ),
                 ),
               ),
+            ],
             // 사진 위 가독용 스크림(하단).
             if (photo != null)
               const Positioned(

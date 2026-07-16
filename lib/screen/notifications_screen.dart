@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
+import '../main.dart' show openFromPush;
 import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../models/notification.dart';
 import '../services/notification_repository.dart';
-import '../services/community_repository.dart';
-import '../services/chat_repository.dart';
-import 'post_detail_screen.dart';
-import 'chat_room_screen.dart';
-import 'guardian_invites_screen.dart';
 
 /// 알림함 — 내 알림 목록 / 읽음 처리 / 관련 화면 이동.
 class NotificationsScreen extends StatefulWidget {
@@ -75,36 +70,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _navigate(AppNotification n) async {
-    // 공동보호자 초대 알림은 리소스 없이 초대함으로 이동
-    if (n.type == 'guardian_invite') {
-      Navigator.push(
-        context,
-        AppPageRoute(builder: (_) => const GuardianInvitesScreen()),
-      );
-      return;
-    }
-    if (n.resourceId == null) return;
-    try {
-      if (n.resourceType == 'post') {
-        final post = await CommunityRepository.instance.fetchPost(
-          n.resourceId!,
-        );
-        if (!mounted || post == null) return;
-        Navigator.push(
-          context,
-          AppPageRoute(builder: (_) => PostDetailScreen(post: post)),
-        );
-      } else if (n.resourceType == 'chat_room') {
-        final room = await ChatRepository.instance.fetchRoom(n.resourceId!);
-        if (!mounted || room == null) return;
-        Navigator.push(
-          context,
-          AppPageRoute(builder: (_) => ChatRoomScreen(room: room)),
-        );
-      }
-    } catch (_) {
-      // 이동 실패는 조용히 무시 (읽음 처리는 이미 됨)
-    }
+    // 푸시 탭과 동일한 딥링크 라우팅 — 관련 탭으로 전환한 뒤 상세를 rise 로
+    // 열어, 닫으면(쓸어내리기/뒤로가기) 채팅 목록 등 관련 탭이 나온다.
+    await openFromPush(n.type, n.resourceType, n.resourceId);
   }
 
   Future<void> _markAll() async {

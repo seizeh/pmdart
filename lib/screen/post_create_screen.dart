@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
 import '../models/community.dart';
 import '../models/profile.dart';
+import '../services/business_repository.dart';
 import '../services/community_repository.dart';
 import '../services/photo_verify_repository.dart';
 import '../services/profile_repository.dart';
@@ -29,6 +30,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   final _repo = CommunityRepository.instance;
 
   String _category = 'walk_together';
+
+  // 계정 모드 — 업체(business) 글은 카테고리 선택 없이 항상 '소식'(news)으로
+  // 등록된다(서버 트리거도 동일하게 강제). null = 확인 중(등록 버튼 잠금).
+  String? _activeMode;
   final _titleCtrl = TextEditingController();
   final _contentCtrl = TextEditingController();
   DateTime? _scheduledAt;
@@ -61,8 +66,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       ['walk_together', 'walk_proxy', 'care', 'give_away'].contains(_category);
   bool get _giveAway => _category == 'give_away';
 
-  // 자유(free)·입양(adoption)을 제외한 카테고리는 사진 촬영 인증 대상.
-  bool get _isPhotoCategory => !['free', 'adoption'].contains(_category);
+  // 자유(free)·입양(adoption)·소식(news)을 제외한 카테고리는 사진 촬영 인증 대상.
+  bool get _isPhotoCategory => !['free', 'adoption', 'news'].contains(_category);
 
   // 현재 선택(연결)한 반려동물들.
   List<MyPet> get _selectedPets =>
@@ -84,8 +89,18 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   @override
   void initState() {
     super.initState();
+    _loadMode();
     _loadPets();
     _checkRegion();
+  }
+
+  Future<void> _loadMode() async {
+    final mode = await BusinessRepository.instance.fetchActiveMode();
+    if (!mounted) return;
+    setState(() {
+      _activeMode = mode;
+      if (mode == 'business') _category = 'news';
+    });
   }
 
   /// 현재 위치 동 vs 인증 동 비교(베스트에포트). 위치 없으면 경고 안 함.
@@ -377,37 +392,41 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_regionMismatch) ...[
+              // 지역 불일치 경고는 개인 글만 — 업체 소식은 사업장 주소 기준.
+              if (_regionMismatch && _activeMode == 'personal') ...[
                 _RegionWarning(
                   current: _currentDong!,
                   verified: _verifiedDong!,
                 ),
                 const SizedBox(height: 16),
               ],
-              const _SectionLabel('카테고리'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _categories
-                    .map(
-                      (c) => CategoryChip(
-                        category: c,
-                        selected: _category == c,
-                        onTap: () => setState(() {
-                          _category = c;
-                          _selectedPetIds.clear();
-                          if (!_allowsSchedule) _scheduledAt = null;
-                          // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
-                          _uploadedImage = null;
-                          _photoToken = null;
-                          _photoPetId = null;
-                          _uploadingImage = false;
-                        }),
-                      ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(height: 24),
+              // 업체 모드는 카테고리 선택 없음 — 항상 '소식'(모드 확인 중에도 숨김).
+              if (_activeMode == 'personal') ...[
+                const _SectionLabel('카테고리'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _categories
+                      .map(
+                        (c) => CategoryChip(
+                          category: c,
+                          selected: _category == c,
+                          onTap: () => setState(() {
+                            _category = c;
+                            _selectedPetIds.clear();
+                            if (!_allowsSchedule) _scheduledAt = null;
+                            // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
+                            _uploadedImage = null;
+                            _photoToken = null;
+                            _photoPetId = null;
+                            _uploadingImage = false;
+                          }),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 24),
+              ],
               const _SectionLabel('제목'),
               TextField(
                 controller: _titleCtrl,
@@ -637,6 +656,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   }
 
   bool get _canSubmit {
+    if (_activeMode == null) return false; // 모드 확인 전 — 잘못된 카테고리 방지
     if (_uploadingImage) return false;
     if (_titleCtrl.text.isEmpty || _contentCtrl.text.isEmpty) return false;
     if (_needsPhoto && (_uploadedImage == null || _photoToken == null)) {

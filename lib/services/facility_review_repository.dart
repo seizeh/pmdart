@@ -74,6 +74,53 @@ class FacilityReviewRepository {
     );
   }
 
+  /// 후기 단건 조회 — 후기 댓글 알림 딥링크용. 없거나 숨김이면 null.
+  Future<FacilityReview?> fetchReviewById(String reviewId) async {
+    final rows = await _c.rpc(
+      'facility_review_by_id',
+      params: {'p_review': reviewId},
+    );
+    final list = rows as List;
+    if (list.isEmpty) return null;
+    return FacilityReview.fromJson(list.first as Map<String, dynamic>);
+  }
+
+  /// 후기 댓글 목록(오래된 순). 뷰가 업체 모드 댓글의 상호 표시를 담당한다.
+  Future<List<FacilityReviewComment>> fetchComments(String reviewId) async {
+    final rows = await _c
+        .from('v_facility_review_comment_feed')
+        .select()
+        .eq('review_id', reviewId)
+        .order('created_at', ascending: true);
+    return (rows as List)
+        .map(
+          (r) => FacilityReviewComment.fromJson(
+            r as Map<String, dynamic>,
+            myUserId: _uid,
+          ),
+        )
+        .toList();
+  }
+
+  /// 후기 댓글 작성 — 후기 작성자에게 알림은 서버 트리거가 발송.
+  Future<void> addComment(String reviewId, String content) async {
+    final uid = _uid;
+    if (uid == null) throw StateError('로그인이 필요합니다');
+    await _c.from('facility_review_comments').insert({
+      'review_id': reviewId,
+      'user_id': uid,
+      'content': content,
+    });
+  }
+
+  /// 내 댓글 삭제(소프트).
+  Future<void> deleteComment(String commentId) async {
+    await _c
+        .from('facility_review_comments')
+        .update({'is_deleted': true})
+        .eq('id', commentId);
+  }
+
   /// 내 후기 삭제(소프트). [reviewId] 를 주면 그 한 건만(복수 후기), 없으면 전부.
   Future<void> deleteMine(String facilityId, {String? reviewId}) async {
     if (_uid == null) throw StateError('로그인이 필요합니다');

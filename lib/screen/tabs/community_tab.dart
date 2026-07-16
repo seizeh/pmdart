@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../../theme/app_palette.dart';
 import '../../models/community.dart';
+import '../../services/business_repository.dart';
 import '../../services/community_repository.dart';
 import '../../widgets/app_search_field.dart';
 import '../../widgets/post_card.dart';
@@ -105,6 +106,7 @@ class _CommunityTabState extends State<CommunityTab>
   Timer? _debounce;
 
   static const _categories = [
+    'news', // 업체 소식 — '전체' 칩 바로 다음
     'walk_together',
     'walk_proxy',
     'care',
@@ -301,9 +303,13 @@ class _CommunityTabState extends State<CommunityTab>
     // 동네 인증 게이트 — 미인증/만료(30일)면 작성 화면 대신 인증 안내.
     // (서버 create_post_verified 가 최종 차단하므로 여긴 UX 선안내.
     //  상태 조회가 실패하면 서버 게이트에 맡기고 통과시킨다.)
+    // 업체 모드는 면제 — 소식(news) 글은 사업장 주소 기준이라 동네 인증 불필요.
     bool regionOk;
     try {
-      regionOk = await ProfileRepository.instance.isRegionVerificationFresh();
+      final mode = await BusinessRepository.instance.fetchActiveMode();
+      regionOk =
+          mode == 'business' ||
+          await ProfileRepository.instance.isRegionVerificationFresh();
     } catch (_) {
       regionOk = true;
     }

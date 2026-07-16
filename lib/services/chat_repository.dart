@@ -10,6 +10,10 @@ class ChatRepository {
   ChatRepository._();
   static final ChatRepository instance = ChatRepository._();
 
+  /// 지금 화면에 열려 있는 채팅방 id — ChatRoomScreen 이 진입/이탈 시 갱신.
+  /// 포그라운드 채팅 푸시가 이 방이면 인앱 배너를 생략한다(이미 보고 있음).
+  String? activeRoomId;
+
   SupabaseClient get _c => Supabase.instance.client;
   String get _uid {
     final id = SessionManager.instance.user?.id;

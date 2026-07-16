@@ -107,6 +107,21 @@ class StorageService {
     );
   }
 
+  /// 갤러리 사진을 서류로 선택 — 휴대폰으로 찍은 등록증용(리사이즈/압축 동일).
+  Future<PickedDoc?> pickDocumentFromGallery() async {
+    final f = await pickImage();
+    if (f == null) return null;
+    final bytes = await f.readAsBytes();
+    var ext = f.name.contains('.') ? f.name.split('.').last.toLowerCase() : 'jpg';
+    if (!const {'jpg', 'jpeg', 'png', 'webp'}.contains(ext)) ext = 'jpg';
+    return PickedDoc(
+      bytes: bytes,
+      ext: ext,
+      mime: f.mimeType ?? 'image/${ext == 'jpg' ? 'jpeg' : ext}',
+      name: f.name,
+    );
+  }
+
   /// 비공개 버킷 업로드 — 반환값은 URL 이 아니라 '경로'(`<uid>/<kind>/<ts>.<ext>`).
   Future<String> uploadBusinessDoc(PickedDoc doc, {required String kind}) async {
     final uid = SessionManager.instance.user?.id;

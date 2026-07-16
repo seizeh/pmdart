@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
+import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import '../../theme/app_palette.dart';
 import '../../motion/motion.dart';
@@ -134,6 +136,8 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   final Set<String> _selected = {'animal_hospital'};
   final Map<String, Facility> _byMarkerId = {};
   final Map<String, NOverlayImage?> _catIcons = {}; // 카테고리별 마커 아이콘 캐시
+  // 인증 업체 마커(대표 사진) 캐시 — 시설 id + 사진 URL 키(사진 교체 시 재렌더).
+  final Map<String, NOverlayImage?> _bizIcons = {};
   final Map<String, PostCluster> _clusterByMarkerId = {}; // 게시글 클러스터 마커
   bool _dongSynced = false; // 세션당 1회 행정동 centroid 보충
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
@@ -172,6 +176,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     final b = Theme.of(context).brightness;
     if (_lastBrightness != null && _lastBrightness != b) {
       _catIcons.clear(); // 마커 아이콘 색이 모드별로 달라 다시 렌더
+      _bizIcons.clear(); // 인증 마커도 링·배지 색이 모드별
       final center = _loadedCenter;
       if (center != null) _loadFacilities(center);
     }
@@ -253,15 +258,35 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       _byMarkerId.clear();
       _clusterByMarkerId.clear();
       final markers = <NAddableOverlay>{};
+      // 인증 마커끼리 충돌하면 먼저 인증한 업체가 살아남게 — 승인 시각
+      // 오름차순 순위(이른 승인 = 높은 zIndex). 시각 미상은 최하위.
+      final verifiedRank = <String, int>{};
+      final vs =
+          rows
+              .where((f) => f.ownerUserId != null && !isLowTrustHidden(f))
+              .toList()
+            ..sort((a, b) {
+              final at = a.ownerVerifiedAt, bt = b.ownerVerifiedAt;
+              if (at == null && bt == null) return 0;
+              if (at == null) return 1;
+              if (bt == null) return -1;
+              return at.compareTo(bt);
+            });
+      for (final (i, f) in vs.indexed) {
+        verifiedRank[f.id] = i;
+      }
       for (final f in rows) {
         // 분양 신뢰도가 너무 낮으면(점수 ≤ -2) 비분양 추정이 강해 지도에서 제외.
         // -1 은 남기되 캡션에 ⚠ 로 경고만 한다.
         if (isLowTrustHidden(f)) continue;
         final sales = evaluatePetSales(f);
         final id = 'fac_${f.id}';
-        // 인증 업체(연결 업주 존재)는 강조 마커 — 채운 디스크 + 체크 배지.
+        // 인증 업체(연결 업주 존재)는 강조 마커 — 둥근 정사각형 대표 사진
+        // (없으면 같은 실루엣의 글리프 폴백) + 체크 배지.
         final verified = f.ownerUserId != null;
-        final icon = await _iconFor(f.category, verified: verified);
+        final icon = verified
+            ? await _verifiedIcon(f)
+            : await _iconFor(f.category);
         final warn = sales?.level == PetSalesTrust.caution;
         final m = NMarker(id: id, position: NLatLng(f.lat, f.lng), icon: icon)
           ..setIsHideCollidedMarkers(true)
@@ -278,8 +303,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           ..setIsHideCollidedCaptions(true)
           ..setOnTapListener((_) => _showFacilitySheet(f));
         // 마커가 겹치면 인증 업체가 항상 살아남게 — 기본(200000)보다 위,
-        // 검색 강조 마커(1000000)보다는 아래.
-        if (verified) m.setGlobalZIndex(200100);
+        // 검색 강조 마커(1000000)보다는 아래. 인증끼리는 먼저 인증한 쪽 우선.
+        if (verified) {
+          m.setGlobalZIndex(200199 - (verifiedRank[f.id] ?? 99).clamp(0, 99));
+        }
         if (icon != null) {
           m.setAnchor(const NPoint(0.5, 0.5)); // 원형 아이콘 → 중앙 앵커
         } else {
@@ -547,11 +574,154 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     );
   }
 
+  // 인증 마커 공통 도형 상수 — 캔버스 104px, 둥근 정사각형 84×84 r22.
+  static const _bizTarget = 104.0;
+  static const _bizBox = 84.0;
+  static const _bizRadius = 22.0;
+
+  /// 인증 마커의 둥근 정사각형 프레임(그림자 + 채움/클립 + 모드별 분리 링).
+  /// [fillColor] 를 주면 채우고(글리프 폴백), 없으면 클립만 남긴다(사진 마커 —
+  /// 호출자가 클립 안에 사진을 그린 뒤 [_drawBizFrameRing] 으로 링을 얹는다).
+  RRect _bizFrameRRect() => RRect.fromRectAndRadius(
+    Rect.fromCenter(
+      center: const Offset(_bizTarget / 2, _bizTarget / 2),
+      width: _bizBox,
+      height: _bizBox,
+    ),
+    const Radius.circular(_bizRadius),
+  );
+
+  void _drawBizFrame(Canvas canvas, bool dark, {Color? fillColor}) {
+    final rrect = _bizFrameRRect();
+    canvas.drawRRect(
+      rrect.shift(const Offset(0, 2)),
+      Paint()
+        ..color = _markerShadow
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+    );
+    if (fillColor != null) canvas.drawRRect(rrect, Paint()..color = fillColor);
+    _drawBizFrameRing(canvas, dark);
+  }
+
+  void _drawBizFrameRing(Canvas canvas, bool dark) {
+    canvas.drawRRect(
+      _bizFrameRRect(),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = dark ? _markerHaloDark : _markerHaloLight,
+    );
+  }
+
+  /// 인증 배지 — 우상단 골드(액센트) 원 + 흰 체크. 프레임과 링으로 분리.
+  void _drawVerifiedBadge(Canvas canvas, bool dark) {
+    const bc = Offset(_bizTarget - 20, 20);
+    const br = 15.0;
+    canvas.drawCircle(
+      bc + const Offset(0, 1.5),
+      br,
+      Paint()
+        ..color = _markerShadow
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 3),
+    );
+    canvas.drawCircle(bc, br, Paint()..color = _catAccent);
+    canvas.drawCircle(
+      bc,
+      br,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = dark ? _markerHaloDark : _markerHaloLight,
+    );
+    final check = TextPainter(textDirection: TextDirection.ltr)
+      ..text = TextSpan(
+        text: String.fromCharCode(Icons.check_rounded.codePoint),
+        style: TextStyle(
+          fontSize: 20,
+          fontFamily: Icons.check_rounded.fontFamily,
+          color: Colors.white,
+        ),
+      )
+      ..layout();
+    check.paint(canvas, bc - Offset(check.width / 2, check.height / 2));
+  }
+
+  /// 인증 업체 마커 — 둥근 정사각형 안에 대표 사진(업체 프로필 얼굴).
+  /// 사진이 없거나 로드 실패면 같은 실루엣의 글리프 폴백(_renderMarkerIcon).
+  Future<NOverlayImage?> _verifiedIcon(Facility f) async {
+    final key = '${f.id}|${f.ownerPhotoUrl ?? ''}';
+    if (_bizIcons.containsKey(key)) return _bizIcons[key];
+    final dark = context.isDark; // await 전에 캡처
+    NOverlayImage? out;
+    try {
+      ui.Image? photo;
+      final url = f.ownerPhotoUrl;
+      if (url != null) {
+        final res = await http.get(Uri.parse(url));
+        if (res.statusCode == 200) {
+          // 마커 크기로만 쓰므로 소형 디코딩(원본 비율 유지).
+          final codec = await ui.instantiateImageCodec(
+            res.bodyBytes,
+            targetWidth: 240,
+          );
+          photo = (await codec.getNextFrame()).image;
+        }
+      }
+      if (photo != null) {
+        out = await _renderBizPhotoIcon(photo, f.ownerPhotoAlignY, dark);
+        photo.dispose();
+      } else {
+        out = await _iconFor(f.category, verified: true);
+      }
+    } catch (_) {
+      out = null;
+    }
+    _bizIcons[key] = out;
+    return out;
+  }
+
+  /// 둥근 정사각형 사진 마커 렌더 — cover 크롭 + 업주 세로 초점(alignY,
+  /// 상세 히어로와 동일 문법) + 분리 링 + 체크 배지.
+  Future<NOverlayImage?> _renderBizPhotoIcon(
+    ui.Image photo,
+    double alignY,
+    bool dark,
+  ) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final rrect = _bizFrameRRect();
+    final dst = rrect.outerRect;
+    _drawBizFrame(canvas, dark); // 그림자 + 링(사진은 클립 안에)
+    canvas.save();
+    canvas.clipRRect(rrect);
+    final scale = math.max(dst.width / photo.width, dst.height / photo.height);
+    final srcW = dst.width / scale, srcH = dst.height / scale;
+    final srcX = (photo.width - srcW) / 2;
+    final srcY = (photo.height - srcH) * (alignY.clamp(-1.0, 1.0) + 1) / 2;
+    canvas.drawImageRect(
+      photo,
+      Rect.fromLTWH(srcX, srcY, srcW, srcH),
+      dst,
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    canvas.restore();
+    _drawBizFrameRing(canvas, dark); // 링은 사진 위에 다시(경계 또렷하게)
+    _drawVerifiedBadge(canvas, dark);
+    final image = await recorder.endRecording().toImage(
+      _bizTarget.toInt(),
+      _bizTarget.toInt(),
+    );
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (bytes == null) return null;
+    return NOverlayImage.fromByteArray(bytes.buffer.asUint8List());
+  }
+
   /// 마커 아이콘: 분양은 IMG_4.png, 나머지는 채운 Material 아이콘을 #5a4e38 로 렌더.
   /// 흰 배경 없음. 가독성용 흰 외곽선은 블러 없이 오프셋으로 그려 Impeller 안전.
   ///
-  /// [verified] (인증 업체)는 실루엣 자체가 다르게 — 브랜드 컬러로 채운 원형
-  /// 디스크 위에 반전색 글리프, 우상단에 체크 배지(면 vs 선이라 줌 아웃에도 구분).
+  /// [verified] (사진 없는 인증 업체 폴백)는 실루엣 자체가 다르게 — 브랜드
+  /// 컬러로 채운 둥근 정사각형 위에 반전색 글리프, 우상단에 체크 배지.
   Future<NOverlayImage?> _renderMarkerIcon(
     String category,
     Color iconColor, {
@@ -563,30 +733,14 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    // 인증 업체: 채운 디스크(+그림자·모드별 분리 링). 글리프는 디스크 위 반전색.
+    // 인증 업체(사진 없음 폴백): 브랜드 컬러로 채운 둥근 정사각형 —
+    // 사진 마커(_renderBizPhotoIcon)와 같은 실루엣. 글리프는 반전색.
     final contentColor = verified
         ? (dark ? const Color(0xFF241F16) : Colors.white)
         : iconColor;
     if (verified) {
-      const center = Offset(target / 2, target / 2);
-      const r = 42.0;
       final fill = dark ? const Color(0xFFD8C7A9) : const Color(0xFF5A4E3A);
-      canvas.drawCircle(
-        center + const Offset(0, 2),
-        r,
-        Paint()
-          ..color = _markerShadow
-          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
-      );
-      canvas.drawCircle(center, r, Paint()..color = fill);
-      canvas.drawCircle(
-        center,
-        r,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = dark ? _markerHaloDark : _markerHaloLight,
-      );
+      _drawBizFrame(canvas, dark, fillColor: fill);
     }
 
     if (category == 'pet_sales') {
@@ -662,38 +816,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       base.paint(canvas, origin);
     }
 
-    // 인증 배지 — 우상단 골드(액센트) 원 + 흰 체크. 디스크와 링으로 분리.
-    if (verified) {
-      const bc = Offset(target - 20, 20);
-      const br = 15.0;
-      canvas.drawCircle(
-        bc + const Offset(0, 1.5),
-        br,
-        Paint()
-          ..color = _markerShadow
-          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 3),
-      );
-      canvas.drawCircle(bc, br, Paint()..color = _catAccent);
-      canvas.drawCircle(
-        bc,
-        br,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..color = dark ? _markerHaloDark : _markerHaloLight,
-      );
-      final check = TextPainter(textDirection: TextDirection.ltr)
-        ..text = TextSpan(
-          text: String.fromCharCode(Icons.check_rounded.codePoint),
-          style: TextStyle(
-            fontSize: 20,
-            fontFamily: Icons.check_rounded.fontFamily,
-            color: Colors.white,
-          ),
-        )
-        ..layout();
-      check.paint(canvas, bc - Offset(check.width / 2, check.height / 2));
-    }
+    if (verified) _drawVerifiedBadge(canvas, dark);
 
     final image = await recorder.endRecording().toImage(
       target.toInt(),

@@ -84,7 +84,7 @@ class _ReviewCard extends StatelessWidget {
               )
             else ...[
               // 사진 없는 후기 — 게시글과 동일하게 랜덤 블롭 배경(후기별 고정 패턴)
-              // 위에 내용 미리보기를 올린다.
+              // 위에 본문을 히어로로 올린다.
               Positioned.fill(
                 child: BlobBackground(
                   seed: review.seed ??
@@ -92,17 +92,26 @@ class _ReviewCard extends StatelessWidget {
                   color: context.colors.primary,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 34),
-                child: Text(
-                  (review.content ?? '').isEmpty ? '내용 없는 후기' : review.content!,
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    height: 1.5,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.textPrimary,
+              // 사진 없는 게시글 카드와 동일 문법 — 하단 평점 구간을 제외한
+              // 영역의 정중앙에 본문을 크게(카드 폭에 맞춰 축소한 스케일).
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 40),
+                  child: Center(
+                    child: Text(
+                      (review.content ?? '').isEmpty
+                          ? '내용 없는 후기'
+                          : review.content!,
+                      textAlign: TextAlign.center,
+                      maxLines: 6,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: context.colors.textPrimary,
+                        height: 1.5,
+                      ),
+                    ),
                   ),
                 ),
               ),

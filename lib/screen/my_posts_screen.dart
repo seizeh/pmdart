@@ -85,7 +85,13 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
   Future<void> _openDetail(Post post) async {
     await Navigator.push(
       context,
-      AppPageRoute(builder: (_) => PostDetailScreen(post: post)),
+      AppPageRoute(
+        builder: (_) => PostDetailScreen(
+          post: post,
+          // 내 글 작성자(나) 탭은 프로필을 쌓지 않고 되돌아온다(무한 왕복 방지).
+          fromUserId: SessionManager.instance.user?.id,
+        ),
+      ),
     );
     _load();
   }

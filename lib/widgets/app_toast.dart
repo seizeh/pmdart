@@ -15,7 +15,12 @@ class AppToast {
 
   static OverlayEntry? _entry;
 
-  static void show(OverlayState overlay, String message) {
+  /// [onTap] 을 주면 토스트가 탭 가능해진다(탭 → 즉시 닫고 콜백 — 알림 배너용).
+  static void show(
+    OverlayState overlay,
+    String message, {
+    VoidCallback? onTap,
+  }) {
     // 이전 토스트는 즉시 교체(겹침 방지).
     _entry?.remove();
     _entry = null;
@@ -23,6 +28,7 @@ class AppToast {
     entry = OverlayEntry(
       builder: (_) => _ToastWidget(
         message: message,
+        onTap: onTap,
         onDone: () {
           if (_entry == entry) _entry = null;
           entry.remove();
@@ -37,7 +43,8 @@ class AppToast {
 class _ToastWidget extends StatefulWidget {
   final String message;
   final VoidCallback onDone;
-  const _ToastWidget({required this.message, required this.onDone});
+  final VoidCallback? onTap;
+  const _ToastWidget({required this.message, required this.onDone, this.onTap});
 
   @override
   State<_ToastWidget> createState() => _ToastWidgetState();
@@ -73,6 +80,13 @@ class _ToastWidgetState extends State<_ToastWidget>
     widget.onDone();
   }
 
+  void _handleTap() {
+    _timer?.cancel();
+    // 라우팅이 토스트 퇴장을 기다리지 않게 콜백 먼저, 퇴장은 이어서.
+    widget.onTap?.call();
+    _dismiss();
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -92,7 +106,9 @@ class _ToastWidgetState extends State<_ToastWidget>
       left: 12,
       right: 12,
       bottom: navTop,
+      // 탭 콜백이 있으면(알림 배너) 터치를 받고, 없으면 기존처럼 투과.
       child: IgnorePointer(
+        ignoring: widget.onTap == null,
         child: ClipRect(
           child: Padding(
             // top: 튕김 오버슛 여유 / bottom: 메뉴바 위 안착 간격.
@@ -106,31 +122,34 @@ class _ToastWidgetState extends State<_ToastWidget>
               ),
               child: Material(
                 color: Colors.transparent,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: scheme.inverseSurface,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x24000000),
-                        blurRadius: 16,
-                        offset: Offset(0, 4),
+                child: GestureDetector(
+                  onTap: widget.onTap == null ? null : _handleTap,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.inverseSurface,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x24000000),
+                          blurRadius: 16,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      widget.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.4,
+                        color: scheme.onInverseSurface,
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    widget.message,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.4,
-                      color: scheme.onInverseSurface,
                     ),
                   ),
                 ),

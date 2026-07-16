@@ -15,6 +15,12 @@ class MainScreen extends StatefulWidget {
   final bool isGuest;
   const MainScreen({super.key, this.isGuest = false});
 
+  /// 외부(푸시 딥링크 등)에서의 탭 전환 요청 — 인덱스를 넣으면 화면이 전환 후
+  /// null 로 리셋한다. 딥링크가 상세를 얹기 전에 "뒤로 갔을 때 보일 탭"을 맞출 때 사용.
+  static final ValueNotifier<int?> tabRequest = ValueNotifier<int?>(null);
+
+  static const tabMap = 0, tabSearch = 1, tabCommunity = 2, tabChat = 3, tabMyInfo = 4;
+
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
@@ -78,6 +84,16 @@ class _MainScreenState extends State<MainScreen>
   void initState() {
     super.initState();
     _syncKeyboardBarrier();
+    MainScreen.tabRequest.addListener(_onTabRequest);
+    // 화면 생성 전에 들어온 요청(콜드 스타트 딥링크)은 첫 프레임 뒤에 소비.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onTabRequest());
+  }
+
+  void _onTabRequest() {
+    final i = MainScreen.tabRequest.value;
+    if (i == null) return;
+    MainScreen.tabRequest.value = null;
+    if (mounted && i >= 0 && i < _tabs.length) _select(i);
   }
 
   // 지도 탭(index 0)은 자동완성 제안 탭을 위해 전역 키보드 배리어를 끈다.
@@ -96,6 +112,7 @@ class _MainScreenState extends State<MainScreen>
 
   @override
   void dispose() {
+    MainScreen.tabRequest.removeListener(_onTabRequest);
     _tab.dispose();
     _navVisible.dispose();
     super.dispose();

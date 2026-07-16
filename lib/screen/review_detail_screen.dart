@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/mock_data.dart' show timeAgo;
 import '../models/community.dart' show kPostImageAspectRatio;
+import '../models/facility_review.dart';
 import '../motion/motion.dart';
+import '../services/facility_review_repository.dart';
+import '../services/session.dart';
 import '../theme/app_palette.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/overlay_icon_button.dart';
@@ -36,10 +40,92 @@ class ReviewDetailScreen extends StatefulWidget {
 class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
   final _scroll = ScrollController();
 
+  // 댓글 — reviewId 가 있는 후기(시설 후기)에만 붙는다.
+  final _commentCtrl = TextEditingController();
+  List<FacilityReviewComment> _comments = [];
+  bool _loadingComments = false;
+  bool _sending = false;
+
+  String? get _reviewId => widget.review.reviewId;
+  bool get _loggedIn => SessionManager.instance.user != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_reviewId != null) _loadComments();
+  }
+
   @override
   void dispose() {
     _scroll.dispose();
+    _commentCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadComments() async {
+    setState(() => _loadingComments = true);
+    try {
+      final list = await FacilityReviewRepository.instance.fetchComments(
+        _reviewId!,
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments = list;
+        _loadingComments = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingComments = false);
+    }
+  }
+
+  Future<void> _sendComment() async {
+    final text = _commentCtrl.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await FacilityReviewRepository.instance.addComment(_reviewId!, text);
+      _commentCtrl.clear();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _loadComments();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('댓글 작성에 실패했어요')),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// 내 댓글 길게 누르기 → 삭제(소프트).
+  Future<void> _confirmDeleteComment(FacilityReviewComment c) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('댓글을 삭제할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: Text('삭제', style: TextStyle(color: dialogCtx.colors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await FacilityReviewRepository.instance.deleteComment(c.id);
+      await _loadComments();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('삭제에 실패했어요')),
+      );
+    }
   }
 
   /// 내 후기 삭제 — 확인 후 제공자 콜백(삭제 API + 목록 갱신) 실행, 성공 시 닫기.
@@ -99,6 +185,10 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
         builder: (context, physics) => Scaffold(
           backgroundColor: context.colors.background,
           extendBodyBehindAppBar: true,
+          // 댓글 입력 바 — 시설 후기(reviewId 보유) + 로그인 상태에서만.
+          bottomNavigationBar: (_reviewId != null && _loggedIn)
+              ? _commentInputBar()
+              : null,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -307,7 +397,164 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
           ),
         ),
       ],
+      // 댓글 — 게시글 상세와 동일 문법(목록 + 하단 입력 바).
+      if (_reviewId != null) ...[
+        const SizedBox(height: 28),
+        Text(
+          '댓글 ${_comments.length}',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _commentSection(),
+      ],
     ];
+  }
+
+  Widget _commentSection() {
+    if (_loadingComments) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_comments.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        decoration: BoxDecoration(
+          color: context.colors.surfaceMuted,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
+          child: Text(
+            '첫 댓글을 남겨보세요',
+            style: TextStyle(fontSize: 13, color: context.colors.textTertiary),
+          ),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (final c in _comments)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: c.isMine ? () => _confirmDeleteComment(c) : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        c.authorNickname,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: context.colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        timeAgo(c.createdAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: context.colors.textTertiary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    c.content,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: context.colors.textPrimary,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 하단 댓글 입력 바 — 게시글 상세 _BottomBar 의 입력부와 동일 문법(하트 없음).
+  Widget _commentInputBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        border: Border(
+          top: BorderSide(color: context.colors.border, width: 0.5),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _commentCtrl,
+                  minLines: 1,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: '댓글을 입력하세요',
+                    filled: true,
+                    fillColor: context.colors.surfaceMuted,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(100),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(100),
+                      borderSide: BorderSide(
+                        color: context.colors.primary,
+                        width: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: context.colors.primaryDark,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: _sending
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: context.colors.textOnPrimary,
+                          ),
+                        )
+                      : Icon(
+                          Icons.arrow_upward_rounded,
+                          color: context.colors.textOnPrimary,
+                        ),
+                  onPressed: _sending ? null : _sendComment,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _chip(String label, {required Color fg, required Color bg}) {

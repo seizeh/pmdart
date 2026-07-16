@@ -46,6 +46,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- 백그라운드 FCM 알림이 앱의 고중요도 채널(default_high — 소리·진동·헤드업)로
+             게시되게 한다. 없으면 FCM 폴백 채널(중요도 보통, 진동 없음)로 빠져
+             화면 꺼짐 상태에서 진동이 울리지 않는다. 채널 자체는 앱 시작 시
+             LocalNoticeService 가 생성. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="default_high" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

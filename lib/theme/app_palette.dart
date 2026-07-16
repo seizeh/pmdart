@@ -263,6 +263,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     'give_away' => catGiveAway,
     'adoption' => catAdoption,
     'free' => catFree,
+    'news' => info, // 업체 소식 — 전용 토큰 없이 info 재사용
     _ => primary,
   };
 }

@@ -43,3 +43,40 @@ class FacilityReview {
     visitNo: (j['visit_no'] as num?)?.toInt(),
   );
 }
+
+/// 시설 후기 댓글 1건 (v_facility_review_comment_feed 기준).
+/// 업체 모드 댓글은 author_nickname 이 상호로 온다(개인 닉네임 비노출).
+class FacilityReviewComment {
+  final String id;
+  final String reviewId;
+  final String userId;
+  final String content;
+  final DateTime createdAt;
+  final String authorNickname;
+  final bool isMine;
+
+  const FacilityReviewComment({
+    required this.id,
+    required this.reviewId,
+    required this.userId,
+    required this.content,
+    required this.createdAt,
+    required this.authorNickname,
+    required this.isMine,
+  });
+
+  factory FacilityReviewComment.fromJson(
+    Map<String, dynamic> j, {
+    String? myUserId,
+  }) => FacilityReviewComment(
+    id: j['id'] as String,
+    reviewId: (j['review_id'] ?? '') as String,
+    userId: (j['user_id'] ?? '') as String,
+    content: (j['content'] ?? '') as String,
+    createdAt:
+        DateTime.tryParse((j['created_at'] ?? '') as String)?.toLocal() ??
+        DateTime.now(),
+    authorNickname: (j['author_nickname'] ?? '알 수 없음') as String,
+    isMine: myUserId != null && j['user_id'] == myUserId,
+  );
+}

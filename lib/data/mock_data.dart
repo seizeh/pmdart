@@ -268,5 +268,6 @@ String categoryLabel(String category) => switch (category) {
   'give_away' => '분양',
   'adoption' => '입양',
   'free' => '자유',
+  'news' => '소식',
   _ => category,
 };

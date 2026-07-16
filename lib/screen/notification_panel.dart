@@ -1,15 +1,11 @@
+import 'dart:async' show unawaited;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
+import '../main.dart' show openFromPush;
 import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../models/notification.dart';
 import '../services/notification_repository.dart';
-import '../services/community_repository.dart';
-import '../services/chat_repository.dart';
-import 'post_detail_screen.dart';
-import 'chat_room_screen.dart';
-import 'guardian_invites_screen.dart';
 
 /// 알림 벨을 탭하면 그 자리에서 **아래로 확장되는 알림 패널**을 연다(Slack 채널 헤더가
 /// 메뉴로 펼쳐지는 스펠 차용). 패널 높이는 알림 수에 비례해 커지고, 화면을 넘으면 스크롤.
@@ -208,35 +204,11 @@ class _NotificationPanelState extends State<_NotificationPanel> {
   }
 
   void _onTap(AppNotification n) {
-    final nav = Navigator.of(context);
     _repo.delete(n.id); // 확인한 알림은 삭제
-    nav.pop(); // 패널 닫기
-    _navigate(nav, n);
-  }
-
-  Future<void> _navigate(NavigatorState nav, AppNotification n) async {
-    if (n.type == 'guardian_invite') {
-      nav.push(AppPageRoute(builder: (_) => const GuardianInvitesScreen()));
-      return;
-    }
-    if (n.resourceId == null) return;
-    try {
-      if (n.resourceType == 'post') {
-        final post = await CommunityRepository.instance.fetchPost(
-          n.resourceId!,
-        );
-        if (post != null) {
-          nav.push(AppPageRoute(builder: (_) => PostDetailScreen(post: post)));
-        }
-      } else if (n.resourceType == 'chat_room') {
-        final room = await ChatRepository.instance.fetchRoom(n.resourceId!);
-        if (room != null) {
-          nav.push(AppPageRoute(builder: (_) => ChatRoomScreen(room: room)));
-        }
-      }
-    } catch (_) {
-      /* 이동 실패는 조용히 — 읽음 처리는 이미 됨 */
-    }
+    Navigator.of(context).pop(); // 패널 닫기
+    // 푸시 탭과 동일한 딥링크 라우팅 — 관련 탭으로 전환한 뒤 상세를 rise 로
+    // 열어, 닫으면(쓸어내리기/뒤로가기) 채팅 목록 등 관련 탭이 나온다.
+    unawaited(openFromPush(n.type, n.resourceType, n.resourceId));
   }
 
   @override

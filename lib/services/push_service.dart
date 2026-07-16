@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'session.dart';
@@ -12,7 +13,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {}
 /// OS 푸시(FCM) 연동.
 ///  · 앱 시작/로그인 시 FCM 토큰을 register_device_token 으로 서버에 등록(로그인 상태에서만).
 ///  · 백그라운드/종료: 서버 notification 페이로드 → OS 가 표시(코드 불필요).
-///  · 포그라운드: onForeground 콜백(스낵바 등), 탭: onOpen 콜백(라우팅). main.dart 가 세팅.
+///  · 포그라운드: 인앱 배너는 realtime 알림 구독이 담당(FCM 아님), 탭: onOpen 콜백(라우팅).
 class PushService {
   PushService._();
   static final PushService instance = PushService._();
@@ -22,9 +23,6 @@ class PushService {
 
   /// 알림 탭으로 앱 진입 시(type, resourceType, resourceId).
   void Function(String type, String? resourceType, String? resourceId)? onOpen;
-
-  /// 포그라운드 수신 시(title, body).
-  void Function(String? title, String? body)? onForeground;
 
   Future<void> init() async {
     if (_inited) return;
@@ -36,7 +34,12 @@ class PushService {
       sound: true,
     );
     debugPrint('push: 알림 권한 = ${settings.authorizationStatus}');
-    // iOS 포그라운드에서도 배너/사운드 표시.
+    // iOS 포그라운드도 OS 배너로 — 백그라운드 푸시와 동일한 형태의 알림.
+    // (Android 포그라운드는 realtime → flutter_local_notifications 가 담당.
+    //  iOS 에 그 플러그인을 쓰면 알림 델리게이트를 가로채 FCM 표시·탭 라우팅이
+    //  깨져서, iOS 는 FCM 의 네이티브 포그라운드 표시를 쓴다.)
+    // 한계: OS 배너는 건별 억제가 안 돼 "보고 있는 채팅방은 조용히" 규칙이
+    // iOS 포그라운드에선 적용되지 않는다(네이티브 willPresent 확장으로 추후 개선).
     await _fm.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
@@ -44,12 +47,25 @@ class PushService {
     );
 
     _fm.onTokenRefresh.listen(_register);
-    FirebaseMessaging.onMessage.listen((m) {
-      onForeground?.call(m.notification?.title, m.notification?.body);
-    });
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleOpen);
-    final initial = await _fm.getInitialMessage(); // 종료 상태에서 탭으로 진입
-    if (initial != null) _handleOpen(initial);
+    if (Platform.isIOS) {
+      // SceneDelegate 환경에선 FCM 의 탭 스트림(onMessageOpenedApp)이 유실된다 —
+      // 네이티브(AppDelegate)가 알림 탭을 이 채널로 전달한다(콜드 스타트는 버퍼 회수).
+      _iosTapChannel.setMethodCallHandler((call) async {
+        if (call.method == 'tap') _handleTapMap(call.arguments);
+      });
+      try {
+        final pending = await _iosTapChannel.invokeMethod<dynamic>(
+          'getPendingTap',
+        );
+        if (pending != null) _handleTapMap(pending);
+      } catch (e) {
+        debugPrint('push: pendingTap 회수 실패 — $e');
+      }
+    } else {
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleOpen);
+      final initial = await _fm.getInitialMessage(); // 종료 상태에서 탭으로 진입
+      if (initial != null) _handleOpen(initial);
+    }
 
     if (SessionManager.instance.isLoggedIn) await registerToken();
   }
@@ -109,5 +125,18 @@ class PushService {
       d['resource_type'] as String?,
       d['resource_id'] as String?,
     );
+  }
+
+  static const MethodChannel _iosTapChannel = MethodChannel('pawmate/push_tap');
+
+  /// 네이티브(AppDelegate)가 전달한 알림 탭 페이로드 — 빈 문자열은 null 로.
+  void _handleTapMap(dynamic args) {
+    final m = (args as Map?) ?? const {};
+    String? nn(Object? v) {
+      final s = v as String?;
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
+    onOpen?.call((m['type'] as String?) ?? '', nn(m['resource_type']), nn(m['resource_id']));
   }
 }

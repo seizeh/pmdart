@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/facility_review.dart';
 import '../motion/motion.dart';
 import '../screen/review_detail_screen.dart';
 import '../theme/app_palette.dart';
@@ -25,6 +26,9 @@ class ReviewCardData {
   /// 담당하고, 성공 여부를 돌려준다. null 이면 삭제 버튼이 없다(타인 후기 등).
   final Future<bool> Function()? onDelete;
 
+  /// 후기 id(facility_reviews) — 있으면 상세 화면에 댓글 섹션이 붙는다.
+  final String? reviewId;
+
   const ReviewCardData({
     required this.author,
     required this.rating,
@@ -35,7 +39,25 @@ class ReviewCardData {
     this.visitNo,
     this.seed,
     this.onDelete,
+    this.reviewId,
   });
+
+  /// FacilityReview → 카드 데이터 (알림 딥링크 등 목록 밖 진입용).
+  factory ReviewCardData.fromFacilityReview(
+    FacilityReview r, {
+    Future<bool> Function()? onDelete,
+  }) => ReviewCardData(
+    author: r.authorNickname,
+    rating: r.rating,
+    content: r.content,
+    createdAt: r.createdAt,
+    photoUrls: r.photoUrls,
+    isMine: r.isMine,
+    visitNo: r.visitNo,
+    seed: r.id,
+    reviewId: r.id,
+    onDelete: onDelete,
+  );
 }
 
 class ReviewCardGrid extends StatelessWidget {

@@ -74,9 +74,12 @@ class FacilityReviewRepository {
     );
   }
 
-  /// 내 후기 삭제(소프트).
-  Future<void> deleteMine(String facilityId) async {
+  /// 내 후기 삭제(소프트). [reviewId] 를 주면 그 한 건만(복수 후기), 없으면 전부.
+  Future<void> deleteMine(String facilityId, {String? reviewId}) async {
     if (_uid == null) throw StateError('로그인이 필요합니다');
-    await _c.rpc('delete_facility_review', params: {'p_facility': facilityId});
+    await _c.rpc(
+      'delete_facility_review',
+      params: {'p_facility': facilityId, 'p_review': ?reviewId},
+    );
   }
 }

@@ -20,6 +20,7 @@ class Facility {
   final String? ownerPhotoUrl;
   final double ownerPhotoAlignY; // 세로 초점 -1(상단)~1(하단), 업주가 조절
   final String? ownerUserId; // 매칭된 인증 업주 — 히어로 탭 시 업체 프로필로
+  final String? businessHours; // 업주가 설정한 영업시간(자유 서식 한 줄)
 
   const Facility({
     required this.id,
@@ -37,6 +38,7 @@ class Facility {
     this.ownerPhotoUrl,
     this.ownerPhotoAlignY = 0,
     this.ownerUserId,
+    this.businessHours,
   });
 
   bool get isNaver => source == 'naver';
@@ -57,6 +59,7 @@ class Facility {
     ownerPhotoUrl: j['owner_photo_url'] as String?,
     ownerPhotoAlignY: (j['owner_photo_align_y'] as num?)?.toDouble() ?? 0,
     ownerUserId: j['owner_user_id'] as String?,
+    businessHours: j['business_hours'] as String?,
   );
 }
 

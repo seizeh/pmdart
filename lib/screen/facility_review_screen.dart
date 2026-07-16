@@ -92,10 +92,15 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
       );
       if (!mounted) return;
       Navigator.pop(context, true);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      _toast('후기 저장에 실패했어요');
+      // 자기 업체 후기는 서버가 차단(own_facility) — 안내를 구분한다.
+      _toast(
+        e.toString().contains('own_facility')
+            ? '내 업체에는 후기를 남길 수 없어요'
+            : '후기 저장에 실패했어요',
+      );
     }
   }
 

@@ -287,38 +287,42 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            GestureDetector(
-              onTap: _writeReview,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: context.colors.primaryDark,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.rate_review_outlined,
-                      size: 18,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      '후기 쓰기',
-                      style: TextStyle(
+            // 내 업체(인증 연결 계정)는 후기 쓰기 숨김 — 개인/업체 모드 무관
+            // (같은 uid). 서버(add_facility_review own_facility)가 불변식 정본.
+            if (!_isMyFacility(f)) ...[
+              GestureDetector(
+                onTap: _writeReview,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: context.colors.primaryDark,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.rate_review_outlined,
+                        size: 18,
                         color: Colors.white,
-                        fontWeight: FontWeight.w700,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      const Text(
+                        '후기 쓰기',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
+            ],
             GestureDetector(
               onTap: _openInNaverMap,
               child: Container(
@@ -396,6 +400,11 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
           ),
     ];
   }
+
+  /// 이 시설이 내 업체인가 — 인증 업주와 로그인 계정이 같은 uid(모드 무관).
+  bool _isMyFacility(Facility f) =>
+      f.ownerUserId != null &&
+      f.ownerUserId == SessionManager.instance.user?.id;
 
   /// 내 후기 1건 소프트 삭제(상세 화면 우상단 버튼에서 호출) 후 목록 갱신.
   Future<bool> _deleteReview(String reviewId) async {

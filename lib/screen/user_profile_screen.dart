@@ -11,11 +11,13 @@ import '../services/social_repository.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
+import '../services/facility_repository.dart' show Facility;
 import '../services/session.dart';
 import '../data/mock_data.dart' show MockPet;
 import '../widgets/review_cards.dart';
 import '../widgets/role_badge.dart' show categoryColor;
 import '../widgets/blob_background.dart';
+import 'facility_review_screen.dart';
 import 'pet_profile_screen.dart';
 import 'post_detail_screen.dart';
 
@@ -997,14 +999,75 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   // ── 방문 후기: 매칭 시설의 시설 후기 (업체 모드 프로필) ──
 
+  /// 이 업체 프로필에서 후기를 쓸 수 있는가 — 본인(업주 계정, 모드 무관)은 제외.
+  /// 서버(add_facility_review)도 own_facility 로 차단하는 불변식의 UX 버전.
+  bool get _canWriteBizReview =>
+      !_isMe && _profile?.businessFacilityId != null;
+
+  /// 업체 프로필에서 바로 후기 작성 — 지도 상세와 동일한 작성 화면으로.
+  Future<void> _writeBizReview() async {
+    if (!SessionManager.instance.isLoggedIn) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('후기는 로그인 후 남길 수 있어요')));
+      return;
+    }
+    final p = _profile;
+    final fid = p?.businessFacilityId;
+    if (p == null || fid == null) return;
+    final ok = await Navigator.push<bool>(
+      context,
+      AppPageRoute(
+        builder: (_) => FacilityReviewScreen(
+          // 작성 화면은 id·이름 등 표시 정보만 쓴다(비네이버라 좌표 불필요).
+          facility: Facility(
+            id: fid,
+            category: p.businessCategory ?? 'other',
+            name: p.businessName ?? p.nickname,
+            address: p.businessAddress,
+            phone: p.businessPhone,
+            isOpen: true,
+            lat: 0,
+            lng: 0,
+            distanceM: 0,
+          ),
+        ),
+      ),
+    );
+    if (ok == true && mounted) _load(silent: true); // 후기·평점 즉시 반영
+  }
+
+  Widget _bizReviewWriteButton() => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+    child: OutlinedButton.icon(
+      onPressed: _writeBizReview,
+      icon: const Icon(Icons.rate_review_outlined, size: 18),
+      label: const Text('후기 쓰기'),
+    ),
+  );
+
   Widget _bizReviewContent() {
     if (_bizReviews.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: _emptyBox('아직 방문 후기가 없어요'),
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: _emptyBox('아직 방문 후기가 없어요'),
+          ),
+          if (_canWriteBizReview) _bizReviewWriteButton(),
+        ],
       );
     }
     // 사진+평점 카드 그리드 — 탭하면 상세 시트(지도 상세와 동일 언어).
+    return Column(
+      children: [
+        if (_canWriteBizReview) _bizReviewWriteButton(),
+        _bizReviewGrid(),
+      ],
+    );
+  }
+
+  Widget _bizReviewGrid() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
       child: ReviewCardGrid(

@@ -135,7 +135,7 @@ class ProfileRepository {
     final profile = await _c
         .from('public_profiles')
         .select(
-          'nickname, user_type, profile_image_url, address, is_location_verified, is_business, business_name, business_category, business_address, business_phone, business_facility_id, business_photo_url',
+          'nickname, user_type, profile_image_url, address, is_location_verified, is_business, business_name, business_category, business_address, business_phone, business_facility_id, business_photo_url, business_hours',
         )
         .eq('id', userId)
         .maybeSingle();
@@ -166,6 +166,7 @@ class ProfileRepository {
       businessPhone: profile['business_phone'] as String?,
       businessFacilityId: profile['business_facility_id'] as String?,
       businessPhotoUrl: profile['business_photo_url'] as String?,
+      businessHours: profile['business_hours'] as String?,
       reviewCount: counts[0],
       pawingCount: counts[1],
       pawmateCount: counts[2],

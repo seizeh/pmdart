@@ -21,6 +21,10 @@ class ReviewCardData {
   /// 사진 없는 카드의 블롭 배경 시드 — 후기마다 다른 패턴, 같은 후기는 항상 동일.
   final Object? seed;
 
+  /// 내 후기 삭제(상세 화면 우상단 버튼) — 삭제 API 호출과 목록 갱신은 제공자가
+  /// 담당하고, 성공 여부를 돌려준다. null 이면 삭제 버튼이 없다(타인 후기 등).
+  final Future<bool> Function()? onDelete;
+
   const ReviewCardData({
     required this.author,
     required this.rating,
@@ -30,6 +34,7 @@ class ReviewCardData {
     this.isMine = false,
     this.visitNo,
     this.seed,
+    this.onDelete,
   });
 }
 

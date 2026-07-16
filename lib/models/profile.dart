@@ -97,6 +97,7 @@ class PublicProfileData {
   final String? businessPhone;
   final String? businessFacilityId; // 매칭 시설 — 방문 후기 조회용
   final String? businessPhotoUrl; // 업체 얼굴 사진(대표 사진) — 개인 사진과 분리
+  final String? businessHours; // 영업시간(자유 서식 한 줄)
 
   /// 승인 업체 얼굴이 존재하는가 — 실제 표시는 forcePersonalFace(진입 맥락)와 조합.
   bool get isBusinessMode => businessName != null;
@@ -123,6 +124,7 @@ class PublicProfileData {
     this.businessPhone,
     this.businessFacilityId,
     this.businessPhotoUrl,
+    this.businessHours,
     required this.reviewCount,
     required this.pawingCount,
     required this.pawmateCount,

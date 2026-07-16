@@ -37,6 +37,54 @@ void main() {
     expect(find.text('2026.7.10'), findsOneWidget);
   });
 
+  testWidgets('내 후기 상세 — 삭제 버튼 → 확인 → onDelete 후 닫힘', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    var deleted = false;
+    final mine = ReviewCardData(
+      author: '테스트유저',
+      rating: 4,
+      content: '삭제 테스트',
+      isMine: true,
+      seed: 'r2',
+      onDelete: () async {
+        deleted = true;
+        return true;
+      },
+    );
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light(),
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReviewDetailScreen(review: mine),
+                ),
+              ),
+              child: const Text('OPEN'),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('OPEN'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    expect(find.text('후기를 삭제할까요?'), findsOneWidget);
+
+    await tester.tap(find.text('삭제'));
+    await tester.pumpAndSettle();
+
+    expect(deleted, isTrue);
+    expect(find.byType(ReviewDetailScreen), findsNothing); // 삭제 후 닫힘
+  });
+
   testWidgets('후기 카드 탭 → 상세 화면 push', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;

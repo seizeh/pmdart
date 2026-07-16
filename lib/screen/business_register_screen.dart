@@ -1184,6 +1184,8 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
               _row(context, '주소', mine.businessAddress),
               if ((mine.businessPhone ?? '').isNotEmpty)
                 _row(context, '전화', mine.businessPhone!),
+              if ((mine.businessHours ?? '').isNotEmpty)
+                _row(context, '영업시간', mine.businessHours!),
               _row(context, '이메일', mine.contactEmail),
             ],
           ),
@@ -1365,6 +1367,7 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
     );
     final phoneCtrl = TextEditingController(text: mine.businessPhone ?? '');
     final emailCtrl = TextEditingController(text: mine.contactEmail);
+    final hoursCtrl = TextEditingController(text: mine.businessHours ?? '');
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -1390,7 +1393,7 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
             ),
             const SizedBox(height: 4),
             Text(
-              '간판명·전화는 지도 시설 정보에도 바로 반영돼요. 사업자번호·주소·업종 변경은 재인증이 필요해요.',
+              '간판명·전화·영업시간은 지도 시설 정보에도 바로 반영돼요. 사업자번호·주소·업종 변경은 재인증이 필요해요.',
               style: TextStyle(
                 fontSize: 12,
                 height: 1.5,
@@ -1418,6 +1421,15 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(labelText: '연락받을 이메일'),
             ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: hoursCtrl,
+              inputFormatters: [LengthLimitingTextInputFormatter(100)],
+              decoration: const InputDecoration(
+                labelText: '영업시간',
+                hintText: '예: 매일 10:00 - 20:00 (월 휴무)',
+              ),
+            ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -1436,10 +1448,12 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
       _toast('이메일 형식을 확인해주세요');
       return;
     }
+    // 영업시간은 비워서 저장하면 삭제(서버: 빈 문자열 → null).
     final ok = await BusinessRepository.instance.updateMyInfo(
       storefrontName: nameCtrl.text.trim(),
       phone: phoneCtrl.text,
       email: email,
+      hours: hoursCtrl.text,
     );
     if (!mounted) return;
     _toast(ok ? '저장했어요 — 지도 정보에도 반영됐어요' : '저장에 실패했어요. 잠시 후 다시 시도해주세요');

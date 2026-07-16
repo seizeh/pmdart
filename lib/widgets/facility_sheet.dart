@@ -37,6 +37,7 @@ class FacilityDetailContent extends StatefulWidget {
 class _FacilityDetailContentState extends State<FacilityDetailContent> {
   List<FacilityReview>? _reviews;
   List<String>? _categories; // 같은 업체의 겹치는 카테고리 전부(로드되면 헤더에 모두 표기)
+  String? _fid; // 후기 조회에 쓴 실제 facility_id(카페는 승격 id) — 삭제에 재사용
 
   // 대표 사진 히어로의 제자리 수축(타사용자 프로필 헤더와 동일 문법)용 스크롤.
   final _scroll = ScrollController();
@@ -83,7 +84,12 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
       final r = fid == null
           ? const <FacilityReview>[]
           : await FacilityReviewRepository.instance.fetchReviews(fid);
-      if (mounted) setState(() => _reviews = r);
+      if (mounted) {
+        setState(() {
+          _fid = fid;
+          _reviews = r;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _reviews = const []);
     }
@@ -269,6 +275,11 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
           const SizedBox(height: 8),
           _row(Icons.call_outlined, f.phone!),
         ],
+        // 인증 업주가 설정한 영업시간(업체 정보 수정에서 동기화).
+        if ((f.businessHours ?? '').isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _row(Icons.schedule_outlined, f.businessHours!),
+        ],
         const SizedBox(height: 16),
         // 머티리얼 버튼은 무한 너비에서 maximumSize(∞)로 채우려다 터진다(이
         // 화면 본문은 너비 제약이 깨져 무한이 들어옴, #28). Container 는 intrinsic
@@ -379,10 +390,27 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                   isMine: r.isMine,
                   visitNo: r.visitNo,
                   seed: r.id,
+                  onDelete: r.isMine ? () => _deleteReview(r.id) : null,
                 ),
             ],
           ),
     ];
+  }
+
+  /// 내 후기 1건 소프트 삭제(상세 화면 우상단 버튼에서 호출) 후 목록 갱신.
+  Future<bool> _deleteReview(String reviewId) async {
+    final fid = _fid;
+    if (fid == null) return false;
+    try {
+      await FacilityReviewRepository.instance.deleteMine(
+        fid,
+        reviewId: reviewId,
+      );
+      await _load();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// 히어로(대표 사진) 탭 → 인증 업주의 업체 프로필로(업체 얼굴 진입점).

@@ -181,12 +181,14 @@ class BusinessRepository {
     }
   }
 
-  /// 승인 업체 정보 수정 — 사업장명·업장 전화·연락 이메일만(심사 근거인 사업자번호·
-  /// 주소·업종은 재신청 경로). 간판명·전화는 매칭 시설(지도)에도 서버가 동기화한다.
+  /// 승인 업체 정보 수정 — 사업장명·업장 전화·연락 이메일·영업시간만(심사 근거인
+  /// 사업자번호·주소·업종은 재신청 경로). 간판명·전화·영업시간은 매칭 시설(지도)에도
+  /// 서버가 동기화한다. [hours] 는 null=유지, 빈 문자열=삭제.
   Future<bool> updateMyInfo({
     String? storefrontName,
     String? phone,
     String? email,
+    String? hours,
   }) async {
     try {
       await _c.rpc(
@@ -195,6 +197,7 @@ class BusinessRepository {
           'p_storefront_name': storefrontName,
           'p_phone': phone,
           'p_email': email,
+          'p_hours': hours,
         },
       );
       return true;
@@ -262,6 +265,7 @@ class BusinessProfile {
   final DateTime createdAt;
   final String? matchedFacilityId; // 공공데이터 매칭 시설 — 업체 후기 조회에 사용
   final String? photoUrl; // 대표 사진(지도 상세 히어로)
+  final String? businessHours; // 영업시간(자유 서식 한 줄)
   final double photoAlignY; // 사진 세로 초점 -1~1
 
   const BusinessProfile({
@@ -282,6 +286,7 @@ class BusinessProfile {
     this.matchedFacilityId,
     this.photoUrl,
     this.photoAlignY = 0,
+    this.businessHours,
   });
 
   factory BusinessProfile.fromMap(Map<String, dynamic> m) => BusinessProfile(
@@ -304,6 +309,7 @@ class BusinessProfile {
         DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
     matchedFacilityId: m['matched_facility_id'] as String?,
     photoUrl: m['photo_url'] as String?,
+    businessHours: m['business_hours'] as String?,
     photoAlignY: (m['photo_align_y'] as num?)?.toDouble() ?? 0,
   );
 

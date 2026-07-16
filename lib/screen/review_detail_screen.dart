@@ -5,6 +5,7 @@ import '../models/community.dart' show kPostImageAspectRatio;
 import '../motion/motion.dart';
 import '../theme/app_palette.dart';
 import '../widgets/blob_background.dart';
+import '../widgets/overlay_icon_button.dart';
 import '../widgets/review_cards.dart';
 
 /// 시설 방문 후기 상세 — 게시글 상세와 동일한 문법.
@@ -41,6 +42,37 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
     super.dispose();
   }
 
+  /// 내 후기 삭제 — 확인 후 제공자 콜백(삭제 API + 목록 갱신) 실행, 성공 시 닫기.
+  Future<void> _confirmDelete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('후기를 삭제할까요?'),
+        content: const Text('삭제한 후기는 되돌릴 수 없어요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: Text('삭제', style: TextStyle(color: dialogCtx.colors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final deleted = await widget.review.onDelete!();
+    if (!mounted) return;
+    if (deleted) {
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('삭제에 실패했어요. 잠시 후 다시 시도해주세요')),
+      );
+    }
+  }
+
   /// 히어로(블롭)에 본문이 다 담겼는지 — 게시글 상세와 같은 기준(9줄·짧은 글).
   bool get _heroHoldsFullContent {
     final c = widget.review.content ?? '';
@@ -73,6 +105,17 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
             scrolledUnderElevation: 0,
             // 뒤로가기 버튼 없음 — 아래로 당겨 카드로 축소(게시글 상세와 동일).
             automaticallyImplyLeading: false,
+            actions: [
+              // 내 후기만 삭제 가능(게시글 상세의 앱바 액션 문법).
+              if (r.isMine && r.onDelete != null)
+                OverlayIconButton(
+                  icon: Icons.delete_outline,
+                  tooltip: '내 후기 삭제',
+                  color: const Color(0xFFFF8A80),
+                  onPressed: _confirmDelete,
+                ),
+              const SizedBox(width: 8),
+            ],
           ),
           body: ListView(
             controller: _scroll,

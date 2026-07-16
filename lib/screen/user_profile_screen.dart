@@ -987,6 +987,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 onTap: () =>
                     launchUrl(Uri.parse('tel:${p.businessPhone!}')),
               ),
+            if ((p.businessHours ?? '').isNotEmpty)
+              row(Icons.schedule_outlined, p.businessHours!),
           ],
         ),
       ),

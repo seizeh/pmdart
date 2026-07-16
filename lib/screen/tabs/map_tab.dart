@@ -648,8 +648,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
 
   /// 인증 업체 마커 — 둥근 정사각형 안에 대표 사진(업체 프로필 얼굴).
   /// 사진이 없거나 로드 실패면 같은 실루엣의 글리프 폴백(_renderMarkerIcon).
+  /// 캐시 키는 사진 URL+초점 기준 — 다중 카테고리(같은 업체의 형제 행)가
+  /// 같은 사진을 행마다 다시 받아 렌더하지 않게. 사진 없으면 카테고리 기준.
   Future<NOverlayImage?> _verifiedIcon(Facility f) async {
-    final key = '${f.id}|${f.ownerPhotoUrl ?? ''}';
+    final key = f.ownerPhotoUrl != null
+        ? 'p|${f.ownerPhotoUrl}|${f.ownerPhotoAlignY}'
+        : 'g|${f.category}';
     if (_bizIcons.containsKey(key)) return _bizIcons[key];
     final dark = context.isDark; // await 전에 캡처
     NOverlayImage? out;

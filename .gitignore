@@ -48,3 +48,15 @@ app.*.map.json
 
 # Claude Code local files
 .claude/
+
+# 로컬 전용 — Flutter 스크린샷(flutter run 's' 키)과 디자인 참고 이미지.
+# assets/images/ 의 실제 앱 에셋은 pubspec 에 선언되고 개별 추적된다.
+/flutter_*.png
+assets/images/am.png
+assets/images/chat.png
+assets/images/gra.png
+assets/images/gra2.png
+assets/images/notification.png
+assets/images/weather.png
+assets/images/weather2.png
+assets/images/weather3.png

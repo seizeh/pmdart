@@ -567,11 +567,14 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
     final picked = await showModalBottomSheet<JusoAddress>(
       context: context,
       isScrollControlled: true,
+      // 키보드가 올라오면 시트가 풀높이까지 자랄 수 있다 — 상태바(시계) 아래로
+      // 파고들지 않게 세이프에어리어를 지킨다.
+      useSafeArea: true,
       backgroundColor: context.colors.cream,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => const _AddressSearchSheet(),
+      builder: (_) => const AddressSearchSheet(),
     );
     if (picked != null && mounted) setState(() => _address = picked);
   }
@@ -585,7 +588,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
   }) {
     return OutlinedButton.icon(
       onPressed: () async {
-        final d = await StorageService.instance.pickDocument();
+        final d = await _pickDoc();
         if (d != null) onPick(d);
       },
       icon: Icon(picked == null ? Icons.upload_file : Icons.check_circle),
@@ -596,6 +599,49 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
       ),
       style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
     );
+  }
+
+  /// 서류 선택 방식: 갤러리 사진(휴대폰 촬영본) 또는 파일(PDF 등).
+  Future<PickedDoc?> _pickDoc() async {
+    final src = await showModalBottomSheet<_DocSource>(
+      context: context,
+      backgroundColor: context.colors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Icon(
+                Icons.photo_library_outlined,
+                color: sheetCtx.colors.textPrimary,
+              ),
+              title: const Text('갤러리에서 사진 선택'),
+              subtitle: const Text('휴대폰으로 찍은 등록증 사진'),
+              onTap: () => Navigator.pop(sheetCtx, _DocSource.gallery),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.upload_file,
+                color: sheetCtx.colors.textPrimary,
+              ),
+              title: const Text('파일 선택'),
+              subtitle: const Text('PDF 또는 이미지 파일'),
+              onTap: () => Navigator.pop(sheetCtx, _DocSource.file),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    return switch (src) {
+      _DocSource.gallery => StorageService.instance.pickDocumentFromGallery(),
+      _DocSource.file => StorageService.instance.pickDocument(),
+      null => Future.value(),
+    };
   }
 
   // ── 제출 ──
@@ -969,16 +1015,19 @@ class _PhotoAlignSheetState extends State<_PhotoAlignSheet> {
   }
 }
 
+/// 서류 선택 경로 — 갤러리 사진 / 파일 브라우저.
+enum _DocSource { gallery, file }
+
 // ── juso 주소검색 바텀시트 ──
 
-class _AddressSearchSheet extends StatefulWidget {
-  const _AddressSearchSheet();
+class AddressSearchSheet extends StatefulWidget {
+  const AddressSearchSheet({super.key});
 
   @override
-  State<_AddressSearchSheet> createState() => _AddressSearchSheetState();
+  State<AddressSearchSheet> createState() => AddressSearchSheetState();
 }
 
-class _AddressSearchSheetState extends State<_AddressSearchSheet> {
+class AddressSearchSheetState extends State<AddressSearchSheet> {
   final _ctrl = TextEditingController();
   List<JusoAddress> _results = const [];
   bool _searching = false;
@@ -1036,6 +1085,12 @@ class _AddressSearchSheetState extends State<_AddressSearchSheet> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
+                // 테마 기본 minimumSize(Size.fromHeight)는 최소 폭이 무한이라
+                // Row(무한 폭 제약) 안에서는 레이아웃이 터진다 — 폭을 명시.
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(64, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
                 onPressed: _searching ? null : _search,
                 child: const Text('검색'),
               ),

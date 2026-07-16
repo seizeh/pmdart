@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../motion/motion.dart';
+import '../screen/review_detail_screen.dart';
 import '../theme/app_palette.dart';
 import 'blob_background.dart';
 
-/// 후기 카드 그리드 — 사진+평점 타일(2열), 탭하면 상세 시트.
+/// 후기 카드 그리드 — 사진+평점 타일(2열), 탭하면 상세 화면(게시글 상세 문법).
 /// 지도 시설 상세·업체 프로필(내정보/타사용자)의 후기 표시 공용 언어.
 class ReviewCardData {
   final String author;
@@ -194,98 +196,23 @@ class _ReviewCard extends StatelessWidget {
     );
   }
 
+  /// 카드 자리에서 펼쳐지는 상세(게시글 상세와 동일 문법) — 카드 사각형을
+  /// 캡처해 CollapseRoute 로 열고, 아래로 당기면 이 카드로 축소되며 닫힌다.
   void _openDetail(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetCtx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        maxChildSize: 0.92,
-        builder: (context, scroll) => ListView(
-          controller: scroll,
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    review.author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: context.colors.textPrimary,
-                    ),
-                  ),
-                ),
-                if (review.visitNo != null) ...[
-                  Text(
-                    '${review.visitNo}번째 방문',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: context.colors.primaryDark,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                if (review.createdAt != null)
-                  Text(
-                    '${review.createdAt!.year}.${review.createdAt!.month}.${review.createdAt!.day}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.colors.textTertiary,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                for (var i = 0; i < 5; i++)
-                  Icon(
-                    i < review.rating
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
-                    size: 18,
-                    color: i < review.rating
-                        ? const Color(0xFFFFB300)
-                        : context.colors.border,
-                  ),
-              ],
-            ),
-            if ((review.content ?? '').isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                review.content!,
-                style: TextStyle(
-                  fontSize: 14.5,
-                  height: 1.6,
-                  color: context.colors.textPrimary,
-                ),
-              ),
-            ],
-            for (final url in review.photoUrls) ...[
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.network(
-                  url,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    final box = context.findRenderObject() as RenderBox?;
+    final rect = (box != null && box.hasSize)
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    final page = ReviewDetailScreen(
+      review: review,
+      originRect: rect,
+      cardBuilder: rect == null ? null : (_) => _ReviewCard(review: review),
+    );
+    Navigator.push<void>(
+      context,
+      rect == null
+          ? AppPageRoute<void>(builder: (_) => page)
+          : CollapseRoute<void>(builder: (_) => page),
     );
   }
 }

@@ -259,7 +259,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         if (isLowTrustHidden(f)) continue;
         final sales = evaluatePetSales(f);
         final id = 'fac_${f.id}';
-        final icon = await _iconFor(f.category); // 카테고리 아이콘(칩과 동일, 캐시)
+        // 인증 업체(연결 업주 존재)는 강조 마커 — 채운 디스크 + 체크 배지.
+        final verified = f.ownerUserId != null;
+        final icon = await _iconFor(f.category, verified: verified);
         final warn = sales?.level == PetSalesTrust.caution;
         final m = NMarker(id: id, position: NLatLng(f.lat, f.lng), icon: icon)
           ..setIsHideCollidedMarkers(true)
@@ -275,6 +277,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           )
           ..setIsHideCollidedCaptions(true)
           ..setOnTapListener((_) => _showFacilitySheet(f));
+        // 마커가 겹치면 인증 업체가 항상 살아남게 — 기본(200000)보다 위,
+        // 검색 강조 마커(1000000)보다는 아래.
+        if (verified) m.setGlobalZIndex(200100);
         if (icon != null) {
           m.setAnchor(const NPoint(0.5, 0.5)); // 원형 아이콘 → 중앙 앵커
         } else {
@@ -500,17 +505,19 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   }
 
   /// 카테고리 마커 아이콘(캐시). PNG 를 흰 원형 핀에 합성해 일관/또렷하게.
-  Future<NOverlayImage?> _iconFor(String category) async {
-    if (_catIcons.containsKey(category)) return _catIcons[category];
+  Future<NOverlayImage?> _iconFor(String category, {bool verified = false}) async {
+    final key = verified ? '$category|v' : category; // 인증 변형은 별도 캐시
+    if (_catIcons.containsKey(key)) return _catIcons[key];
     // 모드별 아이콘 색 — await 전에 캡처(빌드 컨텍스트 안전).
     final color = context.isDark ? _markerIconDark : _markerIconLight;
+    final dark = context.isDark;
     NOverlayImage? out;
     try {
-      out = await _renderMarkerIcon(category, color);
+      out = await _renderMarkerIcon(category, color, verified: verified, dark: dark);
     } catch (_) {
       out = null;
     }
-    _catIcons[category] = out;
+    _catIcons[key] = out;
     return out;
   }
 
@@ -542,15 +549,45 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
 
   /// 마커 아이콘: 분양은 IMG_4.png, 나머지는 채운 Material 아이콘을 #5a4e38 로 렌더.
   /// 흰 배경 없음. 가독성용 흰 외곽선은 블러 없이 오프셋으로 그려 Impeller 안전.
+  ///
+  /// [verified] (인증 업체)는 실루엣 자체가 다르게 — 브랜드 컬러로 채운 원형
+  /// 디스크 위에 반전색 글리프, 우상단에 체크 배지(면 vs 선이라 줌 아웃에도 구분).
   Future<NOverlayImage?> _renderMarkerIcon(
     String category,
-    Color iconColor,
-  ) async {
-    const iconSize = 88.0;
-    const pad = 8.0;
-    const target = iconSize + pad * 2;
+    Color iconColor, {
+    bool verified = false,
+    bool dark = false,
+  }) async {
+    final iconSize = verified ? 50.0 : 88.0; // 디스크 안에 들어가는 글리프는 축소
+    const target = 104.0; // 88 + pad 8*2 — 앵커 계산이 같도록 캔버스 크기 고정
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
+
+    // 인증 업체: 채운 디스크(+그림자·모드별 분리 링). 글리프는 디스크 위 반전색.
+    final contentColor = verified
+        ? (dark ? const Color(0xFF241F16) : Colors.white)
+        : iconColor;
+    if (verified) {
+      const center = Offset(target / 2, target / 2);
+      const r = 42.0;
+      final fill = dark ? const Color(0xFFD8C7A9) : const Color(0xFF5A4E3A);
+      canvas.drawCircle(
+        center + const Offset(0, 2),
+        r,
+        Paint()
+          ..color = _markerShadow
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+      );
+      canvas.drawCircle(center, r, Paint()..color = fill);
+      canvas.drawCircle(
+        center,
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = dark ? _markerHaloDark : _markerHaloLight,
+      );
+    }
 
     if (category == 'pet_sales') {
       // 분양: IMG_4.png(브라운 발바닥)를 투명 여백 잘라 중앙 배치 —
@@ -564,25 +601,28 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       final dw = src.width * s, dh = src.height * s;
       final dx = (target - dw) / 2, dy = (target - dh) / 2;
       final dst = Rect.fromLTWH(dx, dy, dw, dh);
-      canvas.drawImageRect(
-        img,
-        src,
-        dst.shift(const Offset(0, 2)),
-        Paint()
-          ..filterQuality = FilterQuality.high
-          ..colorFilter = const ui.ColorFilter.mode(
-            _markerShadow,
-            ui.BlendMode.srcIn,
-          )
-          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
-      );
+      // 디스크가 그림자를 담당 — 글리프 그림자는 비인증만.
+      if (!verified) {
+        canvas.drawImageRect(
+          img,
+          src,
+          dst.shift(const Offset(0, 2)),
+          Paint()
+            ..filterQuality = FilterQuality.high
+            ..colorFilter = const ui.ColorFilter.mode(
+              _markerShadow,
+              ui.BlendMode.srcIn,
+            )
+            ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+        );
+      }
       canvas.drawImageRect(
         img,
         src,
         dst,
         Paint()
           ..filterQuality = FilterQuality.high
-          ..colorFilter = ui.ColorFilter.mode(iconColor, ui.BlendMode.srcIn),
+          ..colorFilter = ui.ColorFilter.mode(contentColor, ui.BlendMode.srcIn),
       );
       img.dispose();
     } else {
@@ -602,21 +642,57 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           ..layout();
       }
 
-      final base = glyph(iconColor);
+      final base = glyph(contentColor);
       final origin = Offset(
         (target - base.width) / 2,
         (target - base.height) / 2,
       );
       // 아이콘 전체를 외곽선 색(흰색) 단색으로 — 부드러운 그림자만으로
       // 라이트/나이트 지도 어느 쪽에서도 대비를 확보한다.
-      final shadow = glyph(_markerShadow);
-      canvas.saveLayer(
-        null,
-        Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-      );
-      shadow.paint(canvas, origin + const Offset(0, 2));
-      canvas.restore();
+      // (인증 마커는 디스크가 그림자·대비를 담당하므로 글리프 그림자 생략.)
+      if (!verified) {
+        final shadow = glyph(_markerShadow);
+        canvas.saveLayer(
+          null,
+          Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+        );
+        shadow.paint(canvas, origin + const Offset(0, 2));
+        canvas.restore();
+      }
       base.paint(canvas, origin);
+    }
+
+    // 인증 배지 — 우상단 골드(액센트) 원 + 흰 체크. 디스크와 링으로 분리.
+    if (verified) {
+      const bc = Offset(target - 20, 20);
+      const br = 15.0;
+      canvas.drawCircle(
+        bc + const Offset(0, 1.5),
+        br,
+        Paint()
+          ..color = _markerShadow
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 3),
+      );
+      canvas.drawCircle(bc, br, Paint()..color = _catAccent);
+      canvas.drawCircle(
+        bc,
+        br,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5
+          ..color = dark ? _markerHaloDark : _markerHaloLight,
+      );
+      final check = TextPainter(textDirection: TextDirection.ltr)
+        ..text = TextSpan(
+          text: String.fromCharCode(Icons.check_rounded.codePoint),
+          style: TextStyle(
+            fontSize: 20,
+            fontFamily: Icons.check_rounded.fontFamily,
+            color: Colors.white,
+          ),
+        )
+        ..layout();
+      check.paint(canvas, bc - Offset(check.width / 2, check.height / 2));
     }
 
     final image = await recorder.endRecording().toImage(

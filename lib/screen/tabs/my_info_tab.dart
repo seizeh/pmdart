@@ -145,6 +145,8 @@ class _MyInfoTabState extends State<MyInfoTab>
       originRect: rect,
       cardBuilder: rect == null ? null : (_) => PostPhotoTile(post: post),
       cardRadius: 16, // PostPhotoTile 곡률과 동일.
+      // 내 글 작성자(나) 탭은 프로필을 쌓지 않고 되돌아온다(무한 왕복 방지).
+      fromUserId: SessionManager.instance.user?.id,
     );
     if (rect != null) setState(() => _openedPostId = post.id);
     await Navigator.push(
@@ -564,6 +566,7 @@ class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
                     photoUrls: r.photoUrls,
                     visitNo: r.visitNo,
                     seed: r.id,
+                    reviewId: r.id,
                   ),
               ],
             ),

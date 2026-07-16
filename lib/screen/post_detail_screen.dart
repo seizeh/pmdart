@@ -40,6 +40,11 @@ class PostDetailScreen extends StatefulWidget {
   /// 원본 카드의 모서리 곡률 — 축소 안착 시 곡률이 튀지 않도록 카드와 맞춘다.
   final double cardRadius;
 
+  /// 이 화면으로 들어오기 직전에 보던 사용자 프로필의 id(있으면). 작성자가 그
+  /// 사용자면 닉네임 탭이 새 프로필을 쌓지 않고 pop 으로 되돌아간다
+  /// (프로필→게시글→작성자→프로필… 무한 스택 방지 — 펫↔보호자와 동일 패턴).
+  final String? fromUserId;
+
   const PostDetailScreen({
     super.key,
     required this.post,
@@ -47,6 +52,7 @@ class PostDetailScreen extends StatefulWidget {
     this.originRect,
     this.cardBuilder,
     this.cardRadius = 20,
+    this.fromUserId,
   });
 
   @override
@@ -73,7 +79,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   /// 공동보호자 권한 확인이 끝났는지 (확인 전엔 지원하기 버튼을 숨긴다).
   bool _managerChecked = false;
 
-  bool get _isFreePost => _post.category == 'free';
+  /// 매칭(지원→약속) 없는 게시글 — 자유글·업체 소식. 지원 UI 를 띄우지 않는다.
+  bool get _isFreePost =>
+      _post.category == 'free' || _post.category == 'news';
   bool get _isMyPost => _post.userId == SessionManager.instance.user?.id;
 
   @override
@@ -539,6 +547,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         showFollow: !widget.isGuest && !_isMyPost,
         following: _following,
         onFollow: _toggleFollow,
+        popInstead:
+            widget.fromUserId != null && widget.fromUserId == _post.userId,
       ),
       if (showContent) ...[
         const SizedBox(height: 20),
@@ -605,11 +615,16 @@ class _AuthorRow extends StatelessWidget {
   final bool showFollow;
   final bool following;
   final VoidCallback onFollow;
+
+  /// 직전 화면이 이 작성자의 프로필 — 새로 쌓지 않고 되돌아간다(무한 왕복 방지).
+  final bool popInstead;
+
   const _AuthorRow({
     required this.post,
     required this.showFollow,
     required this.following,
     required this.onFollow,
+    this.popInstead = false,
   });
 
   @override
@@ -624,6 +639,9 @@ class _AuthorRow extends StatelessWidget {
             GestureDetector(
               onTap: post.userId.isEmpty
                   ? null
+                  // 방금 그 프로필에서 왔으면 축소 애니메이션을 태워 되돌아간다.
+                  : popInstead
+                  ? () => Navigator.of(context).maybePop()
                   : () => Navigator.push(
                       context,
                       CollapseRoute(
@@ -632,6 +650,8 @@ class _AuthorRow extends StatelessWidget {
                           previewNickname: post.authorNickname,
                           originRect: riseOriginRect(context),
                           cardRadius: 24,
+                          // 프로필에서 이 게시글을 다시 열면 pop(무한 왕복 방지).
+                          fromPostId: post.id,
                           // 작성 모드가 얼굴을 결정 — 개인 글 작성자는 개인 얼굴만
                           // (업체 글은 상호로 표시되고 업체 얼굴로 연다, 0025)
                           forcePersonalFace: post.authoredAs != 'business',

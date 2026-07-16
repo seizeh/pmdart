@@ -44,6 +44,14 @@ class UserProfileScreen extends StatefulWidget {
   /// 새 화면을 쌓지 않고 pop 으로 되돌아간다(A→펫→A 무한 스택 방지).
   final String? fromPetId;
 
+  /// 직전 화면이 이 사용자의 게시글 상세면 그 게시글 id — 목록에서 같은 글을
+  /// 다시 열려 하면 pop 으로 되돌아간다(게시글→작성자→게시글 무한 스택 방지).
+  final String? fromPostId;
+
+  /// 직전 화면이 이 사용자와의 채팅방이면 true — 채팅/업체 문의 버튼이 새 방을
+  /// 쌓지 않고 pop 으로 되돌아간다(채팅방→프로필→채팅방 무한 스택 방지).
+  final bool fromChatRoom;
+
   /// 진입 맥락이 '개인'이면 true — 상대가 업체 모드여도 개인 얼굴(닉네임·펫·개인
   /// 게시글)만 보여준다. 어떤 사용자가 어떤 업체를 운영하는지 연결되지 않게(0025).
   /// 업체 맥락(상호 검색·업체 글·업체 문의)에서만 false 로 업체 얼굴을 연다.
@@ -57,6 +65,8 @@ class UserProfileScreen extends StatefulWidget {
     this.cardBuilder,
     this.cardRadius = 16,
     this.fromPetId,
+    this.fromPostId,
+    this.fromChatRoom = false,
     this.forcePersonalFace = false,
   });
 
@@ -198,12 +208,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Future<void> _openPost(Post post) async {
+    // 방금 거쳐온 게시글이면 새로 쌓지 않고 되돌아간다(무한 왕복 방지).
+    if (post.id == widget.fromPostId) {
+      Navigator.of(context).maybePop();
+      return;
+    }
     final rect = _postRect(post.id);
     final page = PostDetailScreen(
       post: post,
       originRect: rect,
       cardBuilder: rect == null ? null : (_) => PostPhotoTile(post: post),
       cardRadius: 16, // PostPhotoTile 곡률과 동일.
+      // 상세에서 작성자(이 프로필)를 다시 열면 pop(무한 왕복 방지).
+      fromUserId: widget.userId,
     );
     if (rect != null) setState(() => _openedPostId = post.id);
     await Navigator.push<void>(
@@ -888,9 +905,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton.icon(
-            // 업체 얼굴에서 시작한 채팅은 '업체 문의' 방 — 개인 방과 분리(0025)
-            onPressed: () =>
-                openDirectChat(context, p.userId, business: _bizFace),
+            // 업체 얼굴에서 시작한 채팅은 '업체 문의' 방 — 개인 방과 분리(0025).
+            // 채팅방에서 열린 프로필이면 새 방을 쌓지 않고 그 방으로 되돌아간다.
+            onPressed: widget.fromChatRoom
+                ? () => Navigator.of(context).maybePop()
+                : () => openDirectChat(context, p.userId, business: _bizFace),
             icon: const Icon(Icons.chat_bubble_outline, size: 18),
             label: Text(_bizFace ? '업체 문의' : '채팅'),
             style: OutlinedButton.styleFrom(
@@ -1081,6 +1100,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               photoUrls: r.photoUrls,
               visitNo: r.visitNo,
               seed: r.id,
+              reviewId: r.id,
             ),
         ],
       ),

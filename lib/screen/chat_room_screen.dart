@@ -83,6 +83,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       // 개인 대화방에서 연 프로필은 개인 얼굴 고정 — 업체 문의 방에서만 업체 얼굴
       // (어떤 사용자가 어떤 업체를 운영하는지 연결 차단, 0025)
       forcePersonalFace: !widget.room.isBusinessInquiry,
+      // 프로필의 채팅 버튼이 이 방을 다시 쌓지 않고 되돌아오게(무한 왕복 방지).
+      fromChatRoom: true,
     );
     if (rect != null) setState(() => _profileOpen = true);
     await Navigator.push(
@@ -133,6 +135,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   @override
   void initState() {
     super.initState();
+    // 이 방을 보는 동안 이 방의 포그라운드 푸시 배너를 억제.
+    ChatRepository.instance.activeRoomId = widget.room.id;
     _loadOtherProfile();
     _init();
   }
@@ -174,6 +178,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
 
   @override
   void dispose() {
+    // 다른 방을 위에 쌓은 경우가 아니면 활성 방 해제.
+    if (ChatRepository.instance.activeRoomId == widget.room.id) {
+      ChatRepository.instance.activeRoomId = null;
+    }
     if (_channel != null) _repo.unsubscribe(_channel!);
     _morphCurved.dispose();
     _morph.dispose();

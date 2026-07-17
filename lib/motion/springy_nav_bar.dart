@@ -4,10 +4,15 @@ import 'app_motion.dart';
 import '../theme/app_palette.dart';
 
 class SpringyNavItem {
-  const SpringyNavItem({required this.icon, IconData? activeIcon})
-    : activeIcon = activeIcon ?? icon;
-  final IconData icon;
-  final IconData activeIcon;
+  const SpringyNavItem({this.icon, IconData? activeIcon, this.asset})
+    : assert(icon != null || asset != null),
+      activeIcon = activeIcon ?? icon;
+  final IconData? icon;
+  final IconData? activeIcon;
+
+  /// 머티리얼에 없는 브랜드 아이콘(발바닥 핀 등) — 단색 실루엣 에셋을
+  /// [ImageIcon] 으로 틴트해 다른 아이콘과 동일한 색 문법을 따른다.
+  final String? asset;
 }
 
 /// 바텀 내비게이션 — **연속성·방향·피드백**을 한 번에 보여주는 핵심 표면.
@@ -171,11 +176,13 @@ class _SpringyNavBarState extends State<SpringyNavBar>
             offset: Offset(0, lift),
             child: Transform.scale(
               scale: iconScale,
-              child: Icon(
-                selected ? item.activeIcon : item.icon,
-                color: color,
-                size: 26,
-              ),
+              child: item.asset != null
+                  ? ImageIcon(AssetImage(item.asset!), color: color, size: 26)
+                  : Icon(
+                      selected ? item.activeIcon : item.icon,
+                      color: color,
+                      size: 26,
+                    ),
             ),
           ),
         ),

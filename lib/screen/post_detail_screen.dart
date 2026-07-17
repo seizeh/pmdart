@@ -129,8 +129,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     } catch (_) {}
   }
 
+  // 실수 이중 탭(팔로우→즉시 언팔) 방지 쿨다운 — 프로필 화면과 동일 규칙.
+  DateTime? _lastFollowToggle;
+
   Future<void> _toggleFollow() async {
     if (!_guard('팔로우는 로그인 후 할 수 있어요')) return;
+    final now = DateTime.now();
+    if (_lastFollowToggle != null &&
+        now.difference(_lastFollowToggle!) < const Duration(milliseconds: 700)) {
+      return;
+    }
+    _lastFollowToggle = now;
     final was = _following;
     setState(() => _following = !was);
     try {

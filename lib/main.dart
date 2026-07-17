@@ -15,6 +15,7 @@ import 'screen/guardian_invites_screen.dart';
 import 'screen/notifications_screen.dart';
 import 'screen/post_detail_screen.dart';
 import 'screen/review_detail_screen.dart';
+import 'screen/user_profile_screen.dart';
 import 'services/chat_repository.dart';
 import 'services/community_repository.dart';
 import 'services/facility_review_repository.dart';
@@ -198,6 +199,16 @@ Future<void> openFromPush(
             );
             return;
           }
+        case 'user':
+          // 포잉 알림 — 팔로우한 상대의 프로필로(개인 활동이라 개인 얼굴).
+          popToRoot();
+          nav.push(
+            AppPageRoute(
+              builder: (_) =>
+                  UserProfileScreen(userId: resourceId, forcePersonalFace: true),
+            ),
+          );
+          return;
         case 'chat_room':
           final room = await fetchRetry(
             () => ChatRepository.instance.fetchRoom(resourceId),

@@ -170,8 +170,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     } catch (_) {}
   }
 
+  // 마지막 토글 시각 — 실수 이중 탭(팔로우→즉시 언팔) 방지 쿨다운.
+  DateTime? _lastFollowToggle;
+
   Future<void> _toggleFollow() async {
     if (_followBusy) return;
+    // 연속 탭 쿨다운(700ms): 손떨림·이중 탭이 팔로우/언팔 왕복이 되지 않게.
+    // (알림 자체는 서버가 90초 유예 후 발송하므로 그 안의 취소는 조용하다.)
+    final now = DateTime.now();
+    if (_lastFollowToggle != null &&
+        now.difference(_lastFollowToggle!) < const Duration(milliseconds: 700)) {
+      return;
+    }
+    _lastFollowToggle = now;
     final was = _following;
     setState(() {
       _followBusy = true;

@@ -52,32 +52,14 @@ class _MainScreenState extends State<MainScreen>
     MyInfoTab(isGuest: widget.isGuest, chromeVisible: _navVisible),
   ];
 
+  // 라벨 없는 아이콘 단독 내비 — 앱의 둥근 무드에 맞춘 rounded 계열로 통일
+  // (외곽선 아이콘은 각져 보여 제외). 활성/비활성 구분은 색·확대·알약이 담당.
   static const _navItems = [
-    SpringyNavItem(
-      icon: Icons.map_outlined,
-      activeIcon: Icons.map,
-      label: '지도',
-    ),
-    SpringyNavItem(
-      icon: Icons.person_search_outlined,
-      activeIcon: Icons.person_search,
-      label: '검색',
-    ),
-    SpringyNavItem(
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home,
-      label: '커뮤니티',
-    ),
-    SpringyNavItem(
-      icon: Icons.chat_bubble_outline,
-      activeIcon: Icons.chat_bubble,
-      label: '채팅',
-    ),
-    SpringyNavItem(
-      icon: Icons.person_outline,
-      activeIcon: Icons.person,
-      label: '내정보',
-    ),
+    SpringyNavItem(icon: Icons.map_rounded), // 지도
+    SpringyNavItem(icon: Icons.person_search_rounded), // 검색
+    SpringyNavItem(icon: Icons.home_rounded), // 커뮤니티
+    SpringyNavItem(icon: Icons.chat_bubble_rounded), // 채팅
+    SpringyNavItem(icon: Icons.person_rounded), // 내정보
   ];
 
   @override

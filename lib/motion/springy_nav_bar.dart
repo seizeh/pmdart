@@ -4,14 +4,10 @@ import 'app_motion.dart';
 import '../theme/app_palette.dart';
 
 class SpringyNavItem {
-  const SpringyNavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-  });
+  const SpringyNavItem({required this.icon, IconData? activeIcon})
+    : activeIcon = activeIcon ?? icon;
   final IconData icon;
   final IconData activeIcon;
-  final String label;
 }
 
 /// 바텀 내비게이션 — **연속성·방향·피드백**을 한 번에 보여주는 핵심 표면.
@@ -108,8 +104,9 @@ class _SpringyNavBarState extends State<SpringyNavBar>
                   // 이동 속도로 알약을 진행 방향으로 늘림(스쿼시 & 스트레치).
                   final v = _c.velocity;
                   final stretch = (v.abs() * 0.04).clamp(0.0, 0.22);
-                  const pillW = 56.0;
-                  const pillH = 36.0;
+                  // 아이콘 단독 구성 — 알약도 원에 가깝게(앱 전반의 둥근 무드).
+                  const pillW = 52.0;
+                  const pillH = 42.0;
                   final pillCenterX = (pos + 0.5) * itemW;
 
                   final pill =
@@ -129,12 +126,12 @@ class _SpringyNavBarState extends State<SpringyNavBar>
                             height: pillH,
                             decoration: BoxDecoration(
                               color: pill,
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(21),
                             ),
                           ),
                         ),
                       ),
-                      // 아이콘 + 라벨
+                      // 아이콘 (라벨 없음 — 아이콘이 곧 아이덴티티)
                       Row(
                         children: [
                           for (var i = 0; i < n; i++) _buildItem(i, pos, itemW),
@@ -160,8 +157,8 @@ class _SpringyNavBarState extends State<SpringyNavBar>
       widget.activeColor ?? context.colors.primaryDark,
       proximity,
     )!;
-    final lift = -3.0 * proximity; // 떠오름
-    final iconScale = 1 + 0.12 * proximity; // 확대
+    final lift = -1.5 * proximity; // 떠오름(라벨이 없어 과하지 않게)
+    final iconScale = 1 + 0.16 * proximity; // 확대 — 아이콘이 곧 상태 표시
     final selected = proximity > 0.5;
 
     return SizedBox(
@@ -169,31 +166,18 @@ class _SpringyNavBarState extends State<SpringyNavBar>
       child: GestureDetector(
         onTap: () => _tap(i),
         behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Transform.translate(
-              offset: Offset(0, lift),
-              child: Transform.scale(
-                scale: iconScale,
-                child: Icon(
-                  selected ? item.activeIcon : item.icon,
-                  color: color,
-                  size: 25,
-                ),
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 11,
-                height: 1,
+        child: Center(
+          child: Transform.translate(
+            offset: Offset(0, lift),
+            child: Transform.scale(
+              scale: iconScale,
+              child: Icon(
+                selected ? item.activeIcon : item.icon,
                 color: color,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                size: 26,
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

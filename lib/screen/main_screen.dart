@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
-import '../widgets/paw_pin_icon.dart';
 import '../services/keyboard_barrier.dart';
 import '../theme/app_palette.dart';
 import 'tabs/community_tab.dart';
@@ -55,9 +54,8 @@ class _MainScreenState extends State<MainScreen>
 
   // 라벨 없는 아이콘 단독 내비 — 앱의 둥근 무드에 맞춘 rounded 계열로 통일
   // (외곽선 아이콘은 각져 보여 제외). 활성/비활성 구분은 색·확대·알약이 담당.
-  // 지도는 브랜드 발바닥 핀(벡터 PawPinIcon — 로고와 동일 실루엣, 동일 색 틴트).
-  static final _navItems = [
-    SpringyNavItem(builder: (c, s) => PawPinIcon(size: s, color: c)), // 지도
+  static const _navItems = [
+    SpringyNavItem(icon: Icons.location_on_rounded), // 지도 — 둥근 핀
     SpringyNavItem(icon: Icons.person_search_rounded), // 검색
     SpringyNavItem(icon: Icons.groups_rounded), // 커뮤니티 — 지붕 없는 둥근 형태
     SpringyNavItem(icon: Icons.chat_bubble_rounded), // 채팅

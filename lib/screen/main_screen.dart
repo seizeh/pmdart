@@ -54,10 +54,11 @@ class _MainScreenState extends State<MainScreen>
 
   // 라벨 없는 아이콘 단독 내비 — 앱의 둥근 무드에 맞춘 rounded 계열로 통일
   // (외곽선 아이콘은 각져 보여 제외). 활성/비활성 구분은 색·확대·알약이 담당.
+  // 지도는 브랜드 발바닥 핀 실루엣(로고 IMG_2 에서 추출, 동일 색 틴트).
   static const _navItems = [
-    SpringyNavItem(icon: Icons.map_rounded), // 지도
+    SpringyNavItem(asset: 'assets/images/nav_paw_pin.png'), // 지도
     SpringyNavItem(icon: Icons.person_search_rounded), // 검색
-    SpringyNavItem(icon: Icons.home_rounded), // 커뮤니티
+    SpringyNavItem(icon: Icons.groups_rounded), // 커뮤니티 — 지붕 없는 둥근 형태
     SpringyNavItem(icon: Icons.chat_bubble_rounded), // 채팅
     SpringyNavItem(icon: Icons.person_rounded), // 내정보
   ];

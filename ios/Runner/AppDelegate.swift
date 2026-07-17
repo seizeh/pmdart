@@ -49,7 +49,9 @@ import FirebaseMessaging
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
-    print("push-native: willPresent — 포그라운드 배너 표시")
+    // aps 원문 로그 — 백그라운드 무음 디버깅용(사운드 필드가 실려오는지 확인).
+    let aps = notification.request.content.userInfo["aps"] ?? "nil"
+    print("push-native: willPresent — 배너 표시, aps=\(aps), sound=\(String(describing: notification.request.content.sound))")
     if #available(iOS 14.0, *) {
       completionHandler([.banner, .list, .sound, .badge])
     } else {

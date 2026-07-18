@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../motion/motion.dart' show AppPageRoute;
 import '../services/business_repository.dart';
 import '../services/juso_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import 'connections_screen.dart';
+import 'my_posts_screen.dart';
 
 /// 업체(사업자) 등록 — 가입 직후·내정보 수정 양쪽에서 진입 (0025 §7.1).
 ///
@@ -1314,6 +1317,42 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
           onPressed: _openInfoEdit,
           icon: const Icon(Icons.edit_outlined, size: 18),
           label: const Text('업체 정보 수정'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+        ),
+        const SizedBox(height: 20),
+        // 계정 단위 활동(하트·친구)은 두 얼굴 공용 — 업체 모드에서도 조회 가능하게.
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '내 활동',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.push(
+            context,
+            AppPageRoute(
+              builder: (_) =>
+                  const MyPostsScreen(mode: PostListMode.hearted),
+            ),
+          ),
+          icon: const Icon(Icons.favorite_border, size: 18),
+          label: const Text('하트한 게시글'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.push(
+            context,
+            AppPageRoute(builder: (_) => const ConnectionsScreen()),
+          ),
+          icon: const Icon(Icons.group_outlined, size: 18),
+          label: const Text('내 친구 (Pawing · Pawmate)'),
           style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         ),
       ],

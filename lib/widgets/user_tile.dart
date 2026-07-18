@@ -74,14 +74,15 @@ class UserTile extends StatelessWidget {
         ],
       ),
     );
+    // 3칸을 균등 폭(Expanded)으로 나누고 각 칸 내부 중앙 정렬 — 폭이 달라도
+    // 좌우 완전 대칭, 중앙 정렬된 이름과 축이 맞는다.
+    Widget cell(String label, int v) =>
+        Expanded(child: Center(child: stat(label, v)));
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        stat('후기', c.reviewCount ?? 0),
-        const SizedBox(width: 8),
-        stat('Pawing', c.pawingCount ?? 0),
-        const SizedBox(width: 8),
-        stat('Pawmate', c.pawmateCount ?? 0),
+        cell('후기', c.reviewCount ?? 0),
+        cell('Pawing', c.pawingCount ?? 0),
+        cell('Pawmate', c.pawmateCount ?? 0),
       ],
     );
   }

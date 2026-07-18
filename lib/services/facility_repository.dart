@@ -5,6 +5,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class Facility {
   final String id;
   final String category; // animal_hospital / grooming / pet_hotel / pet_sales
+
+  /// 같은 업장(형제 행)의 전체 카테고리 — 검색 dedupe 대표가 여러 카테고리를
+  /// 겸업할 때(예: 미용+분양) 카테고리 필터가 '포함'으로 판단하게 한다.
+  /// 검색(facilities_search)만 채우고, 그 외엔 [category] 단일로 폴백.
+  final List<String>? _categories;
+  List<String> get categories =>
+      (_categories == null || _categories.isEmpty) ? [category] : _categories;
   final String name;
   final String? address;
   final String? phone;
@@ -26,6 +33,7 @@ class Facility {
   const Facility({
     required this.id,
     required this.category,
+    List<String>? categories,
     required this.name,
     required this.address,
     required this.phone,
@@ -41,13 +49,15 @@ class Facility {
     this.ownerUserId,
     this.businessHours,
     this.ownerVerifiedAt,
-  });
+    // ignore: prefer_initializing_formals  (private 필드 + getter 폴백)
+  }) : _categories = categories;
 
   bool get isNaver => source == 'naver';
 
   factory Facility.fromJson(Map<String, dynamic> j) => Facility(
     id: j['id'] as String,
     category: (j['category'] ?? '') as String,
+    categories: (j['categories'] as List?)?.map((e) => e as String).toList(),
     name: (j['name'] ?? '') as String,
     address: j['address'] as String?,
     phone: j['phone'] as String?,

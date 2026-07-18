@@ -1411,7 +1411,9 @@ class _PetPosterCarouselState extends State<_PetPosterCarousel> {
           height: 260,
           child: PageView.builder(
             controller: _pc,
-            padEnds: pets.length > 1,
+            // 항상 양끝 여백 — 한 마리(viewportFraction 0.9)일 때도 카드가
+            // 왼쪽에 붙지 않고 중앙에(내정보 펫 히어로와 동일 수정).
+            padEnds: true,
             itemCount: pets.length,
             onPageChanged: (i) => setState(() => _page = i),
             itemBuilder: (_, i) {

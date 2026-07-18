@@ -19,6 +19,7 @@ import '../widgets/role_badge.dart' show categoryColor;
 import '../widgets/blob_background.dart';
 import 'facility_review_screen.dart';
 import 'pet_profile_screen.dart';
+import '../utils/phone_format.dart';
 import 'post_detail_screen.dart';
 
 /// 타 사용자 공개 프로필 — 사용자 검색/연결 목록에서 진입.
@@ -1028,7 +1029,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             if ((p.businessPhone ?? '').isNotEmpty)
               row(
                 Icons.call_outlined,
-                p.businessPhone!,
+                formatKrPhone(p.businessPhone),
                 onTap: () =>
                     launchUrl(Uri.parse('tel:${p.businessPhone!}')),
               ),

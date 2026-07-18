@@ -11,6 +11,7 @@ import '../services/session.dart';
 import '../screen/facility_review_screen.dart';
 import '../screen/user_profile_screen.dart';
 import 'review_cards.dart';
+import '../utils/phone_format.dart';
 
 /// 시설 상세 콘텐츠(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
 ///
@@ -273,7 +274,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
         ],
         if (f.phone != null && f.phone!.isNotEmpty) ...[
           const SizedBox(height: 8),
-          _row(Icons.call_outlined, f.phone!),
+          _row(Icons.call_outlined, formatKrPhone(f.phone)),
         ],
         // 인증 업주가 설정한 영업시간(업체 정보 수정에서 동기화).
         if ((f.businessHours ?? '').isNotEmpty) ...[

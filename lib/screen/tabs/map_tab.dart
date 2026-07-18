@@ -1087,7 +1087,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   Widget _buildSuggestions() {
     final shown = _suggestCat == null
         ? _suggestions
-        : _suggestions.where((f) => f.category == _suggestCat).toList();
+        // 겸업 업체(형제 통합)는 여러 카테고리를 가지므로 '포함'으로 판별 —
+        // 미용+분양 업체가 미용·분양 어느 칩에서도 보이게(검색 dedupe 후).
+        : _suggestions.where((f) => f.categories.contains(_suggestCat)).toList();
     return Container(
       margin: const EdgeInsets.only(top: 6),
       constraints: const BoxConstraints(maxHeight: 280),

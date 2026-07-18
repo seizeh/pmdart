@@ -788,6 +788,14 @@ class _InfoBox extends StatelessWidget {
   final Post post;
   const _InfoBox({required this.post});
 
+  // 약속 일정 — 연도 생략·오전/오후 12시제로 짧게(한 줄에 들어가게).
+  static String _formatSchedule(DateTime d) {
+    final ampm = d.hour < 12 ? '오전' : '오후';
+    final h12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final min = d.minute == 0 ? '' : ' ${d.minute}분';
+    return '${d.month}월 ${d.day}일 $ampm $h12시$min';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -805,7 +813,7 @@ class _InfoBox extends StatelessWidget {
               context,
               Icons.event_outlined,
               '약속 일정',
-              '${post.scheduledAt!.year}년 ${post.scheduledAt!.month}월 ${post.scheduledAt!.day}일 ${post.scheduledAt!.hour}시',
+              _formatSchedule(post.scheduledAt!),
             ),
           if (post.scheduledAt != null && post.location != null)
             const SizedBox(height: 12),
@@ -853,11 +861,14 @@ class _InfoBox extends StatelessWidget {
         label,
         style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
       ),
-      const Spacer(),
-      Flexible(
+      const SizedBox(width: 12),
+      // 값은 남은 폭을 모두 차지하고 우측 정렬 — 한 줄 유지(넘치면 …).
+      Expanded(
         child: Text(
           value,
           textAlign: TextAlign.right,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,

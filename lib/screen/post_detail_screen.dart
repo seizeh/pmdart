@@ -957,8 +957,15 @@ class _BottomBar extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
+        // 키보드가 올라오면 입력바가 그 위로 붙게 — bottomNavigationBar 는
+        // viewInsets 를 자동 반영하지 않아 직접 더한다(후기 상세와 동일 수정).
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          padding: EdgeInsets.fromLTRB(
+            12,
+            8,
+            12,
+            8 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
           child: Row(
             children: [
               GestureDetector(

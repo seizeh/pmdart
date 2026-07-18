@@ -5,6 +5,7 @@ import '../data/mock_data.dart' show timeAgo;
 import '../models/community.dart' show kPostImageAspectRatio;
 import '../models/facility_review.dart';
 import '../motion/motion.dart';
+import '../services/business_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/session.dart';
 import '../theme/app_palette.dart';
@@ -26,11 +27,16 @@ class ReviewDetailScreen extends StatefulWidget {
   /// 축소 안착 시 크로스페이드할 실제 카드(피드의 PostCard 역할).
   final WidgetBuilder? cardBuilder;
 
+  /// 알림 딥링크로 진입했는가 — 내가 이 시설의 업주인데 개인 모드면 진입 직후
+  /// '업체 모드로 전환할까요?'를 물어 의도치 않은 개인 얼굴 댓글을 막는다.
+  final bool fromDeepLink;
+
   const ReviewDetailScreen({
     super.key,
     required this.review,
     this.originRect,
     this.cardBuilder,
+    this.fromDeepLink = false,
   });
 
   @override
@@ -53,6 +59,47 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
   void initState() {
     super.initState();
     if (_reviewId != null) _loadComments();
+    if (widget.fromDeepLink && _reviewId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeSuggestSwitch());
+    }
+  }
+
+  /// 딥링크 진입 후 내가 이 시설의 업주(개인 모드)면 업체 모드 전환을 제안한다.
+  Future<void> _maybeSuggestSwitch() async {
+    final ok = await BusinessRepository.instance.shouldSuggestBusinessSwitch(
+      _reviewId!,
+    );
+    if (!ok || !mounted) return;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('업체 모드로 전환할까요?'),
+        content: const Text(
+          '내 업체에 달린 후기예요. 업체 모드로 전환하면 상호(업체 얼굴)로 '
+          '댓글을 남길 수 있어요.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('개인으로 볼게요'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('업체 모드로 전환'),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+    final res = await BusinessRepository.instance.switchMode('business');
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          res == 'business' ? '업체 모드로 전환했어요' : '전환에 실패했어요',
+        ),
+      ),
+    );
   }
 
   @override
@@ -496,8 +543,15 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
       ),
       child: SafeArea(
         top: false,
+        // 키보드가 올라오면 입력바가 그 위로 붙게 — bottomNavigationBar 는
+        // viewInsets 를 자동 반영하지 않아 직접 더한다(입력 내용이 가려지던 문제).
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          padding: EdgeInsets.fromLTRB(
+            12,
+            8,
+            12,
+            8 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
           child: Row(
             children: [
               Expanded(

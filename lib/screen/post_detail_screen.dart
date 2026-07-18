@@ -79,6 +79,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   /// 공동보호자 권한 확인이 끝났는지 (확인 전엔 지원하기 버튼을 숨긴다).
   bool _managerChecked = false;
 
+  /// 현재 업체 모드인가 — 업체 모드에선 지원(개인 매칭)이 불가하므로 버튼을
+  /// 숨기고 안내로 대체한다(서버 트리거가 최종 방어선).
+  bool _businessMode = false;
+
   /// 매칭(지원→약속) 없는 게시글 — 자유글·업체 소식. 지원 UI 를 띄우지 않는다.
   bool get _isFreePost =>
       _post.category == 'free' || _post.category == 'news';
@@ -96,8 +100,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (!widget.isGuest && !_isMyPost) {
       _recordView();
       _loadFollowing();
-      if (!_isFreePost) _loadManager();
+      if (!_isFreePost) {
+        _loadManager();
+        _loadMode();
+      }
     }
+  }
+
+  Future<void> _loadMode() async {
+    try {
+      final mode = await BusinessRepository.instance.fetchActiveMode();
+      if (mounted) setState(() => _businessMode = mode == 'business');
+    } catch (_) {}
   }
 
   /// 조회수 기록 (같은 시간대 재조회는 집계 안 됨). 집계됐으면 화면 수치도 +1.
@@ -593,17 +607,37 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           _managerChecked &&
           _post.progressStatus == 'recruiting') ...[
         const SizedBox(height: 20),
-        OutlinedButton.icon(
-          onPressed: _applying ? null : _apply,
-          icon: _applying
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.send_outlined),
-          label: const Text('이 게시글에 지원하기'),
-        ),
+        // 업체 모드에선 지원(개인 매칭) 불가 — 버튼 대신 안내.
+        if (_businessMode)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              color: context.colors.surfaceMuted,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '업체 모드에서는 지원할 수 없어요.\n산책·돌봄 매칭은 일반 모드에서 이용해 주세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: context.colors.textSecondary,
+              ),
+            ),
+          )
+        else
+          OutlinedButton.icon(
+            onPressed: _applying ? null : _apply,
+            icon: _applying
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send_outlined),
+            label: const Text('이 게시글에 지원하기'),
+          ),
       ],
       const SizedBox(height: 28),
       Text(

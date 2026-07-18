@@ -155,11 +155,50 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       if (!mounted) return;
       setState(() => _loading = false);
     }
-    // 실시간 구독 (상대 메시지 수신)
+    // 실시간 구독 (상대 메시지 수신 + 삭제 반영)
     try {
-      _channel = _repo.subscribeMessages(widget.room.id, _onIncoming);
+      _channel = _repo.subscribeMessages(
+        widget.room.id,
+        _onIncoming,
+        onDeleted: _onMessageDeleted,
+      );
     } catch (_) {
       // 실시간 미동작 시에도 전송/로드는 정상.
+    }
+  }
+
+  /// 상대(또는 다른 기기의 나)가 삭제한 메시지 — 화면에서도 즉시 제거.
+  void _onMessageDeleted(String messageId) {
+    if (!mounted) return;
+    setState(() => _messages.removeWhere((m) => m.id == messageId));
+  }
+
+  /// 내 메시지 길게 누르기 → 삭제(소프트). 상대 메시지는 삭제 불가(신고만).
+  Future<void> _deleteMyMessage(ChatMessage m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('메시지를 삭제할까요?'),
+        content: const Text('상대방 화면에서도 사라져요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: Text('삭제', style: TextStyle(color: dialogCtx.colors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _repo.deleteMessage(m.id);
+      if (!mounted) return;
+      setState(() => _messages.removeWhere((e) => e.id == m.id));
+    } catch (_) {
+      _toast('삭제에 실패했어요');
     }
   }
 
@@ -473,6 +512,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       itemBuilder: (_, i) => _MessageBubble(
         message: _messages[_messages.length - 1 - i],
         onReport: _reportMessage,
+        onDeleteMine: _deleteMyMessage,
       ),
     );
   }
@@ -913,7 +953,15 @@ class _MessageBubble extends StatelessWidget {
 
   /// 상대 메시지 길게 누르기 신고 콜백.
   final void Function(ChatMessage) onReport;
-  const _MessageBubble({required this.message, required this.onReport});
+
+  /// 내 메시지 길게 누르기 → 삭제(본인 것만 — 상대 메시지는 신고만 가능).
+  final void Function(ChatMessage) onDeleteMine;
+
+  const _MessageBubble({
+    required this.message,
+    required this.onReport,
+    required this.onDeleteMine,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -944,7 +992,10 @@ class _MessageBubble extends StatelessWidget {
               maxWidth: MediaQuery.of(context).size.width * 0.7,
             ),
             child: GestureDetector(
-              onLongPress: mine ? null : () => onReport(message),
+              // 길게 누르기: 내 메시지 = 삭제, 상대 메시지 = 신고.
+              onLongPress: mine
+                  ? () => onDeleteMine(message)
+                  : () => onReport(message),
               onTap: message.isImage ? () => _openImage(context) : null,
               child: message.isImage ? _imageBody() : _textBody(context, mine),
             ),

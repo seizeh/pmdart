@@ -586,6 +586,7 @@ class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
                     visitNo: r.visitNo,
                     seed: r.id,
                     reviewId: r.id,
+                    authorUserId: r.authorUserId,
                   ),
               ],
             ),

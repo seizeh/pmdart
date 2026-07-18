@@ -191,6 +191,45 @@ class AdminInquiry {
   );
 }
 
+/// 관리자가 보는 채팅 메시지 1건(삭제분 포함) — admin_room_messages RPC.
+class AdminChatMessage {
+  final String id;
+  final String senderId;
+  final String senderNickname;
+  final String? content;
+  final String? imageUrl;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+  final DateTime createdAt;
+
+  bool get isImage => imageUrl != null && imageUrl!.isNotEmpty;
+
+  const AdminChatMessage({
+    required this.id,
+    required this.senderId,
+    required this.senderNickname,
+    required this.content,
+    required this.imageUrl,
+    required this.isDeleted,
+    required this.deletedAt,
+    required this.createdAt,
+  });
+
+  factory AdminChatMessage.fromJson(Map<String, dynamic> j) =>
+      AdminChatMessage(
+        id: j['id'] as String,
+        senderId: (j['sender_id'] ?? '') as String,
+        senderNickname: (j['sender_nickname'] ?? '알 수 없음') as String,
+        content: j['content'] as String?,
+        imageUrl: j['image_url'] as String?,
+        isDeleted: j['is_deleted'] == true,
+        deletedAt: j['deleted_at'] == null
+            ? null
+            : DateTime.parse(j['deleted_at'] as String).toLocal(),
+        createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+      );
+}
+
 /// 신고 대상의 실제 내용 (게시글/댓글/회원/채팅메시지). [data] 는 kind 별 필드.
 class ReportTarget {
   final String kind; // post / comment / user / chat_message
@@ -627,6 +666,20 @@ class AdminRepository {
       'admin_set_chat_message_deleted',
       params: {'p_message': messageId, 'p_deleted': deleted},
     );
+  }
+
+  /// 채팅방 대화 내역(삭제분 포함, 오래된 순) — 신고 맥락 확인용.
+  Future<List<AdminChatMessage>> fetchRoomMessages(
+    String roomId, {
+    int limit = 300,
+  }) async {
+    final res = await _c.rpc(
+      'admin_room_messages',
+      params: {'p_room': roomId, 'p_limit': limit},
+    );
+    return (res as List)
+        .map((r) => AdminChatMessage.fromJson(r as Map<String, dynamic>))
+        .toList();
   }
 
   /// 감사 로그 조회.

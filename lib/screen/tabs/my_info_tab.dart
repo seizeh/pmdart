@@ -18,6 +18,7 @@ import '../../widgets/role_badge.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/overlay_icon_button.dart';
 import '../activity_screens.dart' show MyAppointmentsScreen;
+import '../connections_screen.dart';
 import '../pet_detail_screen.dart';
 import '../pet_edit_screen.dart';
 import '../post_detail_screen.dart';
@@ -446,6 +447,13 @@ class _MyInfoTabState extends State<MyInfoTab>
                             builder: (_) => const MyAppointmentsScreen(),
                           ),
                         ),
+                  // Pawing/Pawmate 숫자 탭 → 연결 목록(뷰가 현재 얼굴 기준 필터).
+                  onOpenConnections: (i) => Navigator.push(
+                    context,
+                    AppPageRoute(
+                      builder: (_) => ConnectionsScreen(initialIndex: i),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1002,12 +1010,16 @@ class _ProfileHeroCard extends StatelessWidget {
   /// 사진 우측 상단 약속 캘린더 바로가기(null 이면 버튼 없음 — 전환 고스트 등).
   final VoidCallback? onCalendarTap;
 
+  /// Pawing(0)·Pawmate(1) 숫자 탭 → 연결 목록(현재 얼굴 기준). 개인·업체 공용.
+  final void Function(int index)? onOpenConnections;
+
   const _ProfileHeroCard({
     required this.profile,
     this.onTap,
     this.bizReviewCount,
     this.bizReviewAvg,
     this.onCalendarTap,
+    this.onOpenConnections,
   });
 
   @override
@@ -1152,6 +1164,7 @@ class _ProfileHeroCard extends StatelessWidget {
                                       child: _statCol(
                                         'Pawing',
                                         profile.pawingCount,
+                                        onTap: () => onOpenConnections?.call(0),
                                       ),
                                     ),
                                     _statDivider(),
@@ -1159,6 +1172,7 @@ class _ProfileHeroCard extends StatelessWidget {
                                       child: _statCol(
                                         'Pawmate',
                                         profile.pawmateCount,
+                                        onTap: () => onOpenConnections?.call(1),
                                       ),
                                     ),
                                   ],
@@ -1179,13 +1193,18 @@ class _ProfileHeroCard extends StatelessWidget {
                                 ),
                                 _statDivider(),
                                 Expanded(
-                                  child: _statCol('Pawing', profile.pawingCount),
+                                  child: _statCol(
+                                    'Pawing',
+                                    profile.pawingCount,
+                                    onTap: () => onOpenConnections?.call(0),
+                                  ),
                                 ),
                                 _statDivider(),
                                 Expanded(
                                   child: _statCol(
                                     'Pawmate',
                                     profile.pawmateCount,
+                                    onTap: () => onOpenConnections?.call(1),
                                   ),
                                 ),
                               ],
@@ -1198,11 +1217,19 @@ class _ProfileHeroCard extends StatelessWidget {
                           ),
                           _statDivider(),
                           Expanded(
-                            child: _statCol('Pawing', profile.pawingCount),
+                            child: _statCol(
+                              'Pawing',
+                              profile.pawingCount,
+                              onTap: () => onOpenConnections?.call(0),
+                            ),
                           ),
                           _statDivider(),
                           Expanded(
-                            child: _statCol('Pawmate', profile.pawmateCount),
+                            child: _statCol(
+                              'Pawmate',
+                              profile.pawmateCount,
+                              onTap: () => onOpenConnections?.call(1),
+                            ),
                           ),
                         ],
                       ),
@@ -1298,24 +1325,32 @@ class _ProfileHeroCard extends StatelessWidget {
     ],
   );
 
-  Widget _statCol(String label, int value) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text(
-        '$value',
-        style: const TextStyle(
-          fontSize: 17,
-          fontWeight: FontWeight.w800,
-          color: Colors.white,
+  Widget _statCol(String label, int value, {VoidCallback? onTap}) {
+    final col = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$value',
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
         ),
-      ),
-      const SizedBox(height: 1),
-      Text(
-        label,
-        style: const TextStyle(fontSize: 10, color: Color(0xCCFFFFFF)),
-      ),
-    ],
-  );
+        const SizedBox(height: 1),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: Color(0xCCFFFFFF)),
+        ),
+      ],
+    );
+    if (onTap == null) return col;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: col,
+    );
+  }
 
   // 'business' 는 백필 전 레거시 계정 표시용으로만 남김 — 신규는 is_business 배지 (0025 §1.1)
   String _userTypeLabel(String t) => switch (t) {

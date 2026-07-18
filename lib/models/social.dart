@@ -20,6 +20,11 @@ class Connection {
   final bool isBusiness;
   final String? businessName;
 
+  /// 개인 얼굴 통계(검색 타일용) — 받은 후기·Pawing·Pawmate. 목록 밖 맥락엔 null.
+  final int? reviewCount;
+  final int? pawingCount;
+  final int? pawmateCount;
+
   const Connection({
     required this.userId,
     required this.nickname,
@@ -29,6 +34,9 @@ class Connection {
     this.profileImageUrl,
     this.isBusiness = false,
     this.businessName,
+    this.reviewCount,
+    this.pawingCount,
+    this.pawmateCount,
   });
 
   factory Connection.fromJson(Map<String, dynamic> j) => Connection(
@@ -51,5 +59,8 @@ class Connection {
     following: following ?? this.following,
     isBusiness: isBusiness,
     businessName: businessName,
+    reviewCount: reviewCount,
+    pawingCount: pawingCount,
+    pawmateCount: pawmateCount,
   );
 }

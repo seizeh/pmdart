@@ -95,7 +95,7 @@ class SocialRepository {
     // 개인 얼굴 결과에서는 business_name 을 비워 배지·업체 라우팅이 붙지 않게 —
     // 어떤 사용자가 어떤 업체를 운영하는지의 연결 비노출은 그대로 유지된다.
     const cols =
-        'id, nickname, user_type, profile_image_url, business_name, business_photo_url';
+        'id, nickname, user_type, profile_image_url, business_name, business_photo_url, review_count, pawing_count, pawmate_count';
     final results = await Future.wait([
       _c
           .from('public_profiles')
@@ -116,7 +116,11 @@ class SocialRepository {
       nickname: (r['nickname'] ?? '알 수 없음') as String,
       userType: (r['user_type'] ?? '') as String,
       profileImageUrl: r['profile_image_url'] as String?,
-      // 개인 얼굴 — 업체 정보는 싣지 않는다(배지·업체 얼굴 라우팅 차단)
+      // 개인 얼굴 — 업체 정보는 싣지 않는다(배지·업체 얼굴 라우팅 차단).
+      // 대신 배지 자리에 개인 통계(받은 후기·Pawing·Pawmate)를 표시한다.
+      reviewCount: (r['review_count'] as num?)?.toInt(),
+      pawingCount: (r['pawing_count'] as num?)?.toInt(),
+      pawmateCount: (r['pawmate_count'] as num?)?.toInt(),
     );
     final list = <Connection>[
       for (final r in (results[1] as List).cast<Map<String, dynamic>>())
@@ -165,7 +169,7 @@ class SocialRepository {
   /// public_profiles 는 승인(approved) 업체만 business_name 을 노출한다.
   Future<List<Connection>> listBusinesses() async {
     const cols =
-        'id, nickname, user_type, profile_image_url, business_name, business_photo_url';
+        'id, nickname, user_type, profile_image_url, business_name, business_photo_url, review_count, pawing_count, pawmate_count';
     final rows = await _c
         .from('public_profiles')
         .select(cols)

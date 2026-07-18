@@ -17,6 +17,75 @@ class UserTile extends StatelessWidget {
 
   const UserTile({super.key, required this.connection, this.onTap});
 
+  /// '인증 업체' 배지 한 줄 — 업체 얼굴 표시용, 개인 얼굴은 같은 위젯을
+  /// Opacity 0 으로 두어 타일 높이를 통일한다.
+  Widget _badgeRow(BuildContext context, bool hasPhoto) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(
+        Icons.verified,
+        size: 12,
+        color: hasPhoto
+            ? context.colors.primaryDark
+            : context.colors.textOnPrimary,
+      ),
+      const SizedBox(width: 3),
+      Text(
+        '인증 업체',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: hasPhoto
+              ? context.colors.textSecondary
+              : context.colors.textOnPrimary,
+        ),
+      ),
+    ],
+  );
+
+  /// 개인 얼굴 통계 한 줄(받은 후기·Pawing·Pawmate). 통계 미로딩(친구 목록 등)
+  /// 이면 배지와 같은 위젯을 Opacity 0 으로 두어 높이를 통일한다.
+  Widget _statLine(BuildContext context, bool hasPhoto) {
+    final c = connection;
+    if (c.reviewCount == null && c.pawingCount == null && c.pawmateCount == null) {
+      return Opacity(opacity: 0, child: _badgeRow(context, hasPhoto));
+    }
+    final sub = hasPhoto
+        ? context.colors.textSecondary
+        : context.colors.textOnPrimary;
+    final strong = hasPhoto
+        ? context.colors.textPrimary
+        : context.colors.textOnPrimary;
+    Widget stat(String label, int v) => RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: '$v ',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: strong,
+            ),
+          ),
+          TextSpan(
+            text: label,
+            style: TextStyle(fontSize: 11, color: sub),
+          ),
+        ],
+      ),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        stat('후기', c.reviewCount ?? 0),
+        const SizedBox(width: 8),
+        stat('Pawing', c.pawingCount ?? 0),
+        const SizedBox(width: 8),
+        stat('Pawmate', c.pawmateCount ?? 0),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = connection;
@@ -90,36 +159,15 @@ class UserTile extends StatelessWidget {
                           : context.colors.textOnPrimary,
                     ),
                   ),
-                  // 배지 줄은 항상 배치하되 업체 얼굴에서만 보인다 — 개인 얼굴엔
-                  // 운영 사실 비노출, 대신 자리는 유지해 개인/업체 타일 높이가
-                  // 언제나(폰트 배율 무관) 동일하다.
+                  // 이름 아래 한 줄: 업체 얼굴은 '인증 업체' 배지, 개인 얼굴은
+                  // 통계(받은 후기·Pawing·Pawmate). 자리를 항상 유지해 개인/업체
+                  // 타일 높이가 언제나(폰트 배율 무관) 동일하다.
                   const SizedBox(height: 3),
-                  Opacity(
-                    opacity: c.businessName != null ? 1 : 0,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.verified,
-                          size: 12,
-                          color: hasPhoto
-                              ? context.colors.primaryDark
-                              : context.colors.textOnPrimary,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '인증 업체',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: hasPhoto
-                                ? context.colors.textSecondary
-                                : context.colors.textOnPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  if (c.businessName != null)
+                    _badgeRow(context, hasPhoto)
+                  else
+                    // 개인 얼굴 — 검색 맥락(통계 로드됨)이면 지표, 아니면 빈 자리.
+                    _statLine(context, hasPhoto),
                 ],
               ),
             ),

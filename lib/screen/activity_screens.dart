@@ -231,7 +231,31 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
   String? _error;
   String? _busy; // 처리 중인 appointment id
 
+  // 캘린더 — 표시 중인 달과 선택 날짜(null=전체 목록).
+  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime? _selectedDay;
+
   String? get _uid => SessionManager.instance.user?.id;
+
+  DateTime? _apptDay(Map<String, dynamic> a) {
+    final at = _date(a['scheduled_at']);
+    return at == null ? null : DateTime(at.year, at.month, at.day);
+  }
+
+  /// 날짜별 약속 수 — 캘린더 점 표시용.
+  Map<DateTime, int> get _countByDay {
+    final m = <DateTime, int>{};
+    for (final a in _items) {
+      final d = _apptDay(a);
+      if (d != null) m[d] = (m[d] ?? 0) + 1;
+    }
+    return m;
+  }
+
+  /// 목록 — 날짜를 선택했으면 그 날의 약속만.
+  List<Map<String, dynamic>> get _visibleItems => _selectedDay == null
+      ? _items
+      : _items.where((a) => _apptDay(a) == _selectedDay).toList();
 
   @override
   void initState() {
@@ -281,7 +305,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('약속을 완료 처리할까요?'),
-        content: const Text('완료하면 서로 평가를 남길 수 있어요. 되돌릴 수 없습니다.'),
+        content: const Text('완료하면 서로 후기를 남길 수 있어요. 되돌릴 수 없습니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -356,21 +380,180 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         ),
       );
     }
-    if (_items.isEmpty) {
-      return Center(
-        child: Text(
-          '진행 중인 약속이 없어요',
-          style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
-        ),
-      );
-    }
+    // 캘린더는 항상 상단 고정 — 약속이 없어도 달력은 보인다.
+    final visible = _visibleItems;
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(20),
-        itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (_, i) => _appointmentCard(_items[i]),
+        children: [
+          _calendar(),
+          const SizedBox(height: 16),
+          if (visible.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Text(
+                  _selectedDay == null ? '진행 중인 약속이 없어요' : '이 날짜에 약속이 없어요',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
+              ),
+            )
+          else
+            for (final a in visible) ...[
+              _appointmentCard(a),
+              const SizedBox(height: 12),
+            ],
+        ],
+      ),
+    );
+  }
+
+  // ── 월간 캘린더: 약속 있는 날에 점, 탭하면 그 날만 필터 ──
+
+  Widget _calendar() {
+    final counts = _countByDay;
+    final today = DateTime.now();
+    final todayKey = DateTime(today.year, today.month, today.day);
+    final firstWeekday = DateTime(_month.year, _month.month, 1).weekday % 7;
+    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: context.colors.border, width: 0.5),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                color: context.colors.textSecondary,
+                onPressed: () => setState(() {
+                  _month = DateTime(_month.year, _month.month - 1);
+                  _selectedDay = null;
+                }),
+              ),
+              Expanded(
+                child: Text(
+                  '${_month.year}년 ${_month.month}월',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                color: context.colors.textSecondary,
+                onPressed: () => setState(() {
+                  _month = DateTime(_month.year, _month.month + 1);
+                  _selectedDay = null;
+                }),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              for (final (i, w) in const ['일', '월', '화', '수', '목', '금', '토'].indexed)
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      w,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: i == 0
+                            ? context.colors.danger
+                            : context.colors.textTertiary,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (var week = 0; week * 7 < firstWeekday + daysInMonth; week++)
+            Row(
+              children: [
+                for (var dow = 0; dow < 7; dow++)
+                  Expanded(child: _dayCell(week * 7 + dow - firstWeekday + 1,
+                      daysInMonth, counts, todayKey)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dayCell(
+    int day,
+    int daysInMonth,
+    Map<DateTime, int> counts,
+    DateTime todayKey,
+  ) {
+    if (day < 1 || day > daysInMonth) return const SizedBox(height: 44);
+    final date = DateTime(_month.year, _month.month, day);
+    final hasAppt = counts.containsKey(date);
+    final selected = _selectedDay == date;
+    final isToday = date == todayKey;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      // 탭: 선택/해제 토글 — 선택하면 아래 목록이 그 날짜 약속만 보여준다.
+      onTap: () => setState(() => _selectedDay = selected ? null : date),
+      child: SizedBox(
+        height: 44,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? context.colors.primaryDark : null,
+                shape: BoxShape.circle,
+                border: isToday && !selected
+                    ? Border.all(color: context.colors.primaryDark, width: 1)
+                    : null,
+              ),
+              child: Text(
+                '$day',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: hasAppt ? FontWeight.w700 : FontWeight.w500,
+                  color: selected
+                      ? context.colors.textOnPrimary
+                      : context.colors.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            // 약속 있는 날 점 표시(없으면 자리만 유지해 줄 높이 고정).
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: hasAppt
+                    ? (selected
+                          ? context.colors.primaryDark
+                          : context.colors.primary)
+                    : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -489,7 +672,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
           ),
           SizedBox(width: 6),
           Text(
-            '평가 완료',
+            '후기 완료',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -504,7 +687,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
       child: OutlinedButton.icon(
         onPressed: () => _review(a),
         icon: const Icon(Icons.star_outline, size: 18),
-        label: const Text('평가하기'),
+        label: const Text('후기 남기기'),
         style: OutlinedButton.styleFrom(
           foregroundColor: context.colors.primaryDark,
           side: BorderSide(color: context.colors.primaryDark),
@@ -574,7 +757,7 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.colors.background,
-      appBar: AppBar(title: const Text('받은 평가')),
+      appBar: AppBar(title: const Text('받은 후기')),
       body: SafeArea(child: _body()),
     );
   }
@@ -601,7 +784,7 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           Text(
-            '총 $_total개의 평가를 받았어요',
+            '총 $_total개의 후기를 받았어요',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -609,9 +792,9 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          _section('긍정 평가', ReviewCategories.positive, context.colors.success),
+          _section('긍정 후기', ReviewCategories.positive, context.colors.success),
           const SizedBox(height: 20),
-          _section('부정 평가', ReviewCategories.negative, context.colors.danger),
+          _section('부정 후기', ReviewCategories.negative, context.colors.danger),
         ],
       ),
     );

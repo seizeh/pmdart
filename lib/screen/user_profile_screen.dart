@@ -22,7 +22,7 @@ import 'pet_profile_screen.dart';
 import 'post_detail_screen.dart';
 
 /// 타 사용자 공개 프로필 — 사용자 검색/연결 목록에서 진입.
-/// 프로필 헤더(사진·지역·통계) + 반려동물 포스터 + 받은 평가 + 작성 게시글.
+/// 프로필 헤더(사진·지역·통계) + 반려동물 포스터 + 받은 후기 + 작성 게시글.
 /// [originRect] 가 있으면 검색 타일에서 펼쳐지고/당기면 그 자리로 축소된다
 /// (커뮤니티 게시글 상세와 동일한 전환 언어).
 class UserProfileScreen extends StatefulWidget {
@@ -113,8 +113,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   void initState() {
     super.initState();
+    // 팔로우 상태는 얼굴 단위라 프로필(얼굴 판별) 로드 후 _load 안에서 조회한다.
     _load();
-    if (!_isMe) _loadFollowing();
   }
 
   @override
@@ -134,6 +134,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // 프로필 먼저 — 업체 모드 여부에 따라 게시글 필터·방문 후기 로드가 갈린다(0025 분리).
       final p = await ProfileRepository.instance.fetchPublicProfile(
         widget.userId,
+        // 업체 맥락 진입이면 Pawmate 카운트도 업체 얼굴 팔로워 기준(얼굴 분리).
+        businessFace: !widget.forcePersonalFace,
       );
       final biz = p.isBusinessMode && !widget.forcePersonalFace;
       final posts = await CommunityRepository.instance
@@ -154,6 +156,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _bizReviews = bizReviews;
         _loading = false;
       });
+      if (!_isMe) _loadFollowing();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -165,7 +168,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _loadFollowing() async {
     try {
-      final f = await SocialRepository.instance.isFollowing(widget.userId);
+      final f = await SocialRepository.instance.isFollowing(
+        widget.userId,
+        business: _bizFace,
+      );
       if (mounted) setState(() => _following = f);
     } catch (_) {}
   }
@@ -189,10 +195,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       _following = !was;
     });
     try {
+      // 팔로우/해제 모두 지금 보고 있는 얼굴 단위 — 다른 얼굴 팔로우엔 영향 없음.
       if (was) {
-        await SocialRepository.instance.unfollow(widget.userId);
+        await SocialRepository.instance.unfollow(
+          widget.userId,
+          business: _bizFace,
+        );
       } else {
-        await SocialRepository.instance.follow(widget.userId);
+        await SocialRepository.instance.follow(
+          widget.userId,
+          business: _bizFace,
+        );
       }
     } catch (_) {
       if (mounted) setState(() => _following = was);
@@ -323,7 +336,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ]
         : [
             ('키우는 반려동물', p.pets.length),
-            ('받은 평가', p.reviewCount),
+            ('받은 후기', p.reviewCount),
             ('작성한 게시글', _posts.length),
           ];
     return Stack(
@@ -487,7 +500,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final t = ((_offset) / (_kHeaderCardH - _kHeaderBarH)).clamp(0.0, 1.0);
     final titles = [
       ('키우는 반려동물', p.pets.length),
-      ('받은 평가', p.reviewCount),
+      ('받은 후기', p.reviewCount),
       ('작성한 게시글', _posts.length),
     ];
     // 릴리즈 지점 = 마지막 타이틀이 자기 슬롯에 도킹 완료되는 오프셋.
@@ -762,7 +775,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 else
                   Row(
                     children: [
-                      Expanded(child: _statCol('받은 평가', p.reviewCount)),
+                      Expanded(child: _statCol('받은 후기', p.reviewCount)),
                       _statDivider(),
                       Expanded(child: _statCol('Pawing', p.pawingCount)),
                       _statDivider(),
@@ -1118,13 +1131,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  // ── 받은 평가: 카테고리 태그 집계 ──
+  // ── 받은 후기: 카테고리 태그 집계 ──
 
   Widget _reviewContent(PublicProfileData p) {
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: p.reviewTags.isEmpty
-          ? _emptyBox('아직 받은 평가가 없어요')
+          ? _emptyBox('아직 받은 후기가 없어요')
           : Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Wrap(
@@ -1259,7 +1272,7 @@ class PostPhotoTile extends StatelessWidget {
   }
 }
 
-/// 받은 평가 태그 1개 — "친절해요 3" 형태의 칩.
+/// 받은 후기 태그 1개 — "친절해요 3" 형태의 칩.
 class _ReviewTagChip extends StatelessWidget {
   final ReviewTag tag;
   const _ReviewTagChip({required this.tag});

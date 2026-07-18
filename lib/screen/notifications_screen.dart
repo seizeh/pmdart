@@ -72,7 +72,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _navigate(AppNotification n) async {
     // 푸시 탭과 동일한 딥링크 라우팅 — 관련 탭으로 전환한 뒤 상세를 rise 로
     // 열어, 닫으면(쓸어내리기/뒤로가기) 채팅 목록 등 관련 탭이 나온다.
-    await openFromPush(n.type, n.resourceType, n.resourceId);
+    // 이미 알림함이므로 폴백(알림함 열기)은 끈다 — 라우팅 없는 타입은 제자리.
+    await openFromPush(
+      n.type,
+      n.resourceType,
+      n.resourceId,
+      fallbackToInbox: false,
+    );
   }
 
   Future<void> _markAll() async {

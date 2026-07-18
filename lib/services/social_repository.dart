@@ -17,34 +17,43 @@ class SocialRepository {
   }
 
   /// 팔로우(Pawing). 이미 팔로우 중이면 무시.
-  Future<void> follow(String userId) async {
+  /// [business] 가 true 면 업체 얼굴을 팔로우한 것 — 목록(v_pawing)에서 상호·대표
+  /// 사진으로 표시된다. 같은 사용자의 개인/업체 얼굴은 **독립적으로** 팔로우된다
+  /// (유니크가 follower+following+context, 0025 분리).
+  Future<void> follow(String userId, {bool business = false}) async {
     await _c
         .from('pawings')
         .upsert(
-          {'follower_id': _uid, 'following_id': userId},
-          onConflict: 'follower_id,following_id',
+          {
+            'follower_id': _uid,
+            'following_id': userId,
+            'context': business ? 'business' : 'personal',
+          },
+          onConflict: 'follower_id,following_id,context',
           ignoreDuplicates: true,
         );
     AppEvents.instance.notifySocial();
   }
 
-  /// 언팔로우.
-  Future<void> unfollow(String userId) async {
+  /// 언팔로우 — 해당 얼굴의 팔로우만 해제(다른 얼굴 팔로우는 유지).
+  Future<void> unfollow(String userId, {bool business = false}) async {
     await _c
         .from('pawings')
         .delete()
         .eq('follower_id', _uid)
-        .eq('following_id', userId);
+        .eq('following_id', userId)
+        .eq('context', business ? 'business' : 'personal');
     AppEvents.instance.notifySocial();
   }
 
-  /// 내가 [userId] 를 팔로우 중인지.
-  Future<bool> isFollowing(String userId) async {
+  /// 내가 [userId] 의 해당 얼굴을 팔로우 중인지.
+  Future<bool> isFollowing(String userId, {bool business = false}) async {
     final rows = await _c
         .from('pawings')
         .select('following_id')
         .eq('follower_id', _uid)
         .eq('following_id', userId)
+        .eq('context', business ? 'business' : 'personal')
         .limit(1);
     return (rows as List).isNotEmpty;
   }
@@ -128,20 +137,27 @@ class SocialRepository {
     businessName: r['business_name'] as String?,
   );
 
-  /// 내가 팔로우 중인 대상 표시.
+  /// 내가 팔로우 중인 대상 표시 — 얼굴(개인/업체) 단위로 매칭.
   Future<List<Connection>> _withFollowing(List<Connection> list) async {
     if (list.isEmpty) return list;
     final ids = list.map((c) => c.userId).toList();
     final following = await _c
         .from('pawings')
-        .select('following_id')
+        .select('following_id, context')
         .eq('follower_id', _uid)
         .inFilter('following_id', ids);
     final followingSet = {
-      for (final f in following as List) f['following_id'] as String,
+      for (final f in following as List)
+        '${f['following_id']}:${f['context'] ?? 'personal'}',
     };
     return list
-        .map((c) => c.copyWith(following: followingSet.contains(c.userId)))
+        .map(
+          (c) => c.copyWith(
+            following: followingSet.contains(
+              '${c.userId}:${c.isBusiness ? 'business' : 'personal'}',
+            ),
+          ),
+        )
         .toList();
   }
 

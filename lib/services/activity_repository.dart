@@ -134,7 +134,7 @@ class ActivityRepository {
     'post_comment': '댓글',
     'pawing_new_post': 'Pawing 새 글',
     'application_accepted': '지원 수락',
-    'review_received': '평가 수신',
+    'review_received': '후기 수신',
     'system_notice': '시스템 공지',
   };
 

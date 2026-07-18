@@ -71,6 +71,7 @@ class UserTile extends StatelessWidget {
               ),
             Container(
               width: double.infinity,
+              alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -89,10 +90,13 @@ class UserTile extends StatelessWidget {
                           : context.colors.textOnPrimary,
                     ),
                   ),
-                  // 배지는 업체 얼굴(상호 노출) 항목에만 — 개인 얼굴에 운영 사실 비노출
-                  if (c.businessName != null) ...[
-                    const SizedBox(height: 3),
-                    Row(
+                  // 배지 줄은 항상 배치하되 업체 얼굴에서만 보인다 — 개인 얼굴엔
+                  // 운영 사실 비노출, 대신 자리는 유지해 개인/업체 타일 높이가
+                  // 언제나(폰트 배율 무관) 동일하다.
+                  const SizedBox(height: 3),
+                  Opacity(
+                    opacity: c.businessName != null ? 1 : 0,
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
@@ -115,7 +119,7 @@ class UserTile extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),

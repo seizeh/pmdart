@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_palette.dart';
 import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
+import 'admin_chat_history_screen.dart';
 import 'admin_theme.dart';
 
 /// 신고 상세 — 신고된 실제 대상(게시글/댓글/회원/채팅)을 보고 바로 조치.
@@ -499,6 +500,20 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
         ),
         const SizedBox(height: 10),
         _actionRow([
+          // 신고 메시지 앞뒤 맥락 확인 — 삭제된 메시지 포함 전체 대화 내역.
+          if (d['room_id'] != null)
+            _btn(
+              '대화 내역',
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AdminChatHistoryScreen(
+                    roomId: d['room_id'] as String,
+                    highlightMessageId: d['id'] as String?,
+                  ),
+                ),
+              ),
+            ),
           _btn(
             deleted ? '복원' : '숨김',
             danger: !deleted,

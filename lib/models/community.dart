@@ -122,6 +122,9 @@ class Comment {
   final DateTime createdAt;
   final String authorNickname;
 
+  /// 작성 시점 계정 모드 — 'business' 면 상호로 표시되고 프로필도 업체 얼굴로 연다.
+  final String authoredAs;
+
   const Comment({
     required this.id,
     required this.postId,
@@ -129,6 +132,7 @@ class Comment {
     required this.content,
     required this.createdAt,
     required this.authorNickname,
+    this.authoredAs = 'personal',
   });
 
   factory Comment.fromJson(Map<String, dynamic> j) => Comment(
@@ -138,6 +142,7 @@ class Comment {
     content: (j['content'] ?? '') as String,
     createdAt: _parseDate(j['created_at']),
     authorNickname: (j['author_nickname'] ?? '알 수 없음') as String,
+    authoredAs: (j['authored_as'] ?? 'personal') as String,
   );
 }
 

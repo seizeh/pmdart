@@ -55,6 +55,9 @@ class FacilityReviewComment {
   final String authorNickname;
   final bool isMine;
 
+  /// 작성 시점 계정 모드 — 'business' 면 상호로 표시되고 프로필도 업체 얼굴로 연다.
+  final String authoredAs;
+
   const FacilityReviewComment({
     required this.id,
     required this.reviewId,
@@ -63,6 +66,7 @@ class FacilityReviewComment {
     required this.createdAt,
     required this.authorNickname,
     required this.isMine,
+    this.authoredAs = 'personal',
   });
 
   factory FacilityReviewComment.fromJson(
@@ -78,5 +82,6 @@ class FacilityReviewComment {
         DateTime.now(),
     authorNickname: (j['author_nickname'] ?? '알 수 없음') as String,
     isMine: myUserId != null && j['user_id'] == myUserId,
+    authoredAs: (j['authored_as'] ?? 'personal') as String,
   );
 }

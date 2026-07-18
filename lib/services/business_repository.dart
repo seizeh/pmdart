@@ -164,6 +164,7 @@ class BusinessRepository {
         for (final r in (rows as List).cast<Map<String, dynamic>>())
           BizFacilityReview(
             id: (r['id'] as String?) ?? '',
+            authorUserId: (r['user_id'] as String?) ?? '',
             authorNickname: (r['author_nickname'] as String?) ?? '알 수 없음',
             rating: (r['rating'] as num?)?.toInt() ?? 0,
             content: r['content'] as String?,
@@ -335,6 +336,7 @@ class BusinessProfile {
 /// 내 업소에 달린 시설 후기 1건 (업체 프로필 후기 관리 UI).
 class BizFacilityReview {
   final String id; // 블롭 배경 시드 등 후기 식별용
+  final String authorUserId; // 작성자 — 후기 상세 닉네임 탭 → 프로필용
   final String authorNickname;
   final int rating; // 1~5
   final String? content;
@@ -343,6 +345,7 @@ class BizFacilityReview {
   final int? visitNo; // 같은 사용자의 몇 번째 방문 후기인지
   const BizFacilityReview({
     this.id = '',
+    this.authorUserId = '',
     required this.authorNickname,
     required this.rating,
     this.content,

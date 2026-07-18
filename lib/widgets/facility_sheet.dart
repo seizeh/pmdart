@@ -396,6 +396,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                   visitNo: r.visitNo,
                   seed: r.id,
                   reviewId: r.id,
+                  authorUserId: r.userId,
                   onDelete: r.isMine ? () => _deleteReview(r.id) : null,
                 ),
             ],

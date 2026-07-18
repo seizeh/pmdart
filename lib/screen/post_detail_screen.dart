@@ -937,12 +937,31 @@ class _CommentList extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            c.authorNickname,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: context.colors.textPrimary,
+                          // 닉네임 탭 → 작성자 프로필(아래에서 떠오르고 쓸어내려 닫기).
+                          GestureDetector(
+                            onTap: c.userId.isEmpty
+                                ? null
+                                : () => Navigator.push(
+                                    context,
+                                    CollapseRoute(
+                                      builder: (_) => UserProfileScreen(
+                                        userId: c.userId,
+                                        previewNickname: c.authorNickname,
+                                        // 업체 모드 댓글(상호 표시)만 업체 얼굴.
+                                        forcePersonalFace:
+                                            c.authoredAs != 'business',
+                                        originRect: riseOriginRect(context),
+                                        cardRadius: 24,
+                                      ),
+                                    ),
+                                  ),
+                            child: Text(
+                              c.authorNickname,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: context.colors.textPrimary,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),

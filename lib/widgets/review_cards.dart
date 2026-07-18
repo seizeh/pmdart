@@ -29,6 +29,9 @@ class ReviewCardData {
   /// 후기 id(facility_reviews) — 있으면 상세 화면에 댓글 섹션이 붙는다.
   final String? reviewId;
 
+  /// 작성자 user id — 있으면 상세에서 닉네임 탭 → 프로필(개인 얼굴)로 이동.
+  final String? authorUserId;
+
   const ReviewCardData({
     required this.author,
     required this.rating,
@@ -40,6 +43,7 @@ class ReviewCardData {
     this.seed,
     this.onDelete,
     this.reviewId,
+    this.authorUserId,
   });
 
   /// FacilityReview → 카드 데이터 (알림 딥링크 등 목록 밖 진입용).
@@ -56,6 +60,7 @@ class ReviewCardData {
     visitNo: r.visitNo,
     seed: r.id,
     reviewId: r.id,
+    authorUserId: r.userId,
     onDelete: onDelete,
   );
 }

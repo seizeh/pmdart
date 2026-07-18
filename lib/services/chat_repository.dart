@@ -132,11 +132,19 @@ class ChatRepository {
         .eq('user_id', _uid);
   }
 
-  /// 방의 새 메시지 실시간 구독. 콜백은 새 메시지 1건을 전달.
+  /// 내 메시지 삭제(소프트) — 서버 RPC 가 본인 검증·방 미리보기·미읽음 보정까지 처리.
+  Future<void> deleteMessage(String messageId) async {
+    await _c.rpc('delete_my_chat_message', params: {'p_message': messageId});
+    AppEvents.instance.notifyChat(); // 방 목록 미리보기 갱신
+  }
+
+  /// 방의 새 메시지 실시간 구독. [onInsert] 는 새 메시지 1건,
+  /// [onDeleted] 는 상대가 삭제한 메시지 id(내 화면에서도 즉시 제거용).
   RealtimeChannel subscribeMessages(
     String roomId,
-    void Function(ChatMessage) onInsert,
-  ) {
+    void Function(ChatMessage) onInsert, {
+    void Function(String messageId)? onDeleted,
+  }) {
     final myId = _uid;
     // 커스텀 JWT 를 realtime 인증에 적용 (RLS 통과용).
     _c.realtime.setAuth(SessionManager.instance.token);
@@ -154,6 +162,22 @@ class ChatRepository {
           callback: (payload) {
             final rec = payload.newRecord;
             onInsert(ChatMessage.fromJson(rec, myId));
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'chat_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'room_id',
+            value: roomId,
+          ),
+          callback: (payload) {
+            final rec = payload.newRecord;
+            if (rec['is_deleted'] == true) {
+              onDeleted?.call(rec['id'] as String);
+            }
           },
         )
         .subscribe();

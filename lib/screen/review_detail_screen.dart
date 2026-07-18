@@ -12,6 +12,7 @@ import '../theme/app_palette.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/review_cards.dart';
+import 'user_profile_screen.dart';
 
 /// 시설 방문 후기 상세 — 게시글 상세와 동일한 문법.
 ///
@@ -206,6 +207,27 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
     }
   }
 
+  /// 작성자/댓글 닉네임 탭 → 프로필. 앱 공통 상세 언어 — 아래에서 떠오르고,
+  /// 쓸어내리면 닫힌다. [business] 는 업체 얼굴로 열지 여부(업체 모드 댓글).
+  void _openAuthorProfile(
+    String userId,
+    String nickname, {
+    required bool business,
+  }) {
+    Navigator.push(
+      context,
+      CollapseRoute(
+        builder: (_) => UserProfileScreen(
+          userId: userId,
+          previewNickname: nickname,
+          forcePersonalFace: !business,
+          originRect: riseOriginRect(context),
+          cardRadius: 24,
+        ),
+      ),
+    );
+  }
+
   /// 히어로(블롭)에 본문이 다 담겼는지 — 게시글 상세와 같은 기준(9줄·짧은 글).
   bool get _heroHoldsFullContent {
     final c = widget.review.content ?? '';
@@ -394,17 +416,28 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
       ),
       const SizedBox(height: 14),
       // 작성자 행 — 닉네임 + 작성일(팔로우 등은 후기에 없음).
+      // 닉네임 탭 → 작성자 프로필(아래에서 떠오르고 쓸어내려 닫기).
       Row(
         children: [
           Expanded(
-            child: Text(
-              r.author,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: context.colors.textPrimary,
+            child: GestureDetector(
+              onTap: (r.authorUserId == null || r.authorUserId!.isEmpty)
+                  ? null
+                  : () => _openAuthorProfile(
+                      r.authorUserId!,
+                      r.author,
+                      // 방문 후기는 개인 활동 — 항상 개인 얼굴.
+                      business: false,
+                    ),
+              child: Text(
+                r.author,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textPrimary,
+                ),
               ),
             ),
           ),
@@ -497,12 +530,22 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        c.authorNickname,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: context.colors.textPrimary,
+                      // 닉네임 탭 → 작성자 프로필(업체 모드 댓글은 업체 얼굴로).
+                      GestureDetector(
+                        onTap: c.userId.isEmpty
+                            ? null
+                            : () => _openAuthorProfile(
+                                c.userId,
+                                c.authorNickname,
+                                business: c.authoredAs == 'business',
+                              ),
+                        child: Text(
+                          c.authorNickname,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: context.colors.textPrimary,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),

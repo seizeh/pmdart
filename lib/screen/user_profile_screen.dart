@@ -1126,6 +1126,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               visitNo: r.visitNo,
               seed: r.id,
               reviewId: r.id,
+              authorUserId: r.authorUserId,
             ),
         ],
       ),

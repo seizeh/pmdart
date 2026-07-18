@@ -10,6 +10,7 @@ import 'theme/app_theme.dart';
 import 'screen/welcome_screen.dart';
 import 'screen/main_screen.dart';
 import 'screen/admin/admin_home_screen.dart';
+import 'screen/activity_screens.dart' show MyReviewsScreen;
 import 'screen/chat_room_screen.dart';
 import 'screen/guardian_invites_screen.dart';
 import 'screen/notifications_screen.dart';
@@ -185,6 +186,12 @@ Future<void> openFromPush(
       nav.push(AppPageRoute(builder: (_) => const GuardianInvitesScreen()));
       return;
     }
+    if (type == 'review_received') {
+      // 후기 알림 — 내가 받은 후기 화면으로.
+      popToRoot();
+      nav.push(AppPageRoute(builder: (_) => const MyReviewsScreen()));
+      return;
+    }
     if (resourceId != null && resourceId.isNotEmpty) {
       switch (resourceType) {
         case 'post':
@@ -194,18 +201,30 @@ Future<void> openFromPush(
           if (post != null) {
             popToRoot();
             MainScreen.tabRequest.value = MainScreen.tabCommunity;
+            // 앱 공통 상세 언어 — 아래에서 떠오르고, 쓸어내리면 닫힌다.
+            final pctx = navigatorKey.currentContext;
             nav.push(
-              AppPageRoute(builder: (_) => PostDetailScreen(post: post)),
+              CollapseRoute(
+                builder: (_) => PostDetailScreen(
+                  post: post,
+                  originRect: pctx == null ? null : riseOriginRect(pctx),
+                ),
+              ),
             );
             return;
           }
         case 'user':
           // 포잉 알림 — 팔로우한 상대의 프로필로(개인 활동이라 개인 얼굴).
           popToRoot();
+          final uctx = navigatorKey.currentContext;
           nav.push(
-            AppPageRoute(
-              builder: (_) =>
-                  UserProfileScreen(userId: resourceId, forcePersonalFace: true),
+            CollapseRoute(
+              builder: (_) => UserProfileScreen(
+                userId: resourceId,
+                forcePersonalFace: true,
+                originRect: uctx == null ? null : riseOriginRect(uctx),
+                cardRadius: 24,
+              ),
             ),
           );
           return;
@@ -235,10 +254,13 @@ Future<void> openFromPush(
           );
           if (review != null) {
             popToRoot();
+            final rctx = navigatorKey.currentContext;
             nav.push(
-              AppPageRoute(
+              CollapseRoute(
                 builder: (_) => ReviewDetailScreen(
                   review: ReviewCardData.fromFacilityReview(review),
+                  originRect: rctx == null ? null : riseOriginRect(rctx),
+                  fromDeepLink: true,
                 ),
               ),
             );

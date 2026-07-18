@@ -206,6 +206,20 @@ class BusinessRepository {
     }
   }
 
+  /// 후기 딥링크 진입 시 '업체 모드로 전환' 제안 여부 — 내가 이 후기 시설의
+  /// 인증 업주(형제 행 포함)이고 현재 개인 모드일 때만 true(서버 판정).
+  Future<bool> shouldSuggestBusinessSwitch(String reviewId) async {
+    try {
+      final res = await _c.rpc(
+        'review_owner_switch_hint',
+        params: {'p_review': reviewId},
+      );
+      return res == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// 계정 전환 — business 는 승인(approved) 상태에서만 서버가 허용.
   Future<String?> switchMode(String mode) async {
     try {

@@ -225,16 +225,32 @@ class PetRepository {
   /// 펫 보호자 목록.
   Future<List<Guardian>> fetchGuardians(String petId) async {
     final uid = _uid;
+    // 보호자 행과 닉네임은 별도 조회 — PostgREST 는 뷰(public_profiles)로의
+    // 관계 임베딩을 인식하지 못해 조인이 조용히 실패한다(공동보호자 미표시 원인).
     final rows = await _c
         .from('pet_guardians')
-        .select('user_id, role, public_profiles(nickname)')
+        .select('user_id, role')
         .eq('pet_id', petId);
-    return (rows as List).map((r) {
-      final prof = r['public_profiles'] as Map<String, dynamic>?;
+    final list = (rows as List).cast<Map<String, dynamic>>();
+    if (list.isEmpty) return const [];
+
+    final ids = list.map((r) => r['user_id'] as String).toSet().toList();
+    final nickById = <String, String>{};
+    try {
+      final profs = await _c
+          .from('public_profiles')
+          .select('id, nickname')
+          .inFilter('id', ids);
+      for (final p in (profs as List).cast<Map<String, dynamic>>()) {
+        nickById[p['id'] as String] = (p['nickname'] ?? '알 수 없음') as String;
+      }
+    } catch (_) {/* 닉네임 조회 실패해도 보호자 목록은 반환 */}
+
+    return list.map((r) {
       final userId = r['user_id'] as String;
       return Guardian(
         userId: userId,
-        nickname: (prof?['nickname'] ?? '알 수 없음') as String,
+        nickname: nickById[userId] ?? '알 수 없음',
         role: (r['role'] ?? 'co_guardian') as String,
         isMe: userId == uid,
       );

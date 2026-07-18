@@ -762,8 +762,9 @@ class _NotificationBellState extends State<_NotificationBell> {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
+          // 하단 내비와 같은 rounded 계열 — 뾰족한 모서리 없는 둥근 벨.
           Icon(
-            Icons.notifications_outlined,
+            Icons.notifications_rounded,
             color: context.colors.primaryDark,
             size: 26,
           ),

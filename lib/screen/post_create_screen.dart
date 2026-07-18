@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import '../motion/motion.dart';
 
 import 'package:flutter/material.dart';
@@ -10,7 +11,10 @@ import '../services/community_repository.dart';
 import '../services/photo_verify_repository.dart';
 import '../services/profile_repository.dart';
 import '../services/location_service.dart';
+import '../data/mock_data.dart' show categoryLabel;
+import '../services/session.dart';
 import '../services/storage_service.dart';
+import '../widgets/blob_background.dart';
 import '../widgets/role_badge.dart';
 import 'image_crop_screen.dart';
 
@@ -86,6 +90,471 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       _verifiedDong != null &&
       _currentDong != _verifiedDong;
 
+  /// 카테고리 변경 — 카테고리에 따라 입력 경로가 달라지므로 관련 상태 초기화.
+  void _selectCategory(String c) {
+    setState(() {
+      _category = c;
+      _selectedPetIds.clear();
+      if (!_allowsSchedule) _scheduledAt = null;
+      // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
+      _uploadedImage = null;
+      _photoToken = null;
+      _photoPetId = null;
+      _uploadingImage = false;
+    });
+  }
+
+  // 카테고리 태그 인라인 확장 상태 — 탭하면 태그 자리가 전체 카테고리 알약으로
+  // 펼쳐지고, 하나를 고르면 다시 접힌다(바텀시트 없음).
+  bool _categoryExpanded = false;
+
+  // ── 편집형 미리보기 카드 — 피드 카드(PostCard)와 동일한 시각 문법에
+  //    제목 인라인 입력·카테고리/일정 탭 편집·좌상단 사진 버튼을 얹은 것.
+  //    (레이아웃을 바꿀 땐 widgets/post_card.dart 와 함께 맞출 것)
+
+  Widget _editableCard() {
+    final color = categoryColor(context, _category);
+    final photoUrl = _uploadedImage?.url;
+    final hasPhoto = photoUrl != null;
+    final biz = _activeMode == 'business';
+    final me = SessionManager.instance.user;
+    final content = _contentCtrl.text.trim();
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: context.colors.border, width: 0.5),
+      ),
+      child: AspectRatio(
+        aspectRatio: kPostImageAspectRatio,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 배경 — 대표사진 또는 카테고리 색 블롭(피드와 동일).
+            if (hasPhoto)
+              Image.network(
+                photoUrl,
+                fit: BoxFit.cover,
+                cacheWidth: 1200,
+                errorBuilder: (_, _, _) =>
+                    BlobBackground(seed: 'preview/$_category', color: color),
+              )
+            else
+              BlobBackground(seed: 'preview/$_category', color: color),
+            // 점진 블러 — 피드 카드와 동일한 하단 뭉갬.
+            if (hasPhoto)
+              Positioned.fill(
+                child: ShaderMask(
+                  shaderCallback: (rect) => const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x00FFFFFF),
+                      Color(0x00FFFFFF),
+                      Color(0xFFFFFFFF),
+                    ],
+                    stops: [0.0, 0.42, 0.85],
+                  ).createShader(rect),
+                  blendMode: BlendMode.dstIn,
+                  child: ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(
+                      sigmaX: 22,
+                      sigmaY: 22,
+                      tileMode: ui.TileMode.clamp,
+                    ),
+                    child: Image.network(
+                      photoUrl,
+                      fit: BoxFit.cover,
+                      cacheWidth: 400,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ),
+            // 사진 없는 글 — 본문 히어로(아래 '내용'에서 입력한 값이 실시간 반영).
+            if (!hasPhoto)
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 170),
+                  child: Center(
+                    child: Text(
+                      content.isEmpty ? '내용이 여기에 표시돼요' : content,
+                      textAlign: TextAlign.center,
+                      maxLines: 9,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: content.isEmpty
+                            ? context.colors.textTertiary
+                            : context.colors.textPrimary,
+                        height: 1.6,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // 가독용 스크림(피드와 동일).
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 210,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x00000000), Color(0x73000000)],
+                  ),
+                ),
+              ),
+            ),
+            // 좌상단 — 사진 추가/교체(+제거) 버튼.
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Row(
+                children: [
+                  _cardIconButton(
+                    icon: hasPhoto
+                        ? Icons.photo_camera_outlined
+                        : Icons.add_a_photo_outlined,
+                    tooltip: _needsPhoto ? '사진 촬영(인증)' : '사진 추가',
+                    busy: _uploadingImage,
+                    onTap: _onPhotoTap,
+                  ),
+                  if (hasPhoto && !_uploadingImage) ...[
+                    const SizedBox(width: 8),
+                    _cardIconButton(
+                      icon: Icons.close,
+                      tooltip: '사진 제거',
+                      onTap: _removeImage,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // 하단 정보 — 카테고리·일정은 탭 편집, 제목은 그 자리에서 입력.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 카테고리 — 탭하면 태그가 제자리에서 전체 목록으로 펼쳐지고,
+                    // 하나를 고르면(같은 걸 고르면 그대로) 다시 접힌다.
+                    // 모션은 앱 공통 스프링 언어: 확장은 standard 스프링,
+                    // 알약들은 Entrance 스태거로 튀어오르고, 탭엔 Pressable 촉감.
+                    AnimatedSize(
+                      duration: MotionDurations.base,
+                      curve: SpringCurve.standard,
+                      alignment: Alignment.bottomLeft,
+                      child: _categoryExpanded && !biz
+                          ? Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                for (final (i, c) in _categories.indexed)
+                                  Entrance(
+                                    index: i,
+                                    offsetY: 12,
+                                    fromScale: 0.85,
+                                    child: Pressable(
+                                      scaleTo: 0.9,
+                                      borderRadius: BorderRadius.circular(100),
+                                      onTap: () {
+                                        if (c != _category) _selectCategory(c);
+                                        setState(
+                                          () => _categoryExpanded = false,
+                                        );
+                                      },
+                                      child: _previewPill(
+                                        text: categoryLabel(c),
+                                        textColor: categoryColor(context, c),
+                                        selected: c == _category,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                // 선택 직후엔 태그가 살짝 튀며 안착 — 선택 피드백.
+                                KeyedSubtree(
+                                  key: ValueKey('cat-tag-$_category'),
+                                  child: Entrance(
+                                    index: 0,
+                                    offsetY: 6,
+                                    fromScale: 0.8,
+                                    child: Pressable(
+                                      scaleTo: 0.9,
+                                      borderRadius: BorderRadius.circular(100),
+                                      onTap: biz
+                                          ? null
+                                          : () => setState(
+                                              () => _categoryExpanded = true,
+                                            ),
+                                      child: _previewPill(
+                                        text: categoryLabel(_category),
+                                        textColor: color,
+                                        trailing: biz
+                                            ? null
+                                            : Icons.expand_more,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (!biz && _verifiedDong != null) ...[
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.place_outlined,
+                                          size: 13,
+                                          color: Color(0xCCFFFFFF),
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Flexible(
+                                          child: Text(
+                                            _verifiedDong!,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xE6FFFFFF),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                const Spacer(),
+                                const Text(
+                                  '방금 전',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xCCFFFFFF),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                    const SizedBox(height: 10),
+                    // 제목 — 카드 위에서 바로 입력(피드 타이포와 동일).
+                    TextField(
+                      controller: _titleCtrl,
+                      maxLines: 1,
+                      onChanged: (_) => setState(() {}),
+                      cursorColor: Colors.white,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        isCollapsed: true,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                        hintText: '제목을 입력하세요',
+                        hintStyle: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0x99FFFFFF),
+                        ),
+                      ),
+                    ),
+                    if (hasPhoto) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        content.isEmpty ? '내용은 아래에서 입력해요' : content,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: content.isEmpty
+                              ? const Color(0x99FFFFFF)
+                              : const Color(0xE0FFFFFF),
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                    if (_allowsSchedule) ...[
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: _pickDateTime,
+                        child: _previewMetaPill(
+                          icon: Icons.event_outlined,
+                          label: _scheduledAt == null
+                              ? (_needsSchedule ? '약속 일정 선택 (필수)' : '약속 일정 선택')
+                              : '${_scheduledAt!.month}/${_scheduledAt!.day} ${_scheduledAt!.hour}시',
+                          editable: true,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Text(
+                          biz
+                              ? (_bizName ?? me?.nickname ?? '')
+                              : (me?.nickname ?? ''),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xE6FFFFFF),
+                          ),
+                        ),
+                        const Spacer(),
+                        _previewStat(Icons.favorite_border),
+                        const SizedBox(width: 14),
+                        _previewStat(Icons.chat_bubble_outline),
+                        const SizedBox(width: 14),
+                        _previewStat(Icons.visibility_outlined),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 카드 위 원형 아이콘 버튼(좌상단 사진 컨트롤) — 사진 위 가독용 프로스트.
+  Widget _cardIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    bool busy = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: busy ? null : onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            color: Color(0x66000000),
+            shape: BoxShape.circle,
+          ),
+          child: busy
+              ? const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Icon(icon, size: 20, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  /// 카테고리 태그(흰 필름 알약) — 피드 카드와 동일 + 편집 힌트(▾).
+  /// [selected] 는 인라인 확장 목록에서 현재 카테고리 강조(색 채움 + 흰 글자).
+  Widget _previewPill({
+    required String text,
+    required Color textColor,
+    IconData? trailing,
+    bool selected = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: selected ? textColor : Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : textColor,
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 2),
+            Icon(trailing, size: 13, color: textColor),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 일정 알약 — 피드 카드의 메타 알약과 동일 + 편집 힌트(▾).
+  Widget _previewMetaPill({
+    required IconData icon,
+    required String label,
+    bool editable = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: context.colors.textSecondary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: context.colors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (editable) ...[
+            const SizedBox(width: 2),
+            Icon(
+              Icons.expand_more,
+              size: 13,
+              color: context.colors.textSecondary,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _previewStat(IconData icon) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 16, color: const Color(0xCCFFFFFF)),
+      const SizedBox(width: 4),
+      const Text(
+        '0',
+        style: TextStyle(
+          fontSize: 12,
+          color: Color(0xCCFFFFFF),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ],
+  );
+
   @override
   void initState() {
     super.initState();
@@ -94,9 +563,20 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     _checkRegion();
   }
 
+  // 미리보기 작성자 표시 — 업체 모드면 상호(로드 전엔 빈 값 → 닉네임 폴백).
+  String? _bizName;
+
   Future<void> _loadMode() async {
     final mode = await BusinessRepository.instance.fetchActiveMode();
     if (!mounted) return;
+    if (mode == 'business') {
+      // 미리보기에 상호를 보여주기 위해 업체 프로필도 로드(실패해도 무해).
+      BusinessRepository.instance.fetchMine().then((biz) {
+        if (mounted && biz != null) {
+          setState(() => _bizName = biz.businessName);
+        }
+      }).catchError((_) {});
+    }
     setState(() {
       _activeMode = mode;
       if (mode == 'business') _category = 'news';
@@ -112,6 +592,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         verified: reg.verified,
       );
       if (verified == null) return; // 미인증이면 비교 의미 없음
+      // 인증 동은 미리보기(위치 표시)에도 쓰므로 위치 조회 성패와 무관하게 먼저 반영.
+      if (mounted) setState(() => _verifiedDong = verified);
       final loc = await LocationService.instance.getCurrentPosition();
       if (loc.status != LocationStatus.ok || loc.position == null) return;
       final cur = await ProfileRepository.instance.regionNameAt(
@@ -400,57 +882,30 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                 ),
                 const SizedBox(height: 16),
               ],
-              // 업체 모드는 카테고리 선택 없음 — 항상 '소식'(모드 확인 중에도 숨김).
-              if (_activeMode == 'personal') ...[
-                const _SectionLabel('카테고리'),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _categories
-                      .map(
-                        (c) => CategoryChip(
-                          category: c,
-                          selected: _category == c,
-                          onTap: () => setState(() {
-                            _category = c;
-                            _selectedPetIds.clear();
-                            if (!_allowsSchedule) _scheduledAt = null;
-                            // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
-                            _uploadedImage = null;
-                            _photoToken = null;
-                            _photoPetId = null;
-                            _uploadingImage = false;
-                          }),
-                        ),
-                      )
-                      .toList(),
+              // 미리보기 = 편집 캔버스. 카드 위에서 직접 수정한다:
+              //  · 제목: 카드의 제목 자리를 탭해 바로 입력
+              //  · 카테고리: 카테고리 태그 탭 → 선택 시트(개인 모드만)
+              //  · 약속 일정: 일정 알약 탭 → 날짜/시간 선택
+              //  · 사진: 좌상단 카메라 아이콘(사진 있으면 X 로 제거)
+              // 내용·반려동물 선택만 아래 별도 섹션에서.
+              const _SectionLabel('미리보기'),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  '커뮤니티에 이렇게 보여요 — 카드를 직접 탭해서 수정하세요',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.colors.textSecondary,
+                  ),
                 ),
-                const SizedBox(height: 24),
-              ],
-              const _SectionLabel('제목'),
-              TextField(
-                controller: _titleCtrl,
-                decoration: const InputDecoration(
-                  hintText: '예) 동탄2동 산책 메이트 구해요',
-                ),
-                onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: 20),
-              const _SectionLabel('내용'),
-              TextField(
-                controller: _contentCtrl,
-                maxLines: 8,
-                decoration: const InputDecoration(hintText: '자세한 내용을 적어주세요'),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 20),
-              _SectionLabel(_needsPhoto ? '사진 (촬영 인증)' : '사진 (선택)'),
+              _editableCard(),
               if (_needsPhoto)
                 Padding(
-                  padding: EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '아래에서 반려동물을 먼저 선택한 뒤, 그 아이를 카메라로 촬영하세요. '
-                    '등록된 인증 사진과 대조해 실제 반려동물인지 확인합니다.',
+                    '📷 사진 인증 카테고리예요 — 아래에서 반려동물을 선택한 뒤, '
+                    '카드 좌상단 카메라로 그 아이를 직접 촬영해주세요.',
                     style: TextStyle(
                       fontSize: 12,
                       color: context.colors.textSecondary,
@@ -458,56 +913,14 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                     ),
                   ),
                 ),
-              _PhotoPicker(
-                url: _uploadedImage?.url,
-                uploading: _uploadingImage,
-                requireCamera: _needsPhoto,
-                onPick: _onPhotoTap,
-                onRemove: _removeImage,
+              const SizedBox(height: 24),
+              const _SectionLabel('내용'),
+              TextField(
+                controller: _contentCtrl,
+                maxLines: 8,
+                decoration: const InputDecoration(hintText: '자세한 내용을 적어주세요'),
+                onChanged: (_) => setState(() {}),
               ),
-              if (_allowsSchedule) ...[
-                const SizedBox(height: 20),
-                _SectionLabel(_needsSchedule ? '약속 일정' : '약속 일정 (선택)'),
-                InkWell(
-                  onTap: _pickDateTime,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: context.colors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: context.colors.border,
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.event,
-                          color: context.colors.primaryDark,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          _scheduledAt == null
-                              ? '일정을 선택하세요'
-                              : '${_scheduledAt!.year}년 ${_scheduledAt!.month}월 ${_scheduledAt!.day}일 ${_scheduledAt!.hour}시',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: _scheduledAt == null
-                                ? context.colors.textTertiary
-                                : context.colors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
               if (_needsPet) ...[
                 const SizedBox(height: 20),
                 _SectionLabel(_giveAway ? '분양할 반려동물 (소유자만, 1마리)' : '연결할 반려동물'),
@@ -837,122 +1250,3 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-/// 사진 선택/미리보기. 선택 즉시 업로드되며 미리보기는 업로드된 URL 로 표시(크로스플랫폼).
-class _PhotoPicker extends StatelessWidget {
-  final String? url;
-  final bool uploading;
-  final bool requireCamera;
-  final VoidCallback onPick;
-  final VoidCallback onRemove;
-
-  const _PhotoPicker({
-    required this.url,
-    required this.uploading,
-    required this.onRemove,
-    required this.onPick,
-    this.requireCamera = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // 업로드/검증 중 — 스피너 박스
-    if (uploading) {
-      return Container(
-        height: 180,
-        decoration: BoxDecoration(
-          color: context.colors.surfaceMuted,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: context.colors.border, width: 0.5),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(),
-              if (requireCamera) ...[
-                const SizedBox(height: 12),
-                Text(
-                  '사진을 인증하는 중이에요',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: context.colors.textSecondary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-    // 미선택 — 추가/촬영 버튼
-    if (url == null) {
-      return InkWell(
-        onTap: onPick,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: 100,
-          decoration: BoxDecoration(
-            color: context.colors.surfaceMuted,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: context.colors.border, width: 0.5),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                requireCamera
-                    ? Icons.photo_camera_outlined
-                    : Icons.add_a_photo_outlined,
-                color: context.colors.primaryDark,
-                size: 26,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                requireCamera ? '사진 촬영' : '사진 추가',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: context.colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    // 업로드 완료 — 미리보기 + 삭제 (가로 3 : 세로 4)
-    return Stack(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: AspectRatio(
-            aspectRatio: kPostImageAspectRatio, // 4284 : 5712
-            child: Image.network(
-              url!,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                color: context.colors.surfaceMuted,
-                child: const Center(child: Icon(Icons.image, size: 40)),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          top: 8,
-          right: 8,
-          child: GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.close, color: Colors.white, size: 18),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}

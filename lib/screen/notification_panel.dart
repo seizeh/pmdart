@@ -2,6 +2,7 @@ import 'dart:async' show unawaited;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../main.dart' show openFromPush;
+import '../motion/motion.dart' show SpringCurve;
 import '../theme/app_palette.dart';
 import '../data/mock_data.dart' show timeAgo;
 import '../models/notification.dart';
@@ -73,9 +74,26 @@ class _NotificationPanelRoute extends PopupRoute<void> {
       parent: animation,
       curve: const Interval(0.0, 0.62, curve: Curves.easeInOutCubic),
     );
+    // 벨 이동 — 좌측 슬롯에 멈추는 순간 살짝 지나쳤다가 튕기며 안착(탱글).
+    // 언더댐핑 스프링이라 곡선값이 1을 넘는 오버슛 구간이 있고, 아래 위치 lerp 에서
+    // 클램프하지 않아야 실제로 튕겨 보인다. 스프링이 잦아들 시간까지 구간을 넉넉히.
     final slide = CurvedAnimation(
       parent: animation,
-      curve: const Interval(0.6, 0.85, curve: Curves.easeOutBack),
+      curve: Interval(
+        0.55,
+        0.95,
+        // 댐핑비를 올려 오버슛을 크게 줄인 은은한 튕김(과하면 장난감 같아짐).
+        curve: SpringCurve(stiffness: 320, ratio: 0.8),
+      ),
+      // 닫힐 때(역재생)도 도착점(우측 원래 자리)에서 튕긴다.
+      // reverseCurve 는 내려가는 t 에 '그대로' 적용되므로, 같은 스프링을 그냥 주면
+      // 출발만 꿈틀하고 도착은 밋밋해진다 → flipped(1-curve(1-t))로 뒤집어야
+      // 곡선값이 도착 직전 0 아래로 살짝 내려갔다(원점 지나침) 되돌아온다.
+      reverseCurve: Interval(
+        0.55,
+        0.95,
+        curve: SpringCurve(stiffness: 320, ratio: 0.8).flipped,
+      ),
     );
     final reveal = CurvedAnimation(
       parent: animation,
@@ -143,11 +161,9 @@ class _NotificationPanelRoute extends PopupRoute<void> {
         AnimatedBuilder(
           animation: animation,
           builder: (context, child) {
-            final c = Offset.lerp(
-              bellStart,
-              bellEnd,
-              slide.value.clamp(0.0, 1.0),
-            )!;
+            // 스프링 오버슛(>1)을 살리기 위해 클램프하지 않는다 — 도착점을 살짝
+            // 지나쳤다가 되돌아오며 안착하는 탱글한 마무리.
+            final c = Offset.lerp(bellStart, bellEnd, slide.value)!;
             return Positioned(
               left: c.dx - bellR,
               top: c.dy - bellR,
@@ -348,7 +364,7 @@ class _NotificationPanelState extends State<_NotificationPanel> {
 }
 
 /// 우측(벨 자리)→좌측 상단 헤더로 이동하는 벨 아이콘.
-/// 앱 헤더의 벨과 동일한 형태(원형 배경 없는 아웃라인 아이콘) — 이동 중 디자인 불변.
+/// 앱 헤더의 벨과 동일한 형태(rounded 계열) — 이동 중 디자인 불변.
 class _BellDot extends StatelessWidget {
   const _BellDot();
 
@@ -356,7 +372,7 @@ class _BellDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Icon(
-        Icons.notifications_outlined,
+        Icons.notifications_rounded,
         size: 26, // 앱 헤더 벨과 동일 크기
         color: context.colors.primaryDark,
       ),

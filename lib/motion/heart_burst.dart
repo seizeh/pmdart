@@ -64,9 +64,11 @@ class _HeartButtonState extends State<HeartButton>
 
   @override
   Widget build(BuildContext context) {
+    // 카드 하단 스크림(어두움) 위에서 쓰이므로 비활성·개수는 밝은 톤으로 —
+    // 어두운 개수 텍스트가 사진 위에서 묻히던 문제(댓글·조회 지표와 통일).
     final color = widget.active
-        ? const Color(0xFFC97565)
-        : const Color(0xFFB6AC9A);
+        ? const Color(0xFFFF7A66)
+        : const Color(0xCCFFFFFF);
 
     return GestureDetector(
       onTap: _handleTap,
@@ -129,7 +131,7 @@ class _HeartButtonState extends State<HeartButton>
               key: ValueKey(widget.count),
               style: const TextStyle(
                 fontSize: 12,
-                color: Color(0xFF8C8273),
+                color: Color(0xCCFFFFFF),
                 fontWeight: FontWeight.w600,
               ),
             ),

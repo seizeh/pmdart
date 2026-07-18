@@ -207,17 +207,15 @@ class ProfileRepository {
     }
   }
 
-  /// 타 사용자의 반려동물 — pet_guardians 는 타인 조회가 막혀 있어
-  /// pets.primary_guardian_id 로 직접 조회한다(대표 보호자 기준).
+  /// 타 사용자의 반려동물 — 공동보호(co_guardian) 펫까지 포함.
+  /// pet_guardians 는 타인 SELECT 가 RLS 로 막혀, definer RPC 로 조회한다
+  /// (대표 보호자 펫만 보이던 문제: 공동보호자 프로필에서 펫 누락 해결).
   Future<List<MockPet>> _fetchPublicPets(String userId) async {
     try {
-      final rows = await _c
-          .from('pets')
-          .select(
-            'id, name, species, gender, birth_date, bio, image_url, identity_verified, pet_match_count',
-          )
-          .eq('primary_guardian_id', userId)
-          .eq('pet_status', 'active');
+      final rows = await _c.rpc(
+        'public_user_pets',
+        params: {'p_user': userId},
+      );
       return [
         for (final p in (rows as List).cast<Map<String, dynamic>>())
           MockPet(
@@ -229,12 +227,12 @@ class ProfileRepository {
                 ? null
                 : DateTime.parse(p['birth_date'] as String),
             bio: p['bio'] as String?,
-            role: 'owner',
-            guardianCount: 1,
-            ownerName: '',
+            role: (p['role'] ?? 'co_guardian') as String,
+            guardianCount: (p['guardian_count'] as num?)?.toInt() ?? 1,
+            ownerName: (p['owner_name'] ?? '') as String,
             imageUrl: p['image_url'] as String?,
             isIdentityVerified: p['identity_verified'] == true,
-            matchCount: (p['pet_match_count'] ?? 0) as int,
+            matchCount: (p['pet_match_count'] as num?)?.toInt() ?? 0,
           ),
       ];
     } catch (_) {

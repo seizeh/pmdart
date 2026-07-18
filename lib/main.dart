@@ -148,8 +148,12 @@ void _showNotificationBanner(Map<String, dynamic> row) {
 Future<void> openFromPush(
   String type,
   String? resourceType,
-  String? resourceId,
-) async {
+  String? resourceId, {
+  // 알림함(목록/패널)에서의 탭은 false — 라우팅할 곳이 없으면 아무것도 하지
+  // 않는다(알림함 안에서 알림함을 또 여는 재귀 방지). 푸시 탭은 기본 true.
+  bool fallbackToInbox = true,
+}) async {
+  debugPrint('deeplink: type=$type resource=$resourceType/$resourceId');
   // 콜드 스타트 — 첫 프레임(네비게이터)이 붙을 때까지 잠깐 대기(최대 5초).
   NavigatorState? nav = navigatorKey.currentState;
   for (var i = 0; i < 50 && nav == null; i++) {
@@ -271,9 +275,11 @@ Future<void> openFromPush(
   } catch (_) {
     // 대상 조회 실패 — 아래 폴백으로.
   }
-  // 대상 화면으로 못 갔으면 알림함으로.
-  popToRoot();
-  nav.push(AppPageRoute(builder: (_) => const NotificationsScreen()));
+  // 대상 화면으로 못 갔으면 알림함으로(푸시 탭 한정 — 알림함 내 탭은 제자리 유지).
+  if (fallbackToInbox) {
+    popToRoot();
+    nav.push(AppPageRoute(builder: (_) => const NotificationsScreen()));
+  }
 }
 
 Future<void> _setupPush() async {

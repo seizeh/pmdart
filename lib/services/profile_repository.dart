@@ -25,20 +25,8 @@ class ProfileRepository {
         .eq('id', uid)
         .maybeSingle();
 
-    // 통계 — 병렬 카운트
-    final counts = await Future.wait([
-      _count('reviews', 'reviewee_id', uid),
-      _count('pawings', 'follower_id', uid),
-      _count('pawings', 'following_id', uid),
-      _count('posts', 'user_id', uid),
-      _count('post_hearts', 'user_id', uid),
-      _count('applications', 'applicant_id', uid),
-      _appointmentCount(uid),
-    ]);
-
-    final pets = await _fetchMyPets(uid);
-
     // 계정 모드(개인/업체) — 본인 컬럼만 GRANT 되어 있어 직접 조회. 실패 시 personal.
+    // Pawmate 카운트가 얼굴 단위라 통계보다 먼저 필요하다.
     var activeMode = 'personal';
     try {
       final row = await _c
@@ -48,6 +36,19 @@ class ProfileRepository {
           .maybeSingle();
       activeMode = (row?['active_mode'] as String?) ?? 'personal';
     } catch (_) {}
+
+    // 통계 — 병렬 카운트. Pawmate 는 현재 모드 얼굴의 팔로워만(얼굴 분리).
+    final counts = await Future.wait([
+      _count('reviews', 'reviewee_id', uid),
+      _count('pawings', 'follower_id', uid),
+      _followerCount(uid, activeMode),
+      _count('posts', 'user_id', uid),
+      _count('post_hearts', 'user_id', uid),
+      _count('applications', 'applicant_id', uid),
+      _appointmentCount(uid),
+    ]);
+
+    final pets = await _fetchMyPets(uid);
 
     return ProfileData(
       nickname: (profile?['nickname'] ?? user.nickname) as String,
@@ -131,7 +132,12 @@ class ProfileRepository {
 
   /// 타 사용자 공개 프로필 조회 (사용자 검색 → 프로필).
   /// 공개 뷰/공개 정책으로 읽을 수 있는 범위만 채운다.
-  Future<PublicProfileData> fetchPublicProfile(String userId) async {
+  /// [businessFace] 가 true 고 상대가 업체 모드면 Pawmate 카운트를 업체 얼굴
+  /// 팔로워 기준으로 센다(얼굴 분리 — 두 얼굴 팔로우가 2명으로 집계되지 않게).
+  Future<PublicProfileData> fetchPublicProfile(
+    String userId, {
+    bool businessFace = false,
+  }) async {
     final profile = await _c
         .from('public_profiles')
         .select(
@@ -141,11 +147,15 @@ class ProfileRepository {
         .maybeSingle();
     if (profile == null) throw StateError('프로필을 찾을 수 없어요');
 
+    final face = (businessFace && profile['is_business'] == true)
+        ? 'business'
+        : 'personal';
+
     // 통계 — 일부가 막혀 있어도 전체가 실패하지 않도록 개별 보호.
     final counts = await Future.wait([
       _count('reviews', 'reviewee_id', userId).catchError((_) => 0),
       _count('pawings', 'follower_id', userId).catchError((_) => 0),
-      _count('pawings', 'following_id', userId).catchError((_) => 0),
+      _followerCount(userId, face).catchError((_) => 0),
       _count('posts', 'user_id', userId).catchError((_) => 0),
     ]);
 
@@ -238,6 +248,17 @@ class ProfileRepository {
         .from(table)
         .select('id')
         .eq(col, val)
+        .count(CountOption.exact);
+    return res.count;
+  }
+
+  /// 특정 얼굴(personal/business)의 팔로워 수 — Pawmate 얼굴 분리 집계.
+  Future<int> _followerCount(String userId, String context) async {
+    final res = await _c
+        .from('pawings')
+        .select('id')
+        .eq('following_id', userId)
+        .eq('context', context)
         .count(CountOption.exact);
     return res.count;
   }

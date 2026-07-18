@@ -65,8 +65,13 @@ class _UserSearchTabState extends State<UserSearchTab> {
     if (mounted) setState(() => _openedTileId = null);
   }
 
+  // 같은 사용자의 개인/업체 얼굴이 결과에 동시에 나올 수 있다 — 타일 id 에
+  // 얼굴을 포함해야 GlobalKey 가 충돌하지 않는다(충돌 시 한 행이 사라짐).
+  String _userTileId(Connection c) =>
+      'user:${c.userId}:${c.isBusiness ? 'biz' : 'personal'}';
+
   void _openUser(Connection c) {
-    final tileId = 'user:${c.userId}';
+    final tileId = _userTileId(c);
     _openFromTile(
       tileId,
       (rect) => UserProfileScreen(
@@ -270,8 +275,8 @@ class _UserSearchTabState extends State<UserSearchTab> {
   Widget _userTile(Connection c) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: Opacity(
-      key: _tileKeys.putIfAbsent('user:${c.userId}', GlobalKey.new),
-      opacity: _openedTileId == 'user:${c.userId}' ? 0 : 1,
+      key: _tileKeys.putIfAbsent(_userTileId(c), GlobalKey.new),
+      opacity: _openedTileId == _userTileId(c) ? 0 : 1,
       child: UserTile(connection: c, onTap: () => _openUser(c)),
     ),
   );

@@ -124,7 +124,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   Future<void> _loadFollowing() async {
     try {
-      final f = await SocialRepository.instance.isFollowing(_post.userId);
+      // 글의 얼굴(개인/업체) 단위로 팔로우 상태 확인 — 업체 글은 업체 팔로우 여부.
+      final f = await SocialRepository.instance.isFollowing(
+        _post.userId,
+        business: _post.authoredAs == 'business',
+      );
       if (mounted) setState(() => _following = f);
     } catch (_) {}
   }
@@ -143,10 +147,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final was = _following;
     setState(() => _following = !was);
     try {
+      // 팔로우/해제 모두 글의 얼굴 단위 — 업체 글(소식)은 업체 팔로우로.
+      final biz = _post.authoredAs == 'business';
       if (was) {
-        await SocialRepository.instance.unfollow(_post.userId);
+        await SocialRepository.instance.unfollow(_post.userId, business: biz);
       } else {
-        await SocialRepository.instance.follow(_post.userId);
+        await SocialRepository.instance.follow(_post.userId, business: biz);
       }
     } catch (_) {
       if (mounted) setState(() => _following = was);

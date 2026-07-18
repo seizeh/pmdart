@@ -657,7 +657,7 @@ class _ActivitySection extends StatelessWidget {
         ),
         _Item(
           icon: Icons.star_border,
-          label: '받은 평가',
+          label: '받은 후기',
           trailing: '${profile.reviewCount}',
           onTap: () => _push(context, const MyReviewsScreen()),
         ),

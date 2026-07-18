@@ -16,6 +16,8 @@ import '../../widgets/pet_card.dart';
 import '../../widgets/review_cards.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/gradient_header.dart';
+import '../../widgets/overlay_icon_button.dart';
+import '../activity_screens.dart' show MyAppointmentsScreen;
 import '../pet_detail_screen.dart';
 import '../pet_edit_screen.dart';
 import '../post_detail_screen.dart';
@@ -435,6 +437,10 @@ class _MyInfoTabState extends State<MyInfoTab>
                   onTap: _openProfileEdit,
                   bizReviewCount: _bizReviewCount,
                   bizReviewAvg: _bizReviewAvg,
+                  onCalendarTap: () => Navigator.push(
+                    context,
+                    AppPageRoute(builder: (_) => const MyAppointmentsScreen()),
+                  ),
                 ),
               ),
             ),
@@ -988,11 +994,15 @@ class _ProfileHeroCard extends StatelessWidget {
   final int? bizReviewCount;
   final double? bizReviewAvg;
 
+  /// 사진 우측 상단 약속 캘린더 바로가기(null 이면 버튼 없음 — 전환 고스트 등).
+  final VoidCallback? onCalendarTap;
+
   const _ProfileHeroCard({
     required this.profile,
     this.onTap,
     this.bizReviewCount,
     this.bizReviewAvg,
+    this.onCalendarTap,
   });
 
   @override
@@ -1070,6 +1080,19 @@ class _ProfileHeroCard extends StatelessWidget {
                 ),
               ),
             ),
+            // 사진 우측 상단 — 약속 캘린더 바로가기(상세 화면들의 오버레이 버튼 문법).
+            if (onCalendarTap != null)
+              Positioned(
+                top: 10,
+                right: 10,
+                width: 40,
+                height: 40,
+                child: OverlayIconButton(
+                  icon: Icons.calendar_month_rounded,
+                  tooltip: '약속 일정',
+                  onPressed: onCalendarTap!,
+                ),
+              ),
             // 정보 — 블러 구간 위.
             Positioned(
               left: 0,
@@ -1132,7 +1155,7 @@ class _ProfileHeroCard extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _statCol('받은 평가', profile.reviewCount),
+                            child: _statCol('받은 후기', profile.reviewCount),
                           ),
                           _statDivider(),
                           Expanded(

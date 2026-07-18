@@ -55,7 +55,7 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('평가를 남겼어요'),
+          content: Text('후기를 남겼어요'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -64,7 +64,7 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('이미 평가했거나 평가할 수 없는 약속이에요'),
+          content: Text('이미 후기를 남겼거나 남길 수 없는 약속이에요'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -76,7 +76,7 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.colors.background,
-      appBar: AppBar(title: const Text('평가하기')),
+      appBar: AppBar(title: const Text('후기 남기기')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -135,7 +135,7 @@ class _ReviewWriteScreenState extends State<ReviewWriteScreen> {
                     ),
                   )
                 : const Text(
-                    '평가 남기기',
+                    '후기 남기기',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
           ),

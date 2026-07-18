@@ -1222,13 +1222,69 @@ class PostPhotoTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: context.colors.border, width: 0.5),
         ),
-        child: post.imageUrl != null
-            ? Image.network(
-                post.imageUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _textFallback(context),
-              )
-            : _textFallback(context),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            post.imageUrl != null
+                ? Image.network(
+                    post.imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _textFallback(context),
+                  )
+                : _textFallback(context),
+            // 하트·댓글 수 — 썸네일 우하단(사진 위 스크림). 피드 카드와 동일 지표.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x00000000), Color(0x73000000)],
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.favorite,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${post.heartCount}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Icon(
+                        Icons.chat_bubble,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${post.commentCount}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

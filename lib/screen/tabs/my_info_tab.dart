@@ -437,10 +437,15 @@ class _MyInfoTabState extends State<MyInfoTab>
                   onTap: _openProfileEdit,
                   bizReviewCount: _bizReviewCount,
                   bizReviewAvg: _bizReviewAvg,
-                  onCalendarTap: () => Navigator.push(
-                    context,
-                    AppPageRoute(builder: (_) => const MyAppointmentsScreen()),
-                  ),
+                  // 약속(산책·돌봄 매칭)은 개인 활동 — 업체 모드엔 캘린더 숨김.
+                  onCalendarTap: profile.activeMode == 'business'
+                      ? null
+                      : () => Navigator.push(
+                          context,
+                          AppPageRoute(
+                            builder: (_) => const MyAppointmentsScreen(),
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -1122,22 +1127,45 @@ class _ProfileHeroCard extends StatelessWidget {
                     ],
                     _metaLine(),
                     const SizedBox(height: 10),
-                    // 업체 모드: 개인 활동 지표 대신 방문 후기 요약(후기 수·평점),
-                    // 후기가 없으면 하나로 합쳐 안내(0026).
+                    // 업체 모드: 방문 후기 요약(후기 수·평점) + Pawing·Pawmate.
+                    // Pawmate 는 업체 얼굴 팔로워 기준으로 이미 분리 집계된다.
                     if (profile.activeMode == 'business')
                       (bizReviewCount == null || bizReviewCount == 0)
-                          ? const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 6),
-                              child: Text(
-                                '아직 후기가 없어요',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xCCFFFFFF),
+                          // 후기 없음: 안내 + Pawing/Pawmate 2칸.
+                          ? Column(
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 8),
+                                  child: Text(
+                                    '아직 후기가 없어요',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xCCFFFFFF),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _statCol(
+                                        'Pawing',
+                                        profile.pawingCount,
+                                      ),
+                                    ),
+                                    _statDivider(),
+                                    Expanded(
+                                      child: _statCol(
+                                        'Pawmate',
+                                        profile.pawmateCount,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             )
+                          // 후기 있음: 후기·평점·Pawing·Pawmate 4칸.
                           : Row(
                               children: [
                                 Expanded(
@@ -1147,6 +1175,17 @@ class _ProfileHeroCard extends StatelessWidget {
                                 Expanded(
                                   child: _ratingCol(
                                     bizReviewAvg?.toStringAsFixed(1) ?? '-',
+                                  ),
+                                ),
+                                _statDivider(),
+                                Expanded(
+                                  child: _statCol('Pawing', profile.pawingCount),
+                                ),
+                                _statDivider(),
+                                Expanded(
+                                  child: _statCol(
+                                    'Pawmate',
+                                    profile.pawmateCount,
                                   ),
                                 ),
                               ],

@@ -6,6 +6,7 @@ import '../services/business_repository.dart';
 import '../services/juso_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../utils/phone_format.dart';
 import 'connections_screen.dart';
 import 'my_posts_screen.dart';
 
@@ -1241,7 +1242,7 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
               _row(context, '업종', businessCategoryLabel(mine.declaredCategory)),
               _row(context, '주소', mine.businessAddress),
               if ((mine.businessPhone ?? '').isNotEmpty)
-                _row(context, '전화', mine.businessPhone!),
+                _row(context, '전화', formatKrPhone(mine.businessPhone)),
               if ((mine.businessHours ?? '').isNotEmpty)
                 _row(context, '영업시간', mine.businessHours!),
               _row(context, '이메일', mine.contactEmail),

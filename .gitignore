@@ -60,3 +60,7 @@ assets/images/notification.png
 assets/images/weather.png
 assets/images/weather2.png
 assets/images/weather3.png
+assets/images/heart.png
+
+# 작업 부산물 문서(설계 PDF 등)는 저장소에 올리지 않는다.
+/*.pdf

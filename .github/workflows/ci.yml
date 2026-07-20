@@ -1,0 +1,28 @@
+# CI — PR/메인 푸시마다 정적 분석 + 위젯 테스트.
+# 셀프 머지 환경에서 최소한의 머지 게이트 역할을 한다.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # pubspec 의 Dart SDK 제약(dev)이 master 채널을 요구한다.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: master
+          cache: true
+
+      - run: flutter pub get
+
+      # info 수준 린트는 실패로 치지 않는다(warning/error 만 게이트).
+      - run: flutter analyze --no-fatal-infos
+
+      - run: flutter test

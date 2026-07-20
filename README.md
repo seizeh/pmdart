@@ -7,6 +7,20 @@
 GPS 동네 인증을 기반으로 이웃과 반려동물 산책 메이트를 찾고, 돌봄·분양·입양을 매칭하며,
 주변 반려동물 시설을 지도에서 찾아 후기를 나누는 하이퍼로컬 서비스입니다.
 
+## 스크린샷
+
+| 커뮤니티 피드 | 게시글 작성 (WYSIWYG) | 약속 캘린더 |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/feed.png" width="220" alt="커뮤니티 피드"> | <img src="docs/screenshots/post-create.png" width="220" alt="게시글 작성 — 등록될 카드 모습 그대로 편집"> | <img src="docs/screenshots/calendar.png" width="220" alt="약속 캘린더"> |
+
+| 시설 지도 | 시설 상세 (인증 업체) | 채팅 |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/map.png" width="220" alt="시설 지도 (다크)"> | <img src="docs/screenshots/facility.png" width="220" alt="시설 상세 — 인증 업체 정보·후기"> | <img src="docs/screenshots/chat.png" width="220" alt="1:1 실시간 채팅"> |
+
+| 내 정보 (펫 히어로) | 업체 모드 (두 얼굴) | AI 신원 인증 |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/my-info.png" width="220" alt="내 정보 — 반려동물 히어로"> | <img src="docs/screenshots/business.png" width="220" alt="같은 계정의 업체 얼굴 — 상호·업체 후기"> | <img src="docs/screenshots/ai-verify.png" width="220" alt="반려동물 AI 영상 신원 인증"> |
+
 ## 주요 기능
 
 | 영역 | 내용 |

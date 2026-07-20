@@ -64,3 +64,6 @@ assets/images/heart.png
 
 # 작업 부산물 문서(설계 PDF 등)는 저장소에 올리지 않는다.
 /*.pdf
+
+# 스크린샷 원본(iPhone 캡처) — 선별·리사이즈본만 docs/screenshots/ 로 추적한다.
+/img/

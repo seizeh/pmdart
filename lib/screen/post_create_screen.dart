@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import '../motion/motion.dart';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import '../theme/app_palette.dart';
 import '../models/community.dart';
 import '../models/profile.dart';
@@ -628,7 +629,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   ///  · 자유/입양: 갤러리 자유 업로드.
   ///  · 사진 인증 카테고리: 반려동물을 먼저 선택해야 함(선택 전엔 갤러리 못 엶).
   ///    - 선택 펫 중 미인증(trust<3) 포함 → 직접 촬영(서버 검증)만.
-  ///    - 선택 펫이 모두 인증(신뢰) → 직접 촬영 / 갤러리 불러오기 선택.
+  ///    - 선택 펫이 모두 인증(신뢰) → 직접 촬영(서버 검증) / 갤러리 불러오기 선택.
   Future<void> _onPhotoTap() async {
     if (!_isPhotoCategory) {
       return _pickAndUpload(fromCamera: false);
@@ -682,7 +683,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         ),
       ),
     );
-    if (src == 'camera') return _pickAndUpload(fromCamera: true);
+    if (src == 'camera') return _captureAndVerify();
     if (src == 'gallery') return _pickAndUpload(fromCamera: false);
   }
 
@@ -696,10 +697,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   /// 사진 필수 카테고리(walk/care/give_away): 촬영 대상 펫 결정 → 카메라 촬영 →
   /// 위치·AI 실존 + 등록 펫 개체 대조. 통과 시 서버 URL/토큰 보관.
   Future<void> _captureAndVerify() async {
-    // 1) 촬영 대상 펫 결정 — 연결한 펫 중 '미인증(trust<3)' 펫만(인증된 펫은 촬영 불필요).
-    final candidates = _selectedPets.where((p) => !p.isTrusted).toList();
+    // 1) 촬영 대상 펫 결정 — 연결한 펫 중 아무나(인증 여부 무관, 한 마리 통과로 충분).
+    //    여러 마리를 연결했으면 사진 속 펫이 누구인지 먼저 묻는다.
+    final candidates = _selectedPets;
     if (candidates.isEmpty) {
-      _toast('먼저 인증이 필요한 반려동물을 선택해주세요');
+      _toast('먼저 반려동물을 선택해주세요');
       return;
     }
     final target = candidates.length == 1
@@ -714,7 +716,15 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     }
 
     // 3) 촬영 → 검증(등록 펫과 동일개체 매칭)
-    final shot = await StorageService.instance.capturePostPhoto();
+    // 카메라 실패(권한 거부·기기 미지원 등)는 예외로 오므로 잡아서 알린다 —
+    // 안 잡으면 버튼이 무반응인 것처럼 보인다.
+    final XFile? shot;
+    try {
+      shot = await StorageService.instance.capturePostPhoto();
+    } catch (e) {
+      _toast('카메라를 열지 못했어요: $e');
+      return;
+    }
     if (shot == null) return;
     setState(() {
       _uploadedImage = null;
@@ -731,7 +741,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       setState(() {
         _uploadedImage = UploadedImage(
           url: res.imageUrl!,
-          mime: shot.mimeType ?? 'image/jpeg',
+          mime: shot!.mimeType ?? 'image/jpeg',
           size: 0,
         );
         _photoToken = res.token;
@@ -802,6 +812,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     setState(() {
       _uploadedImage = null;
       _photoToken = null;
+      _photoPetId = null;
       _uploadingImage = true;
     });
     try {
@@ -1117,7 +1128,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         imageUrl: _uploadedImage?.url,
         imageMime: _uploadedImage?.mime,
         imageSize: _uploadedImage?.size,
-        photoToken: _needsPhoto ? _photoToken : null,
+        photoToken: _photoToken,
       );
       if (!mounted) return;
       Navigator.pop(context, true);

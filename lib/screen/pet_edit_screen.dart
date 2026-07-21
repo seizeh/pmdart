@@ -155,7 +155,9 @@ class _PetEditScreenState extends State<PetEditScreen> {
         if (!verified) {
           try {
             await PetRepository.instance.deletePet(id);
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('펫 등록 취소(삭제) 실패 — 미인증 펫이 남을 수 있음: $e');
+          }
           if (!mounted) return;
           setState(() => _saving = false);
           _toast('AI 신원 인증을 완료해야 등록돼요. 다시 시도해주세요');

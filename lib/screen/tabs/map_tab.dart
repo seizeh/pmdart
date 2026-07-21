@@ -465,7 +465,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           pos = p;
           break;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('지도: 현위치 오버레이 조회 실패(재시도): $e');
+      }
     }
     if (pos != null) {
       await c.updateCamera(

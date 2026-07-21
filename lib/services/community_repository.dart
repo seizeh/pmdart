@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/community.dart';
 import 'session.dart';
@@ -98,7 +99,9 @@ class CommunityRepository {
         posts = posts
             .where((p) => (byId[p.id] ?? 'personal') == authoredAs)
             .toList();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('얼굴 필터용 모드 조회 실패 — 전체 유지(표시 누락 방지): $e');
+      }
     }
     return posts;
   }

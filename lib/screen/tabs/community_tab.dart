@@ -721,7 +721,9 @@ class _NotificationBellState extends State<_NotificationBell> {
     try {
       final c = await NotificationRepository.instance.unreadCount();
       if (mounted) setState(() => _unread = c);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('커뮤니티: 미읽음 수 조회 실패(기존 값 유지): $e');
+    }
   }
 
   final _bellKey = GlobalKey();

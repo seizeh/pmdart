@@ -213,7 +213,9 @@ class _NotificationPanelState extends State<_NotificationPanel> {
   Future<void> _markAll() async {
     try {
       await _repo.deleteAll();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('알림 전체 삭제 실패(서버 미반영 가능): $e');
+    }
     if (mounted) {
       setState(() {
         _items = [];

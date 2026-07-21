@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../main.dart' show openFromPush;
-import '../theme/app_palette.dart';
+
 import '../data/mock_data.dart' show timeAgo;
+import '../main.dart' show openFromPush;
 import '../models/notification.dart';
 import '../services/notification_repository.dart';
+import '../theme/app_palette.dart';
 
 /// 알림함 — 내 알림 목록 / 읽음 처리 / 관련 화면 이동.
 class NotificationsScreen extends StatefulWidget {
@@ -48,7 +50,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _onTap(AppNotification n) async {
     if (!n.isRead) {
-      _repo.markRead(n.id);
+      unawaited(_repo.markRead(n.id));
       final idx = _items.indexWhere((e) => e.id == n.id);
       if (idx >= 0) {
         setState(
@@ -83,7 +85,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _markAll() async {
     await _repo.markAllRead();
-    _load();
+    unawaited(_load());
   }
 
   @override

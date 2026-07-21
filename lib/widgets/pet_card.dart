@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
+
 import '../data/mock_data.dart';
+import '../theme/app_palette.dart';
 import 'role_badge.dart';
 
 /// 반려동물 카드 — 내정보 탭의 펫 목록에 사용.

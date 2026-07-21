@@ -1,24 +1,26 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
-import '../theme/app_palette.dart';
+
 import '../models/profile.dart';
+import '../motion/motion.dart';
+import '../services/auth_service.dart';
 import '../services/business_repository.dart';
 import '../services/profile_repository.dart';
-import '../services/storage_service.dart';
 import '../services/session.dart';
-import '../services/auth_service.dart';
+import '../services/storage_service.dart';
 import '../services/theme_controller.dart';
-import 'location_verify_screen.dart';
-import 'connections_screen.dart';
-import 'my_posts_screen.dart';
+import '../theme/app_palette.dart';
 import 'activity_screens.dart';
-import 'change_password_screen.dart';
-import 'guardian_invites_screen.dart';
-import 'notification_settings_screen.dart';
 import 'blocked_users_screen.dart';
-import 'welcome_screen.dart';
-import 'terms_screen.dart';
 import 'business_register_screen.dart';
+import 'change_password_screen.dart';
+import 'connections_screen.dart';
+import 'guardian_invites_screen.dart';
+import 'location_verify_screen.dart';
+import 'my_posts_screen.dart';
+import 'notification_settings_screen.dart';
+import 'terms_screen.dart';
+import 'welcome_screen.dart';
 
 /// 화면 이동 공용 헬퍼.
 void _push(BuildContext context, Widget screen) {
@@ -760,7 +762,7 @@ class _BusinessSectionState extends State<_BusinessSection> {
       context,
       AppPageRoute(builder: (_) => const BusinessRegisterScreen()),
     );
-    _load(); // 신청/재신청 결과 반영
+    unawaited(_load()); // 신청/재신청 결과 반영
   }
 
   /// 일반 ↔ 업체 모드 토글 — 서버(switch_account_mode)가 approved 게이트.

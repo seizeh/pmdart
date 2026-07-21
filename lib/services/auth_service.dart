@@ -1,7 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
-import 'session.dart';
+
 import 'push_service.dart';
 import 'realtime_service.dart';
+import 'session.dart';
 
 /// 로그인/로그아웃. 성공 시 [SessionManager] 에 JWT 세션을 저장한다.
 class AuthService {

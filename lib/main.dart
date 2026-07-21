@@ -1,34 +1,36 @@
 import 'dart:async';
-import 'env.dart';
-import 'motion/motion.dart';
-import 'firebase_options.dart';
+
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'theme/app_theme.dart';
-import 'screen/welcome_screen.dart';
-import 'screen/main_screen.dart';
-import 'screen/admin/admin_home_screen.dart';
+
+import 'env.dart';
+import 'firebase_options.dart';
+import 'motion/motion.dart';
 import 'screen/activity_screens.dart' show MyReviewsScreen;
+import 'screen/admin/admin_home_screen.dart';
 import 'screen/chat_room_screen.dart';
 import 'screen/guardian_invites_screen.dart';
+import 'screen/main_screen.dart';
 import 'screen/notifications_screen.dart';
 import 'screen/post_detail_screen.dart';
 import 'screen/review_detail_screen.dart';
 import 'screen/user_profile_screen.dart';
+import 'screen/welcome_screen.dart';
 import 'services/chat_repository.dart';
 import 'services/community_repository.dart';
 import 'services/facility_review_repository.dart';
-import 'services/session.dart';
-import 'widgets/review_cards.dart';
+import 'services/keyboard_barrier.dart';
 import 'services/local_notice_service.dart';
 import 'services/push_service.dart';
 import 'services/realtime_service.dart';
-import 'services/keyboard_barrier.dart';
+import 'services/session.dart';
 import 'services/theme_controller.dart';
+import 'theme/app_theme.dart';
 import 'widgets/app_toast.dart';
+import 'widgets/review_cards.dart';
 
 /// 강제 로그아웃(세션 무효화) 시 라우팅·안내를 위한 전역 키.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

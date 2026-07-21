@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
-import '../motion/motion.dart';
-import '../services/business_repository.dart';
-import 'user_profile_screen.dart';
-import '../theme/app_palette.dart';
+
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
-import '../services/community_repository.dart';
-import '../services/social_repository.dart';
+import '../motion/motion.dart';
+import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
+import '../services/community_repository.dart';
 import '../services/report_repository.dart';
 import '../services/session.dart';
+import '../services/social_repository.dart';
+import '../theme/app_palette.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/overlay_icon_button.dart';
-import '../widgets/role_badge.dart';
 import '../widgets/report_sheet.dart';
-import 'auth/auth_wall_dialog.dart';
+import '../widgets/role_badge.dart';
 import 'applicants_screen.dart';
+import 'auth/auth_wall_dialog.dart';
 import 'post_edit_screen.dart';
+import 'user_profile_screen.dart';
 
 /// 신고 액션 시트의 한 항목.
 class _ReportAction {

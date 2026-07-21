@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'app_motion.dart';
+
 import '../theme/app_palette.dart';
+import 'app_motion.dart';
 
 class SpringyNavItem {
   const SpringyNavItem({required this.icon, IconData? activeIcon})

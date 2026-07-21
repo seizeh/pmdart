@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
+
 import '../services/report_repository.dart';
+import '../theme/app_palette.dart';
 
 /// 신고 바텀시트를 띄운다. 접수 성공 시 true 를 반환한다.
 ///

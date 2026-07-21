@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'session.dart';
+
 import 'app_events.dart';
+import 'session.dart';
 
 /// 앱 전역 Realtime — 로그인 세션의 커스텀 JWT 로 realtime 을 인증하고,
 /// 내 알림(notifications) insert 를 구독해 화면 갱신 이벤트를 발화한다.

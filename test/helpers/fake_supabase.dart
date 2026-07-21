@@ -27,7 +27,7 @@ class FakeSupabase {
     SharedPreferences.setMockInitialValues({});
     await Supabase.initialize(
       url: 'http://fake.supabase.test',
-      anonKey: 'sb_publishable_fake',
+      publishableKey: 'sb_publishable_fake',
       httpClient: MockClient(_handle),
       authOptions: FlutterAuthClientOptions(
         localStorage: EmptyLocalStorage(),

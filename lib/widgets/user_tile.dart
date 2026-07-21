@@ -1,9 +1,11 @@
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
-import '../theme/app_palette.dart';
+
 import '../models/social.dart';
+import '../motion/motion.dart';
 import '../screen/user_profile_screen.dart';
+import '../theme/app_palette.dart';
 
 /// 사용자 한 명을 표시하는 공통 타일 — 프로필 사진 블러 배경 + 중앙 닉네임
 /// (채팅 목록과 동일한 프로스트 문법). 채팅·팔로우 동작은 프로필 상세에서.

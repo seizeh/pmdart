@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import '../../motion/motion.dart';
 import 'package:flutter/services.dart';
-import '../../theme/app_palette.dart';
-import '../../services/phone_auth_service.dart';
+
+import '../../main.dart' show navigatorKey;
+import '../../motion/motion.dart';
 import '../../services/auth_service.dart';
+import '../../services/phone_auth_service.dart';
+import '../../theme/app_palette.dart';
+import '../business_register_screen.dart';
 import '../main_screen.dart';
 import '../pet_edit_screen.dart';
-import '../business_register_screen.dart';
 import '../terms_screen.dart';
 import 'login_screen.dart';
-import '../../main.dart' show navigatorKey;
 
 /// 회원가입 — 전화 OTP 기반 다단계 흐름 (0025 §1.3).
 /// 1) 약관 동의 (필수 전부 동의해야 다음 진행 가능)

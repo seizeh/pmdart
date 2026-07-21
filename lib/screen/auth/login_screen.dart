@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+
 import '../../motion/motion.dart';
-import '../../theme/app_palette.dart';
 import '../../services/auth_service.dart';
 import '../../services/session.dart';
-import '../main_screen.dart';
+import '../../theme/app_palette.dart';
 import '../admin/admin_home_screen.dart';
-import 'signup_phone_screen.dart';
+import '../main_screen.dart';
 import 'reset_password_screen.dart';
+import 'signup_phone_screen.dart';
 
 /// 로그인 — 아이디/비밀번호 기반.
 class LoginScreen extends StatefulWidget {

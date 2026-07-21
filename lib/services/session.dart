@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -18,7 +19,7 @@ class AuthUser {
     required this.userType,
   });
 
-  factory AuthUser.fromJson(Map json) => AuthUser(
+  factory AuthUser.fromJson(Map<dynamic, dynamic> json) => AuthUser(
     id: json['id'] as String,
     username: (json['username'] ?? '') as String,
     nickname: (json['nickname'] ?? '') as String,
@@ -172,7 +173,7 @@ class SessionManager extends ChangeNotifier {
         await _secure.write(key: _kAccess, value: _access!);
         // realtime(채팅) 연결도 새 토큰으로 재인증 — 안 하면 8h 후 만료로 끊길 수 있음.
         try {
-          Supabase.instance.client.realtime.setAuth(_access);
+          unawaited(Supabase.instance.client.realtime.setAuth(_access));
         } catch (_) {
           /* realtime 미연결 등 */
         }

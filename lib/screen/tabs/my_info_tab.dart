@@ -1,32 +1,35 @@
+import 'dart:async';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
-import '../../motion/motion.dart';
-import '../../theme/app_palette.dart';
+
 import '../../data/mock_data.dart' show MockPet;
 import '../../models/community.dart';
 import '../../models/profile.dart';
-import '../../services/profile_repository.dart';
-import '../../services/pet_repository.dart';
+import '../../motion/motion.dart';
+import '../../services/app_events.dart';
 import '../../services/business_repository.dart';
 import '../../services/community_repository.dart';
-import '../../services/app_events.dart';
+import '../../services/pet_repository.dart';
+import '../../services/profile_repository.dart';
 import '../../services/session.dart';
+import '../../theme/app_palette.dart';
+import '../../widgets/gradient_header.dart';
+import '../../widgets/overlay_icon_button.dart';
 import '../../widgets/pet_card.dart';
 import '../../widgets/review_cards.dart';
 import '../../widgets/role_badge.dart';
-import '../../widgets/gradient_header.dart';
-import '../../widgets/overlay_icon_button.dart';
 import '../activity_screens.dart' show MyAppointmentsScreen;
+import '../auth/login_screen.dart';
+import '../auth/signup_phone_screen.dart';
 import '../connections_screen.dart';
 import '../pet_detail_screen.dart';
 import '../pet_edit_screen.dart';
 import '../post_detail_screen.dart';
 import '../profile_edit_screen.dart';
-import '../user_profile_screen.dart' show PostPhotoTile;
-import '../auth/login_screen.dart';
-import '../auth/signup_phone_screen.dart';
 import '../terms_screen.dart';
+import '../user_profile_screen.dart' show PostPhotoTile;
 
 /// 화면 이동 공용 헬퍼.
 void _push(BuildContext context, Widget screen) {
@@ -130,7 +133,7 @@ class _MyInfoTabState extends State<MyInfoTab>
               ),
             ),
     );
-    if (mounted) _load(silent: true); // 닉네임 등 수정 반영
+    if (mounted) unawaited(_load(silent: true)); // 닉네임 등 수정 반영
   }
 
   // ── 내 게시글: 대표사진 2열 그리드 (공개 프로필과 동일) ──
@@ -160,7 +163,7 @@ class _MyInfoTabState extends State<MyInfoTab>
     );
     if (!mounted) return;
     setState(() => _openedPostId = null);
-    _load(silent: true); // 하트/댓글/삭제 변동 반영
+    unawaited(_load(silent: true)); // 하트/댓글/삭제 변동 반영
   }
 
   Widget _myPostsSection({bool isBusinessMode = false}) {
@@ -866,11 +869,7 @@ class _PetHeroCard extends StatelessWidget {
       'female' => '여아',
       _ => null,
     };
-    final subtitle = [
-      pet.species,
-      if (age != null) age,
-      if (genderKo != null) genderKo,
-    ].join('  ·  ');
+    final subtitle = [pet.species, ?age, ?genderKo].join('  ·  ');
 
     // Pressable — 피드 카드·검색 타일과 동일한 스프링 눌림 피드백으로 통일.
     return Pressable(

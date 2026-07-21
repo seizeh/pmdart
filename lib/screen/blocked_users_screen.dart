@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
+
 import '../services/activity_repository.dart';
+import '../theme/app_palette.dart';
 
 /// 차단 사용자 관리 — 목록 + 차단 해제.
 class BlockedUsersScreen extends StatefulWidget {
@@ -39,7 +41,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   Future<void> _unblock(Map<String, dynamic> item) async {
     try {
       await _repo.unblock(item['blocked_id'] as String);
-      _load();
+      unawaited(_load());
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

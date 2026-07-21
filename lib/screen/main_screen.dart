@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+
 import '../motion/motion.dart';
 import '../services/keyboard_barrier.dart';
 import '../theme/app_palette.dart';
+import 'tabs/chat_tab.dart';
 import 'tabs/community_tab.dart';
 import 'tabs/map_tab.dart';
-import 'tabs/user_search_tab.dart';
-import 'tabs/chat_tab.dart';
 import 'tabs/my_info_tab.dart';
+import 'tabs/user_search_tab.dart';
 
 /// 메인 화면 — 바텀 네비게이션 5탭.
 /// 탭 순서: 지도(개발중) / 사용자검색 / 커뮤니티(중앙=기본) / 채팅 / 내정보

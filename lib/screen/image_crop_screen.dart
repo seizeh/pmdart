@@ -2,8 +2,9 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
+
 import '../models/community.dart' show kPostImageAspectRatio;
+import '../theme/app_palette.dart';
 
 /// 갤러리 사진을 게시 표시 비율(3:4)에 맞게 "보여질 영역"을 고르는 화면.
 ///

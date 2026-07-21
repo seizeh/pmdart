@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:video_thumbnail/video_thumbnail.dart';
 
-import '../theme/app_palette.dart';
 import '../services/pet_enroll_repository.dart';
 import '../services/storage_service.dart';
+import '../theme/app_palette.dart';
 
 /// 펫 신원 인증(0020) — 반려동물 영상 촬영 → 프레임 추출 → 서버 AI 검증(실물·동일개체).
 ///

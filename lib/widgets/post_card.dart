@@ -1,12 +1,14 @@
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
+
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
 import '../motion/motion.dart';
 import '../screen/user_profile_screen.dart';
-import 'role_badge.dart';
+import '../theme/app_palette.dart';
 import 'blob_background.dart';
+import 'role_badge.dart';
 
 /// 커뮤니티 게시글 카드 — 애플뮤직 아티스트 카드 스타일.
 /// 대표사진이 카드 전체를 채우고, 하단은 사진을 이어받아 이음새 없이 점점

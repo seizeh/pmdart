@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../motion/motion.dart';
 import '../theme/app_palette.dart';
 import 'auth/login_screen.dart';
 import 'auth/signup_phone_screen.dart';

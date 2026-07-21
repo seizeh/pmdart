@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
-import '../theme/app_palette.dart';
+
 import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../data/review_categories.dart';
+import '../motion/motion.dart';
 import '../services/activity_repository.dart';
 import '../services/session.dart';
+import '../theme/app_palette.dart';
 import 'review_write_screen.dart';
 
 DateTime? _date(dynamic v) =>
@@ -345,7 +347,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         ),
       ),
     );
-    if (done == true) _load();
+    if (done == true) unawaited(_load());
   }
 
   void _toast(String m) {

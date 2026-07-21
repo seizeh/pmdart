@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
-import '../../motion/motion.dart';
-import '../../theme/app_palette.dart';
+
 import '../../data/mock_data.dart' show timeAgo;
 import '../../models/chat.dart';
-import '../../services/chat_repository.dart';
+import '../../motion/motion.dart';
 import '../../services/app_events.dart';
+import '../../services/chat_repository.dart';
+import '../../theme/app_palette.dart';
 import '../../widgets/gradient_header.dart';
 import '../auth/auth_wall_dialog.dart';
 import '../chat_room_screen.dart';
@@ -54,7 +57,7 @@ class _ChatTabState extends State<ChatTab> {
     );
     if (!mounted) return;
     setState(() => _openedRoomId = null); // 타일 복원
-    _load(silent: true); // 읽음/새 메시지 반영
+    unawaited(_load(silent: true)); // 읽음/새 메시지 반영
   }
 
   @override

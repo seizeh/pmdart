@@ -98,6 +98,9 @@ flutter analyze
 flutter test
 ```
 
-- 지도·주소검색·Supabase 등 클라이언트 공개 키는 `lib/env.dart` 의 기본값으로 동작하며,
+- 지도·Supabase 등 클라이언트 공개 키는 `lib/env.dart` 의 기본값으로 동작하며,
   `--dart-define=SUPABASE_URL=...` 등으로 환경별 재정의할 수 있습니다.
+- 주소검색(행안부 juso) 키는 쿼터 남용 여지가 있어 기본값 없이
+  `--dart-define=JUSO_API_KEY=...` 로만 주입합니다 — 미설정 시 주소 검색만
+  비활성화되고(수동 입력 폴백) 나머지 기능은 정상 동작합니다.
 - 푸시(FCM/APNs)는 실기기 + 서명 설정이 필요합니다.

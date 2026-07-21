@@ -24,4 +24,11 @@ jobs:
       # info 수준 린트는 실패로 치지 않는다(warning/error 만 게이트).
       - run: flutter analyze --no-fatal-infos
 
-      - run: flutter test
+      - run: flutter test --coverage
+
+      # 라인 커버리지 요약(아직 게이트 아님 — 측정·가시화 단계).
+      - name: 커버리지 요약
+        run: |
+          awk -F'[:,]' '/^DA:/{t++; if($3>0) h++}
+            END{printf "라인 커버리지 %.1f%% (%d/%d)\n", h*100/t, h, t}' \
+            coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"

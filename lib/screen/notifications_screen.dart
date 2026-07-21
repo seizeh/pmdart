@@ -1,14 +1,15 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../main.dart' show openFromPush;
 import '../models/notification.dart';
-import '../services/notification_repository.dart';
+import '../state/notifications_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show timeAgo;
 
 /// 알림함 — 내 알림 목록 / 읽음 처리 / 관련 화면 이동.
+///
+/// 상태·로직은 [NotificationsState] 가 갖고, 이 위젯은 구독해 그리기만 한다
+/// (#155·#156 상태 홀더 분리 파일럿 — 새 화면은 이 구조를 따른다).
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -17,62 +18,22 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final _repo = NotificationRepository.instance;
-  List<AppNotification> _items = [];
-  bool _loading = true;
-  String? _error;
+  late final NotificationsState _state = NotificationsState();
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _state.load();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final items = await _repo.fetch();
-      if (!mounted) return;
-      setState(() {
-        _items = items;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = '알림을 불러오지 못했어요';
-        _loading = false;
-      });
-    }
+  @override
+  void dispose() {
+    _state.dispose();
+    super.dispose();
   }
 
   Future<void> _onTap(AppNotification n) async {
-    if (!n.isRead) {
-      unawaited(_repo.markRead(n.id));
-      final idx = _items.indexWhere((e) => e.id == n.id);
-      if (idx >= 0) {
-        setState(
-          () => _items[idx] = AppNotification(
-            id: n.id,
-            type: n.type,
-            title: n.title,
-            body: n.body,
-            isRead: true,
-            createdAt: n.createdAt,
-            resourceType: n.resourceType,
-            resourceId: n.resourceId,
-            aggregatedCount: n.aggregatedCount,
-          ),
-        );
-      }
-    }
-    await _navigate(n);
-  }
-
-  Future<void> _navigate(AppNotification n) async {
+    _state.markRead(n);
     // 푸시 탭과 동일한 딥링크 라우팅 — 관련 탭으로 전환한 뒤 상세를 rise 로
     // 열어, 닫으면(쓸어내리기/뒤로가기) 채팅 목록 등 관련 탭이 나온다.
     // 이미 알림함이므로 폴백(알림함 열기)은 끈다 — 라우팅 없는 타입은 제자리.
@@ -84,42 +45,42 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Future<void> _markAll() async {
-    await _repo.markAllRead();
-    unawaited(_load());
-  }
-
   @override
   Widget build(BuildContext context) {
-    final hasUnread = _items.any((n) => !n.isRead);
-    return Scaffold(
-      backgroundColor: context.colors.background,
-      appBar: AppBar(
-        title: const Text('알림'),
-        actions: [
-          if (hasUnread)
-            TextButton(onPressed: _markAll, child: const Text('모두 읽음')),
-        ],
+    return ListenableBuilder(
+      listenable: _state,
+      builder: (context, _) => Scaffold(
+        backgroundColor: context.colors.background,
+        appBar: AppBar(
+          title: const Text('알림'),
+          actions: [
+            if (_state.hasUnread)
+              TextButton(
+                onPressed: _state.markAllRead,
+                child: const Text('모두 읽음'),
+              ),
+          ],
+        ),
+        body: SafeArea(child: _body()),
       ),
-      body: SafeArea(child: _body()),
     );
   }
 
   Widget _body() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return _empty(_error!, retry: true);
-    }
-    if (_items.isEmpty) return _empty('받은 알림이 없어요');
+    if (_state.loading) return const Center(child: CircularProgressIndicator());
+    final error = _state.error;
+    if (error != null) return _empty(error, retry: true);
+    final items = _state.items;
+    if (items.isEmpty) return _empty('받은 알림이 없어요');
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: _state.load,
       child: ListView.separated(
-        itemCount: _items.length,
+        itemCount: items.length,
         separatorBuilder: (_, _) =>
             Divider(height: 1, color: context.colors.border),
         itemBuilder: (_, i) => _NotificationTile(
-          notification: _items[i],
-          onTap: () => _onTap(_items[i]),
+          notification: items[i],
+          onTap: () => _onTap(items[i]),
         ),
       ),
     );
@@ -142,7 +103,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           if (retry) ...[
             const SizedBox(height: 12),
-            TextButton(onPressed: _load, child: const Text('다시 시도')),
+            TextButton(onPressed: _state.load, child: const Text('다시 시도')),
           ],
         ],
       ),

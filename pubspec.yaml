@@ -1,5 +1,5 @@
 name: pawmate
-description: "A new Flutter project."
+description: "PawMate — 동네 기반 반려동물 산책·돌봄 매칭 & 커뮤니티 앱"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -18,8 +18,9 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 version: 1.5.0+4
 
+# stable 채널 기준(Dart 3.12 = Flutter 3.44 stable). 로컬 master 채널 SDK 도 범위를 만족한다.
 environment:
-  sdk: ^3.13.0-9.0.dev
+  sdk: ^3.12.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions

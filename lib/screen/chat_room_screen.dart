@@ -2,13 +2,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat.dart';
 import '../motion/motion.dart';
-import '../services/chat_repository.dart';
 import '../services/report_repository.dart';
 import '../services/storage_service.dart';
+import '../state/chat_room_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show timeAgo;
 import '../widgets/overlay_icon_button.dart';
@@ -30,7 +29,10 @@ class ChatRoomScreen extends StatefulWidget {
 
 class _ChatRoomScreenState extends State<ChatRoomScreen>
     with SingleTickerProviderStateMixin {
-  final _repo = ChatRepository.instance;
+  // 상태·전송·실시간 구독은 홀더가 갖고, 화면은 구독해 그리기 + 확인 다이얼로그/
+  // 토스트/스크롤/전환 모션만 담당한다 (docs/architecture-state.md).
+  late final ChatRoomState _state = ChatRoomState(room: widget.room)
+    ..onNewMessage = _scrollToBottom;
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
 
@@ -51,14 +53,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   /// 축소 안착 시 크로스페이드될 헤더 바 모습(원본과 동일한 그림).
   Widget _headerBarCard() {
     final hasPhoto =
-        _otherImageUrl != null || widget.room.otherNickname == '고객센터';
+        _state.otherImageUrl != null || widget.room.otherNickname == '고객센터';
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Stack(
         fit: StackFit.expand,
         children: [
           _ChatBlurBg(
-            imageUrl: _otherImageUrl,
+            imageUrl: _state.otherImageUrl,
             nickname: widget.room.otherNickname,
           ),
           _ChatBarForeground(room: widget.room, hasPhoto: hasPhoto, m: 0),
@@ -109,70 +111,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     curve: Curves.easeOutCubic,
   );
 
-  List<ChatMessage> _messages = [];
-  bool _loading = true;
-  bool _sending = false;
-  RealtimeChannel? _channel;
-
-  // 상대 프로필 사진(히어로 헤더용) — 없으면 닉네임 중앙 표시.
-  late String? _otherImageUrl = widget.room.otherProfileImageUrl;
-
-  Future<void> _loadOtherProfile() async {
-    final uid = widget.room.otherUserId;
-    if (uid == null) return;
-    try {
-      final row = await Supabase.instance.client
-          .from('public_profiles')
-          .select('profile_image_url')
-          .eq('id', uid)
-          .maybeSingle();
-      if (mounted) {
-        setState(() => _otherImageUrl = row?['profile_image_url'] as String?);
-      }
-    } catch (_) {
-      /* 실패 시 무사진 헤더 유지 */
-    }
-  }
-
   @override
   void initState() {
     super.initState();
-    // 이 방을 보는 동안 이 방의 포그라운드 푸시 배너를 억제.
-    ChatRepository.instance.activeRoomId = widget.room.id;
-    _loadOtherProfile();
-    _init();
+    _state.init();
   }
 
-  Future<void> _init() async {
-    try {
-      final msgs = await _repo.fetchMessages(widget.room.id);
-      if (!mounted) return;
-      setState(() {
-        _messages = msgs;
-        _loading = false;
-      });
-      _markRead();
-      // reverse:true 리스트라 첫 프레임부터 맨 아래(최신)에 고정 — 별도 스크롤 점프 불필요.
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    }
-    // 실시간 구독 (상대 메시지 수신 + 삭제 반영)
-    try {
-      _channel = _repo.subscribeMessages(
-        widget.room.id,
-        _onIncoming,
-        onDeleted: _onMessageDeleted,
-      );
-    } catch (_) {
-      // 실시간 미동작 시에도 전송/로드는 정상.
-    }
-  }
-
-  /// 상대(또는 다른 기기의 나)가 삭제한 메시지 — 화면에서도 즉시 제거.
-  void _onMessageDeleted(String messageId) {
-    if (!mounted) return;
-    setState(() => _messages.removeWhere((m) => m.id == messageId));
+  @override
+  void dispose() {
+    _state.dispose();
+    _morphCurved.dispose();
+    _morph.dispose();
+    _ctrl.dispose();
+    _scroll.dispose();
+    super.dispose();
   }
 
   /// 내 메시지 길게 누르기 → 삭제(소프트). 상대 메시지는 삭제 불가(신고만).
@@ -195,89 +147,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       ),
     );
     if (ok != true || !mounted) return;
-    try {
-      await _repo.deleteMessage(m.id);
-      if (!mounted) return;
-      setState(() => _messages.removeWhere((e) => e.id == m.id));
-    } catch (_) {
-      _toast('삭제에 실패했어요');
-    }
-  }
-
-  void _onIncoming(ChatMessage msg) {
-    if (!mounted) return;
-    if (_messages.any((m) => m.id == msg.id)) return; // 중복 방지
-    setState(() => _messages.add(msg));
-    if (!msg.mine) _markRead();
-    _scrollToBottom();
-  }
-
-  void _markRead() {
-    if (_messages.isEmpty) return;
-    _repo.markRead(widget.room.id, _messages.last.id).catchError((_) {});
-  }
-
-  @override
-  void dispose() {
-    // 다른 방을 위에 쌓은 경우가 아니면 활성 방 해제.
-    if (ChatRepository.instance.activeRoomId == widget.room.id) {
-      ChatRepository.instance.activeRoomId = null;
-    }
-    if (_channel != null) _repo.unsubscribe(_channel!);
-    _morphCurved.dispose();
-    _morph.dispose();
-    _ctrl.dispose();
-    _scroll.dispose();
-    super.dispose();
+    if (!await _state.deleteMyMessage(m.id)) _toast('삭제에 실패했어요');
   }
 
   Future<void> _send() async {
     final text = _ctrl.text.trim();
-    if (text.isEmpty || _sending) return;
-    setState(() => _sending = true);
-    try {
-      final msg = await _repo.sendMessage(widget.room.id, text);
-      _ctrl.clear();
-      if (!mounted) return;
-      setState(() {
-        if (!_messages.any((m) => m.id == msg.id)) _messages.add(msg);
-      });
-      _markRead();
-      _scrollToBottom();
-    } catch (e) {
-      _toast(_sendErrorMessage(e, '메시지 전송에 실패했어요'));
-    } finally {
-      if (mounted) setState(() => _sending = false);
+    if (text.isEmpty || _state.sending) return;
+    final err = await _state.send(text);
+    if (!mounted) return;
+    if (err != null) {
+      _toast(err);
+      return;
     }
-  }
-
-  /// 서버가 한국어 사유를 준 경우(P0001, 예: 나간 방 잠금) 그대로 보여준다.
-  String _sendErrorMessage(Object e, String fallback) {
-    if (e is PostgrestException && e.code == 'P0001' && e.message.isNotEmpty) {
-      return e.message;
-    }
-    return fallback;
+    _ctrl.clear();
   }
 
   /// 사진 첨부 — 갤러리에서 선택해 업로드 후 사진 메시지로 전송.
   Future<void> _sendImage() async {
-    if (_sending) return;
+    if (_state.sending) return;
     final file = await StorageService.instance.pickImage();
     if (file == null || !mounted) return;
-    setState(() => _sending = true);
-    try {
-      final msg = await _repo.sendImageMessage(widget.room.id, file);
-      if (!mounted) return;
-      setState(() {
-        if (!_messages.any((m) => m.id == msg.id)) _messages.add(msg);
-      });
-      _markRead();
-      _scrollToBottom();
-    } catch (e) {
-      _toast(_sendErrorMessage(e, '사진 전송에 실패했어요'));
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
+    final err = await _state.sendImage(file);
+    if (err != null) _toast(err);
   }
 
   /// 채팅방 나가기 — 확인 후 목록에서 숨기고 방을 닫는다.
@@ -305,10 +196,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       ),
     );
     if (ok != true || !mounted) return;
-    try {
-      await _repo.leaveRoom(widget.room.id);
+    if (await _state.leaveRoom()) {
       if (mounted) Navigator.of(context).pop();
-    } catch (_) {
+    } else {
       _toast('나가기에 실패했어요. 잠시 후 다시 시도해주세요');
     }
   }
@@ -423,7 +313,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
         // 축소 중 목록 타일이 비쳐 겹치는 투명 트렌지션이 생기지 않는다.
         card: (ctx) => _MorphCard(
           room: widget.room,
-          imageUrl: _otherImageUrl,
+          imageUrl: _state.otherImageUrl,
           morph: _morphCurved,
           // 고객센터 방은 메뉴(신고·나가기) 없음 — 나갈 수 없는 상시 채널.
           onMenu: widget.room.isSupport ? null : _openRoomMenu,
@@ -436,46 +326,49 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
         // 채팅 목록 타일에서 확장되는 느낌을 강조 — 살짝 튕기며 열리고 시간도 조금 길게.
         expandDuration: const Duration(milliseconds: 520),
         expandCurve: Curves.easeOutBack,
-        builder: (context, physics) => Scaffold(
-          backgroundColor: context.colors.background,
-          body: Stack(
-            children: [
-              // 메시지 — 헤더 바 위(상태바 영역)와 입력창 아래(홈 인디케이터)까지
-              // 풀블리드로 확장되어, 오버레이 패널 뒤로 비치며 스크롤된다
-              // (탭 화면들의 플로팅 패널과 동일한 문법).
-              Positioned.fill(child: _buildMessages(physics)),
-              // 헤더 바 — 위 오버레이(블러 배경이라 뒤 메시지가 비친다).
-              // 이 영역이 축소 드래그 핸들이다(_inHeader).
-              Align(
-                alignment: Alignment.topCenter,
-                child: KeyedSubtree(
-                  key: _headerKey,
-                  child: _ChatHeader(
-                    room: widget.room,
-                    imageUrl: _otherImageUrl,
-                    // 고객센터 방은 메뉴(신고·나가기) 없음 — 나갈 수 없는 상시 채널.
-                    onMenu: widget.room.isSupport ? null : _openRoomMenu,
-                    onProfileTap: widget.room.otherUserId == null
-                        ? null
-                        : _openOtherProfile,
-                    barKey: _profileBarKey,
-                    barHidden: _profileOpen,
+        builder: (context, physics) => ListenableBuilder(
+          listenable: _state,
+          builder: (context, _) => Scaffold(
+            backgroundColor: context.colors.background,
+            body: Stack(
+              children: [
+                // 메시지 — 헤더 바 위(상태바 영역)와 입력창 아래(홈 인디케이터)까지
+                // 풀블리드로 확장되어, 오버레이 패널 뒤로 비치며 스크롤된다
+                // (탭 화면들의 플로팅 패널과 동일한 문법).
+                Positioned.fill(child: _buildMessages(physics)),
+                // 헤더 바 — 위 오버레이(블러 배경이라 뒤 메시지가 비친다).
+                // 이 영역이 축소 드래그 핸들이다(_inHeader).
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: KeyedSubtree(
+                    key: _headerKey,
+                    child: _ChatHeader(
+                      room: widget.room,
+                      imageUrl: _state.otherImageUrl,
+                      // 고객센터 방은 메뉴(신고·나가기) 없음 — 나갈 수 없는 상시 채널.
+                      onMenu: widget.room.isSupport ? null : _openRoomMenu,
+                      onProfileTap: widget.room.otherUserId == null
+                          ? null
+                          : _openOtherProfile,
+                      barKey: _profileBarKey,
+                      barHidden: _profileOpen,
+                    ),
                   ),
                 ),
-              ),
-              // 입력창 — 아래 오버레이. 상대가 나간 방은 입력을 잠근다(서버도 INSERT 차단).
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: widget.room.otherLeft
-                    ? const _LockedBar()
-                    : _Composer(
-                        controller: _ctrl,
-                        sending: _sending,
-                        onSend: _send,
-                        onPickImage: _sendImage,
-                      ),
-              ),
-            ],
+                // 입력창 — 아래 오버레이. 상대가 나간 방은 입력을 잠근다(서버도 INSERT 차단).
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: widget.room.otherLeft
+                      ? const _LockedBar()
+                      : _Composer(
+                          controller: _ctrl,
+                          sending: _state.sending,
+                          onSend: _send,
+                          onPickImage: _sendImage,
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -483,10 +376,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   }
 
   Widget _buildMessages(ScrollPhysics physics) {
-    if (_loading) {
+    if (_state.loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_messages.isEmpty) {
+    final messages = _state.messages;
+    if (messages.isEmpty) {
       return Center(
         child: Text(
           '첫 메시지를 보내보세요',
@@ -510,9 +404,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
         16,
         bottomInset + 90, // 입력창(≈78) + 간격
       ),
-      itemCount: _messages.length,
+      itemCount: messages.length,
       itemBuilder: (_, i) => _MessageBubble(
-        message: _messages[_messages.length - 1 - i],
+        message: messages[messages.length - 1 - i],
         onReport: _reportMessage,
         onDeleteMine: _deleteMyMessage,
       ),

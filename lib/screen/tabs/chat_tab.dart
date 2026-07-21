@@ -3,12 +3,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../../data/mock_data.dart' show timeAgo;
 import '../../models/chat.dart';
 import '../../motion/motion.dart';
 import '../../services/app_events.dart';
 import '../../services/chat_repository.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/labels.dart' show timeAgo;
 import '../../widgets/gradient_header.dart';
 import '../auth/auth_wall_dialog.dart';
 import '../chat_room_screen.dart';

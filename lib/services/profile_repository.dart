@@ -1,5 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
-import '../data/mock_data.dart' show MockPet;
+import '../models/pet.dart';
 import '../models/profile.dart';
 import 'app_events.dart';
 import 'session.dart';
@@ -210,12 +210,12 @@ class ProfileRepository {
   /// 타 사용자의 반려동물 — 공동보호(co_guardian) 펫까지 포함.
   /// pet_guardians 는 타인 SELECT 가 RLS 로 막혀, definer RPC 로 조회한다
   /// (대표 보호자 펫만 보이던 문제: 공동보호자 프로필에서 펫 누락 해결).
-  Future<List<MockPet>> _fetchPublicPets(String userId) async {
+  Future<List<Pet>> _fetchPublicPets(String userId) async {
     try {
       final rows = await _c.rpc('public_user_pets', params: {'p_user': userId});
       return [
         for (final p in (rows as List).cast<Map<String, dynamic>>())
-          MockPet(
+          Pet(
             id: p['id'] as String,
             name: (p['name'] ?? '') as String,
             species: (p['species'] ?? '') as String,
@@ -269,9 +269,9 @@ class ProfileRepository {
     return res.count;
   }
 
-  /// 내 반려동물 + 보호자 수/소유자명 채워 MockPet 으로 반환
-  /// (PetCard / PetDetailScreen 이 MockPet 을 사용하므로 그대로 매핑).
-  Future<List<MockPet>> _fetchMyPets(String uid) async {
+  /// 내 반려동물 + 보호자 수/소유자명 채워 Pet 으로 반환
+  /// (PetCard / PetDetailScreen 이 Pet 을 사용하므로 그대로 매핑).
+  Future<List<Pet>> _fetchMyPets(String uid) async {
     final rows = await _c
         .from('pet_guardians')
         .select(
@@ -322,7 +322,7 @@ class ProfileRepository {
     return pets.map((p) {
       final id = p['id'] as String;
       final ownerId = p['primary_guardian_id'] as String?;
-      return MockPet(
+      return Pet(
         id: id,
         name: (p['name'] ?? '') as String,
         species: (p['species'] ?? '') as String,

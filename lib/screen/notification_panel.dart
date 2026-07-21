@@ -3,12 +3,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart' show timeAgo;
 import '../main.dart' show openFromPush;
 import '../models/notification.dart';
 import '../motion/motion.dart' show SpringCurve;
 import '../services/notification_repository.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show timeAgo;
 
 /// 알림 벨을 탭하면 그 자리에서 **아래로 확장되는 알림 패널**을 연다(Slack 채널 헤더가
 /// 메뉴로 펼쳐지는 스펠 차용). 패널 높이는 알림 수에 비례해 커지고, 화면을 넘으면 스크롤.

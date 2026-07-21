@@ -1,4 +1,4 @@
-import '../data/mock_data.dart' show MockPet;
+import '../models/pet.dart';
 
 /// 내정보 화면용 집계 데이터.
 class ProfileData {
@@ -15,7 +15,7 @@ class ProfileData {
   final int applicationCount; // 내 지원 내역
   final int appointmentCount; // 진행 중 약속
 
-  final List<MockPet> pets;
+  final List<Pet> pets;
 
   // 활동 지역(동네 인증) — 0017.
   final String? address; // 예: "경기 화성시 동탄2동" (미인증이면 null)
@@ -107,7 +107,7 @@ class PublicProfileData {
   final int pawmateCount; // 그 사용자를 팔로우
   final int postCount; // 게시글 수
 
-  final List<MockPet> pets;
+  final List<Pet> pets;
   final List<ReviewTag> reviewTags; // 받은 평가 태그 집계(많은 순)
 
   const PublicProfileData({

@@ -2,12 +2,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart' show categoryLabel;
 import '../models/community.dart';
 import '../motion/motion.dart';
 import '../services/community_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show categoryLabel;
 import 'image_crop_screen.dart';
 
 /// 내 게시글 수정 — 제목·내용, 일정 게시글이면 약속 일정, 자유/입양이면 사진까지 편집.

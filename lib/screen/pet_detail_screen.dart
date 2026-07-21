@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart' show MockPet;
+import '../models/pet.dart';
 import '../motion/motion.dart';
 import '../services/pet_repository.dart';
 import '../theme/app_palette.dart';
@@ -13,7 +13,7 @@ import 'pet_edit_screen.dart';
 /// [originRect] 가 있으면 카드에서 펼쳐지고/당기면 그 자리로 축소된다
 /// (게시글 상세와 동일한 전환 언어).
 class PetDetailScreen extends StatefulWidget {
-  final MockPet pet;
+  final Pet pet;
 
   /// 카드에서 펼쳐지는 전환용. null 이면 일반 화면.
   final Rect? originRect;
@@ -38,7 +38,7 @@ class PetDetailScreen extends StatefulWidget {
 
 class _PetDetailScreenState extends State<PetDetailScreen> {
   final _repo = PetRepository.instance;
-  late MockPet _pet;
+  late Pet _pet;
   List<Guardian> _guardians = [];
   bool _loading = true;
 
@@ -323,7 +323,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 }
 
 class _Header extends StatelessWidget {
-  final MockPet pet;
+  final Pet pet;
   const _Header({required this.pet});
 
   @override
@@ -420,7 +420,7 @@ class _Header extends StatelessWidget {
 }
 
 class _GuardiansSection extends StatelessWidget {
-  final MockPet pet;
+  final Pet pet;
   final List<Guardian> guardians;
   final bool loading;
   final bool isOwner;

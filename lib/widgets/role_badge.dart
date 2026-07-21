@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart';
 
 /// 보호자 역할 배지 — owner / co_guardian 구분.
 class RoleBadge extends StatelessWidget {

@@ -2,11 +2,11 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
 import '../motion/motion.dart';
 import '../screen/user_profile_screen.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show categoryLabel, timeAgo;
 import 'blob_background.dart';
 import 'role_badge.dart';
 

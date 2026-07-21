@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart' show MockPet;
+import '../models/pet.dart';
 import '../motion/motion.dart';
 import '../services/pet_repository.dart';
 import '../services/storage_service.dart';
@@ -31,7 +31,7 @@ class PetDraft {
 /// 반려동물 등록/수정 화면. [pet] 가 있으면 수정, 없으면 신규 등록.
 /// 신규 등록 시 [draft] 가 있으면 폼을 프리필한다(가입 흐름 연계).
 class PetEditScreen extends StatefulWidget {
-  final MockPet? pet;
+  final Pet? pet;
   final PetDraft? draft;
   const PetEditScreen({super.key, this.pet, this.draft});
 

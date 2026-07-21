@@ -4,8 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 
-import '../../data/mock_data.dart' show MockPet;
 import '../../models/community.dart';
+import '../../models/pet.dart';
 import '../../models/profile.dart';
 import '../../motion/motion.dart';
 import '../../services/app_events.dart';
@@ -706,7 +706,7 @@ class _GuestFooter extends StatelessWidget {
 
 /// 반려동물 히어로 — 내정보 최상단의 주인공. 큰 사진 카드(여러 마리면 캐러셀).
 class _PetHero extends StatefulWidget {
-  final List<MockPet> pets;
+  final List<Pet> pets;
   const _PetHero({required this.pets});
 
   @override
@@ -736,7 +736,7 @@ class _PetHeroState extends State<_PetHero> {
   }
 
   /// 카드 자리에서 펫 상세가 펼쳐지고/당기면 카드로 축소된다.
-  Future<void> _openPet(MockPet pet) async {
+  Future<void> _openPet(Pet pet) async {
     final rect = _cardRect(pet.id);
     final page = PetDetailScreen(
       pet: pet,
@@ -855,7 +855,7 @@ class _PetHeroState extends State<_PetHero> {
 
 /// 반려동물 히어로 카드 — 큰 사진 위에 이름/종·나이/인증 배지를 오버레이(포스터형).
 class _PetHeroCard extends StatelessWidget {
-  final MockPet pet;
+  final Pet pet;
   final VoidCallback onTap;
   const _PetHeroCard({required this.pet, required this.onTap});
 

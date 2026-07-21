@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../data/mock_data.dart' show timeAgo;
 import '../../services/admin_repository.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/labels.dart' show timeAgo;
 import 'admin_chat_history_screen.dart';
 import 'admin_theme.dart';
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../data/mock_data.dart' show timeAgo;
 import '../models/community.dart' show kPostImageAspectRatio;
 import '../models/facility_review.dart';
 import '../motion/motion.dart';
@@ -9,6 +8,7 @@ import '../services/business_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/session.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show timeAgo;
 import '../widgets/blob_background.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/review_cards.dart';

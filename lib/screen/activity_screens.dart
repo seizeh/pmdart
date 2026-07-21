@@ -1,12 +1,13 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../data/review_categories.dart';
 import '../motion/motion.dart';
 import '../services/activity_repository.dart';
 import '../services/session.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show categoryLabel, timeAgo;
 import 'review_write_screen.dart';
 
 DateTime? _date(dynamic v) =>

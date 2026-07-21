@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
-import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
 import '../motion/motion.dart';
 import '../services/business_repository.dart';
@@ -11,6 +10,7 @@ import '../services/report_repository.dart';
 import '../services/session.dart';
 import '../services/social_repository.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show categoryLabel, timeAgo;
 import '../widgets/blob_background.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/report_sheet.dart';

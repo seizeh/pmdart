@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
-import '../data/mock_data.dart' show timeAgo;
 import '../services/pet_repository.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show timeAgo;
 
 /// 받은 공동보호자 초대 — 수락/거절.
 /// 수락 시 트리거가 보호자로 등록. 단, 진행 중 약속의 지원자면 차단되어 안내한다.

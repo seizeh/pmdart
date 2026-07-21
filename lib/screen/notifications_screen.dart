@@ -1,11 +1,12 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart' show timeAgo;
 import '../main.dart' show openFromPush;
 import '../models/notification.dart';
 import '../services/notification_repository.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show timeAgo;
 
 /// 알림함 — 내 알림 목록 / 읽음 처리 / 관련 화면 이동.
 class NotificationsScreen extends StatefulWidget {

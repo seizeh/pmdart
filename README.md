@@ -89,7 +89,7 @@ test/                # 위젯 테스트
 ## 실행
 
 ```bash
-# Flutter master 채널 필요 (pubspec 의 Dart SDK 제약 참고)
+# Flutter stable 채널 (Dart SDK ^3.12)
 flutter pub get
 flutter run          # 연결된 기기/시뮬레이터
 
@@ -98,6 +98,6 @@ flutter analyze
 flutter test
 ```
 
-- 지도·주소검색 등 외부 API 클라이언트 키는 소스에 포함된 기본값으로 동작하며,
-  `--dart-define=JUSO_API_KEY=...` 로 재정의할 수 있습니다.
+- 지도·주소검색·Supabase 등 클라이언트 공개 키는 `lib/env.dart` 의 기본값으로 동작하며,
+  `--dart-define=SUPABASE_URL=...` 등으로 환경별 재정의할 수 있습니다.
 - 푸시(FCM/APNs)는 실기기 + 서명 설정이 필요합니다.

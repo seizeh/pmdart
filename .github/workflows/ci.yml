@@ -34,12 +34,11 @@ jobs:
 
       - run: flutter test --coverage
 
-      # 커버리지 요약 + 하한 게이트(10% 미만이면 실패). 커버리지가 오르는 만큼
-      # 하한도 따라 올릴 것(현재 12%대).
-      - name: 커버리지 요약·게이트(≥10%)
+      # 커버리지 요약 + 하한 게이트(래칫 — 커버리지가 오르는 만큼 하한을 따라 올린다).
+      - name: 커버리지 요약·게이트(≥12%)
         shell: bash
         run: |
           awk -F'[:,]' '/^DA:/{t++; if($3>0) h++}
             END{pct=h*100/t; printf "라인 커버리지 %.1f%% (%d/%d)\n", pct, h, t;
-                exit (pct>=10)?0:1}' \
+                exit (pct>=12)?0:1}' \
             coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"

@@ -27,10 +27,9 @@ abstract final class Env {
     defaultValue: 'cy02y6r0d5',
   );
 
-  /// 행안부 juso.go.kr confmKey(클라이언트 키). 비우면 주소 검색이 비활성화되고
-  /// 업체등록 화면이 수동 입력으로 폴백한다.
-  static const jusoApiKey = String.fromEnvironment(
-    'JUSO_API_KEY',
-    defaultValue: 'U01TX0FVVEgyMDI2MDcxNDE2MDExMTExOTcyMzE=',
-  );
+  /// 행안부 juso.go.kr confmKey(클라이언트 키). 위의 값들과 달리 콘솔에서
+  /// 앱 단위로 제한할 수 없고 쿼터 소진·남용 여지가 있어 **기본값을 두지 않는다**
+  /// — 빌드 시 --dart-define=JUSO_API_KEY=... 로 주입한다.
+  /// 비우면 주소 검색이 비활성화되고 업체등록 화면이 수동 입력으로 폴백한다.
+  static const jusoApiKey = String.fromEnvironment('JUSO_API_KEY');
 }

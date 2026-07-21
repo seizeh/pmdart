@@ -9,6 +9,12 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # iOS 빌드 시 SwiftPM 이 체크아웃한 서드파티 예제 dart 파일이
+    # 로컬 analyze 에 오류로 잡히는 것을 제외(CI 는 build/ 가 없어 무관).
+    - build/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

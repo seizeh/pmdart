@@ -186,7 +186,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     // (알림 자체는 서버가 90초 유예 후 발송하므로 그 안의 취소는 조용하다.)
     final now = DateTime.now();
     if (_lastFollowToggle != null &&
-        now.difference(_lastFollowToggle!) < const Duration(milliseconds: 700)) {
+        now.difference(_lastFollowToggle!) <
+            const Duration(milliseconds: 700)) {
       return;
     }
     _lastFollowToggle = now;
@@ -757,9 +758,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         )
                       : Row(
                           children: [
-                            Expanded(
-                              child: _statCol('후기', _bizReviews.length),
-                            ),
+                            Expanded(child: _statCol('후기', _bizReviews.length)),
                             _statDivider(),
                             Expanded(
                               child: _statText(
@@ -984,9 +983,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   color: onTap == null
                       ? context.colors.textPrimary
                       : context.colors.primaryDark,
-                  fontWeight: onTap == null
-                      ? FontWeight.w400
-                      : FontWeight.w600,
+                  fontWeight: onTap == null ? FontWeight.w400 : FontWeight.w600,
                 ),
               ),
             ),
@@ -1008,7 +1005,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.verified, size: 16, color: context.colors.primaryDark),
+                Icon(
+                  Icons.verified,
+                  size: 16,
+                  color: context.colors.primaryDark,
+                ),
                 const SizedBox(width: 5),
                 Text(
                   '사업자 인증을 완료한 업체예요',
@@ -1022,16 +1023,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
             const SizedBox(height: 10),
             if (p.businessCategory != null)
-              row(Icons.storefront_outlined,
-                  businessCategoryLabel(p.businessCategory!)),
+              row(
+                Icons.storefront_outlined,
+                businessCategoryLabel(p.businessCategory!),
+              ),
             if ((p.businessAddress ?? '').isNotEmpty)
               row(Icons.place_outlined, p.businessAddress!),
             if ((p.businessPhone ?? '').isNotEmpty)
               row(
                 Icons.call_outlined,
                 formatKrPhone(p.businessPhone),
-                onTap: () =>
-                    launchUrl(Uri.parse('tel:${p.businessPhone!}')),
+                onTap: () => launchUrl(Uri.parse('tel:${p.businessPhone!}')),
               ),
             if ((p.businessHours ?? '').isNotEmpty)
               row(Icons.schedule_outlined, p.businessHours!),
@@ -1045,8 +1047,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   /// 이 업체 프로필에서 후기를 쓸 수 있는가 — 본인(업주 계정, 모드 무관)은 제외.
   /// 서버(add_facility_review)도 own_facility 로 차단하는 불변식의 UX 버전.
-  bool get _canWriteBizReview =>
-      !_isMe && _profile?.businessFacilityId != null;
+  bool get _canWriteBizReview => !_isMe && _profile?.businessFacilityId != null;
 
   /// 업체 프로필에서 바로 후기 작성 — 지도 상세와 동일한 작성 화면으로.
   Future<void> _writeBizReview() async {
@@ -1251,11 +1252,7 @@ class PostPhotoTile extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.favorite,
-                        size: 14,
-                        color: Colors.white,
-                      ),
+                      const Icon(Icons.favorite, size: 14, color: Colors.white),
                       const SizedBox(width: 3),
                       Text(
                         '${post.heartCount}',

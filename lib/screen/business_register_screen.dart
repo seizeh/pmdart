@@ -217,9 +217,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
                 TextField(
                   controller: _nameCtrl,
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    hintText: '사업자등록증에 기재된 상호',
-                  ),
+                  decoration: const InputDecoration(hintText: '사업자등록증에 기재된 상호'),
                 ),
                 const SizedBox(height: 8),
                 _foldToggle(
@@ -396,10 +394,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
           const SizedBox(height: 4),
           Text(
             '사유: ${_mine?.rejectedReason ?? '-'}',
-            style: TextStyle(
-              fontSize: 13,
-              color: context.colors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
           ),
         ],
       ),
@@ -516,9 +511,10 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
           : switch (r.statusCode) {
               '02' => '휴업 상태의 사업자번호는 등록할 수 없어요',
               '03' => '폐업 상태의 사업자번호는 등록할 수 없어요',
-              _ => r.error == 'nts_unavailable' || r.error == 'network'
-                  ? '국세청 확인에 실패했어요. 잠시 후 다시 시도해주세요'
-                  : '국세청에 등록되지 않은 사업자번호예요',
+              _ =>
+                r.error == 'nts_unavailable' || r.error == 'network'
+                    ? '국세청 확인에 실패했어요. 잠시 후 다시 시도해주세요'
+                    : '국세청에 등록되지 않은 사업자번호예요',
             };
     });
   }
@@ -530,9 +526,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
       return TextField(
         controller: _manualAddrCtrl,
         onChanged: (_) => setState(() {}),
-        decoration: const InputDecoration(
-          hintText: '사업자등록증의 사업장 소재지 (도로명 주소)',
-        ),
+        decoration: const InputDecoration(hintText: '사업자등록증의 사업장 소재지 (도로명 주소)'),
       );
     }
     return InkWell(
@@ -801,49 +795,52 @@ class _StatusView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-          const SizedBox(height: 8),
-          Icon(icon, size: 56, color: context.colors.primary),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: context.colors.textPrimary,
-            ),
+        const SizedBox(height: 8),
+        Icon(icon, size: 56, color: context.colors.primary),
+        const SizedBox(height: 16),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textPrimary,
           ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.5,
-              color: context.colors.textSecondary,
-            ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.5,
+            color: context.colors.textSecondary,
           ),
-          const SizedBox(height: 28),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: context.colors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: context.colors.border, width: 0.5),
-            ),
-            child: Column(
-              children: [
-                _row(context, '상호', profile.businessName),
-                if ((profile.storefrontName ?? '').isNotEmpty)
-                  _row(context, '사업장명', profile.storefrontName!),
-                _row(context, '업종',
-                    businessCategoryLabel(profile.declaredCategory)),
-                _row(context, '사업자번호', _maskBno(profile.businessRegNo)),
-                _row(context, '주소', profile.businessAddress),
-                _row(context, '이메일', profile.contactEmail),
-              ],
-            ),
+        ),
+        const SizedBox(height: 28),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: context.colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.colors.border, width: 0.5),
           ),
+          child: Column(
+            children: [
+              _row(context, '상호', profile.businessName),
+              if ((profile.storefrontName ?? '').isNotEmpty)
+                _row(context, '사업장명', profile.storefrontName!),
+              _row(
+                context,
+                '업종',
+                businessCategoryLabel(profile.declaredCategory),
+              ),
+              _row(context, '사업자번호', _maskBno(profile.businessRegNo)),
+              _row(context, '주소', profile.businessAddress),
+              _row(context, '이메일', profile.contactEmail),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -862,19 +859,13 @@ class _StatusView extends StatelessWidget {
           width: 76,
           child: Text(
             k,
-            style: TextStyle(
-              fontSize: 13,
-              color: context.colors.textTertiary,
-            ),
+            style: TextStyle(fontSize: 13, color: context.colors.textTertiary),
           ),
         ),
         Expanded(
           child: Text(
             v,
-            style: TextStyle(
-              fontSize: 13.5,
-              color: context.colors.textPrimary,
-            ),
+            style: TextStyle(fontSize: 13.5, color: context.colors.textPrimary),
           ),
         ),
       ],
@@ -905,7 +896,10 @@ class _PhotoAlignSheetState extends State<_PhotoAlignSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        20, 20, 20, 20 + MediaQuery.of(context).padding.bottom,
+        20,
+        20,
+        20,
+        20 + MediaQuery.of(context).padding.bottom,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1082,9 +1076,7 @@ class AddressSearchSheetState extends State<AddressSearchSheet> {
                   autofocus: true,
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) => _search(),
-                  decoration: const InputDecoration(
-                    hintText: '도로명, 건물명 또는 지번',
-                  ),
+                  decoration: const InputDecoration(hintText: '도로명, 건물명 또는 지번'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1150,7 +1142,6 @@ class AddressSearchSheetState extends State<AddressSearchSheet> {
     );
   }
 }
-
 
 /// 승인 업체 관리 패널 — 업체 정보 요약·수정, 대표 사진 설정/위치 조절/제거.
 /// BusinessRegisterScreen(승인 상태)과 업체 모드의 내정보(업체 관리) 최상단에서
@@ -1318,7 +1309,9 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
           onPressed: _openInfoEdit,
           icon: const Icon(Icons.edit_outlined, size: 18),
           label: const Text('업체 정보 수정'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+          ),
         ),
         const SizedBox(height: 20),
         // 계정 단위 활동(하트·친구)은 두 얼굴 공용 — 업체 모드에서도 조회 가능하게.
@@ -1338,13 +1331,14 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
           onPressed: () => Navigator.push(
             context,
             AppPageRoute(
-              builder: (_) =>
-                  const MyPostsScreen(mode: PostListMode.hearted),
+              builder: (_) => const MyPostsScreen(mode: PostListMode.hearted),
             ),
           ),
           icon: const Icon(Icons.favorite_border, size: 18),
           label: const Text('하트한 게시글'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+          ),
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
@@ -1354,7 +1348,9 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
           ),
           icon: const Icon(Icons.group_outlined, size: 18),
           label: const Text('내 친구 (Pawing · Pawmate)'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+          ),
         ),
       ],
     );
@@ -1450,7 +1446,8 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _PhotoAlignSheet(image: image, initial: initial, name: name),
+      builder: (_) =>
+          _PhotoAlignSheet(image: image, initial: initial, name: name),
     );
   }
 
@@ -1472,7 +1469,10 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
       ),
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.fromLTRB(
-          20, 20, 20, 20 + MediaQuery.of(sheetCtx).viewInsets.bottom,
+          20,
+          20,
+          20,
+          20 + MediaQuery.of(sheetCtx).viewInsets.bottom,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

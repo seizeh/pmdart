@@ -21,10 +21,12 @@ void main() {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light(),
-      home: ReviewDetailScreen(review: review),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: ReviewDetailScreen(review: review),
+      ),
+    );
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -53,24 +55,26 @@ void main() {
         return true;
       },
     );
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light(),
-      home: Builder(
-        builder: (context) => Scaffold(
-          body: Center(
-            child: TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ReviewDetailScreen(review: mine),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReviewDetailScreen(review: mine),
+                  ),
                 ),
+                child: const Text('OPEN'),
               ),
-              child: const Text('OPEN'),
             ),
           ),
         ),
       ),
-    ));
+    );
     await tester.tap(find.text('OPEN'));
     await tester.pumpAndSettle();
 
@@ -89,12 +93,18 @@ void main() {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light(),
-      home: Scaffold(
-        body: ListView(children: [ReviewCardGrid(reviews: [review])]),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: ListView(
+            children: [
+              ReviewCardGrid(reviews: [review]),
+            ],
+          ),
+        ),
       ),
-    ));
+    );
     await tester.pump();
 
     await tester.tap(find.byType(InkWell).first);

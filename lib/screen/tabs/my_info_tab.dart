@@ -306,8 +306,7 @@ class _MyInfoTabState extends State<MyInfoTab>
       double? bizAvg;
       if (p.activeMode == 'business') {
         try {
-          final rs = await BusinessRepository.instance
-              .fetchMyFacilityReviews();
+          final rs = await BusinessRepository.instance.fetchMyFacilityReviews();
           bizCount = rs.length;
           bizAvg = rs.isEmpty
               ? null
@@ -505,8 +504,7 @@ class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
     final reviews = _reviews;
     final avg = (reviews == null || reviews.isEmpty)
         ? null
-        : reviews.map((r) => r.rating).reduce((a, b) => a + b) /
-              reviews.length;
+        : reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -525,7 +523,11 @@ class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
               if (reviews != null && reviews.isNotEmpty) ...[
                 const SizedBox(width: 8),
                 // 별점 색은 시설 후기 화면과 동일 컨벤션.
-                const Icon(Icons.star_rounded, size: 18, color: Color(0xFFFFB300)),
+                const Icon(
+                  Icons.star_rounded,
+                  size: 18,
+                  color: Color(0xFFFFB300),
+                ),
                 Text(
                   '${avg!.toStringAsFixed(1)} · ${reviews.length}',
                   style: TextStyle(

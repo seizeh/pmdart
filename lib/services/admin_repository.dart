@@ -215,19 +215,18 @@ class AdminChatMessage {
     required this.createdAt,
   });
 
-  factory AdminChatMessage.fromJson(Map<String, dynamic> j) =>
-      AdminChatMessage(
-        id: j['id'] as String,
-        senderId: (j['sender_id'] ?? '') as String,
-        senderNickname: (j['sender_nickname'] ?? '알 수 없음') as String,
-        content: j['content'] as String?,
-        imageUrl: j['image_url'] as String?,
-        isDeleted: j['is_deleted'] == true,
-        deletedAt: j['deleted_at'] == null
-            ? null
-            : DateTime.parse(j['deleted_at'] as String).toLocal(),
-        createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
-      );
+  factory AdminChatMessage.fromJson(Map<String, dynamic> j) => AdminChatMessage(
+    id: j['id'] as String,
+    senderId: (j['sender_id'] ?? '') as String,
+    senderNickname: (j['sender_nickname'] ?? '알 수 없음') as String,
+    content: j['content'] as String?,
+    imageUrl: j['image_url'] as String?,
+    isDeleted: j['is_deleted'] == true,
+    deletedAt: j['deleted_at'] == null
+        ? null
+        : DateTime.parse(j['deleted_at'] as String).toLocal(),
+    createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+  );
 }
 
 /// 신고 대상의 실제 내용 (게시글/댓글/회원/채팅메시지). [data] 는 kind 별 필드.
@@ -505,7 +504,8 @@ class AdminBusinessApplication {
     extraDocPath: j['extra_doc_path'] as String?,
     matchedFacilityName: j['matched_facility_name'] as String?,
     matchScore: (j['match_score'] as num?)?.toInt(),
-    matchDetail: (j['match_detail'] as Map?)?.cast<String, dynamic>() ?? const {},
+    matchDetail:
+        (j['match_detail'] as Map?)?.cast<String, dynamic>() ?? const {},
     reviewTrack: (j['review_track'] ?? 'review') as String,
     autoApproved: j['auto_approved'] == true,
     status: (j['status'] ?? 'pending') as String,

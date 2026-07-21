@@ -30,7 +30,10 @@ void main() {
     ),
   );
 
-  for (final (label, theme) in [('light', AppTheme.light()), ('dark', AppTheme.dark())]) {
+  for (final (label, theme) in [
+    ('light', AppTheme.light()),
+    ('dark', AppTheme.dark()),
+  ]) {
     testWidgets('주소검색 시트가 열리고 전환이 정상 종료된다 ($label)', (tester) async {
       await tester.pumpWidget(host(theme));
       await tester.tap(find.text('open'));

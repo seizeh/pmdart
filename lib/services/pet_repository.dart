@@ -244,7 +244,9 @@ class PetRepository {
       for (final p in (profs as List).cast<Map<String, dynamic>>()) {
         nickById[p['id'] as String] = (p['nickname'] ?? '알 수 없음') as String;
       }
-    } catch (_) {/* 닉네임 조회 실패해도 보호자 목록은 반환 */}
+    } catch (_) {
+      /* 닉네임 조회 실패해도 보호자 목록은 반환 */
+    }
 
     return list.map((r) {
       final userId = r['user_id'] as String;

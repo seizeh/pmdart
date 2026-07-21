@@ -10,7 +10,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fake_session.dart';
 import '../helpers/fake_supabase.dart';
 
-const _me = AuthUser(id: 'u1', username: 'me', nickname: '나', userType: 'no_pet');
+const _me = AuthUser(
+  id: 'u1',
+  username: 'me',
+  nickname: '나',
+  userType: 'no_pet',
+);
 
 void main() {
   setUpAll(() async {
@@ -23,20 +28,26 @@ void main() {
   setUp(() async {
     FakeSupabase.reset();
     SharedPreferences.setMockInitialValues({});
-    await SessionManager.instance
-        .setSession(jwtWithExp(nowSec() + 3600), _me, refresh: 'r1');
+    await SessionManager.instance.setSession(
+      jwtWithExp(nowSec() + 3600),
+      _me,
+      refresh: 'r1',
+    );
   });
 
   group('NotificationRepository.fetch', () {
     test('내 것 + 비무음만 최신순 100건 요청하고 타입 폴백 파싱', () async {
-      FakeSupabase.on('notifications', (_) => [
-        {
-          'id': 'n1',
-          'notification_type': null, // 미지정 → system_notice 폴백
-          'is_read': false,
-          'created_at': '2026-07-01T00:00:00Z',
-        },
-      ]);
+      FakeSupabase.on(
+        'notifications',
+        (_) => [
+          {
+            'id': 'n1',
+            'notification_type': null, // 미지정 → system_notice 폴백
+            'is_read': false,
+            'created_at': '2026-07-01T00:00:00Z',
+          },
+        ],
+      );
 
       final list = await NotificationRepository.instance.fetch();
 

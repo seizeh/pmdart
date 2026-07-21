@@ -137,6 +137,10 @@ class PushService {
       return (s == null || s.isEmpty) ? null : s;
     }
 
-    onOpen?.call((m['type'] as String?) ?? '', nn(m['resource_type']), nn(m['resource_id']));
+    onOpen?.call(
+      (m['type'] as String?) ?? '',
+      nn(m['resource_type']),
+      nn(m['resource_id']),
+    );
   }
 }

@@ -31,27 +31,27 @@ void main() {
   setUp(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      final args = (call.arguments as Map?) ?? const {};
-      final key = args['key'] as String?;
-      switch (call.method) {
-        case 'read':
-          return secureStore[key];
-        case 'write':
-          secureStore[key!] = args['value'] as String;
+          final args = (call.arguments as Map?) ?? const {};
+          final key = args['key'] as String?;
+          switch (call.method) {
+            case 'read':
+              return secureStore[key];
+            case 'write':
+              secureStore[key!] = args['value'] as String;
+              return null;
+            case 'delete':
+              secureStore.remove(key);
+              return null;
+            case 'readAll':
+              return Map<String, String>.from(secureStore);
+            case 'deleteAll':
+              secureStore.clear();
+              return null;
+            case 'containsKey':
+              return secureStore.containsKey(key);
+          }
           return null;
-        case 'delete':
-          secureStore.remove(key);
-          return null;
-        case 'readAll':
-          return Map<String, String>.from(secureStore);
-        case 'deleteAll':
-          secureStore.clear();
-          return null;
-        case 'containsKey':
-          return secureStore.containsKey(key);
-      }
-      return null;
-    });
+        });
     secureStore.clear();
     SharedPreferences.setMockInitialValues({});
     await SessionManager.instance.clear();
@@ -59,24 +59,30 @@ void main() {
 
   group('isAccessExpiringSoon — 무중단 갱신 트리거 판정', () {
     test('만료 60초 이내면 임박', () async {
-      await SessionManager.instance
-          .setSession(jwtWithExp(nowSec() + 30), _user, refresh: 'r1');
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 30),
+        _user,
+        refresh: 'r1',
+      );
       expect(SessionManager.instance.isAccessExpiringSoon(), isTrue);
     });
 
     test('만료가 충분히 남았으면 임박 아님', () async {
-      await SessionManager.instance
-          .setSession(jwtWithExp(nowSec() + 3600), _user, refresh: 'r1');
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 3600),
+        _user,
+        refresh: 'r1',
+      );
       expect(SessionManager.instance.isAccessExpiringSoon(), isFalse);
     });
 
     test('skew 를 넓히면 같은 토큰도 임박으로 판정', () async {
-      await SessionManager.instance
-          .setSession(jwtWithExp(nowSec() + 3600), _user, refresh: 'r1');
-      expect(
-        SessionManager.instance.isAccessExpiringSoon(skew: 7200),
-        isTrue,
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 3600),
+        _user,
+        refresh: 'r1',
       );
+      expect(SessionManager.instance.isAccessExpiringSoon(skew: 7200), isTrue);
     });
 
     test('refresh 미보유(레거시 30일 토큰)는 만료 임박이어도 갱신 안 함', () async {
@@ -85,8 +91,11 @@ void main() {
     });
 
     test('exp 를 읽을 수 없는 토큰(형식 불량)은 임박으로 보지 않는다', () async {
-      await SessionManager.instance
-          .setSession('not-a-jwt', _user, refresh: 'r1');
+      await SessionManager.instance.setSession(
+        'not-a-jwt',
+        _user,
+        refresh: 'r1',
+      );
       expect(SessionManager.instance.isAccessExpiringSoon(), isFalse);
     });
   });
@@ -100,10 +109,7 @@ void main() {
       expect(secureStore['session_access'], t);
       expect(secureStore['session_refresh'], 'r1');
       final prefs = await SharedPreferences.getInstance();
-      expect(
-        jsonDecode(prefs.getString('session_user')!)['id'],
-        'u1',
-      );
+      expect(jsonDecode(prefs.getString('session_user')!)['id'], 'u1');
     });
 
     test('load 는 구버전 prefs 토큰을 secure storage 로 마이그레이션한다', () async {
@@ -132,8 +138,11 @@ void main() {
     });
 
     test('clear 는 메모리·secure·prefs 를 모두 비운다', () async {
-      await SessionManager.instance
-          .setSession(jwtWithExp(nowSec() + 100), _user, refresh: 'r1');
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 100),
+        _user,
+        refresh: 'r1',
+      );
       await SessionManager.instance.clear();
 
       expect(SessionManager.instance.isLoggedIn, isFalse);

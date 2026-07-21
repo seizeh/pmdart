@@ -9,7 +9,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fake_session.dart';
 import '../helpers/fake_supabase.dart';
 
-const _me = AuthUser(id: 'u1', username: 'me', nickname: '나', userType: 'no_pet');
+const _me = AuthUser(
+  id: 'u1',
+  username: 'me',
+  nickname: '나',
+  userType: 'no_pet',
+);
 
 Map<String, dynamic> profileRow(String id, {String? businessName}) => {
   'id': id,
@@ -34,8 +39,11 @@ void main() {
   setUp(() async {
     FakeSupabase.reset();
     SharedPreferences.setMockInitialValues({});
-    await SessionManager.instance
-        .setSession(jwtWithExp(nowSec() + 3600), _me, refresh: 'r1');
+    await SessionManager.instance.setSession(
+      jwtWithExp(nowSec() + 3600),
+      _me,
+      refresh: 'r1',
+    );
   });
 
   group('SocialRepository.follow/unfollow — 얼굴 단위 팔로우', () {
@@ -73,9 +81,12 @@ void main() {
     });
 
     test('isFollowing 은 행 존재 여부로 판정', () async {
-      FakeSupabase.on('pawings', (_) => [
-        {'following_id': 'u2'},
-      ]);
+      FakeSupabase.on(
+        'pawings',
+        (_) => [
+          {'following_id': 'u2'},
+        ],
+      );
       expect(await SocialRepository.instance.isFollowing('u2'), isTrue);
 
       FakeSupabase.on('pawings', (_) => []);
@@ -105,9 +116,12 @@ void main() {
         return [profileRow('u2')];
       });
       // 나는 u3 의 '업체 얼굴'만 팔로우 중.
-      FakeSupabase.on('pawings', (_) => [
-        {'following_id': 'u3', 'context': 'business'},
-      ]);
+      FakeSupabase.on(
+        'pawings',
+        (_) => [
+          {'following_id': 'u3', 'context': 'business'},
+        ],
+      );
 
       final list = await SocialRepository.instance.searchUsers('멍');
 
@@ -131,9 +145,12 @@ void main() {
         }
         return [];
       });
-      FakeSupabase.on('pawings', (_) => [
-        {'following_id': 'u3', 'context': 'personal'},
-      ]);
+      FakeSupabase.on(
+        'pawings',
+        (_) => [
+          {'following_id': 'u3', 'context': 'personal'},
+        ],
+      );
 
       final list = await SocialRepository.instance.searchUsers('멍');
 

@@ -532,7 +532,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   }
 
   /// 카테고리 마커 아이콘(캐시). PNG 를 흰 원형 핀에 합성해 일관/또렷하게.
-  Future<NOverlayImage?> _iconFor(String category, {bool verified = false}) async {
+  Future<NOverlayImage?> _iconFor(
+    String category, {
+    bool verified = false,
+  }) async {
     final key = verified ? '$category|v' : category; // 인증 변형은 별도 캐시
     if (_catIcons.containsKey(key)) return _catIcons[key];
     // 모드별 아이콘 색 — await 전에 캡처(빌드 컨텍스트 안전).
@@ -540,7 +543,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     final dark = context.isDark;
     NOverlayImage? out;
     try {
-      out = await _renderMarkerIcon(category, color, verified: verified, dark: dark);
+      out = await _renderMarkerIcon(
+        category,
+        color,
+        verified: verified,
+        dark: dark,
+      );
     } catch (_) {
       out = null;
     }
@@ -1089,7 +1097,9 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         ? _suggestions
         // 겸업 업체(형제 통합)는 여러 카테고리를 가지므로 '포함'으로 판별 —
         // 미용+분양 업체가 미용·분양 어느 칩에서도 보이게(검색 dedupe 후).
-        : _suggestions.where((f) => f.categories.contains(_suggestCat)).toList();
+        : _suggestions
+              .where((f) => f.categories.contains(_suggestCat))
+              .toList();
     return Container(
       margin: const EdgeInsets.only(top: 6),
       constraints: const BoxConstraints(maxHeight: 280),

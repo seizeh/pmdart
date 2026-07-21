@@ -83,17 +83,24 @@ void main() {
   group('CommunityRepository.fetchUserPosts — 얼굴(authoredAs) 필터', () {
     test('authoredAs 지정 시 posts 의 모드 맵과 병합해 해당 얼굴 글만 남긴다', () async {
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1'), postRow('p2')]);
-      FakeSupabase.on('/rest/v1/posts', (_) => [
-        {'id': 'p1', 'authored_as': 'business'},
-        // p2 는 모드 행 없음 → personal 로 간주
-      ]);
+      FakeSupabase.on(
+        '/rest/v1/posts',
+        (_) => [
+          {'id': 'p1', 'authored_as': 'business'},
+          // p2 는 모드 행 없음 → personal 로 간주
+        ],
+      );
 
-      final business = await CommunityRepository.instance
-          .fetchUserPosts('u1', authoredAs: 'business');
+      final business = await CommunityRepository.instance.fetchUserPosts(
+        'u1',
+        authoredAs: 'business',
+      );
       expect(business.map((p) => p.id), ['p1']);
 
-      final personal = await CommunityRepository.instance
-          .fetchUserPosts('u1', authoredAs: 'personal');
+      final personal = await CommunityRepository.instance.fetchUserPosts(
+        'u1',
+        authoredAs: 'personal',
+      );
       expect(personal.map((p) => p.id), ['p2']);
     });
 
@@ -101,8 +108,10 @@ void main() {
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1'), postRow('p2')]);
       FakeSupabase.on('/rest/v1/posts', (_) => '이상한 응답');
 
-      final posts = await CommunityRepository.instance
-          .fetchUserPosts('u1', authoredAs: 'business');
+      final posts = await CommunityRepository.instance.fetchUserPosts(
+        'u1',
+        authoredAs: 'business',
+      );
 
       expect(posts, hasLength(2), reason: '표시 누락보다 전체 유지가 안전');
     });

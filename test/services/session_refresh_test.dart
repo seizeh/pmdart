@@ -5,7 +5,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fake_session.dart';
 import '../helpers/fake_supabase.dart';
 
-const _me = AuthUser(id: 'u1', username: 'me', nickname: '나', userType: 'no_pet');
+const _me = AuthUser(
+  id: 'u1',
+  username: 'me',
+  nickname: '나',
+  userType: 'no_pet',
+);
 
 void main() {
   late Map<String, String> secureStore;
@@ -22,8 +27,11 @@ void main() {
     secureStore.clear();
     SharedPreferences.setMockInitialValues({});
     SessionManager.instance.onInvalidated = null;
-    await SessionManager.instance
-        .setSession(jwtWithExp(nowSec() + 30), _me, refresh: 'r1');
+    await SessionManager.instance.setSession(
+      jwtWithExp(nowSec() + 30),
+      _me,
+      refresh: 'r1',
+    );
     FakeSupabase.requests.clear();
   });
 
@@ -31,18 +39,16 @@ void main() {
     SessionManager.instance.onInvalidated = null;
   });
 
-  int refreshCalls() => FakeSupabase.requests
-      .where((r) => r.url.path.contains('refresh'))
-      .length;
+  int refreshCalls() =>
+      FakeSupabase.requests.where((r) => r.url.path.contains('refresh')).length;
 
   group('SessionManager.refreshOnce — 단일비행 토큰 회전', () {
     test('동시에 여러 번 불러도 refresh 요청은 1회, 토큰·refresh 가 회전된다', () async {
       final newJwt = jwtWithExp(nowSec() + 7200);
-      FakeSupabase.on('refresh', (_) => {
-        'ok': true,
-        'token': newJwt,
-        'refresh_token': 'r2',
-      });
+      FakeSupabase.on(
+        'refresh',
+        (_) => {'ok': true, 'token': newJwt, 'refresh_token': 'r2'},
+      );
 
       await Future.wait([
         SessionManager.instance.refreshOnce(),
@@ -58,11 +64,14 @@ void main() {
     });
 
     test('완료 후 다시 부르면 새 요청이 나간다(비행 종료 후 재사용 아님)', () async {
-      FakeSupabase.on('refresh', (_) => {
-        'ok': true,
-        'token': jwtWithExp(nowSec() + 7200),
-        'refresh_token': 'r2',
-      });
+      FakeSupabase.on(
+        'refresh',
+        (_) => {
+          'ok': true,
+          'token': jwtWithExp(nowSec() + 7200),
+          'refresh_token': 'r2',
+        },
+      );
 
       await SessionManager.instance.refreshOnce();
       await SessionManager.instance.refreshOnce();

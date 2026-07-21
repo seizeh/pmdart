@@ -24,8 +24,10 @@ class JusoService {
   Future<List<JusoAddress>> search(String keyword, {int page = 1}) async {
     if (!enabled || keyword.trim().length < 2) return const [];
     try {
-      final uri = Uri.parse('https://business.juso.go.kr/addrlink/addrLinkApi.do')
-          .replace(
+      final uri =
+          Uri.parse(
+            'https://business.juso.go.kr/addrlink/addrLinkApi.do',
+          ).replace(
             queryParameters: {
               'confmKey': _key,
               'currentPage': '$page',

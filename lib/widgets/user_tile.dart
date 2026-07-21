@@ -47,7 +47,9 @@ class UserTile extends StatelessWidget {
   /// 이면 배지와 같은 위젯을 Opacity 0 으로 두어 높이를 통일한다.
   Widget _statLine(BuildContext context, bool hasPhoto) {
     final c = connection;
-    if (c.reviewCount == null && c.pawingCount == null && c.pawmateCount == null) {
+    if (c.reviewCount == null &&
+        c.pawingCount == null &&
+        c.pawmateCount == null) {
       return Opacity(opacity: 0, child: _badgeRow(context, hasPhoto));
     }
     final sub = hasPhoto

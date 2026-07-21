@@ -60,6 +60,8 @@ flowchart LR
   모든 RLS 가 `app.uid()`(JWT sub) 기준으로 동작합니다.
 - **보안 원칙**: 클라이언트에는 publishable 키만. 쓰기 검증이 필요한 작업은
   SECURITY DEFINER RPC / DB 트리거가 최종 강제(클라이언트 검증은 UX 용).
+  클라이언트 공개 키·식별자는 `lib/env.dart` 한곳에 모여 있으며
+  `--dart-define` 으로 환경별 오버라이드할 수 있다(비밀 키는 서버 전용).
 - **모션**: `lib/motion/` 의 스프링 프리미티브(Pressable·Entrance·CollapseRoute 등)를
   전 화면이 공유 — 카드 확장/축소, 쓸어내려 닫기 등 일관된 전환 언어.
 
@@ -87,7 +89,7 @@ test/                # 위젯 테스트
 ## 실행
 
 ```bash
-# Flutter master 채널 필요 (pubspec 의 Dart SDK 제약 참고)
+# Flutter stable 채널 (Dart SDK ^3.12)
 flutter pub get
 flutter run          # 연결된 기기/시뮬레이터
 
@@ -96,6 +98,6 @@ flutter analyze
 flutter test
 ```
 
-- 지도·주소검색 등 외부 API 클라이언트 키는 소스에 포함된 기본값으로 동작하며,
-  `--dart-define=JUSO_API_KEY=...` 로 재정의할 수 있습니다.
+- 지도·주소검색·Supabase 등 클라이언트 공개 키는 `lib/env.dart` 의 기본값으로 동작하며,
+  `--dart-define=SUPABASE_URL=...` 등으로 환경별 재정의할 수 있습니다.
 - 푸시(FCM/APNs)는 실기기 + 서명 설정이 필요합니다.

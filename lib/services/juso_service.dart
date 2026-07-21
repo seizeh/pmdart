@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../env.dart';
+
 /// 행안부 도로명주소(juso.go.kr) 검색 (0025 §4.2).
 /// 자유 텍스트 대신 검색 결과에서 선택 → 도로명·지번·행정코드를 표준 형태로 확보한다
 /// (지번은 facilities 대조, 행정코드는 시군구 일치 점수에 쓰인다).
@@ -13,11 +15,8 @@ class JusoService {
   static final JusoService instance = JusoService._();
 
   /// 발급받은 confmKey — 클라이언트 키(네이버 지도 clientId 와 같은 취급).
-  /// --dart-define=JUSO_API_KEY=... 로 덮어쓸 수 있다.
-  static const _key = String.fromEnvironment(
-    'JUSO_API_KEY',
-    defaultValue: 'U01TX0FVVEgyMDI2MDcxNDE2MDExMTExOTcyMzE=',
-  );
+  /// --dart-define=JUSO_API_KEY=... 로 덮어쓸 수 있다(lib/env.dart).
+  static const _key = Env.jusoApiKey;
 
   bool get enabled => _key.isNotEmpty;
 

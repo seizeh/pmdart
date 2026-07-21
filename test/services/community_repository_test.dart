@@ -1,0 +1,122 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pawmate/services/community_repository.dart';
+
+import '../helpers/fake_supabase.dart';
+
+Map<String, dynamic> postRow(String id) => {
+  'id': id,
+  'title': '제목 $id',
+  'user_id': 'u1',
+  'created_at': '2026-07-01T00:00:00Z',
+};
+
+void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    await FakeSupabase.init();
+  });
+
+  setUp(FakeSupabase.reset);
+
+  group('CommunityRepository.fetchFeed — 활동범위 게이트', () {
+    test('활동범위 미설정(null)이면 지역 필터 없이 최신 100건을 요청한다', () async {
+      FakeSupabase.on('feed_region_codes', (_) => null);
+      FakeSupabase.on('v_post_feed', (_) => [postRow('p1')]);
+
+      final posts = await CommunityRepository.instance.fetchFeed();
+
+      expect(posts.single.id, 'p1');
+      final feedReq = FakeSupabase.requests.last;
+      expect(feedReq.url.path, '/rest/v1/v_post_feed');
+      expect(feedReq.url.queryParameters['order'], 'created_at.desc.nullslast');
+      expect(feedReq.url.queryParameters['limit'], '100');
+      expect(feedReq.url.queryParameters.containsKey('region_code'), isFalse);
+    });
+
+    test('활동범위 안에 동이 하나도 없으면 피드 요청 없이 빈 목록', () async {
+      FakeSupabase.on('feed_region_codes', (_) => <String>[]);
+
+      final posts = await CommunityRepository.instance.fetchFeed();
+
+      expect(posts, isEmpty);
+      expect(FakeSupabase.requests, hasLength(1), reason: 'RPC 한 번뿐이어야 한다');
+    });
+
+    test('활동범위 동 코드들이 오면 region_code in 필터로 좁힌다', () async {
+      FakeSupabase.on('feed_region_codes', (_) => ['1111010100', '1111010200']);
+      FakeSupabase.on('v_post_feed', (_) => []);
+
+      await CommunityRepository.instance.fetchFeed();
+
+      final regionParam =
+          FakeSupabase.requests.last.url.queryParameters['region_code']!;
+      expect(regionParam, startsWith('in.('));
+      expect(regionParam, contains('1111010100'));
+      expect(regionParam, contains('1111010200'));
+    });
+
+    test('카테고리 지정 시 eq 필터가 붙는다', () async {
+      FakeSupabase.on('feed_region_codes', (_) => null);
+      FakeSupabase.on('v_post_feed', (_) => []);
+
+      await CommunityRepository.instance.fetchFeed(category: 'walk_together');
+
+      expect(
+        FakeSupabase.requests.last.url.queryParameters['category'],
+        'eq.walk_together',
+      );
+    });
+
+    test('검색어의 or() 파서 위험 문자(쉼표·괄호·%·*)는 공백으로 정제된다', () async {
+      FakeSupabase.on('feed_region_codes', (_) => null);
+      FakeSupabase.on('v_post_feed', (_) => []);
+
+      await CommunityRepository.instance.fetchFeed(query: '멍멍(1),2');
+
+      final or = FakeSupabase.requests.last.url.queryParameters['or']!;
+      expect(or, contains('title.ilike.%멍멍 1  2%'));
+      expect(or, contains('content.ilike.%멍멍 1  2%'));
+      expect(or, isNot(contains('(1)')));
+    });
+  });
+
+  group('CommunityRepository.fetchUserPosts — 얼굴(authoredAs) 필터', () {
+    test('authoredAs 지정 시 posts 의 모드 맵과 병합해 해당 얼굴 글만 남긴다', () async {
+      FakeSupabase.on('v_post_feed', (_) => [postRow('p1'), postRow('p2')]);
+      FakeSupabase.on('/rest/v1/posts', (_) => [
+        {'id': 'p1', 'authored_as': 'business'},
+        // p2 는 모드 행 없음 → personal 로 간주
+      ]);
+
+      final business = await CommunityRepository.instance
+          .fetchUserPosts('u1', authoredAs: 'business');
+      expect(business.map((p) => p.id), ['p1']);
+
+      final personal = await CommunityRepository.instance
+          .fetchUserPosts('u1', authoredAs: 'personal');
+      expect(personal.map((p) => p.id), ['p2']);
+    });
+
+    test('모드 조회가 깨져도 글을 숨기지 않고 전체를 유지한다(안전 폴백)', () async {
+      FakeSupabase.on('v_post_feed', (_) => [postRow('p1'), postRow('p2')]);
+      FakeSupabase.on('/rest/v1/posts', (_) => '이상한 응답');
+
+      final posts = await CommunityRepository.instance
+          .fetchUserPosts('u1', authoredAs: 'business');
+
+      expect(posts, hasLength(2), reason: '표시 누락보다 전체 유지가 안전');
+    });
+
+    test('authoredAs 미지정이면 모드 조회 자체를 하지 않는다', () async {
+      FakeSupabase.on('v_post_feed', (_) => [postRow('p1')]);
+
+      await CommunityRepository.instance.fetchUserPosts('u1');
+
+      expect(FakeSupabase.requests, hasLength(1));
+      expect(
+        FakeSupabase.requests.single.url.queryParameters['user_id'],
+        'eq.u1',
+      );
+    });
+  });
+}

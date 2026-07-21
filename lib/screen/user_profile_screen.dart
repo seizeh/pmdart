@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:url_launcher/url_launcher.dart';
 
-import '../data/mock_data.dart' show MockPet;
 import '../models/community.dart';
+import '../models/pet.dart';
 import '../models/profile.dart';
 import '../motion/motion.dart';
 import '../services/business_repository.dart';
@@ -263,7 +263,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     unawaited(_load(silent: true)); // 하트/댓글 변동 반영
   }
 
-  Future<void> _openPet(MockPet pet, Rect? rect) async {
+  Future<void> _openPet(Pet pet, Rect? rect) async {
     // 방금 거쳐온 펫이면 새로 쌓지 않고 되돌아간다(무한 왕복 방지).
     if (pet.id == widget.fromPetId) {
       // maybePop → CollapsibleView(PopScope)가 축소 애니메이션을 태운 뒤 팝.
@@ -1372,9 +1372,9 @@ class _ReviewTagChip extends StatelessWidget {
 
 /// 타인 프로필의 반려동물 포스터 캐러셀 — 내정보 펫 히어로와 동일한 시각 언어.
 class _PetPosterCarousel extends StatefulWidget {
-  final List<MockPet> pets;
+  final List<Pet> pets;
   final String? openedPetId; // 상세로 열린 펫 → 빈자리 처리
-  final void Function(MockPet pet, Rect? rect) onTap;
+  final void Function(Pet pet, Rect? rect) onTap;
   const _PetPosterCarousel({
     required this.pets,
     required this.onTap,
@@ -1462,7 +1462,7 @@ class _PetPosterCarouselState extends State<_PetPosterCarousel> {
 /// 반려동물 포스터 카드(공개용) — 큰 사진 + 하단 그라데이션 위 이름/종·나이·성별,
 /// 우상단 인증 배지. 내정보의 펫 히어로 카드와 같은 언어(역할 배지는 없음).
 class PetPosterCard extends StatelessWidget {
-  final MockPet pet;
+  final Pet pet;
   final VoidCallback? onTap;
   const PetPosterCard({super.key, required this.pet, this.onTap});
 

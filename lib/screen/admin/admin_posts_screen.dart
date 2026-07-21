@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../data/mock_data.dart' show timeAgo, categoryLabel;
 import '../../motion/motion.dart';
 import '../../services/admin_repository.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/labels.dart' show timeAgo, categoryLabel;
 import 'admin_theme.dart';
 
 /// 게시글/댓글 관리 — 게시글 검색/조회 + 숨김·삭제, 댓글 관리로 이동.

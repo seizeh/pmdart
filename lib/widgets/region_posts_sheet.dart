@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart' show categoryLabel, timeAgo;
 import '../models/community.dart';
 import '../motion/motion.dart';
 import '../screen/post_detail_screen.dart';
 import '../services/community_repository.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show categoryLabel, timeAgo;
 import '../widgets/role_badge.dart' show categoryColor;
 
 /// 동네(행정동) 게시글 목록 콘텐츠 — 지도 위 바텀시트([MapBottomSheet]) 안에 올라간다.

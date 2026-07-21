@@ -1,10 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../../data/mock_data.dart' show timeAgo;
 import '../../motion/motion.dart';
 import '../../services/admin_repository.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/labels.dart' show timeAgo;
 import 'admin_report_detail_screen.dart';
 import 'admin_theme.dart';
 

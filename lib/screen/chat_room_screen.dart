@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../data/mock_data.dart' show timeAgo;
 import '../models/chat.dart';
 import '../motion/motion.dart';
 import '../services/chat_repository.dart';
 import '../services/report_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show timeAgo;
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/report_sheet.dart';
 import 'user_profile_screen.dart';

@@ -1,5 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../data/mock_data.dart' show MockPet;
+import '../models/pet.dart';
 import '../models/pet_search.dart';
 import 'app_events.dart';
 import 'session.dart';
@@ -114,7 +114,7 @@ class PetRepository {
   }
 
   /// 펫 단건 조회 (헤더용 — 내 역할/보호자 수/소유자명 포함). 삭제된 펫은 null.
-  Future<MockPet?> fetchPet(String petId) async {
+  Future<Pet?> fetchPet(String petId) async {
     final uid = _uid;
     final p = await _c
         .from('pets')
@@ -145,7 +145,7 @@ class PetRepository {
           .maybeSingle();
       ownerName = (o?['nickname'] ?? '') as String;
     }
-    return MockPet(
+    return Pet(
       id: p['id'] as String,
       name: (p['name'] ?? '') as String,
       species: (p['species'] ?? '') as String,

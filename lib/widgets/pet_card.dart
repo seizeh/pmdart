@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../models/pet.dart';
 import '../theme/app_palette.dart';
 import 'role_badge.dart';
 
 /// 반려동물 카드 — 내정보 탭의 펫 목록에 사용.
 class PetCard extends StatelessWidget {
-  final MockPet pet;
+  final Pet pet;
   final VoidCallback onTap;
 
   const PetCard({super.key, required this.pet, required this.onTap});

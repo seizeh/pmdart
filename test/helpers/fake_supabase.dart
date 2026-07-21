@@ -38,12 +38,21 @@ class FakeSupabase {
 
   /// [pathContains] 가 요청 경로에 부분일치하면 [respond] 의 반환값을
   /// JSON 으로 응답한다. 나중에 등록한 라우트가 우선.
+  /// [respond] 가 `http.Response` 를 반환하면 상태코드·헤더 그대로 응답하고
+  /// (에러 응답 테스트용), 예외를 던지면 네트워크 오류를 흉내낸다.
   static void on(
     String pathContains,
     Object? Function(http.Request req) respond,
   ) {
     _routes[pathContains] = respond;
   }
+
+  /// 상태코드를 지정한 JSON 에러 응답 (FunctionException/PostgrestException 유발).
+  static http.Response error(int status, Object? body) => http.Response(
+    jsonEncode(body),
+    status,
+    headers: {'content-type': 'application/json'},
+  );
 
   static void reset() {
     requests.clear();
@@ -54,8 +63,17 @@ class FakeSupabase {
     requests.add(req);
     for (final e in _routes.entries.toList().reversed) {
       if (req.url.path.contains(e.key)) {
+        final result = e.value(req);
+        if (result is http.Response) {
+          return http.Response(
+            result.body,
+            result.statusCode,
+            headers: {'content-type': 'application/json', ...result.headers},
+            request: req,
+          );
+        }
         return http.Response(
-          jsonEncode(e.value(req)),
+          jsonEncode(result),
           200,
           headers: {'content-type': 'application/json'},
           request: req,

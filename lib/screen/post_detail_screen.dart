@@ -84,8 +84,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _businessMode = false;
 
   /// 매칭(지원→약속) 없는 게시글 — 자유글·업체 소식. 지원 UI 를 띄우지 않는다.
-  bool get _isFreePost =>
-      _post.category == 'free' || _post.category == 'news';
+  bool get _isFreePost => _post.category == 'free' || _post.category == 'news';
   bool get _isMyPost => _post.userId == SessionManager.instance.user?.id;
 
   @override
@@ -154,7 +153,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (!_guard('팔로우는 로그인 후 할 수 있어요')) return;
     final now = DateTime.now();
     if (_lastFollowToggle != null &&
-        now.difference(_lastFollowToggle!) < const Duration(milliseconds: 700)) {
+        now.difference(_lastFollowToggle!) <
+            const Duration(milliseconds: 700)) {
       return;
     }
     _lastFollowToggle = now;
@@ -259,7 +259,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         context: context,
         builder: (dCtx) => AlertDialog(
           title: const Text('업체 모드에서는 지원할 수 없어요'),
-          content: const Text('산책·돌봄 매칭은 일반 모드에서 이용할 수 있어요.\n일반 모드로 전환하고 지원할까요?'),
+          content: const Text(
+            '산책·돌봄 매칭은 일반 모드에서 이용할 수 있어요.\n일반 모드로 전환하고 지원할까요?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dCtx, false),

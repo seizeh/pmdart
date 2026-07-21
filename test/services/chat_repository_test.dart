@@ -25,11 +25,14 @@ void main() {
 
   group('ChatRepository.fetchRooms', () {
     test('고객센터 방을 최상단으로 올리고 나머지는 서버 순서(최근 메시지순) 유지', () async {
-      FakeSupabase.on('v_chat_rooms', (_) => [
-        room('r1', '멍집사', at: '2026-07-03T00:00:00Z'),
-        room('r2', '고객센터', at: '2026-07-02T00:00:00Z'),
-        room('r3', '냥집사', at: '2026-07-01T00:00:00Z'),
-      ]);
+      FakeSupabase.on(
+        'v_chat_rooms',
+        (_) => [
+          room('r1', '멍집사', at: '2026-07-03T00:00:00Z'),
+          room('r2', '고객센터', at: '2026-07-02T00:00:00Z'),
+          room('r3', '냥집사', at: '2026-07-01T00:00:00Z'),
+        ],
+      );
 
       final rooms = await ChatRepository.instance.fetchRooms();
 

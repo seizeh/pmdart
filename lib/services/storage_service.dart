@@ -102,7 +102,9 @@ class StorageService {
     return PickedDoc(
       bytes: f.bytes!,
       ext: ext,
-      mime: ext == 'pdf' ? 'application/pdf' : 'image/${ext == 'jpg' ? 'jpeg' : ext}',
+      mime: ext == 'pdf'
+          ? 'application/pdf'
+          : 'image/${ext == 'jpg' ? 'jpeg' : ext}',
       name: f.name,
     );
   }
@@ -112,7 +114,9 @@ class StorageService {
     final f = await pickImage();
     if (f == null) return null;
     final bytes = await f.readAsBytes();
-    var ext = f.name.contains('.') ? f.name.split('.').last.toLowerCase() : 'jpg';
+    var ext = f.name.contains('.')
+        ? f.name.split('.').last.toLowerCase()
+        : 'jpg';
     if (!const {'jpg', 'jpeg', 'png', 'webp'}.contains(ext)) ext = 'jpg';
     return PickedDoc(
       bytes: bytes,
@@ -123,10 +127,14 @@ class StorageService {
   }
 
   /// 비공개 버킷 업로드 — 반환값은 URL 이 아니라 '경로'(`<uid>/<kind>/<ts>.<ext>`).
-  Future<String> uploadBusinessDoc(PickedDoc doc, {required String kind}) async {
+  Future<String> uploadBusinessDoc(
+    PickedDoc doc, {
+    required String kind,
+  }) async {
     final uid = SessionManager.instance.user?.id;
     if (uid == null) throw StateError('로그인이 필요합니다');
-    final path = '$uid/$kind/${DateTime.now().millisecondsSinceEpoch}.${doc.ext}';
+    final path =
+        '$uid/$kind/${DateTime.now().millisecondsSinceEpoch}.${doc.ext}';
     await _c.storage
         .from('business-docs')
         .uploadBinary(
@@ -138,9 +146,14 @@ class StorageService {
   }
 
   /// 비공개 서류 열람용 signed URL (기본 60초 — 화면 미리보기 용도).
-  Future<String?> businessDocSignedUrl(String path, {int expiresIn = 60}) async {
+  Future<String?> businessDocSignedUrl(
+    String path, {
+    int expiresIn = 60,
+  }) async {
     try {
-      return await _c.storage.from('business-docs').createSignedUrl(path, expiresIn);
+      return await _c.storage
+          .from('business-docs')
+          .createSignedUrl(path, expiresIn);
     } catch (_) {
       return null;
     }

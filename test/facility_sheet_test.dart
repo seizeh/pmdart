@@ -32,16 +32,18 @@ void main() {
   );
 
   testWidgets('시설 상세 콘텐츠가 정보와 후기 버튼을 표시한다', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light(),
-      home: Scaffold(
-        body: FacilityDetailContent(
-          facility: facility,
-          color: Color(0xFFEF5350),
-          label: '동물병원',
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: FacilityDetailContent(
+            facility: facility,
+            color: Color(0xFFEF5350),
+            label: '동물병원',
+          ),
         ),
       ),
-    ));
+    );
 
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
@@ -55,22 +57,24 @@ void main() {
 
   testWidgets('MapBottomSheet 가 콘텐츠를 띄우고 바깥 탭으로 닫힌다', (tester) async {
     var closed = false;
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light(),
-      home: Scaffold(
-        body: Stack(
-          children: [
-            const Positioned.fill(child: ColoredBox(color: Colors.green)),
-            Positioned.fill(
-              child: MapBottomSheet(
-                onClose: () => closed = true,
-                child: const Center(child: Text('SHEET-BODY')),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: Stack(
+            children: [
+              const Positioned.fill(child: ColoredBox(color: Colors.green)),
+              Positioned.fill(
+                child: MapBottomSheet(
+                  onClose: () => closed = true,
+                  child: const Center(child: Text('SHEET-BODY')),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ));
+    );
     // 슬라이드 인.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -100,27 +104,29 @@ void main() {
       ownerUserId: 'owner-uid',
     );
     final obs = _RecordingObserver();
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light(),
-      navigatorObservers: [obs],
-      home: Scaffold(
-        body: Stack(
-          children: [
-            const Positioned.fill(child: ColoredBox(color: Colors.green)),
-            Positioned.fill(
-              child: MapBottomSheet(
-                onClose: () {},
-                child: FacilityDetailContent(
-                  facility: hero,
-                  color: const Color(0xFFEF5350),
-                  label: '분양',
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        navigatorObservers: [obs],
+        home: Scaffold(
+          body: Stack(
+            children: [
+              const Positioned.fill(child: ColoredBox(color: Colors.green)),
+              Positioned.fill(
+                child: MapBottomSheet(
+                  onClose: () {},
+                  child: FacilityDetailContent(
+                    facility: hero,
+                    color: const Color(0xFFEF5350),
+                    label: '분양',
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ));
+    );
     // 슬라이드 인 + 후기 로드 폴백.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));

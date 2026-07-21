@@ -61,7 +61,9 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
     super.initState();
     if (_reviewId != null) _loadComments();
     if (widget.fromDeepLink && _reviewId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeSuggestSwitch());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _maybeSuggestSwitch(),
+      );
     }
   }
 
@@ -95,11 +97,7 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
     final res = await BusinessRepository.instance.switchMode('business');
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          res == 'business' ? '업체 모드로 전환했어요' : '전환에 실패했어요',
-        ),
-      ),
+      SnackBar(content: Text(res == 'business' ? '업체 모드로 전환했어요' : '전환에 실패했어요')),
     );
   }
 
@@ -138,9 +136,9 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
       await _loadComments();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('댓글 작성에 실패했어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('댓글 작성에 실패했어요')));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -170,9 +168,9 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
       await _loadComments();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('삭제에 실패했어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('삭제에 실패했어요')));
     }
   }
 
@@ -366,7 +364,8 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
   /// 본문 정보 위젯들 — 게시글 상세의 칩→제목→작성자→본문 순서를 후기 문법으로:
   /// 방문 차수 칩 → 별점(제목 자리) → 작성자·날짜 → 본문 → 나머지 사진.
   List<Widget> _infoChildren(ReviewCardData r, {required bool contentInHero}) {
-    final showContent = (r.content ?? '').isNotEmpty &&
+    final showContent =
+        (r.content ?? '').isNotEmpty &&
         (!contentInHero || !_heroHoldsFullContent);
     return [
       if (r.visitNo != null || r.isMine)

@@ -13,27 +13,27 @@ Map<String, String> installFakeSecureStorage() {
   const channel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(channel, (call) async {
-    final args = (call.arguments as Map?) ?? const {};
-    final key = args['key'] as String?;
-    switch (call.method) {
-      case 'read':
-        return store[key];
-      case 'write':
-        store[key!] = args['value'] as String;
+        final args = (call.arguments as Map?) ?? const {};
+        final key = args['key'] as String?;
+        switch (call.method) {
+          case 'read':
+            return store[key];
+          case 'write':
+            store[key!] = args['value'] as String;
+            return null;
+          case 'delete':
+            store.remove(key);
+            return null;
+          case 'readAll':
+            return Map<String, String>.from(store);
+          case 'deleteAll':
+            store.clear();
+            return null;
+          case 'containsKey':
+            return store.containsKey(key);
+        }
         return null;
-      case 'delete':
-        store.remove(key);
-        return null;
-      case 'readAll':
-        return Map<String, String>.from(store);
-      case 'deleteAll':
-        store.clear();
-        return null;
-      case 'containsKey':
-        return store.containsKey(key);
-    }
-    return null;
-  });
+      });
   return store;
 }
 

@@ -34,7 +34,10 @@ void main() {
     });
 
     test('상대가 고객센터면 isSupport(목록 최상단 고정 근거)', () {
-      final r = ChatRoomSummary.fromJson({'id': 'r1', 'other_nickname': '고객센터'});
+      final r = ChatRoomSummary.fromJson({
+        'id': 'r1',
+        'other_nickname': '고객센터',
+      });
       expect(r.isSupport, isTrue);
     });
   });
@@ -63,8 +66,10 @@ void main() {
         isFalse,
       );
       expect(
-        ChatMessage.fromJson({...row, 'image_url': 'https://x/y.jpg'}, 'u1')
-            .isImage,
+        ChatMessage.fromJson({
+          ...row,
+          'image_url': 'https://x/y.jpg',
+        }, 'u1').isImage,
         isTrue,
       );
     });

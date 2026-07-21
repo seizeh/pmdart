@@ -47,7 +47,11 @@ void main() {
     });
 
     test('카운트가 double 로 와도 int 로 수렴한다(PostgREST numeric)', () {
-      final p = Post.fromJson({'id': 'p1', 'heart_count': 3.0, 'view_count': 7.9});
+      final p = Post.fromJson({
+        'id': 'p1',
+        'heart_count': 3.0,
+        'view_count': 7.9,
+      });
       expect(p.heartCount, 3);
       expect(p.viewCount, 7);
     });
@@ -57,7 +61,10 @@ void main() {
     });
 
     test('edited_at 이 있으면 isEdited', () {
-      final p = Post.fromJson({'id': 'p1', 'edited_at': '2026-07-01T00:00:00Z'});
+      final p = Post.fromJson({
+        'id': 'p1',
+        'edited_at': '2026-07-01T00:00:00Z',
+      });
       expect(p.isEdited, isTrue);
     });
   });
@@ -92,7 +99,10 @@ void main() {
 
     test('둘 중 하나라도 없거나 비면 이동 아님(경고 안 띄움)', () {
       expect(post(authorAddress: null, location: '청운동').authorMoved, isFalse);
-      expect(post(authorAddress: '서울 종로구 청운동', location: null).authorMoved, isFalse);
+      expect(
+        post(authorAddress: '서울 종로구 청운동', location: null).authorMoved,
+        isFalse,
+      );
       expect(post(authorAddress: '  ', location: '청운동').authorMoved, isFalse);
     });
   });
@@ -138,7 +148,12 @@ void main() {
       const p = MyPet(id: 'x', name: '뽀삐', species: '믹스', role: 'owner');
       expect(p.isTrusted, isFalse);
       const q = MyPet(
-        id: 'x', name: '뽀삐', species: '믹스', role: 'owner', trustScore: 3);
+        id: 'x',
+        name: '뽀삐',
+        species: '믹스',
+        role: 'owner',
+        trustScore: 3,
+      );
       expect(q.isTrusted, isTrue);
     });
   });

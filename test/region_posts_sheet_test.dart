@@ -16,12 +16,12 @@ void main() {
   );
 
   testWidgets('동네 게시글 콘텐츠가 헤더를 표시하고 예외 없이 렌더된다', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light(),
-      home: Scaffold(
-        body: RegionPostsContent(cluster: cluster),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(body: RegionPostsContent(cluster: cluster)),
       ),
-    ));
+    );
 
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));

@@ -8,7 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fake_session.dart';
 import '../helpers/fake_supabase.dart';
 
-const _me = AuthUser(id: 'u1', username: 'me', nickname: '나', userType: 'no_pet');
+const _me = AuthUser(
+  id: 'u1',
+  username: 'me',
+  nickname: '나',
+  userType: 'no_pet',
+);
 
 void main() {
   late Map<String, String> secureStore;
@@ -66,17 +71,19 @@ void main() {
 
   group('AuthService.changePassword — 세션 교체 흐름', () {
     setUp(() async {
-      await SessionManager.instance
-          .setSession(jwtWithExp(nowSec() + 3600), _me, refresh: 'r-old');
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 3600),
+        _me,
+        refresh: 'r-old',
+      );
     });
 
     test('성공 시 새 access/refresh 로 세션이 통째로 교체된다', () async {
       final newJwt = jwtWithExp(nowSec() + 7200);
-      FakeSupabase.on('change-password', (_) => {
-        'ok': true,
-        'token': newJwt,
-        'refresh_token': 'r-new',
-      });
+      FakeSupabase.on(
+        'change-password',
+        (_) => {'ok': true, 'token': newJwt, 'refresh_token': 'r-new'},
+      );
 
       final r = await AuthService.instance.changePassword('old', 'new123');
 

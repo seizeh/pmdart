@@ -212,10 +212,7 @@ class ProfileRepository {
   /// (대표 보호자 펫만 보이던 문제: 공동보호자 프로필에서 펫 누락 해결).
   Future<List<MockPet>> _fetchPublicPets(String userId) async {
     try {
-      final rows = await _c.rpc(
-        'public_user_pets',
-        params: {'p_user': userId},
-      );
+      final rows = await _c.rpc('public_user_pets', params: {'p_user': userId});
       return [
         for (final p in (rows as List).cast<Map<String, dynamic>>())
           MockPet(

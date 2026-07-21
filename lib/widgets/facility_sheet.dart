@@ -264,143 +264,140 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
   /// 헤더 아래 공통 본문(신뢰 카드·주소·전화·버튼·후기) — 사진 유무 양쪽 공용.
   List<Widget> _bodyItems(Facility f, List<FacilityReview>? reviews) {
     return [
-        if (evaluatePetSales(f) case final s?) ...[
-          const SizedBox(height: 12),
-          _PetSalesTrustCard(score: s),
-        ],
-        if (f.address != null && f.address!.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _row(Icons.place_outlined, f.address!),
-        ],
-        if (f.phone != null && f.phone!.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _row(Icons.call_outlined, formatKrPhone(f.phone)),
-        ],
-        // 인증 업주가 설정한 영업시간(업체 정보 수정에서 동기화).
-        if ((f.businessHours ?? '').isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _row(Icons.schedule_outlined, f.businessHours!),
-        ],
-        const SizedBox(height: 16),
-        // 머티리얼 버튼은 무한 너비에서 maximumSize(∞)로 채우려다 터진다(이
-        // 화면 본문은 너비 제약이 깨져 무한이 들어옴, #28). Container 는 intrinsic
-        // 크기라 무한에서도 안전 → GestureDetector+Container 로 버튼을 구성.
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 내 업체(인증 연결 계정)는 후기 쓰기 숨김 — 개인/업체 모드 무관
-            // (같은 uid). 서버(add_facility_review own_facility)가 불변식 정본.
-            if (!_isMyFacility(f)) ...[
-              GestureDetector(
-                onTap: _writeReview,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: context.colors.primaryDark,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.rate_review_outlined,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        '후기 쓰기',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
+      if (evaluatePetSales(f) case final s?) ...[
+        const SizedBox(height: 12),
+        _PetSalesTrustCard(score: s),
+      ],
+      if (f.address != null && f.address!.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        _row(Icons.place_outlined, f.address!),
+      ],
+      if (f.phone != null && f.phone!.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        _row(Icons.call_outlined, formatKrPhone(f.phone)),
+      ],
+      // 인증 업주가 설정한 영업시간(업체 정보 수정에서 동기화).
+      if ((f.businessHours ?? '').isNotEmpty) ...[
+        const SizedBox(height: 8),
+        _row(Icons.schedule_outlined, f.businessHours!),
+      ],
+      const SizedBox(height: 16),
+      // 머티리얼 버튼은 무한 너비에서 maximumSize(∞)로 채우려다 터진다(이
+      // 화면 본문은 너비 제약이 깨져 무한이 들어옴, #28). Container 는 intrinsic
+      // 크기라 무한에서도 안전 → GestureDetector+Container 로 버튼을 구성.
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 내 업체(인증 연결 계정)는 후기 쓰기 숨김 — 개인/업체 모드 무관
+          // (같은 uid). 서버(add_facility_review own_facility)가 불변식 정본.
+          if (!_isMyFacility(f)) ...[
             GestureDetector(
-              onTap: _openInNaverMap,
+              onTap: _writeReview,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
+                  horizontal: 18,
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
+                  color: context.colors.primaryDark,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: context.colors.border),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.map_outlined,
+                    const Icon(
+                      Icons.rate_review_outlined,
                       size: 18,
-                      color: context.colors.textSecondary,
+                      color: Colors.white,
                     ),
-                    SizedBox(width: 6),
-                    Text(
-                      '네이버',
-                      style: TextStyle(color: context.colors.textSecondary),
+                    const SizedBox(width: 6),
+                    const Text(
+                      '후기 쓰기',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+            const SizedBox(width: 8),
           ],
-        ),
-        const SizedBox(height: 18),
-        Divider(height: 1, color: context.colors.border),
-        const SizedBox(height: 14),
-        Text(
-          '후기',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: context.colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (reviews == null)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
-          )
-        else if (reviews.isEmpty)
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(
-              child: Text(
-                '아직 후기가 없어요. 첫 후기를 남겨보세요!',
-                style: TextStyle(color: context.colors.textTertiary),
+          GestureDetector(
+            onTap: _openInNaverMap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: context.colors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.map_outlined,
+                    size: 18,
+                    color: context.colors.textSecondary,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    '네이버',
+                    style: TextStyle(color: context.colors.textSecondary),
+                  ),
+                ],
               ),
             ),
-          )
-        else
-          // 사진+평점 카드 그리드 — 탭하면 상세 시트(작성자·내용·사진 전체).
-          ReviewCardGrid(
-            reviews: [
-              for (final r in reviews)
-                ReviewCardData(
-                  author: r.authorNickname,
-                  rating: r.rating,
-                  content: r.content,
-                  createdAt: r.createdAt,
-                  photoUrls: r.photoUrls,
-                  isMine: r.isMine,
-                  visitNo: r.visitNo,
-                  seed: r.id,
-                  reviewId: r.id,
-                  authorUserId: r.userId,
-                  onDelete: r.isMine ? () => _deleteReview(r.id) : null,
-                ),
-            ],
           ),
+        ],
+      ),
+      const SizedBox(height: 18),
+      Divider(height: 1, color: context.colors.border),
+      const SizedBox(height: 14),
+      Text(
+        '후기',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          color: context.colors.textPrimary,
+        ),
+      ),
+      const SizedBox(height: 10),
+      if (reviews == null)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
+        )
+      else if (reviews.isEmpty)
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: Center(
+            child: Text(
+              '아직 후기가 없어요. 첫 후기를 남겨보세요!',
+              style: TextStyle(color: context.colors.textTertiary),
+            ),
+          ),
+        )
+      else
+        // 사진+평점 카드 그리드 — 탭하면 상세 시트(작성자·내용·사진 전체).
+        ReviewCardGrid(
+          reviews: [
+            for (final r in reviews)
+              ReviewCardData(
+                author: r.authorNickname,
+                rating: r.rating,
+                content: r.content,
+                createdAt: r.createdAt,
+                photoUrls: r.photoUrls,
+                isMine: r.isMine,
+                visitNo: r.visitNo,
+                seed: r.id,
+                reviewId: r.id,
+                authorUserId: r.userId,
+                onDelete: r.isMine ? () => _deleteReview(r.id) : null,
+              ),
+          ],
+        ),
     ];
   }
 

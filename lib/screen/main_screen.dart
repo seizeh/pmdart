@@ -19,7 +19,11 @@ class MainScreen extends StatefulWidget {
   /// null 로 리셋한다. 딥링크가 상세를 얹기 전에 "뒤로 갔을 때 보일 탭"을 맞출 때 사용.
   static final ValueNotifier<int?> tabRequest = ValueNotifier<int?>(null);
 
-  static const tabMap = 0, tabSearch = 1, tabCommunity = 2, tabChat = 3, tabMyInfo = 4;
+  static const tabMap = 0,
+      tabSearch = 1,
+      tabCommunity = 2,
+      tabChat = 3,
+      tabMyInfo = 4;
 
   @override
   State<MainScreen> createState() => _MainScreenState();

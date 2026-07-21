@@ -805,8 +805,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             .where((p) => p.length >= 10 && p != myPhone)
             .toSet()
             .toList();
-        final petDraft =
-            (!_isBusiness && _petNameCtrl.text.trim().isNotEmpty)
+        final petDraft = (!_isBusiness && _petNameCtrl.text.trim().isNotEmpty)
             ? PetDraft(
                 name: _petNameCtrl.text.trim(),
                 speciesKind: _petKind,

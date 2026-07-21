@@ -234,7 +234,8 @@ class _DetailSheetState extends State<_DetailSheet> {
           _row('주소(도로명)', a.businessAddress),
           if ((a.businessAddressJibun ?? '').isNotEmpty)
             _row('주소(지번)', a.businessAddressJibun!),
-          if ((a.businessPhone ?? '').isNotEmpty) _row('업장 전화', a.businessPhone!),
+          if ((a.businessPhone ?? '').isNotEmpty)
+            _row('업장 전화', a.businessPhone!),
           if ((a.representativeName ?? '').isNotEmpty)
             _row('대표자', a.representativeName!),
           _row('이메일', a.contactEmail),
@@ -273,7 +274,9 @@ class _DetailSheetState extends State<_DetailSheet> {
             onPressed: () => _openDoc(a.licenseImagePath),
             icon: const Icon(Icons.description_outlined),
             label: const Text('사업자등록증 열람'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+            ),
           ),
           if (a.extraDocPath != null) ...[
             const SizedBox(height: 8),
@@ -281,7 +284,9 @@ class _DetailSheetState extends State<_DetailSheet> {
               onPressed: () => _openDoc(a.extraDocPath!),
               icon: const Icon(Icons.attach_file),
               label: const Text('추가 서류 열람 (영업 등록증 등)'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
+              ),
             ),
           ],
           const SizedBox(height: 20),

@@ -464,7 +464,15 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
           ),
           Row(
             children: [
-              for (final (i, w) in const ['일', '월', '화', '수', '목', '금', '토'].indexed)
+              for (final (i, w) in const [
+                '일',
+                '월',
+                '화',
+                '수',
+                '목',
+                '금',
+                '토',
+              ].indexed)
                 Expanded(
                   child: Center(
                     child: Text(
@@ -486,8 +494,14 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
             Row(
               children: [
                 for (var dow = 0; dow < 7; dow++)
-                  Expanded(child: _dayCell(week * 7 + dow - firstWeekday + 1,
-                      daysInMonth, counts, todayKey)),
+                  Expanded(
+                    child: _dayCell(
+                      week * 7 + dow - firstWeekday + 1,
+                      daysInMonth,
+                      counts,
+                      todayKey,
+                    ),
+                  ),
               ],
             ),
         ],

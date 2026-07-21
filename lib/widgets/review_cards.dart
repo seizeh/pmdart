@@ -119,7 +119,8 @@ class _ReviewCard extends StatelessWidget {
               // 위에 본문을 히어로로 올린다.
               Positioned.fill(
                 child: BlobBackground(
-                  seed: review.seed ??
+                  seed:
+                      review.seed ??
                       '${review.author}/${review.createdAt?.millisecondsSinceEpoch}',
                   color: context.colors.primary,
                 ),

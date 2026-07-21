@@ -168,8 +168,9 @@ class BusinessRepository {
             authorNickname: (r['author_nickname'] as String?) ?? '알 수 없음',
             rating: (r['rating'] as num?)?.toInt() ?? 0,
             content: r['content'] as String?,
-            createdAt:
-                DateTime.tryParse(r['created_at'] as String? ?? '')?.toLocal(),
+            createdAt: DateTime.tryParse(
+              r['created_at'] as String? ?? '',
+            )?.toLocal(),
             photoUrls: [
               for (final u in (r['photo_urls'] as List? ?? const []))
                 u as String,
@@ -224,10 +225,7 @@ class BusinessRepository {
   /// 계정 전환 — business 는 승인(approved) 상태에서만 서버가 허용.
   Future<String?> switchMode(String mode) async {
     try {
-      final res = await _c.rpc(
-        'switch_account_mode',
-        params: {'p_mode': mode},
-      );
+      final res = await _c.rpc('switch_account_mode', params: {'p_mode': mode});
       return res as String?;
     } catch (_) {
       return null;

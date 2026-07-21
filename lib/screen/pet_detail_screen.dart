@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
-import '../theme/app_palette.dart';
+
 import '../data/mock_data.dart' show MockPet;
+import '../motion/motion.dart';
 import '../services/pet_repository.dart';
-import '../widgets/role_badge.dart';
+import '../theme/app_palette.dart';
 import '../widgets/pet_trust_badge.dart';
+import '../widgets/role_badge.dart';
 import 'pet_edit_screen.dart';
 
 /// 펫 상세 — 펫 정보 + 보호자 목록(실데이터). owner 는 수정/삭제/초대 가능.
@@ -80,7 +82,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       return;
     }
     setState(() => _pet = fresh);
-    _loadGuardians();
+    unawaited(_loadGuardians());
   }
 
   void _toast(String m) {
@@ -167,7 +169,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   context,
                   AppPageRoute(builder: (_) => PetEditScreen(pet: _pet)),
                 );
-                if (changed == true) _reloadPet();
+                if (changed == true) unawaited(_reloadPet());
               },
             ),
             ListTile(
@@ -221,7 +223,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Future<void> _removeGuardian(Guardian g) async {
     try {
       await _repo.removeGuardian(_pet.id, g.userId);
-      _loadGuardians();
+      unawaited(_loadGuardians());
     } catch (_) {
       _toast('보호자 제거에 실패했어요');
     }

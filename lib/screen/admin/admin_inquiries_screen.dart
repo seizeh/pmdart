@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../motion/motion.dart';
-import '../../theme/app_palette.dart';
+
 import '../../data/mock_data.dart' show timeAgo;
+import '../../motion/motion.dart';
 import '../../services/admin_repository.dart';
 import '../../services/chat_repository.dart';
+import '../../theme/app_palette.dart';
 import '../chat_room_screen.dart';
 import 'admin_theme.dart';
 
@@ -69,7 +71,7 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
         context,
         AppPageRoute(builder: (_) => ChatRoomScreen(room: room)),
       );
-      if (mounted) _load();
+      if (mounted) unawaited(_load());
     } catch (_) {
       _toast('문의방을 열지 못했어요');
     } finally {

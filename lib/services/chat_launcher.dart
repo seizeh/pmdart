@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../motion/motion.dart';
 import '../screen/chat_room_screen.dart';
@@ -11,10 +13,12 @@ Future<void> openDirectChat(
   String otherUserId, {
   bool business = false,
 }) async {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const Center(child: CircularProgressIndicator()),
+  unawaited(
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    ),
   );
   try {
     final room = await ChatRepository.instance.startDirectChat(

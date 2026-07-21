@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -181,7 +182,7 @@ class _AdminBusinessScreenState extends State<AdminBusinessScreen> {
       ),
       builder: (_) => _DetailSheet(app: a),
     );
-    if (changed == true) _load();
+    if (changed == true) unawaited(_load());
   }
 
   void _toast(String msg) {

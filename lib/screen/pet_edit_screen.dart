@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
-import '../theme/app_palette.dart';
+
 import '../data/mock_data.dart' show MockPet;
+import '../motion/motion.dart';
 import '../services/pet_repository.dart';
 import '../services/storage_service.dart';
+import '../theme/app_palette.dart';
 import 'pet_identity_enroll_screen.dart';
 
 /// 가입 단계 등에서 미리 받아온 펫 정보 초안 — 신규 등록 폼을 프리필한다.

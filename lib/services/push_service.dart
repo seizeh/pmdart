@@ -1,8 +1,10 @@
 import 'dart:io';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'session.dart';
 
 /// 백그라운드/종료 상태 수신 핸들러(반드시 top-level, vm:entry-point).

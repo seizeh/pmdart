@@ -16,7 +16,7 @@ class AdminStats {
     required this.reportsOpen,
   });
 
-  factory AdminStats.fromJson(Map j) => AdminStats(
+  factory AdminStats.fromJson(Map<dynamic, dynamic> j) => AdminStats(
     users: (j['users'] as num?)?.toInt() ?? 0,
     usersSuspended: (j['users_suspended'] as num?)?.toInt() ?? 0,
     posts: (j['posts'] as num?)?.toInt() ?? 0,
@@ -47,7 +47,7 @@ class AdminUser {
 
   bool get isAdmin => userType == 'admin';
 
-  factory AdminUser.fromJson(Map j) => AdminUser(
+  factory AdminUser.fromJson(Map<dynamic, dynamic> j) => AdminUser(
     id: j['id'] as String,
     username: (j['username'] ?? '') as String,
     nickname: (j['nickname'] ?? '') as String,
@@ -82,7 +82,7 @@ class AdminReport {
     required this.reporterNickname,
   });
 
-  factory AdminReport.fromJson(Map j) => AdminReport(
+  factory AdminReport.fromJson(Map<dynamic, dynamic> j) => AdminReport(
     id: j['id'] as String,
     targetType: (j['target_type'] ?? '') as String,
     targetId: j['target_id'] as String?,
@@ -125,7 +125,7 @@ class AdminPost {
     required this.createdAt,
   });
 
-  factory AdminPost.fromJson(Map j) => AdminPost(
+  factory AdminPost.fromJson(Map<dynamic, dynamic> j) => AdminPost(
     id: j['id'] as String,
     title: (j['title'] ?? '') as String,
     content: (j['content'] ?? '') as String,
@@ -155,7 +155,7 @@ class AdminComment {
     required this.createdAt,
   });
 
-  factory AdminComment.fromJson(Map j) => AdminComment(
+  factory AdminComment.fromJson(Map<dynamic, dynamic> j) => AdminComment(
     id: j['id'] as String,
     content: (j['content'] ?? '') as String,
     authorNickname: (j['author_nickname'] ?? '알 수 없음') as String,
@@ -180,7 +180,7 @@ class AdminInquiry {
     required this.lastMessageAt,
   });
 
-  factory AdminInquiry.fromJson(Map j) => AdminInquiry(
+  factory AdminInquiry.fromJson(Map<dynamic, dynamic> j) => AdminInquiry(
     roomId: j['room_id'] as String,
     userId: j['user_id'] as String?,
     userNickname: (j['user_nickname'] ?? '알 수 없음') as String,
@@ -240,7 +240,7 @@ class ReportTarget {
     required this.data,
   });
 
-  factory ReportTarget.fromJson(Map j) => ReportTarget(
+  factory ReportTarget.fromJson(Map<dynamic, dynamic> j) => ReportTarget(
     kind: (j['kind'] ?? '') as String,
     exists: j['exists'] == true,
     data: j.cast<String, dynamic>(),
@@ -267,7 +267,7 @@ class AdminLog {
     required this.createdAt,
   });
 
-  factory AdminLog.fromJson(Map j) => AdminLog(
+  factory AdminLog.fromJson(Map<dynamic, dynamic> j) => AdminLog(
     id: j['id'] as String,
     adminNickname: (j['admin_nickname'] ?? '알 수 없음') as String,
     actionType: (j['action_type'] ?? '') as String,
@@ -331,9 +331,10 @@ class AdminOpsMetrics {
   /// AI 인증 성공률 0~1.
   double get aiSuccessRate => aiTotal == 0 ? 0 : aiPass / aiTotal;
 
-  static int _gi(Map m, String k) => (m[k] as num?)?.toInt() ?? 0;
+  static int _gi(Map<dynamic, dynamic> m, String k) =>
+      (m[k] as num?)?.toInt() ?? 0;
 
-  factory AdminOpsMetrics.fromJson(Map j) {
+  factory AdminOpsMetrics.fromJson(Map<dynamic, dynamic> j) {
     final uc = (j['unit_cost'] as Map?) ?? const {};
     final ai = (j['ai'] as Map?) ?? const {};
     final sms = (j['sms'] as Map?) ?? const {};
@@ -418,16 +419,17 @@ class PhotoVerifyFailure {
     }
   }
 
-  factory PhotoVerifyFailure.fromJson(Map j) => PhotoVerifyFailure(
-    id: j['id'] as String,
-    createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
-    failReason: j['fail_reason'] as String?,
-    aiReason: j['ai_reason'] as String?,
-    regionMatched: j['region_matched'] == true,
-    aiMatchScore: (j['ai_match_score'] as num?)?.toDouble(),
-    purpose: (j['purpose'] ?? '') as String,
-    nickname: (j['nickname'] ?? '알 수 없음') as String,
-  );
+  factory PhotoVerifyFailure.fromJson(Map<dynamic, dynamic> j) =>
+      PhotoVerifyFailure(
+        id: j['id'] as String,
+        createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+        failReason: j['fail_reason'] as String?,
+        aiReason: j['ai_reason'] as String?,
+        regionMatched: j['region_matched'] == true,
+        aiMatchScore: (j['ai_match_score'] as num?)?.toDouble(),
+        purpose: (j['purpose'] ?? '') as String,
+        nickname: (j['nickname'] ?? '알 수 없음') as String,
+      );
 }
 
 /// 관리자가 보는 업체 인증 신청 1건 (0025 §6).
@@ -487,33 +489,34 @@ class AdminBusinessApplication {
   /// 자동승인 트랙이 아니면 승인이 override(사유 필수)로 처리된다 (0025 §6-2).
   bool get approveNeedsReason => reviewTrack != 'auto';
 
-  factory AdminBusinessApplication.fromJson(Map j) => AdminBusinessApplication(
-    userId: j['user_id'] as String,
-    nickname: (j['nickname'] ?? '') as String,
-    businessRegNo: (j['business_reg_no'] ?? '') as String,
-    declaredCategory: (j['declared_category'] ?? '') as String,
-    businessName: (j['business_name'] ?? '') as String,
-    storefrontName: j['storefront_name'] as String?,
-    prevBusinessName: j['prev_business_name'] as String?,
-    businessAddress: (j['business_address'] ?? '') as String,
-    businessAddressJibun: j['business_address_jibun'] as String?,
-    businessPhone: j['business_phone'] as String?,
-    representativeName: j['representative_name'] as String?,
-    contactEmail: (j['contact_email'] ?? '') as String,
-    licenseImagePath: (j['license_image_path'] ?? '') as String,
-    extraDocPath: j['extra_doc_path'] as String?,
-    matchedFacilityName: j['matched_facility_name'] as String?,
-    matchScore: (j['match_score'] as num?)?.toInt(),
-    matchDetail:
-        (j['match_detail'] as Map?)?.cast<String, dynamic>() ?? const {},
-    reviewTrack: (j['review_track'] ?? 'review') as String,
-    autoApproved: j['auto_approved'] == true,
-    status: (j['status'] ?? 'pending') as String,
-    rejectedReason: j['rejected_reason'] as String?,
-    reviewNote: j['review_note'] as String?,
-    createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
-    updatedAt: DateTime.parse(j['updated_at'] as String).toLocal(),
-  );
+  factory AdminBusinessApplication.fromJson(Map<dynamic, dynamic> j) =>
+      AdminBusinessApplication(
+        userId: j['user_id'] as String,
+        nickname: (j['nickname'] ?? '') as String,
+        businessRegNo: (j['business_reg_no'] ?? '') as String,
+        declaredCategory: (j['declared_category'] ?? '') as String,
+        businessName: (j['business_name'] ?? '') as String,
+        storefrontName: j['storefront_name'] as String?,
+        prevBusinessName: j['prev_business_name'] as String?,
+        businessAddress: (j['business_address'] ?? '') as String,
+        businessAddressJibun: j['business_address_jibun'] as String?,
+        businessPhone: j['business_phone'] as String?,
+        representativeName: j['representative_name'] as String?,
+        contactEmail: (j['contact_email'] ?? '') as String,
+        licenseImagePath: (j['license_image_path'] ?? '') as String,
+        extraDocPath: j['extra_doc_path'] as String?,
+        matchedFacilityName: j['matched_facility_name'] as String?,
+        matchScore: (j['match_score'] as num?)?.toInt(),
+        matchDetail:
+            (j['match_detail'] as Map?)?.cast<String, dynamic>() ?? const {},
+        reviewTrack: (j['review_track'] ?? 'review') as String,
+        autoApproved: j['auto_approved'] == true,
+        status: (j['status'] ?? 'pending') as String,
+        rejectedReason: j['rejected_reason'] as String?,
+        reviewNote: j['review_note'] as String?,
+        createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+        updatedAt: DateTime.parse(j['updated_at'] as String).toLocal(),
+      );
 }
 
 /// 관리자 전용 데이터 접근. 모든 호출은 DB 에서 app.is_admin() 으로 검증된다.

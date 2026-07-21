@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../motion/motion.dart';
-import '../../theme/app_palette.dart';
+
 import '../../data/mock_data.dart' show timeAgo;
+import '../../motion/motion.dart';
 import '../../services/admin_repository.dart';
-import 'admin_theme.dart';
+import '../../theme/app_palette.dart';
 import 'admin_report_detail_screen.dart';
+import 'admin_theme.dart';
 
 /// 신고 처리 — 미처리/전체 신고 조회 + 상태 변경(검토중/처리완료/반려).
 class AdminReportsScreen extends StatefulWidget {
@@ -163,7 +165,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                 builder: (_) => AdminReportDetailScreen(report: _items[i]),
               ),
             );
-            if (mounted) _load();
+            if (mounted) unawaited(_load());
           },
           child: _ReportCard(
             report: _items[i],

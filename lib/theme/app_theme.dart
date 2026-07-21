@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'app_palette.dart';
+
 import '../motion/spring_page_route.dart';
+import 'app_palette.dart';
 
 /// 앱 테마 — 라이트/다크 모두 [AppPalette] 시맨틱 토큰에서 파생된다.
 /// 컴포넌트 테마(버튼·입력창·스낵바 등)는 팔레트만 갈아끼우면 양쪽에서 동일하게

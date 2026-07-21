@@ -1,17 +1,19 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../theme/app_palette.dart';
+
 import '../models/facility_review.dart';
+import '../motion/motion.dart';
+import '../screen/facility_review_screen.dart';
+import '../screen/user_profile_screen.dart';
 import '../services/facility_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/session.dart';
-import '../screen/facility_review_screen.dart';
-import '../screen/user_profile_screen.dart';
-import 'review_cards.dart';
+import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
+import 'review_cards.dart';
 
 /// 시설 상세 콘텐츠(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
 ///
@@ -69,9 +71,11 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     final fac = widget.facility;
     // 같은 업체의 전체 카테고리(DB 시설만; Naver 카페는 단일). 리뷰와 병렬로.
     if (!fac.isNaver) {
-      FacilityRepository.instance.allCategories(fac.id).then((cats) {
-        if (mounted && cats.isNotEmpty) setState(() => _categories = cats);
-      });
+      unawaited(
+        FacilityRepository.instance.allCategories(fac.id).then((cats) {
+          if (mounted && cats.isNotEmpty) setState(() => _categories = cats);
+        }),
+      );
     }
     try {
       final f = widget.facility;
@@ -116,7 +120,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
         builder: (_) => FacilityReviewScreen(facility: widget.facility),
       ),
     );
-    if (ok == true) _load();
+    if (ok == true) unawaited(_load());
   }
 
   Future<void> _openInNaverMap() async {

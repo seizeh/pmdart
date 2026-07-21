@@ -1,24 +1,26 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
-import '../../theme/app_palette.dart';
+
 import '../../models/community.dart';
-import '../../services/business_repository.dart';
-import '../../services/community_repository.dart';
-import '../../widgets/app_search_field.dart';
-import '../../widgets/post_card.dart';
-import '../../widgets/role_badge.dart';
 import '../../motion/motion.dart';
 import '../../services/app_events.dart';
+import '../../services/business_repository.dart';
+import '../../services/community_repository.dart';
 import '../../services/keyboard_barrier.dart';
 import '../../services/notification_repository.dart';
 import '../../services/profile_repository.dart';
+import '../../theme/app_palette.dart';
+import '../../widgets/app_search_field.dart';
+import '../../widgets/post_card.dart';
+import '../../widgets/role_badge.dart';
 import '../auth/auth_wall_dialog.dart';
 import '../location_verify_screen.dart';
-import '../post_detail_screen.dart';
-import '../post_create_screen.dart';
-import '../notifications_screen.dart';
 import '../notification_panel.dart';
+import '../notifications_screen.dart';
+import '../post_create_screen.dart';
+import '../post_detail_screen.dart';
 
 /// 커뮤니티 탭 — 게시글 목록(실데이터) + 카테고리 필터 + 검색.
 class CommunityTab extends StatefulWidget {
@@ -259,7 +261,7 @@ class _CommunityTabState extends State<CommunityTab>
     if (!mounted) return;
     setState(() => _openedPostId = null); // 상세 닫힘 → 원본 카드 복원
     _revealHeaderIfAtTop(); // 최상단이면 헤더 복귀(흰 공백 방지)
-    _load(silent: true); // 스크롤 유지한 채 하트/댓글 변동만 반영
+    unawaited(_load(silent: true)); // 스크롤 유지한 채 하트/댓글 변동만 반영
   }
 
   void _selectCategory(String? c) {
@@ -269,7 +271,7 @@ class _CommunityTabState extends State<CommunityTab>
 
   Future<void> _toggleHeart(int index) async {
     if (widget.isGuest) {
-      AuthWallDialog.show(context, message: '하트는 로그인 후 누를 수 있어요');
+      unawaited(AuthWallDialog.show(context, message: '하트는 로그인 후 누를 수 있어요'));
       return;
     }
     final post = _posts[index];
@@ -297,7 +299,7 @@ class _CommunityTabState extends State<CommunityTab>
 
   Future<void> _openCreate() async {
     if (widget.isGuest) {
-      AuthWallDialog.show(context, message: '게시글은 로그인 후 작성할 수 있어요');
+      unawaited(AuthWallDialog.show(context, message: '게시글은 로그인 후 작성할 수 있어요'));
       return;
     }
     // 동네 인증 게이트 — 미인증/만료(30일)면 작성 화면 대신 인증 안내.
@@ -330,7 +332,7 @@ class _CommunityTabState extends State<CommunityTab>
               origin: (_) => const _FabGhost(),
             ),
     );
-    if (created == true) _load();
+    if (created == true) unawaited(_load());
   }
 
   /// 동네 인증이 없거나 만료된 사용자에게 인증 화면으로 안내.
@@ -726,7 +728,7 @@ class _NotificationBellState extends State<_NotificationBell> {
 
   Future<void> _open() async {
     if (widget.isGuest) {
-      AuthWallDialog.show(context);
+      unawaited(AuthWallDialog.show(context));
       return;
     }
     // 벨 위치를 앵커로 그 아래로 펼쳐지는 알림 패널을 연다(Slack 헤더-메뉴 스펠).
@@ -740,7 +742,7 @@ class _NotificationBellState extends State<_NotificationBell> {
         final items = await NotificationRepository.instance.fetch();
         if (!mounted) return;
         await showNotificationPanel(context, anchor, items);
-        _loadCount();
+        unawaited(_loadCount());
         return;
       } catch (_) {
         /* 실패 시 전체화면으로 폴백 */
@@ -751,7 +753,7 @@ class _NotificationBellState extends State<_NotificationBell> {
       context,
       AppPageRoute(builder: (_) => const NotificationsScreen()),
     );
-    _loadCount();
+    unawaited(_loadCount());
   }
 
   @override

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
+
 import '../data/review_categories.dart';
 import '../services/activity_repository.dart';
+import '../theme/app_palette.dart';
 
 /// 평가 작성 — 완료된 약속의 상대에게 8개 카테고리 중 최대 4개 선택해 평가.
 /// 상반되는 카테고리(예: 친절해요 ↔ 불친절해요)는 동시 선택 불가.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
+
 import '../services/activity_repository.dart';
+import '../theme/app_palette.dart';
 
 /// 알림 설정 — notification_preferences 토글.
 class NotificationSettingsScreen extends StatefulWidget {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../theme/app_palette.dart';
+
 import '../services/auth_service.dart';
+import '../theme/app_palette.dart';
 
 /// 비밀번호 변경 — 현재 비밀번호 확인 후 새 비밀번호로 변경.
 class ChangePasswordScreen extends StatefulWidget {

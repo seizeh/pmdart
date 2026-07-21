@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
-import '../theme/app_palette.dart';
+
 import '../models/community.dart';
+import '../motion/motion.dart';
 import '../services/community_repository.dart';
 import '../services/session.dart';
+import '../theme/app_palette.dart';
 import '../widgets/post_card.dart';
 import 'post_detail_screen.dart';
 
@@ -93,7 +95,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
         ),
       ),
     );
-    _load();
+    unawaited(_load());
   }
 
   Future<void> _confirmDelete() async {

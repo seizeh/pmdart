@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/social.dart';
+
 import '../models/pet_search.dart';
+import '../models/social.dart';
 import 'app_events.dart';
 import 'session.dart';
 

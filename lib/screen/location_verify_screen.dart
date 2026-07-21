@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_palette.dart';
 import '../services/location_repository.dart';
 import '../services/location_service.dart';
+import '../theme/app_palette.dart';
 
 /// 동네 인증 화면 — 현재 위치(GPS)로 활동 지역(행정동)을 인증한다.
 ///

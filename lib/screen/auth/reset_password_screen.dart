@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../theme/app_palette.dart';
+
 import '../../services/phone_auth_service.dart';
+import '../../theme/app_palette.dart';
 
 /// 비밀번호 재설정 — 전화 OTP 기반.
 /// 1) 전화번호 입력 → SMS 코드 발송 (phone_verifications.purpose='password_reset')

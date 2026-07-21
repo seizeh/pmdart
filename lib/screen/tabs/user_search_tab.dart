@@ -1,13 +1,15 @@
 import 'dart:async';
-import '../../motion/motion.dart';
+
 import 'package:flutter/material.dart';
-import '../../theme/app_palette.dart';
-import '../../models/social.dart';
+
 import '../../models/pet_search.dart';
+import '../../models/social.dart';
+import '../../motion/motion.dart';
 import '../../services/social_repository.dart';
+import '../../theme/app_palette.dart';
 import '../../widgets/app_search_field.dart';
-import '../../widgets/user_tile.dart';
 import '../../widgets/gradient_header.dart';
+import '../../widgets/user_tile.dart';
 import '../pet_profile_screen.dart';
 import '../user_profile_screen.dart';
 

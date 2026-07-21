@@ -1,25 +1,28 @@
+import 'dart:async';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
-import '../motion/motion.dart';
-import '../theme/app_palette.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../data/mock_data.dart' show MockPet;
 import '../models/community.dart';
 import '../models/profile.dart';
-import '../services/community_repository.dart';
-import '../services/profile_repository.dart';
-import '../services/social_repository.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../motion/motion.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
+import '../services/community_repository.dart';
 import '../services/facility_repository.dart' show Facility;
+import '../services/profile_repository.dart';
 import '../services/session.dart';
-import '../data/mock_data.dart' show MockPet;
+import '../services/social_repository.dart';
+import '../theme/app_palette.dart';
+import '../utils/phone_format.dart';
+import '../widgets/blob_background.dart';
 import '../widgets/review_cards.dart';
 import '../widgets/role_badge.dart' show categoryColor;
-import '../widgets/blob_background.dart';
 import 'facility_review_screen.dart';
 import 'pet_profile_screen.dart';
-import '../utils/phone_format.dart';
 import 'post_detail_screen.dart';
 
 /// 타 사용자 공개 프로필 — 사용자 검색/연결 목록에서 진입.
@@ -157,7 +160,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _bizReviews = bizReviews;
         _loading = false;
       });
-      if (!_isMe) _loadFollowing();
+      if (!_isMe) unawaited(_loadFollowing());
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -257,7 +260,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
     if (!mounted) return;
     setState(() => _openedPostId = null);
-    _load(silent: true); // 하트/댓글 변동 반영
+    unawaited(_load(silent: true)); // 하트/댓글 변동 반영
   }
 
   Future<void> _openPet(MockPet pet, Rect? rect) async {
@@ -1079,7 +1082,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ),
       ),
     );
-    if (ok == true && mounted) _load(silent: true); // 후기·평점 즉시 반영
+    if (ok == true && mounted) unawaited(_load(silent: true)); // 후기·평점 즉시 반영
   }
 
   Widget _bizReviewWriteButton() => Padding(
@@ -1475,8 +1478,8 @@ class PetPosterCard extends StatelessWidget {
     };
     final subtitle = [
       if (pet.species.isNotEmpty) pet.species,
-      if (age != null) age,
-      if (genderKo != null) genderKo,
+      ?age,
+      ?genderKo,
     ].join('  ·  ');
 
     return Pressable(

@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
-import '../motion/motion.dart';
-import '../theme/app_palette.dart';
+
 import '../models/community.dart';
 import '../models/pet_search.dart';
+import '../motion/motion.dart';
 import '../services/community_repository.dart';
 import '../services/pet_repository.dart';
+import '../theme/app_palette.dart';
 import '../widgets/pet_trust_badge.dart';
 import '../widgets/post_card.dart';
 import 'post_detail_screen.dart';
@@ -130,7 +133,7 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
     );
     if (!mounted) return;
     setState(() => _openedPostId = null);
-    _load(silent: true); // 하트/댓글 변동 반영
+    unawaited(_load(silent: true)); // 하트/댓글 변동 반영
   }
 
   Rect? _guardianRect(String userId) {
@@ -230,8 +233,8 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
     };
     final subtitle = [
       if (pet.species.isNotEmpty) pet.species,
-      if (age != null) age,
-      if (genderKo != null) genderKo,
+      ?age,
+      ?genderKo,
     ].join('  ·  ');
 
     return Padding(

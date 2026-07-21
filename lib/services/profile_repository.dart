@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import '../models/pet.dart';
 import '../models/profile.dart';
@@ -35,7 +36,9 @@ class ProfileRepository {
           .eq('id', uid)
           .maybeSingle();
       activeMode = (row?['active_mode'] as String?) ?? 'personal';
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('활성 모드 조회 실패 — personal 폴백: $e');
+    }
 
     // 통계 — 병렬 카운트. Pawmate 는 현재 모드 얼굴의 팔로워만(얼굴 분리).
     final counts = await Future.wait([

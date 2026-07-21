@@ -292,7 +292,9 @@ class _MyInfoTabState extends State<MyInfoTab>
       int invites = 0;
       try {
         invites = await PetRepository.instance.pendingInviteCount();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('내정보: 초대 수 조회 실패(0으로 표시): $e');
+      }
       var posts = _myPosts;
       try {
         final uid = SessionManager.instance.user?.id;
@@ -303,7 +305,10 @@ class _MyInfoTabState extends State<MyInfoTab>
             authoredAs: p.activeMode,
           );
         }
-      } catch (_) {} // 게시글 조회 실패 시 기존 목록 유지
+      } catch (e) {
+        // 게시글 조회 실패 시 기존 목록 유지
+        debugPrint('내정보: 게시글 조회 실패 — 기존 목록 유지: $e');
+      }
       // 업체 모드 히어로의 후기 요약(후기 수·평점)
       int? bizCount;
       double? bizAvg;

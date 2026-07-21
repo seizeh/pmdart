@@ -117,7 +117,9 @@ class PushService {
   Future<void> clearToken() async {
     try {
       await _fm.deleteToken();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('push: FCM 토큰 삭제 실패(서버측 자동 비활성화에 위임): $e');
+    }
   }
 
   void _handleOpen(RemoteMessage m) {

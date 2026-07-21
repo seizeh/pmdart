@@ -80,7 +80,9 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
       // 로컬 임시 영상 삭제(잔존 방지).
       try {
         await File(video.path).delete();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('신원 인증: 임시 영상 삭제 실패(무해): $e');
+      }
 
       if (!mounted) return;
       setState(() {

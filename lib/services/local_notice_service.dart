@@ -103,6 +103,8 @@ class LocalNoticeService {
         d['resource_type'] as String?,
         d['resource_id'] as String?,
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('알림 탭 페이로드 파싱 실패(라우팅 생략): $e');
+    }
   }
 }

@@ -111,7 +111,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     try {
       final mode = await BusinessRepository.instance.fetchActiveMode();
       if (mounted) setState(() => _businessMode = mode == 'business');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('게시글 상세: 활성 모드 조회 실패(개인 모드로 표시): $e');
+    }
   }
 
   /// 조회수 기록 (같은 시간대 재조회는 집계 안 됨). 집계됐으면 화면 수치도 +1.
@@ -144,7 +146,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         business: _post.authoredAs == 'business',
       );
       if (mounted) setState(() => _following = f);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('게시글 상세: 팔로우 상태 조회 실패(미표시): $e');
+    }
   }
 
   // 실수 이중 탭(팔로우→즉시 언팔) 방지 쿨다운 — 프로필 화면과 동일 규칙.

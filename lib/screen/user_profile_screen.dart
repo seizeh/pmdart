@@ -177,7 +177,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         business: _bizFace,
       );
       if (mounted) setState(() => _following = f);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('프로필: 팔로우 상태 조회 실패(미표시): $e');
+    }
   }
 
   // 마지막 토글 시각 — 실수 이중 탭(팔로우→즉시 언팔) 방지 쿨다운.

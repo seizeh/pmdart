@@ -60,6 +60,8 @@ flowchart LR
   모든 RLS 가 `app.uid()`(JWT sub) 기준으로 동작합니다.
 - **보안 원칙**: 클라이언트에는 publishable 키만. 쓰기 검증이 필요한 작업은
   SECURITY DEFINER RPC / DB 트리거가 최종 강제(클라이언트 검증은 UX 용).
+  클라이언트 공개 키·식별자는 `lib/env.dart` 한곳에 모여 있으며
+  `--dart-define` 으로 환경별 오버라이드할 수 있다(비밀 키는 서버 전용).
 - **모션**: `lib/motion/` 의 스프링 프리미티브(Pressable·Entrance·CollapseRoute 등)를
   전 화면이 공유 — 카드 확장/축소, 쓸어내려 닫기 등 일관된 전환 언어.
 

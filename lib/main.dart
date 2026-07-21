@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'env.dart';
 import 'motion/motion.dart';
 import 'firebase_options.dart';
 import 'package:flutter/material.dart';
@@ -56,7 +57,7 @@ Future<void> main() async {
 
   // 네이버 지도 SDK 초기화 (NCP Maps 신규 인증 - Client ID)
   await FlutterNaverMap().init(
-    clientId: 'cy02y6r0d5',
+    clientId: Env.naverMapClientId,
     onAuthFailed: (ex) {
       switch (ex) {
         case NQuotaExceededException(:final message):
@@ -71,14 +72,15 @@ Future<void> main() async {
 
   // Supabase 연결
   // publishableKey(공개 키)만 클라이언트에 둔다. service_role 키는 절대 포함 금지.
+  // 프로젝트/환경 전환은 lib/env.dart 의 --dart-define 오버라이드로.
   // accessToken: 로그인 시 발급된 커스텀 JWT 를 모든 요청 Authorization 에 첨부 →
   // RLS 의 app.uid() 가 JWT 의 sub(user_id)를 읽는다. 비로그인 시 null → anon 으로 동작.
   // 매 요청 전 호출되므로 access 만료 임박 시 여기서 refresh 로 무중단 갱신(단일비행).
   //  · isRefreshing 중엔 재진입 금지 — refresh 엔드포인트 호출도 이 콜백을 거치므로
   //    무한재귀/데드락을 막는다(refresh 는 verify_jwt=false 라 stale access 로도 무해).
   await Supabase.initialize(
-    url: 'https://vyatppuxmpulqtxevfpk.supabase.co',
-    publishableKey: 'sb_publishable_T3dPO3-WMtkFDF_z5VIBBw_NKHwi-ZZ',
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabasePublishableKey,
     accessToken: () async {
       final s = SessionManager.instance;
       if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {

@@ -78,7 +78,10 @@ class ProfileEditState extends ChangeNotifier {
 
   /// 닉네임 중복확인(화면이 디바운스 후 호출). [original] 은 진입 시점 닉네임 —
   /// 그대로면(또는 빈 값) 확인 없이 표시를 지운다.
-  Future<void> checkNickname(String nickname, {required String original}) async {
+  Future<void> checkNickname(
+    String nickname, {
+    required String original,
+  }) async {
     final nick = nickname.trim();
     final seq = ++_nickCheckSeq;
     if (nick.isEmpty || nick == original.trim()) {

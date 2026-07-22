@@ -353,6 +353,17 @@ class ProfileRepository {
     await _c.rpc('withdraw_account');
   }
 
+  /// 닉네임 사용 가능 여부(본인 현재 닉네임은 제외 — 서버 RPC 가 호출자 행을
+  /// 뺀다). 입력 중 실시간 선체크용 — 확인~저장 사이 경합은 못 막으므로
+  /// 최종 판정은 저장 시 유니크 제약(users_lower_nickname_uq, 23505)이 한다.
+  Future<bool> checkNicknameAvailable(String nickname) async {
+    final res = await _c.rpc(
+      'check_nickname_available',
+      params: {'p_nickname': nickname.trim()},
+    );
+    return res == true;
+  }
+
   /// 프로필 수정 (닉네임 등). RLS: users_update (id=app.uid()).
   Future<void> updateProfile({
     String? nickname,

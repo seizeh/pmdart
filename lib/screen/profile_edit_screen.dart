@@ -67,16 +67,29 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController _nickCtrl = TextEditingController(
     text: widget.initialNickname,
   );
+  Timer? _nickDebounce; // 입력 중 닉네임 중복확인 디바운스
 
   @override
   void dispose() {
+    _nickDebounce?.cancel();
     _nickCtrl.dispose();
     _state.dispose();
     super.dispose();
   }
 
   bool get _canSave =>
-      !_state.saving && !_state.uploading && _nickCtrl.text.trim().isNotEmpty;
+      !_state.saving &&
+      !_state.uploading &&
+      _nickCtrl.text.trim().isNotEmpty &&
+      _state.nickAvailable != false; // 중복 확정 상태만 막는다(미확인은 통과)
+
+  void _onNickChanged(String v) {
+    setState(() {});
+    _nickDebounce?.cancel();
+    _nickDebounce = Timer(const Duration(milliseconds: 400), () {
+      _state.checkNickname(v, original: widget.initialNickname);
+    });
+  }
 
   Future<void> _pickImage() async {
     final file = await StorageService.instance.pickImage();
@@ -91,7 +104,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       Navigator.pop(context, true);
       _toast('프로필을 수정했어요');
     } else {
-      _toast('저장에 실패했어요');
+      _toast(_state.saveError ?? '저장에 실패했어요');
     }
   }
 
@@ -251,9 +264,26 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             const SizedBox(height: 8),
                             TextField(
                               controller: _nickCtrl,
-                              onChanged: (_) => setState(() {}),
-                              decoration: const InputDecoration(
+                              onChanged: _onNickChanged,
+                              decoration: InputDecoration(
                                 hintText: '닉네임',
+                                errorText: _state.nickAvailable == false
+                                    ? '이미 사용 중인 닉네임이에요'
+                                    : null,
+                                helperText: _state.nickAvailable == true
+                                    ? '사용 가능한 닉네임이에요'
+                                    : null,
+                                suffixIcon: switch (_state.nickAvailable) {
+                                  true => Icon(
+                                    Icons.check_circle_rounded,
+                                    color: context.colors.success,
+                                  ),
+                                  false => Icon(
+                                    Icons.cancel_rounded,
+                                    color: context.colors.danger,
+                                  ),
+                                  null => null,
+                                },
                               ),
                             ),
                             const SizedBox(height: 24),

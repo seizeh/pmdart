@@ -1155,6 +1155,7 @@ class BusinessManagePanel extends StatefulWidget {
 
 class _BusinessManagePanelState extends State<BusinessManagePanel> {
   BusinessProfile? _mine;
+  List<BizLicense> _licenses = const [];
   bool _loading = true;
 
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
@@ -1167,9 +1168,14 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
 
   Future<void> _loadMine() async {
     final mine = await BusinessRepository.instance.fetchMine();
+    // 업종 인증은 승인 업체만 신청 가능 — 미승인이면 조회 생략.
+    final licenses = (mine?.isApproved ?? false)
+        ? await BusinessRepository.instance.fetchMyLicenses()
+        : const <BizLicense>[];
     if (!mounted) return;
     setState(() {
       _mine = mine;
+      _licenses = licenses;
       _loading = false;
     });
   }
@@ -1178,6 +1184,85 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  /// 업종 인증 1행 — 업종명 + 상태 칩(+ 반려 사유).
+  Widget _licenseRow(BizLicense l) {
+    final (label, color) = switch (l.status) {
+      'approved' => ('승인', context.colors.primaryDark),
+      'rejected' => ('반려', context.colors.danger),
+      _ => ('심사 중', context.colors.textSecondary),
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  bizLicenseLabel(l.type),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          if (l.status == 'rejected' && (l.rejectReason ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '사유: ${l.rejectReason} — 다시 신청할 수 있어요.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.colors.textTertiary,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openLicenseApply() async {
+    // 이미 승인된 업종은 재신청 대상이 아님 — 선택지에서 제외.
+    final approved = {
+      for (final l in _licenses)
+        if (l.status == 'approved') l.type,
+    };
+    final options = [
+      for (final (key, label) in bizLicenseTypes)
+        if (!approved.contains(key)) (key, label),
+    ];
+    if (options.isEmpty) {
+      _toast('모든 업종이 이미 인증되었어요');
+      return;
+    }
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _LicenseApplySheet(options: options),
+    );
+    if (changed == true) {
+      _toast('업종 인증을 신청했어요 — 심사 후 알림으로 알려드려요');
+      await _loadMine();
+    }
   }
 
   @override
@@ -1309,6 +1394,49 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
           onPressed: _openInfoEdit,
           icon: const Icon(Icons.edit_outlined, size: 18),
           label: const Text('업체 정보 수정'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+          ),
+        ),
+        const SizedBox(height: 20),
+        // ── 업종 인증(0028 §1) — 등록·허가증으로 업종별 기능 모듈을 연다 ──
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '업종 인증',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '업종별 등록·허가증을 인증하면 해당 업종 기능이 열려요.',
+            style: TextStyle(fontSize: 12, color: context.colors.textTertiary),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_licenses.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: context.colors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: context.colors.border, width: 0.5),
+            ),
+            child: Column(
+              children: [for (final l in _licenses) _licenseRow(l)],
+            ),
+          ),
+        if (_licenses.isNotEmpty) const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _openLicenseApply,
+          icon: const Icon(Icons.badge_outlined, size: 18),
+          label: const Text('업종 인증 신청'),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
           ),
@@ -1553,5 +1681,187 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
     if (!mounted) return;
     _toast(ok ? '저장했어요 — 지도 정보에도 반영됐어요' : '저장에 실패했어요. 잠시 후 다시 시도해주세요');
     if (ok) await _loadMine();
+  }
+}
+
+/// 업종 인증 신청 시트 (0028 §1) — 업종 선택 + 등록·허가번호 + 등록·허가증 업로드.
+/// 성공 시 true 를 pop. 반려 재신청·심사 중 서류 교체도 같은 경로(서버 upsert).
+class _LicenseApplySheet extends StatefulWidget {
+  final List<(String, String)> options; // (type, label) — 승인 업종 제외
+  const _LicenseApplySheet({required this.options});
+
+  @override
+  State<_LicenseApplySheet> createState() => _LicenseApplySheetState();
+}
+
+class _LicenseApplySheetState extends State<_LicenseApplySheet> {
+  late String _type = widget.options.first.$1;
+  final _noCtrl = TextEditingController();
+  PickedDoc? _doc;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _noCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  bool get _canSubmit =>
+      !_busy && _noCtrl.text.trim().length >= 4 && _doc != null;
+
+  Future<void> _pickDoc(bool gallery) async {
+    final doc = gallery
+        ? await StorageService.instance.pickDocumentFromGallery()
+        : await StorageService.instance.pickDocument();
+    if (doc == null || !mounted) return;
+    setState(() => _doc = doc);
+  }
+
+  Future<void> _submit() async {
+    final doc = _doc;
+    if (doc == null) return;
+    setState(() => _busy = true);
+    try {
+      // 서류는 비공개 버킷의 본인 폴더(uid/license-<업종>/…) — 서버가 경로 검증.
+      final path = await StorageService.instance.uploadBusinessDoc(
+        doc,
+        kind: 'license-$_type',
+      );
+      final err = await BusinessRepository.instance.applyLicense(
+        type: _type,
+        licenseNo: _noCtrl.text.trim(),
+        documentPath: path,
+      );
+      if (!mounted) return;
+      if (err == null) {
+        Navigator.pop(context, true);
+        return;
+      }
+      setState(() => _busy = false);
+      _toast(switch (err) {
+        'already_approved' => '이미 승인된 업종이에요',
+        'invalid_license_no' => '등록·허가번호를 확인해 주세요 (4자 이상)',
+        'biz_profile_required' => '업체 인증 승인 후 신청할 수 있어요',
+        _ => '신청에 실패했어요. 잠시 후 다시 시도해주세요',
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _toast('서류 업로드에 실패했어요. 네트워크를 확인해주세요');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 20,
+        bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '업종 인증 신청',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: context.colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '동물보호법 등록·허가증의 업종과 번호를 입력해 주세요. 심사 후 해당 업종 기능이 열려요.',
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.5,
+              color: context.colors.textTertiary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (key, label) in widget.options)
+                ChoiceChip(
+                  label: Text(label),
+                  selected: _type == key,
+                  onSelected: (_) => setState(() => _type = key),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _noCtrl,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: '등록·허가번호',
+              hintText: '예: 제 2026-서울종로-0001 호',
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _pickDoc(false),
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                  label: const Text('파일 선택'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _pickDoc(true),
+                  icon: const Icon(Icons.photo_outlined, size: 18),
+                  label: const Text('갤러리'),
+                ),
+              ),
+            ],
+          ),
+          if (_doc != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '선택됨: ${_doc!.name}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.colors.textSecondary,
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _canSubmit ? _submit : null,
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+            child: _busy
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    '신청하기',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -7,6 +7,8 @@ import '../services/juso_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
+import 'care_report_list_screen.dart';
+import 'care_report_send_screen.dart';
 import 'connections_screen.dart';
 import 'my_posts_screen.dart';
 
@@ -1441,6 +1443,68 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
             minimumSize: const Size.fromHeight(48),
           ),
         ),
+        // ── 케어 리포트(0028 P1) — 미용업 인증 업체의 전후 사진 도구 ──
+        if (_licenses.any(
+          (l) => l.type == 'grooming' && l.status == 'approved',
+        )) ...[
+          const SizedBox(height: 20),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '케어 리포트',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '미용 완료 사진을 보호자에게 링크로 보내드려요.',
+              style: TextStyle(
+                fontSize: 12,
+                color: context.colors.textTertiary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    AppPageRoute(builder: (_) => const CareReportSendScreen()),
+                  ),
+                  icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                  label: const Text('전후 사진 보내기'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: context.colors.primaryDark,
+                    foregroundColor: context.colors.textOnPrimary,
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    AppPageRoute(builder: (_) => const CareReportListScreen()),
+                  ),
+                  icon: const Icon(Icons.history, size: 18),
+                  label: const Text('보낸 기록'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 20),
         // 계정 단위 활동(하트·친구)은 두 얼굴 공용 — 업체 모드에서도 조회 가능하게.
         Align(

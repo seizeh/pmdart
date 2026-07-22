@@ -50,6 +50,7 @@ dependencies:
   http: ^1.2.0 # 주소검색(행안부 juso) REST 호출 (0025)
   file_picker: ^8.1.2 # 사업자등록증 PDF 업로드 (0025 §7.1)
   qr_flutter: ^4.1.0
+  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:

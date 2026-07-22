@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../motion/motion.dart';
+import '../services/care_report_repository.dart';
 import '../services/keyboard_barrier.dart';
 import '../theme/app_palette.dart';
 import 'tabs/chat_tab.dart';
@@ -74,6 +75,9 @@ class _MainScreenState extends State<MainScreen>
     MainScreen.tabRequest.addListener(_onTabRequest);
     // 화면 생성 전에 들어온 요청(콜드 스타트 딥링크)은 첫 프레임 뒤에 소비.
     WidgetsBinding.instance.addPostFrameCallback((_) => _onTabRequest());
+    // 케어 리포트 자동 연결(0028 §4.2) — 로그인 홈 진입마다 1회. 가입 직후·기존
+    // 사용자 모두 커버하고, 연결되면 도착 알림은 서버가 발송한다. 실패 무해.
+    CareReportRepository.instance.claim();
   }
 
   void _onTabRequest() {

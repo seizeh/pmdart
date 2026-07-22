@@ -10,6 +10,7 @@ import '../welcome_screen.dart';
 import 'admin_broadcast_screen.dart';
 import 'admin_business_screen.dart';
 import 'admin_inquiries_screen.dart';
+import 'admin_licenses_screen.dart';
 import 'admin_logs_screen.dart';
 import 'admin_metrics_screen.dart';
 import 'admin_posts_screen.dart';
@@ -149,6 +150,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 icon: Icons.storefront_outlined,
                 label: '업체 인증 심사',
                 onTap: () => _open(const AdminBusinessScreen()),
+              ),
+              _MenuTile(
+                icon: Icons.badge_outlined,
+                label: '업종 인증 심사',
+                onTap: () => _open(const AdminLicensesScreen()),
               ),
               _MenuTile(
                 icon: Icons.qr_code_2,

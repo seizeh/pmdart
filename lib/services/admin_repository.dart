@@ -433,6 +433,51 @@ class PhotoVerifyFailure {
 }
 
 /// 관리자가 보는 업체 인증 신청 1건 (0025 §6).
+/// 업종 인증 심사 1건 (admin_list_business_licenses RPC 기준, 0028 §1).
+class AdminBizLicense {
+  final String id;
+  final String userId;
+  final String nickname;
+  final String? businessName;
+  final String type; // grooming | boarding | sales | production | ...
+  final String licenseNo;
+  final String documentPath;
+  final String status; // pending / approved / rejected
+  final String? rejectReason;
+  final DateTime? createdAt;
+  final DateTime? reviewedAt;
+
+  const AdminBizLicense({
+    required this.id,
+    required this.userId,
+    required this.nickname,
+    required this.businessName,
+    required this.type,
+    required this.licenseNo,
+    required this.documentPath,
+    required this.status,
+    this.rejectReason,
+    this.createdAt,
+    this.reviewedAt,
+  });
+
+  factory AdminBizLicense.fromJson(Map<String, dynamic> j) => AdminBizLicense(
+    id: (j['id'] ?? '') as String,
+    userId: (j['user_id'] ?? '') as String,
+    nickname: (j['nickname'] ?? '') as String,
+    businessName: j['business_name'] as String?,
+    type: (j['license_type'] ?? '') as String,
+    licenseNo: (j['license_no'] ?? '') as String,
+    documentPath: (j['document_path'] ?? '') as String,
+    status: (j['status'] ?? 'pending') as String,
+    rejectReason: j['reject_reason'] as String?,
+    createdAt: DateTime.tryParse((j['created_at'] ?? '') as String)?.toLocal(),
+    reviewedAt: DateTime.tryParse(
+      (j['reviewed_at'] ?? '') as String,
+    )?.toLocal(),
+  );
+}
+
 class AdminBusinessApplication {
   final String userId;
   final String nickname;
@@ -615,6 +660,31 @@ class AdminRepository {
       params: {'p_token': token},
     );
     return res == true;
+  }
+
+  /// 업종 인증(business_licenses) 심사 목록 (0028 §1). [status] null 이면 전체.
+  Future<List<AdminBizLicense>> listBusinessLicenses({
+    String? status = 'pending',
+  }) async {
+    final res = await _c.rpc(
+      'admin_list_business_licenses',
+      params: {'p_status': status, 'p_limit': 100, 'p_offset': 0},
+    );
+    return (res as List)
+        .map((r) => AdminBizLicense.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 업종 인증 승인/반려 — 반려는 사유 필수(서버 검증).
+  Future<void> reviewBusinessLicense(
+    String licenseId,
+    String status, {
+    String? reason,
+  }) async {
+    await _c.rpc(
+      'admin_review_business_license',
+      params: {'p_license': licenseId, 'p_status': status, 'p_reason': reason},
+    );
   }
 
   /// 신고 목록. [status] = 'open'(미처리), null(전체), 또는 정확한 상태값.

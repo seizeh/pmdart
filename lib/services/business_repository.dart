@@ -141,6 +141,53 @@ class BusinessRepository {
     }
   }
 
+  /// 내 업종 인증(business_licenses) 목록 — 업체 관리 패널 표시용 (0028 §1).
+  Future<List<BizLicense>> fetchMyLicenses() async {
+    try {
+      final rows = await _c.rpc('my_business_licenses');
+      return (rows as List)
+          .map((r) => BizLicense.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// 업종 인증 신청/재신청. 성공 시 null, 실패 시 에러 코드
+  /// (biz_profile_required / invalid_type / invalid_license_no /
+  ///  invalid_document_path / already_approved / network).
+  Future<String?> applyLicense({
+    required String type,
+    required String licenseNo,
+    required String documentPath,
+  }) async {
+    try {
+      await _c.rpc(
+        'apply_business_license',
+        params: {
+          'p_type': type,
+          'p_license_no': licenseNo,
+          'p_document_path': documentPath,
+        },
+      );
+      return null;
+    } on PostgrestException catch (e) {
+      const codes = [
+        'biz_profile_required',
+        'invalid_type',
+        'invalid_license_no',
+        'invalid_document_path',
+        'already_approved',
+      ];
+      for (final c in codes) {
+        if (e.message.contains(c)) return c;
+      }
+      return 'network';
+    } catch (_) {
+      return 'network';
+    }
+  }
+
   /// 내 업소(매칭 시설)에 달린 후기 — 업체 프로필의 후기 관리 UI 용.
   /// 매칭 시설이 없으면(신규개업 트랙 등) 빈 목록.
   Future<List<BizFacilityReview>> fetchMyFacilityReviews() async {
@@ -176,6 +223,7 @@ class BusinessRepository {
                 u as String,
             ],
             visitNo: (r['visit_no'] as num?)?.toInt(),
+            hasIncentive: r['has_incentive'] == true,
           ),
       ];
     } catch (_) {
@@ -341,6 +389,7 @@ class BizFacilityReview {
   final DateTime? createdAt;
   final List<String> photoUrls;
   final int? visitNo; // 같은 사용자의 몇 번째 방문 후기인지
+  final bool hasIncentive; // 업체 혜택 받고 작성(표시광고법 표시, 0028 §6)
   const BizFacilityReview({
     this.id = '',
     this.authorUserId = '',
@@ -350,8 +399,61 @@ class BizFacilityReview {
     this.createdAt,
     this.photoUrls = const [],
     this.visitNo,
+    this.hasIncentive = false,
   });
 }
+
+/// 업종 인증(등록·허가증) 1건 — my_business_licenses RPC 기준 (0028 §1).
+class BizLicense {
+  final String id;
+  final String type; // grooming | boarding | sales | production | ...
+  final String licenseNo;
+  final String status; // pending | approved | rejected
+  final String? rejectReason;
+  final DateTime? createdAt;
+  final DateTime? reviewedAt;
+
+  const BizLicense({
+    required this.id,
+    required this.type,
+    required this.licenseNo,
+    required this.status,
+    this.rejectReason,
+    this.createdAt,
+    this.reviewedAt,
+  });
+
+  factory BizLicense.fromJson(Map<String, dynamic> j) => BizLicense(
+    id: (j['id'] ?? '') as String,
+    type: (j['license_type'] ?? '') as String,
+    licenseNo: (j['license_no'] ?? '') as String,
+    status: (j['status'] ?? 'pending') as String,
+    rejectReason: j['reject_reason'] as String?,
+    createdAt: DateTime.tryParse((j['created_at'] ?? '') as String)?.toLocal(),
+    reviewedAt: DateTime.tryParse(
+      (j['reviewed_at'] ?? '') as String,
+    )?.toLocal(),
+  );
+}
+
+/// 업종 인증 종류 라벨 (동물보호법 업종명 — app.biz_license_type 과 1:1).
+/// 신청 UI 에는 모듈이 있는 앞 4종만 노출(전시·운송은 enum 선점만, 0028 §1).
+const bizLicenseTypes = <(String, String)>[
+  ('grooming', '동물미용업'),
+  ('boarding', '동물위탁관리업'),
+  ('sales', '동물판매업'),
+  ('production', '동물생산업'),
+];
+
+String bizLicenseLabel(String key) => switch (key) {
+  'grooming' => '동물미용업',
+  'boarding' => '동물위탁관리업',
+  'sales' => '동물판매업',
+  'production' => '동물생산업',
+  'exhibition' => '동물전시업',
+  'transport' => '동물운송업',
+  _ => key,
+};
 
 /// 업종 라벨 (0025 §4.2 — 사업자등록증 업태·종목 확인 고지와 함께 사용)
 const businessCategories = <(String, String)>[

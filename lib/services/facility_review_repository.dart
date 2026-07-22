@@ -53,12 +53,14 @@ class FacilityReviewRepository {
   }
 
   /// 후기 작성/수정(1인 1시설 1후기 upsert).
+  /// [hasIncentive] — 업체 혜택(할인·사은품)을 받고 쓰는 후기(표시광고법 표시 의무).
   Future<void> addReview({
     required String facilityId,
     required int rating,
     String? body,
     List<String> photoPaths = const [],
     List<String> photoUrls = const [],
+    bool hasIncentive = false,
   }) async {
     if (_uid == null) throw StateError('로그인이 필요합니다');
     final b = (body ?? '').trim();
@@ -70,6 +72,7 @@ class FacilityReviewRepository {
         'p_body': b.isEmpty ? null : b,
         'p_paths': photoPaths,
         'p_urls': photoUrls,
+        'p_has_incentive': hasIncentive,
       },
     );
   }

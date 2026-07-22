@@ -15,6 +15,7 @@ import 'admin_logs_screen.dart';
 import 'admin_metrics_screen.dart';
 import 'admin_posts_screen.dart';
 import 'admin_reports_screen.dart';
+import 'admin_share_qr_screen.dart';
 import 'admin_theme.dart';
 import 'admin_users_screen.dart';
 
@@ -154,6 +155,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 icon: Icons.badge_outlined,
                 label: '업종 인증 심사',
                 onTap: () => _open(const AdminLicensesScreen()),
+              ),
+              _MenuTile(
+                icon: Icons.qr_code_2,
+                label: '매장 QR 발급',
+                onTap: () => _open(const AdminShareQrScreen()),
               ),
               _MenuTile(
                 icon: Icons.support_agent_outlined,

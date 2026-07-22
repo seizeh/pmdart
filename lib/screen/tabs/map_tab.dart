@@ -284,7 +284,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         final sales = evaluatePetSales(f);
         final id = 'fac_${f.id}';
         // 인증 업체(연결 업주 존재)는 강조 마커 — 둥근 정사각형 대표 사진
-        // (없으면 같은 실루엣의 글리프 폴백) + 체크 배지.
+        // (없으면 같은 실루엣의 글리프 폴백) + 하단 평점 배지(후기 있을 때).
         final verified = f.ownerUserId != null;
         final icon = verified
             ? await _verifiedIcon(f)
@@ -310,7 +310,13 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           m.setGlobalZIndex(200199 - (verifiedRank[f.id] ?? 99).clamp(0, 99));
         }
         if (icon != null) {
-          m.setAnchor(const NPoint(0.5, 0.5)); // 원형 아이콘 → 중앙 앵커
+          // 평점 배지가 붙은 인증 마커는 캔버스가 아래로 길다 — 앵커를 사진
+          // 중심으로 보정(배지·캡션은 좌표 아래로 매달림). 그 외엔 중앙 앵커.
+          m.setAnchor(
+            verified && f.avgRating > 0
+                ? _bizRatingAnchor
+                : const NPoint(0.5, 0.5),
+          );
         } else {
           m.setIconTintColor(_catAccent); // 아이콘 로드 실패 시 폴백(통일색)
         }
@@ -539,8 +545,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   Future<NOverlayImage?> _iconFor(
     String category, {
     bool verified = false,
+    String rating = '',
   }) async {
-    final key = verified ? '$category|v' : category; // 인증 변형은 별도 캐시
+    // 인증 변형은 평점까지 별도 캐시(평점별로 배지가 다름)
+    final key = verified ? '$category|v|$rating' : category;
     if (_catIcons.containsKey(key)) return _catIcons[key];
     // 모드별 아이콘 색 — await 전에 캡처(빌드 컨텍스트 안전).
     final color = context.isDark ? _markerIconDark : _markerIconLight;
@@ -552,6 +560,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         color,
         verified: verified,
         dark: dark,
+        rating: rating,
       );
     } catch (_) {
       out = null;
@@ -590,6 +599,14 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   static const _bizTarget = 104.0;
   static const _bizBox = 84.0;
   static const _bizRadius = 22.0;
+  // 평점 배지가 붙으면 캔버스가 아래로 길어진다(사진을 가리지 않게 프레임
+  // 바깥 하단에 알약을 그림). 앵커는 여전히 사진 중심(y=52)이어야 하므로
+  // 마커 생성부에서 _bizRatingAnchor 로 보정한다.
+  static const _bizRatingTarget = 140.0; // 104 + 배지 영역 36
+  static const _bizRatingAnchor = NPoint(
+    0.5,
+    (_bizTarget / 2) / _bizRatingTarget,
+  );
 
   /// 인증 마커의 둥근 정사각형 프레임(그림자 + 채움/클립 + 모드별 분리 링).
   /// [fillColor] 를 주면 채우고(글리프 폴백), 없으면 클립만 남긴다(사진 마커 —
@@ -625,47 +642,70 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     );
   }
 
-  /// 인증 배지 — 우상단 골드(액센트) 원 + 흰 체크. 프레임과 링으로 분리.
-  void _drawVerifiedBadge(Canvas canvas, bool dark) {
-    const bc = Offset(_bizTarget - 20, 20);
-    const br = 15.0;
-    canvas.drawCircle(
-      bc + const Offset(0, 1.5),
-      br,
+  /// 평점 배지 — 사진 프레임 **아래** 중앙에 골드(액센트) 알약, 흰 별 + 평균
+  /// 별점(체크 배지 대체). 프레임 위 오버레이는 사진을 가리고 글자가 작아
+  /// 캔버스를 세로로 늘려(_bizRatingTarget) 바깥에 크게 그린다.
+  /// 후기가 없으면(rating 빈 문자열) 호출부에서 그리지 않는다 — 인증 여부는
+  /// 둥근 정사각형 실루엣 자체가 이미 담당하므로 빈 평점을 배지로 채우지 않는다.
+  void _drawRatingBadge(Canvas canvas, bool dark, String label) {
+    final star = TextPainter(textDirection: TextDirection.ltr)
+      ..text = TextSpan(
+        text: String.fromCharCode(Icons.star_rounded.codePoint),
+        style: TextStyle(
+          fontSize: 24,
+          fontFamily: Icons.star_rounded.fontFamily,
+          color: Colors.white,
+        ),
+      )
+      ..layout();
+    final text = TextPainter(textDirection: TextDirection.ltr)
+      ..text = TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 23,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+          height: 1,
+        ),
+      )
+      ..layout();
+    const h = 34.0;
+    const padX = 10.0;
+    const top = (_bizTarget + _bizBox) / 2 + 4; // 프레임 하단(94) + 간격 4
+    final w = padX + star.width + 2 + text.width + padX;
+    final rect = Rect.fromLTWH((_bizTarget - w) / 2, top, w, h);
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(h / 2));
+    canvas.drawRRect(
+      rrect.shift(const Offset(0, 2)),
       Paint()
         ..color = _markerShadow
         ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 3),
     );
-    canvas.drawCircle(bc, br, Paint()..color = _catAccent);
-    canvas.drawCircle(
-      bc,
-      br,
+    canvas.drawRRect(rrect, Paint()..color = _catAccent);
+    canvas.drawRRect(
+      rrect,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..color = dark ? _markerHaloDark : _markerHaloLight,
     );
-    final check = TextPainter(textDirection: TextDirection.ltr)
-      ..text = TextSpan(
-        text: String.fromCharCode(Icons.check_rounded.codePoint),
-        style: TextStyle(
-          fontSize: 20,
-          fontFamily: Icons.check_rounded.fontFamily,
-          color: Colors.white,
-        ),
-      )
-      ..layout();
-    check.paint(canvas, bc - Offset(check.width / 2, check.height / 2));
+    final cy = rect.center.dy;
+    star.paint(canvas, Offset(rect.left + padX, cy - star.height / 2));
+    text.paint(
+      canvas,
+      Offset(rect.left + padX + star.width + 2, cy - text.height / 2),
+    );
   }
 
   /// 인증 업체 마커 — 둥근 정사각형 안에 대표 사진(업체 프로필 얼굴).
   /// 사진이 없거나 로드 실패면 같은 실루엣의 글리프 폴백(_renderMarkerIcon).
-  /// 캐시 키는 사진 URL+초점 기준 — 다중 카테고리(같은 업체의 형제 행)가
+  /// 캐시 키는 사진 URL+초점+평점 기준 — 다중 카테고리(같은 업체의 형제 행)가
   /// 같은 사진을 행마다 다시 받아 렌더하지 않게. 사진 없으면 카테고리 기준.
   Future<NOverlayImage?> _verifiedIcon(Facility f) async {
+    final rating = f.avgRating > 0 ? f.avgRating.toStringAsFixed(1) : '';
     final key = f.ownerPhotoUrl != null
-        ? 'p|${f.ownerPhotoUrl}|${f.ownerPhotoAlignY}'
-        : 'g|${f.category}';
+        ? 'p|${f.ownerPhotoUrl}|${f.ownerPhotoAlignY}|$rating'
+        : 'g|${f.category}|$rating';
     if (_bizIcons.containsKey(key)) return _bizIcons[key];
     final dark = context.isDark; // await 전에 캡처
     NOverlayImage? out;
@@ -684,10 +724,15 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         }
       }
       if (photo != null) {
-        out = await _renderBizPhotoIcon(photo, f.ownerPhotoAlignY, dark);
+        out = await _renderBizPhotoIcon(
+          photo,
+          f.ownerPhotoAlignY,
+          dark,
+          rating,
+        );
         photo.dispose();
       } else {
-        out = await _iconFor(f.category, verified: true);
+        out = await _iconFor(f.category, verified: true, rating: rating);
       }
     } catch (_) {
       out = null;
@@ -697,11 +742,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   }
 
   /// 둥근 정사각형 사진 마커 렌더 — cover 크롭 + 업주 세로 초점(alignY,
-  /// 상세 히어로와 동일 문법) + 분리 링 + 체크 배지.
+  /// 상세 히어로와 동일 문법) + 분리 링 + 평점 배지(후기 있을 때만).
   Future<NOverlayImage?> _renderBizPhotoIcon(
     ui.Image photo,
     double alignY,
     bool dark,
+    String rating,
   ) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -722,10 +768,11 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     );
     canvas.restore();
     _drawBizFrameRing(canvas, dark); // 링은 사진 위에 다시(경계 또렷하게)
-    _drawVerifiedBadge(canvas, dark);
+    if (rating.isNotEmpty) _drawRatingBadge(canvas, dark, rating);
     final image = await recorder.endRecording().toImage(
       _bizTarget.toInt(),
-      _bizTarget.toInt(),
+      // 평점 배지가 붙으면 세로로 긴 캔버스(마커 앵커는 _bizRatingAnchor 보정)
+      (rating.isNotEmpty ? _bizRatingTarget : _bizTarget).toInt(),
     );
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
@@ -737,12 +784,13 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   /// 흰 배경 없음. 가독성용 흰 외곽선은 블러 없이 오프셋으로 그려 Impeller 안전.
   ///
   /// [verified] (사진 없는 인증 업체 폴백)는 실루엣 자체가 다르게 — 브랜드
-  /// 컬러로 채운 둥근 정사각형 위에 반전색 글리프, 우상단에 체크 배지.
+  /// 컬러로 채운 둥근 정사각형 위에 반전색 글리프, 우상단에 평점 배지.
   Future<NOverlayImage?> _renderMarkerIcon(
     String category,
     Color iconColor, {
     bool verified = false,
     bool dark = false,
+    String rating = '',
   }) async {
     final iconSize = verified ? 50.0 : 88.0; // 디스크 안에 들어가는 글리프는 축소
     const target = 104.0; // 88 + pad 8*2 — 앵커 계산이 같도록 캔버스 크기 고정
@@ -832,11 +880,13 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       base.paint(canvas, origin);
     }
 
-    if (verified) _drawVerifiedBadge(canvas, dark);
+    final withRating = verified && rating.isNotEmpty;
+    if (withRating) _drawRatingBadge(canvas, dark, rating);
 
     final image = await recorder.endRecording().toImage(
       target.toInt(),
-      target.toInt(),
+      // 평점 배지가 붙으면 세로로 긴 캔버스(마커 앵커는 _bizRatingAnchor 보정)
+      (withRating ? _bizRatingTarget : target).toInt(),
     );
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();

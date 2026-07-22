@@ -245,18 +245,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     // 뒤에는 계단 전체가 콘텐츠와 함께 위로 밀려 닉네임 바 뒤로 사라진다.
     // 타이틀을 탭하면 그 섹션 위치로, 닉네임을 탭하면 최상단으로 이동.
     final headerMax = topInset + 8 + _kHeaderCardH + 12;
-    // 업체 모드 프로필은 분리된 얼굴 — 반려동물 대신 업체 정보, 평가 대신 방문 후기.
-    final titles = _bizFace
-        ? [
-            ('업체 정보', 0),
-            ('방문 후기', _bizReviews.length),
-            ('업체 게시글', _posts.length),
-          ]
-        : [
-            ('키우는 반려동물', p.pets.length),
-            ('받은 후기', p.reviewCount),
-            ('작성한 게시글', _posts.length),
-          ];
+    final titles = _titles(p);
     return Stack(
       children: [
         Positioned.fill(
@@ -333,6 +322,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   static const double _kHeaderCardH = 360; // 대표사진 히어로 카드(애플뮤직 스타일)
   static const double _kHeaderBarH = 48;
   static const double _kTitleH = 44;
+
+  /// 섹션 타이틀 3개 — 인라인과 핀(도킹) 복제가 반드시 같은 목록을 써야 한다.
+  /// 업체 모드 프로필은 분리된 얼굴 — 반려동물 대신 업체 정보, 평가 대신 방문 후기.
+  List<(String, int)> _titles(PublicProfileData p) => _bizFace
+      ? [
+          ('업체 정보', 0),
+          ('방문 후기', _bizReviews.length),
+          ('업체 게시글', _posts.length),
+        ]
+      : [
+          ('키우는 반려동물', p.pets.length),
+          ('받은 후기', p.reviewCount),
+          ('작성한 게시글', _posts.length),
+        ];
 
   double get _offset => _scroll.hasClients ? _scroll.offset : 0;
 
@@ -416,11 +419,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// 닉네임 바 뒤로 사라진다. 도킹된 타이틀도 탭하면 그 섹션 위치로 이동한다.
   Widget _pinnedHeader(PublicProfileData p, double topInset) {
     final t = ((_offset) / (_kHeaderCardH - _kHeaderBarH)).clamp(0.0, 1.0);
-    final titles = [
-      ('키우는 반려동물', p.pets.length),
-      ('받은 후기', p.reviewCount),
-      ('작성한 게시글', _posts.length),
-    ];
+    final titles = _titles(p);
     // 릴리즈 지점 = 마지막 타이틀이 자기 슬롯에 도킹 완료되는 오프셋.
     final base = topInset + 8 + _kHeaderBarH + 12; // 완전 수축 시 헤더 바닥
     final lastReveal = _titleReveal[titles.length - 1];

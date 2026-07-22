@@ -120,6 +120,64 @@ void main() {
 
       expect(await s.save('새닉네임'), isFalse);
       expect(s.saving, isFalse);
+      expect(s.saveError, isNull, reason: '일반 실패는 사유 구분 없음');
+    });
+
+    test('닉네임 중복(23505): saveError 에 사유, 폼 표시도 중복으로', () async {
+      FakeSupabase.on(
+        'users',
+        (_) => FakeSupabase.error(409, {
+          'code': '23505',
+          'message':
+              'duplicate key value violates unique constraint "users_lower_nickname_uq"',
+        }),
+      );
+      final s = newState();
+
+      expect(await s.save('중복닉'), isFalse);
+      expect(s.saveError, '이미 사용 중인 닉네임이에요');
+      expect(s.nickAvailable, isFalse);
+      expect(s.saving, isFalse);
+    });
+  });
+
+  group('ProfileEditState.checkNickname', () {
+    test('사용 가능/중복이 RPC 결과대로 반영된다', () async {
+      FakeSupabase.on('check_nickname_available', (_) => true);
+      final s = newState();
+
+      await s.checkNickname('새닉', original: '나');
+      expect(s.nickAvailable, isTrue);
+
+      FakeSupabase.on('check_nickname_available', (_) => false);
+      await s.checkNickname('점유닉', original: '나');
+      expect(s.nickAvailable, isFalse);
+    });
+
+    test('빈 값·원래 닉네임 그대로면 확인 없이 표시를 지운다', () async {
+      FakeSupabase.on('check_nickname_available', (_) => false);
+      final s = newState();
+      await s.checkNickname('점유닉', original: '나'); // 먼저 중복 상태로
+
+      await s.checkNickname('  나  ', original: '나');
+      expect(s.nickAvailable, isNull, reason: '원래 닉네임(트림 후 동일)');
+      await s.checkNickname('  ', original: '나');
+      expect(s.nickAvailable, isNull, reason: '빈 값');
+      expect(
+        FakeSupabase.requests.where(
+          (r) => r.url.path.contains('check_nickname_available'),
+        ),
+        hasLength(1),
+        reason: '원래 닉네임/빈 값은 RPC 를 부르지 않는다',
+      );
+    });
+
+    test('확인 실패(네트워크)는 표시 없음 — 저장을 막지 않는다', () async {
+      FakeSupabase.on('check_nickname_available', (_) => throw Exception('x'));
+      final s = newState();
+
+      await s.checkNickname('새닉', original: '나');
+      expect(s.nickAvailable, isNull);
     });
   });
 

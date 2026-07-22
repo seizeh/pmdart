@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../models/profile.dart';
 import '../services/profile_repository.dart';
@@ -29,11 +30,21 @@ class ProfileEditState extends ChangeNotifier {
   String? _address;
   bool _verified;
 
+  // 닉네임 실시간 중복확인 — 디바운스는 화면(입력)이, RPC 호출·결과만 홀더가.
+  // null = 표시 없음(빈 값·원래 닉네임 그대로·확인 실패), true/false = 가능/중복.
+  bool? _nickAvailable;
+  int _nickCheckSeq = 0; // 늦게 도착한 이전 응답이 최신 입력 결과를 덮지 않게
+
+  // 저장 실패 사유(스낵바용) — 닉네임 중복(23505)만 구분, 그 외는 null.
+  String? _saveError;
+
   String get mode => _mode;
   bool get isBizMode => _mode == 'business';
   String? get imageUrl => _imageUrl;
   bool get uploading => _uploading;
   bool get saving => _saving;
+  bool? get nickAvailable => _nickAvailable;
+  String? get saveError => _saveError;
   String? get address => _address;
   bool get verified => _verified;
   String? get regionName =>
@@ -65,9 +76,33 @@ class ProfileEditState extends ChangeNotifier {
     }
   }
 
-  /// 프로필 저장(성공 시 화면이 pop). 실패 시 false.
+  /// 닉네임 중복확인(화면이 디바운스 후 호출). [original] 은 진입 시점 닉네임 —
+  /// 그대로면(또는 빈 값) 확인 없이 표시를 지운다.
+  Future<void> checkNickname(String nickname, {required String original}) async {
+    final nick = nickname.trim();
+    final seq = ++_nickCheckSeq;
+    if (nick.isEmpty || nick == original.trim()) {
+      _nickAvailable = null;
+      notifyListeners();
+      return;
+    }
+    try {
+      final ok = await ProfileRepository.instance.checkNicknameAvailable(nick);
+      if (seq != _nickCheckSeq) return;
+      _nickAvailable = ok;
+    } catch (e) {
+      if (seq != _nickCheckSeq) return;
+      _nickAvailable = null; // 확인 실패로 저장을 막지 않는다 — 최종 판정은 제약
+      debugPrint('내정보 수정: 닉네임 확인 실패: $e');
+    }
+    notifyListeners();
+  }
+
+  /// 프로필 저장(성공 시 화면이 pop). 실패 시 false — 닉네임 중복(23505)이면
+  /// [saveError] 에 사유를 담는다(선체크를 지나친 경합도 여기서 잡힌다).
   Future<bool> save(String nickname) async {
     _saving = true;
+    _saveError = null;
     notifyListeners();
     try {
       await ProfileRepository.instance.updateProfile(
@@ -75,6 +110,13 @@ class ProfileEditState extends ChangeNotifier {
         profileImageUrl: _imageUrl,
       );
       return true;
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        _saveError = '이미 사용 중인 닉네임이에요';
+        _nickAvailable = false; // 폼 표시도 중복으로 동기화
+      }
+      debugPrint('내정보 수정: 저장 실패: $e');
+      return false;
     } catch (e) {
       debugPrint('내정보 수정: 저장 실패: $e');
       return false;

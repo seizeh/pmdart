@@ -11,11 +11,9 @@ import '../models/profile.dart';
 import '../motion/motion.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
-import '../services/community_repository.dart';
 import '../services/facility_repository.dart' show Facility;
-import '../services/profile_repository.dart';
 import '../services/session.dart';
-import '../services/social_repository.dart';
+import '../state/user_profile_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
 import '../widgets/blob_background.dart';
@@ -79,24 +77,23 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
-  PublicProfileData? _profile;
-  List<Post> _posts = [];
+  // 로드/얼굴 판별/팔로우는 홀더가 갖고, 화면은 구독해 그리기 + 전환 모션·
+  // 도킹 스크롤 수학·내비게이션만 담당한다 (docs/architecture-state.md).
+  // 아래 위임 getter 들은 본문(도킹 UI)의 참조를 그대로 유지하기 위한 것.
+  late final UserProfileState _state = UserProfileState(
+    userId: widget.userId,
+    forcePersonalFace: widget.forcePersonalFace,
+  );
 
-  // 업체 모드 프로필의 방문 후기(매칭 시설, 0025 분리) — 일반 프로필이면 빈 목록.
-  List<BizFacilityReview> _bizReviews = const [];
+  PublicProfileData? get _profile => _state.profile;
+  List<Post> get _posts => _state.posts;
+  List<BizFacilityReview> get _bizReviews => _state.bizReviews;
+  bool get _bizFace => _state.bizFace;
+  bool get _loading => _state.loading;
+  bool get _error => _state.error;
+  bool get _following => _state.following;
 
-  /// 이 화면이 '업체 얼굴'을 보여주는가 — 상대가 업체 모드이면서 진입 맥락도
-  /// 업체일 때만. 개인 맥락 진입은 항상 개인 얼굴(정체성 연결 차단).
-  bool get _bizFace =>
-      !widget.forcePersonalFace && (_profile?.isBusinessMode ?? false);
-
-  String _displayName(PublicProfileData p) =>
-      _bizFace ? (p.businessName ?? p.nickname) : p.nickname;
-  bool _loading = true;
-  bool _error = false;
-
-  bool _following = false;
-  bool _followBusy = false;
+  String _displayName(PublicProfileData p) => _state.displayName(p);
 
   // CollapsibleView(당겨서 축소) 용 스크롤 컨트롤러.
   final _scroll = ScrollController();
@@ -112,114 +109,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   final _titleKeys = List.generate(3, (_) => GlobalKey());
   final List<double?> _titleReveal = [null, null, null];
 
-  bool get _isMe => widget.userId == SessionManager.instance.user?.id;
+  bool get _isMe => _state.isMe;
 
   @override
   void initState() {
     super.initState();
-    // 팔로우 상태는 얼굴 단위라 프로필(얼굴 판별) 로드 후 _load 안에서 조회한다.
-    _load();
+    // 팔로우 상태는 얼굴 단위라 프로필(얼굴 판별) 로드 후 load 안에서 조회한다.
+    _state.load();
   }
 
   @override
   void dispose() {
     _scroll.dispose();
+    _state.dispose();
     super.dispose();
   }
 
-  Future<void> _load({bool silent = false}) async {
-    if (!silent) {
-      setState(() {
-        _loading = true;
-        _error = false;
-      });
-    }
-    try {
-      // 프로필 먼저 — 업체 모드 여부에 따라 게시글 필터·방문 후기 로드가 갈린다(0025 분리).
-      final p = await ProfileRepository.instance.fetchPublicProfile(
-        widget.userId,
-        // 업체 맥락 진입이면 Pawmate 카운트도 업체 얼굴 팔로워 기준(얼굴 분리).
-        businessFace: !widget.forcePersonalFace,
-      );
-      final biz = p.isBusinessMode && !widget.forcePersonalFace;
-      final posts = await CommunityRepository.instance
-          .fetchUserPosts(
-            widget.userId,
-            authoredAs: biz ? 'business' : 'personal',
-          )
-          .catchError((_) => const <Post>[]);
-      final bizReviews = (biz && p.businessFacilityId != null)
-          ? await BusinessRepository.instance.fetchFacilityReviews(
-              p.businessFacilityId!,
-            )
-          : const <BizFacilityReview>[];
-      if (!mounted) return;
-      setState(() {
-        _profile = p;
-        _posts = posts;
-        _bizReviews = bizReviews;
-        _loading = false;
-      });
-      if (!_isMe) unawaited(_loadFollowing());
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        if (!silent) _error = true;
-      });
-    }
-  }
+  Future<void> _load({bool silent = false}) => _state.load(silent: silent);
 
-  Future<void> _loadFollowing() async {
-    try {
-      final f = await SocialRepository.instance.isFollowing(
-        widget.userId,
-        business: _bizFace,
-      );
-      if (mounted) setState(() => _following = f);
-    } catch (e) {
-      debugPrint('프로필: 팔로우 상태 조회 실패(미표시): $e');
-    }
-  }
-
-  // 마지막 토글 시각 — 실수 이중 탭(팔로우→즉시 언팔) 방지 쿨다운.
-  DateTime? _lastFollowToggle;
-
-  Future<void> _toggleFollow() async {
-    if (_followBusy) return;
-    // 연속 탭 쿨다운(700ms): 손떨림·이중 탭이 팔로우/언팔 왕복이 되지 않게.
-    // (알림 자체는 서버가 90초 유예 후 발송하므로 그 안의 취소는 조용하다.)
-    final now = DateTime.now();
-    if (_lastFollowToggle != null &&
-        now.difference(_lastFollowToggle!) <
-            const Duration(milliseconds: 700)) {
-      return;
-    }
-    _lastFollowToggle = now;
-    final was = _following;
-    setState(() {
-      _followBusy = true;
-      _following = !was;
-    });
-    try {
-      // 팔로우/해제 모두 지금 보고 있는 얼굴 단위 — 다른 얼굴 팔로우엔 영향 없음.
-      if (was) {
-        await SocialRepository.instance.unfollow(
-          widget.userId,
-          business: _bizFace,
-        );
-      } else {
-        await SocialRepository.instance.follow(
-          widget.userId,
-          business: _bizFace,
-        );
-      }
-    } catch (_) {
-      if (mounted) setState(() => _following = was);
-    } finally {
-      if (mounted) setState(() => _followBusy = false);
-    }
-  }
+  Future<void> _toggleFollow() => _state.toggleFollow();
 
   String _userTypeLabel(String t) => switch (t) {
     'pet_owner' => '반려동물 보호자',
@@ -301,9 +209,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       card: widget.cardBuilder,
       cardRadius: widget.cardRadius,
       scrollController: _scroll,
-      builder: (context, physics) => Scaffold(
-        backgroundColor: context.colors.background,
-        body: _buildBody(physics, topInset),
+      builder: (context, physics) => ListenableBuilder(
+        listenable: _state,
+        builder: (context, _) => Scaffold(
+          backgroundColor: context.colors.background,
+          body: _buildBody(physics, topInset),
+        ),
       ),
     );
   }

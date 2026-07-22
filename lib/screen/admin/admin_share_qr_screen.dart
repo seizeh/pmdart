@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/admin_repository.dart';
 import '../../services/facility_repository.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/share_links.dart';
 import 'admin_theme.dart';
 
 /// 매장 QR 발급 (0028 §3) — 시설 검색 → 미리보기 공유 링크 발급 → QR 표시.
@@ -209,12 +210,7 @@ class _QrSheet extends StatefulWidget {
 class _QrSheetState extends State<_QrSheet> {
   bool _busy = false;
 
-  // 공유 도메인 — supabase.co 직결은 게이트웨이가 HTML 을 차단(text/plain 강제,
-  // 피싱 방지)하므로 반드시 자체 도메인 경유(Cloudflare Worker pawmate-share-proxy,
-  // pmdb workers/share-proxy). QR 인쇄물의 영속성도 이 도메인이 담보한다.
-  static const _shareBase = 'https://go.pawmate.kr/s';
-
-  String get _url => '$_shareBase?t=${widget.token}';
+  String get _url => shareViewUrl(widget.token);
 
   void _toast(String msg) {
     if (!mounted) return;

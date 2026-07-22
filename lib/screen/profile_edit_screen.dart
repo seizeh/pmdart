@@ -15,6 +15,7 @@ import '../theme/app_palette.dart';
 import 'activity_screens.dart';
 import 'blocked_users_screen.dart';
 import 'business_register_screen.dart';
+import 'care_reports_received_screen.dart';
 import 'change_password_screen.dart';
 import 'connections_screen.dart';
 import 'guardian_invites_screen.dart';
@@ -668,6 +669,12 @@ class _ActivitySection extends StatelessWidget {
           label: '받은 후기',
           trailing: '${profile.reviewCount}',
           onTap: () => _push(context, const MyReviewsScreen()),
+        ),
+        // 케어 리포트(0028 P1) — 미용·위탁 업체가 보내준 기록(전화번호 자동 연결).
+        _Item(
+          icon: Icons.pets_outlined,
+          label: '받은 케어 기록',
+          onTap: () => _push(context, const CareReportsReceivedScreen()),
         ),
       ],
     );

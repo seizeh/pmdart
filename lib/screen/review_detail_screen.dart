@@ -368,11 +368,12 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
         (r.content ?? '').isNotEmpty &&
         (!contentInHero || !_heroHoldsFullContent);
     return [
-      if (r.visitNo != null || r.isMine)
+      if (r.visitNo != null || r.isMine || r.hasIncentive)
         Align(
           alignment: Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
               if (r.visitNo != null)
                 _chip(
@@ -380,17 +381,24 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
                   fg: context.colors.primaryDark,
                   bg: context.colors.primary.withValues(alpha: 0.12),
                 ),
-              if (r.visitNo != null && r.isMine) const SizedBox(width: 6),
               if (r.isMine)
                 _chip(
                   '내 후기',
                   fg: context.colors.textSecondary,
                   bg: context.colors.surfaceMuted,
                 ),
+              // 표시광고법: 경제적 이해관계 표시 — 카드 축약 배지의 전체 문구.
+              if (r.hasIncentive)
+                _chip(
+                  '업체 혜택 받고 작성한 후기',
+                  fg: context.colors.textSecondary,
+                  bg: context.colors.surfaceMuted,
+                ),
             ],
           ),
         ),
-      if (r.visitNo != null || r.isMine) const SizedBox(height: 14),
+      if (r.visitNo != null || r.isMine || r.hasIncentive)
+        const SizedBox(height: 14),
       // 별점 — 게시글의 제목 자리.
       Row(
         children: [

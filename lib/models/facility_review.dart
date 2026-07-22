@@ -13,6 +13,9 @@ class FacilityReview {
   /// 같은 사용자의 몇 번째 방문 후기인지(1부터) — 복수 후기 허용에 따른 순번.
   final int? visitNo;
 
+  /// 업체로부터 할인·사은품 등 혜택을 받고 작성 — 표시광고법 표시 의무(0028 §6).
+  final bool hasIncentive;
+
   const FacilityReview({
     required this.id,
     this.facilityId = '',
@@ -24,6 +27,7 @@ class FacilityReview {
     required this.createdAt,
     required this.isMine,
     this.visitNo,
+    this.hasIncentive = false,
   });
 
   factory FacilityReview.fromJson(Map<String, dynamic> j) => FacilityReview(
@@ -41,6 +45,7 @@ class FacilityReview {
         DateTime.now(),
     isMine: j['is_mine'] == true,
     visitNo: (j['visit_no'] as num?)?.toInt(),
+    hasIncentive: j['has_incentive'] == true,
   );
 }
 

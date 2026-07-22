@@ -27,6 +27,8 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     text: widget.existing?.content ?? '',
   );
   late final List<String> _photos = [...?widget.existing?.photoUrls];
+  // 업체 혜택(할인·사은품) 수령 표시 — 표시광고법 경제적 이해관계 표시(0028 §6).
+  late bool _hasIncentive = widget.existing?.hasIncentive ?? false;
   bool _uploading = false;
   bool _submitting = false;
 
@@ -90,6 +92,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
         rating: _rating,
         body: _contentCtrl.text,
         photoUrls: _photos,
+        hasIncentive: _hasIncentive,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -293,6 +296,50 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                   ),
               ],
             ),
+            const SizedBox(height: 16),
+            // 표시광고법: 대가성 후기는 경제적 이해관계 표시 의무 — 체크 시
+            // 후기 카드·상세·공유 뷰어에 '업체 혜택 받고 작성' 배지가 붙는다.
+            InkWell(
+              onTap: () => setState(() => _hasIncentive = !_hasIncentive),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: _hasIncentive,
+                        onChanged: (v) =>
+                            setState(() => _hasIncentive = v ?? false),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '업체로부터 할인·사은품 등 혜택을 받고 작성해요',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: context.colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_hasIncentive)
+              Padding(
+                padding: const EdgeInsets.only(left: 34, top: 2),
+                child: Text(
+                  '후기에 \'업체 혜택 받고 작성\' 표시가 함께 노출돼요.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.colors.textTertiary,
+                  ),
+                ),
+              ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _submitting ? null : _submit,

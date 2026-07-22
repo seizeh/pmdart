@@ -176,6 +176,7 @@ class BusinessRepository {
                 u as String,
             ],
             visitNo: (r['visit_no'] as num?)?.toInt(),
+            hasIncentive: r['has_incentive'] == true,
           ),
       ];
     } catch (_) {
@@ -341,6 +342,7 @@ class BizFacilityReview {
   final DateTime? createdAt;
   final List<String> photoUrls;
   final int? visitNo; // 같은 사용자의 몇 번째 방문 후기인지
+  final bool hasIncentive; // 업체 혜택 받고 작성(표시광고법 표시, 0028 §6)
   const BizFacilityReview({
     this.id = '',
     this.authorUserId = '',
@@ -350,6 +352,7 @@ class BizFacilityReview {
     this.createdAt,
     this.photoUrls = const [],
     this.visitNo,
+    this.hasIncentive = false,
   });
 }
 

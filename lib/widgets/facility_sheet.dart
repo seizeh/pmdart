@@ -395,6 +395,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
                 photoUrls: r.photoUrls,
                 isMine: r.isMine,
                 visitNo: r.visitNo,
+                hasIncentive: r.hasIncentive,
                 seed: r.id,
                 reviewId: r.id,
                 authorUserId: r.userId,

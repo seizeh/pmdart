@@ -19,6 +19,9 @@ class ReviewCardData {
   /// 같은 사용자의 몇 번째 방문 후기인지(1부터) — 복수 후기 순번 표시.
   final int? visitNo;
 
+  /// 업체 혜택(할인·사은품)을 받고 작성 — 표시광고법 표시 의무(0028 §6).
+  final bool hasIncentive;
+
   /// 사진 없는 카드의 블롭 배경 시드 — 후기마다 다른 패턴, 같은 후기는 항상 동일.
   final Object? seed;
 
@@ -40,6 +43,7 @@ class ReviewCardData {
     this.photoUrls = const [],
     this.isMine = false,
     this.visitNo,
+    this.hasIncentive = false,
     this.seed,
     this.onDelete,
     this.reviewId,
@@ -58,6 +62,7 @@ class ReviewCardData {
     photoUrls: r.photoUrls,
     isMine: r.isMine,
     visitNo: r.visitNo,
+    hasIncentive: r.hasIncentive,
     seed: r.id,
     reviewId: r.id,
     authorUserId: r.userId,
@@ -84,6 +89,29 @@ class ReviewCardGrid extends StatelessWidget {
       itemBuilder: (context, i) => _ReviewCard(review: reviews[i]),
     );
   }
+}
+
+/// 카드 모서리 소형 배지(방문 차수·업체 혜택 공용) — 사진 위에선 스크림 톤.
+Widget _cornerBadge(
+  BuildContext context,
+  String label, {
+  required bool onPhoto,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    decoration: BoxDecoration(
+      color: onPhoto ? const Color(0x66000000) : context.colors.surfaceMuted,
+      borderRadius: BorderRadius.circular(100),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 10.5,
+        fontWeight: FontWeight.w700,
+        color: onPhoto ? Colors.white : context.colors.textSecondary,
+      ),
+    ),
+  );
 }
 
 class _ReviewCard extends StatelessWidget {
@@ -167,31 +195,25 @@ class _ReviewCard extends StatelessWidget {
                 ),
               ),
             // 상단 좌측: 방문 차수 배지 — 재방문 후기임이 한눈에 보이게.
-            if (review.visitNo != null)
+            // 대가성 후기(표시광고법)는 '업체 혜택' 배지가 항상 같이 붙는다.
+            if (review.visitNo != null || review.hasIncentive)
               Positioned(
                 top: 8,
                 left: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: photo != null
-                        ? const Color(0x66000000)
-                        : context.colors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Text(
-                    '${review.visitNo}번째 방문',
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: photo != null
-                          ? Colors.white
-                          : context.colors.textSecondary,
-                    ),
-                  ),
+                right: 8,
+                child: Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    if (review.visitNo != null)
+                      _cornerBadge(
+                        context,
+                        '${review.visitNo}번째 방문',
+                        onPhoto: photo != null,
+                      ),
+                    if (review.hasIncentive)
+                      _cornerBadge(context, '업체 혜택', onPhoto: photo != null),
+                  ],
                 ),
               ),
             // 하단: 평점(+내 후기 표시).

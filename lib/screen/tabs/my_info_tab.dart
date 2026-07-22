@@ -515,6 +515,7 @@ class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
                     createdAt: r.createdAt,
                     photoUrls: r.photoUrls,
                     visitNo: r.visitNo,
+                    hasIncentive: r.hasIncentive,
                     seed: r.id,
                     reviewId: r.id,
                     authorUserId: r.authorUserId,

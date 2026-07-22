@@ -589,6 +589,34 @@ class AdminRepository {
     );
   }
 
+  /// 매장 미리보기 공유 링크(QR) 발급 (0028 §3). 같은 시설의 유효 링크가 있으면
+  /// 서버가 그 토큰을 재사용한다 — 재호출해도 이미 인쇄한 QR 이 안 죽는다.
+  Future<({String token, DateTime? expiresAt})> createFacilityShareLink(
+    String facilityId, {
+    int days = 365,
+  }) async {
+    final res = await _c.rpc(
+      'admin_create_facility_share_link',
+      params: {'p_facility': facilityId, 'p_days': days},
+    );
+    final row = (res as List).first as Map<String, dynamic>;
+    return (
+      token: row['token'] as String,
+      expiresAt: DateTime.tryParse(
+        (row['expires_at'] ?? '') as String,
+      )?.toLocal(),
+    );
+  }
+
+  /// 공유 링크 회수(오배포·유출 대응) — 회수분은 share-view 가 404 로 응답.
+  Future<bool> revokeShareLink(String token) async {
+    final res = await _c.rpc(
+      'admin_revoke_share_link',
+      params: {'p_token': token},
+    );
+    return res == true;
+  }
+
   /// 신고 목록. [status] = 'open'(미처리), null(전체), 또는 정확한 상태값.
   Future<List<AdminReport>> listReports({String? status = 'open'}) async {
     final res = await _c.rpc(

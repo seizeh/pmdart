@@ -8,12 +8,9 @@ import '../../models/community.dart';
 import '../../models/pet.dart';
 import '../../models/profile.dart';
 import '../../motion/motion.dart';
-import '../../services/app_events.dart';
 import '../../services/business_repository.dart';
-import '../../services/community_repository.dart';
-import '../../services/pet_repository.dart';
-import '../../services/profile_repository.dart';
 import '../../services/session.dart';
+import '../../state/my_info_state.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/overlay_icon_button.dart';
@@ -51,6 +48,10 @@ class MyInfoTab extends StatefulWidget {
 
 class _MyInfoTabState extends State<MyInfoTab>
     with SingleTickerProviderStateMixin {
+  // 데이터 로드·AppEvents 자동 새로고침은 홀더가 갖고, 화면은 구독해 그리기 +
+  // 내비게이션/전환 모션만 담당한다 (docs/architecture-state.md).
+  late final MyInfoState _state = MyInfoState(isGuest: widget.isGuest);
+
   // 상단 헤더(+하단 네비 바) 표시 스프링(1=보임, 0=숨김) — 커뮤니티와 동일 규칙:
   // 아래로 스크롤하면 숨고, 위로 올리면 스프링으로 복귀.
   late final AnimationController _chromeCtrl = AnimationController.unbounded(
@@ -82,17 +83,6 @@ class _MyInfoTabState extends State<MyInfoTab>
     return false;
   }
 
-  ProfileData? _profile;
-  int _pendingInvites = 0;
-  bool _loading = true;
-  String? _error;
-
-  // 업체 모드 히어로용 후기 요약(일반 모드면 null).
-  int? _bizReviewCount;
-  double? _bizReviewAvg;
-
-  // 내가 작성한 게시글 — 공개 프로필과 동일한 2열 그리드로 표시.
-  List<Post> _myPosts = [];
   final _postKeys = <String, GlobalKey>{};
   String? _openedPostId;
 
@@ -108,7 +98,7 @@ class _MyInfoTabState extends State<MyInfoTab>
 
   /// 프로필 카드 탭 → 카드 자리에서 수정 화면이 펼쳐진다(글쓰기 버튼과 동일한 전환).
   Future<void> _openProfileEdit() async {
-    final p = _profile;
+    final p = _state.profile;
     if (p == null) return;
     final rect = _profileRect();
     final page = ProfileEditScreen(
@@ -116,7 +106,7 @@ class _MyInfoTabState extends State<MyInfoTab>
       initialAddress: p.address,
       initialVerified: p.isLocationVerified,
       profile: p,
-      pendingInvites: _pendingInvites,
+      pendingInvites: _state.pendingInvites,
     );
     await Navigator.push(
       context,
@@ -128,12 +118,12 @@ class _MyInfoTabState extends State<MyInfoTab>
               builder: (_) => page,
               origin: (_) => _ProfileHeroCard(
                 profile: p,
-                bizReviewCount: _bizReviewCount,
-                bizReviewAvg: _bizReviewAvg,
+                bizReviewCount: _state.bizReviewCount,
+                bizReviewAvg: _state.bizReviewAvg,
               ),
             ),
     );
-    if (mounted) unawaited(_load(silent: true)); // 닉네임 등 수정 반영
+    if (mounted) unawaited(_state.load(silent: true)); // 닉네임 등 수정 반영
   }
 
   // ── 내 게시글: 대표사진 2열 그리드 (공개 프로필과 동일) ──
@@ -163,11 +153,11 @@ class _MyInfoTabState extends State<MyInfoTab>
     );
     if (!mounted) return;
     setState(() => _openedPostId = null);
-    unawaited(_load(silent: true)); // 하트/댓글/삭제 변동 반영
+    unawaited(_state.load(silent: true)); // 하트/댓글/삭제 변동 반영
   }
 
   Widget _myPostsSection({bool isBusinessMode = false}) {
-    final posts = _myPosts;
+    final posts = _state.myPosts;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -261,86 +251,14 @@ class _MyInfoTabState extends State<MyInfoTab>
   @override
   void initState() {
     super.initState();
-    if (!widget.isGuest) {
-      _load();
-      AppEvents.instance.social.addListener(_onSocialChanged);
-      AppEvents.instance.profile.addListener(_onSocialChanged);
-    }
+    _state.init();
   }
 
   @override
   void dispose() {
     _chromeCtrl.dispose();
-    AppEvents.instance.social.removeListener(_onSocialChanged);
-    AppEvents.instance.profile.removeListener(_onSocialChanged);
+    _state.dispose();
     super.dispose();
-  }
-
-  void _onSocialChanged() {
-    if (mounted) _load(silent: true);
-  }
-
-  Future<void> _load({bool silent = false}) async {
-    if (!silent) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
-    try {
-      final p = await ProfileRepository.instance.fetchProfile();
-      int invites = 0;
-      try {
-        invites = await PetRepository.instance.pendingInviteCount();
-      } catch (e) {
-        debugPrint('내정보: 초대 수 조회 실패(0으로 표시): $e');
-      }
-      var posts = _myPosts;
-      try {
-        final uid = SessionManager.instance.user?.id;
-        if (uid != null) {
-          // 같은 계정이지만 분리된 프로필 — 현재 모드로 작성한 글만 (0025 후속)
-          posts = await CommunityRepository.instance.fetchUserPosts(
-            uid,
-            authoredAs: p.activeMode,
-          );
-        }
-      } catch (e) {
-        // 게시글 조회 실패 시 기존 목록 유지
-        debugPrint('내정보: 게시글 조회 실패 — 기존 목록 유지: $e');
-      }
-      // 업체 모드 히어로의 후기 요약(후기 수·평점)
-      int? bizCount;
-      double? bizAvg;
-      if (p.activeMode == 'business') {
-        try {
-          final rs = await BusinessRepository.instance.fetchMyFacilityReviews();
-          bizCount = rs.length;
-          bizAvg = rs.isEmpty
-              ? null
-              : rs.map((r) => r.rating).reduce((a, b) => a + b) / rs.length;
-        } catch (_) {
-          bizCount = 0;
-        }
-      }
-      if (!mounted) return;
-      setState(() {
-        _profile = p;
-        _pendingInvites = invites;
-        _myPosts = posts;
-        _bizReviewCount = bizCount;
-        _bizReviewAvg = bizAvg;
-        _loading = false;
-        _error = null;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        // 조용한 새로고침 실패 시 기존 데이터 유지
-        if (_profile == null) _error = '프로필을 불러오지 못했어요';
-      });
-    }
   }
 
   @override
@@ -357,7 +275,10 @@ class _MyInfoTabState extends State<MyInfoTab>
           Positioned.fill(
             child: NotificationListener<UserScrollNotification>(
               onNotification: _onUserScroll,
-              child: _buildBody(topInset + 56),
+              child: ListenableBuilder(
+                listenable: _state,
+                builder: (context, _) => _buildBody(topInset + 56),
+              ),
             ),
           ),
           // 헤더 — 아래로 스크롤 시 위로 밀려 숨고, 위로 올리면 스프링 복귀
@@ -390,29 +311,29 @@ class _MyInfoTabState extends State<MyInfoTab>
   }
 
   Widget _buildBody(double topPad) {
-    if (_loading) {
+    if (_state.loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null || _profile == null) {
+    final profile = _state.profile;
+    if (_state.error != null || profile == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _error ?? '프로필을 불러오지 못했어요',
+              _state.error ?? '프로필을 불러오지 못했어요',
               style: TextStyle(color: context.colors.textSecondary),
             ),
             const SizedBox(height: 12),
-            TextButton(onPressed: _load, child: const Text('다시 시도')),
+            TextButton(onPressed: _state.load, child: const Text('다시 시도')),
           ],
         ),
       );
     }
 
-    final profile = _profile!;
     final bottomInset = MediaQuery.of(context).padding.bottom;
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: _state.load,
       edgeOffset: topPad,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -443,8 +364,8 @@ class _MyInfoTabState extends State<MyInfoTab>
                 child: _ProfileHeroCard(
                   profile: profile,
                   onTap: _openProfileEdit,
-                  bizReviewCount: _bizReviewCount,
-                  bizReviewAvg: _bizReviewAvg,
+                  bizReviewCount: _state.bizReviewCount,
+                  bizReviewAvg: _state.bizReviewAvg,
                   // 약속(산책·돌봄 매칭)은 개인 활동 — 업체 모드엔 캘린더 숨김.
                   onCalendarTap: profile.activeMode == 'business'
                       ? null

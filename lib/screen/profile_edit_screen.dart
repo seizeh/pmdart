@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/profile.dart';
@@ -9,6 +10,7 @@ import '../services/profile_repository.dart';
 import '../services/session.dart';
 import '../services/storage_service.dart';
 import '../services/theme_controller.dart';
+import '../state/profile_edit_state.dart';
 import '../theme/app_palette.dart';
 import 'activity_screens.dart';
 import 'blocked_users_screen.dart';
@@ -55,71 +57,62 @@ class ProfileEditScreen extends StatefulWidget {
 }
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
+  // 업로드/저장/모드/활동 지역 상태는 홀더가 갖고, 화면은 구독해 그리기 +
+  // 피커/화면 이동/토스트/pop 만 담당한다 (docs/architecture-state.md).
+  late final ProfileEditState _state = ProfileEditState(
+    initialMode: widget.profile?.activeMode ?? 'personal',
+    initialAddress: widget.initialAddress,
+    initialVerified: widget.initialVerified,
+  );
   late final TextEditingController _nickCtrl = TextEditingController(
     text: widget.initialNickname,
   );
-  // 현재 모드 — 화면 안에서 계정 전환하면 즉시 반영되도록 로컬 상태로 든다
-  // (widget.profile 은 진입 시점 스냅샷이라 전환 후 낡은 값이 되는 문제 방지).
-  // 업체 모드면 이 화면 전체가 '업체 관리'로 바뀐다 — 개인 프로필 편집과 업체
-  // 관리가 같은 폼을 공유하지 않는다(0026, 사진 결합 혼란의 근원 제거).
-  late String _mode = widget.profile?.activeMode ?? 'personal';
-  bool get _isBizMode => _mode == 'business';
-
-  String? _imageUrl;
-  bool _uploading = false;
-  bool _saving = false;
-
-  // 활동 지역(동네 인증) — GPS 인증 결과를 화면에 즉시 반영하기 위한 로컬 상태.
-  late String? _address = widget.initialAddress;
-  late bool _verified = widget.initialVerified;
-  String? get _regionName =>
-      ProfileData.regionNameFromAddress(_address, verified: _verified);
 
   @override
   void dispose() {
     _nickCtrl.dispose();
+    _state.dispose();
     super.dispose();
   }
 
   bool get _canSave =>
-      !_saving && !_uploading && _nickCtrl.text.trim().isNotEmpty;
+      !_state.saving && !_state.uploading && _nickCtrl.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
     final file = await StorageService.instance.pickImage();
-    if (file == null) return;
-    setState(() => _uploading = true);
-    try {
-      final up = await StorageService.instance.upload(
-        file,
-        category: 'profile',
-      );
-      if (!mounted) return;
-      setState(() {
-        _imageUrl = up.url;
-        _uploading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _uploading = false);
-      _toast('사진 업로드에 실패했어요');
-    }
+    if (file == null || !mounted) return;
+    if (!await _state.uploadImage(file)) _toast('사진 업로드에 실패했어요');
   }
 
   Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      await ProfileRepository.instance.updateProfile(
-        nickname: _nickCtrl.text.trim(),
-        profileImageUrl: _imageUrl,
-      );
-      if (!mounted) return;
+    final ok = await _state.save(_nickCtrl.text.trim());
+    if (!mounted) return;
+    if (ok) {
       Navigator.pop(context, true);
       _toast('프로필을 수정했어요');
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _saving = false);
+    } else {
       _toast('저장에 실패했어요');
     }
+  }
+
+  /// 활동 지역은 자유 입력이 아니라 GPS 인증으로만 바뀐다(보안: 게시글 지역 게이팅).
+  /// 인증 화면에서 성공(pop true)하면 서버 값이 갱신되므로 다시 조회해 표시한다.
+  Future<void> _verifyRegion() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      AppPageRoute(
+        builder: (_) => LocationVerifyScreen(currentRegion: _state.regionName),
+      ),
+    );
+    if (changed != true || !mounted) return;
+    await _state.refreshRegion();
+  }
+
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+    );
   }
 
   /// 업체 모드 본문 — 개인 프로필 폼 없이 업체 관리(정보·대표 사진)와 전환·설정만.
@@ -147,42 +140,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        _BusinessSection(
-          isBizMode: true,
-          onModeChanged: (m) => setState(() => _mode = m),
-        ),
+        _BusinessSection(isBizMode: true, onModeChanged: _state.setMode),
         const SizedBox(height: 12),
         if (widget.profile != null) _SettingsSection(profile: widget.profile!),
       ],
-    );
-  }
-
-  /// 활동 지역은 자유 입력이 아니라 GPS 인증으로만 바뀐다(보안: 게시글 지역 게이팅).
-  /// 인증 화면에서 성공(pop true)하면 서버 값이 갱신되므로 다시 조회해 표시한다.
-  Future<void> _verifyRegion() async {
-    final changed = await Navigator.push<bool>(
-      context,
-      AppPageRoute(
-        builder: (_) => LocationVerifyScreen(currentRegion: _regionName),
-      ),
-    );
-    if (changed != true || !mounted) return;
-    try {
-      final r = await ProfileRepository.instance.fetchRegion();
-      if (!mounted) return;
-      setState(() {
-        _address = r.address;
-        _verified = r.verified;
-      });
-    } catch (_) {
-      // 조회 실패해도 인증 자체는 반영됨(내정보 탭이 새로고침으로 따라잡음).
-    }
-  }
-
-  void _toast(String m) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -191,208 +152,215 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final initial = _nickCtrl.text.isEmpty
         ? (SessionManager.instance.user?.nickname ?? '?')
         : _nickCtrl.text;
-    return Scaffold(
-      backgroundColor: context.colors.background,
-      appBar: AppBar(
-        // 업체 모드는 화면 전체가 '업체 관리' — 개인 프로필 폼(저장 버튼 포함) 없음.
-        title: Text(_isBizMode ? '업체 관리' : '내정보 수정'),
-        actions: [
-          if (!_isBizMode)
-            TextButton(
-              onPressed: _canSave ? _save : null,
-              child: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text(
-                      '저장',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+    return ListenableBuilder(
+      listenable: _state,
+      builder: (context, _) => Scaffold(
+        backgroundColor: context.colors.background,
+        appBar: AppBar(
+          // 업체 모드는 화면 전체가 '업체 관리' — 개인 프로필 폼(저장 버튼 포함) 없음.
+          title: Text(_state.isBizMode ? '업체 관리' : '내정보 수정'),
+          actions: [
+            if (!_state.isBizMode)
+              TextButton(
+                onPressed: _canSave ? _save : null,
+                child: _state.saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        '저장',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-            ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          // 섹션 카드(내 활동 등)는 자체 좌우 20 패딩을 가지므로 스크롤뷰는
-          // 상하 패딩만 주고, 편집 폼 부분만 좌우 24 를 따로 감싼다.
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: _isBizMode
-              ? _businessBody()
-              : Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        children: [
-                          GestureDetector(
-                            onTap: _uploading ? null : _pickImage,
-                            child: Container(
-                              width: 110,
-                              height: 110,
-                              decoration: BoxDecoration(
-                                color: context.colors.primarySoft,
-                                shape: BoxShape.circle,
-                                image: _imageUrl != null
-                                    ? DecorationImage(
-                                        image: NetworkImage(_imageUrl!),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : null,
-                              ),
-                              child: _uploading
-                                  ? const Center(
-                                      child: CircularProgressIndicator(),
-                                    )
-                                  : (_imageUrl == null
-                                        ? Center(
-                                            child: Text(
-                                              initial.characters.first,
-                                              style: TextStyle(
-                                                fontSize: 40,
-                                                fontWeight: FontWeight.w700,
-                                                color:
-                                                    context.colors.primaryDark,
-                                              ),
-                                            ),
-                                          )
-                                        : null),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: _uploading ? null : _pickImage,
-                            icon: const Icon(
-                              Icons.camera_alt_outlined,
-                              size: 16,
-                            ),
-                            label: const Text('사진 변경'),
-                          ),
-                          const SizedBox(height: 16),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '닉네임',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: context.colors.textPrimary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _nickCtrl,
-                            onChanged: (_) => setState(() {}),
-                            decoration: const InputDecoration(hintText: '닉네임'),
-                          ),
-                          const SizedBox(height: 24),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '활동 지역',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: context.colors.textPrimary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          InkWell(
-                            onTap: _verifyRegion,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 14,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: context.colors.border,
+              ),
+          ],
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            // 섹션 카드(내 활동 등)는 자체 좌우 20 패딩을 가지므로 스크롤뷰는
+            // 상하 패딩만 주고, 편집 폼 부분만 좌우 24 를 따로 감싼다.
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: _state.isBizMode
+                ? _businessBody()
+                : Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          children: [
+                            GestureDetector(
+                              onTap: _state.uploading ? null : _pickImage,
+                              child: Container(
+                                width: 110,
+                                height: 110,
+                                decoration: BoxDecoration(
+                                  color: context.colors.primarySoft,
+                                  shape: BoxShape.circle,
+                                  image: _state.imageUrl != null
+                                      ? DecorationImage(
+                                          image: NetworkImage(_state.imageUrl!),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
                                 ),
-                                borderRadius: BorderRadius.circular(12),
+                                child: _state.uploading
+                                    ? const Center(
+                                        child: CircularProgressIndicator(),
+                                      )
+                                    : (_state.imageUrl == null
+                                          ? Center(
+                                              child: Text(
+                                                initial.characters.first,
+                                                style: TextStyle(
+                                                  fontSize: 40,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: context
+                                                      .colors
+                                                      .primaryDark,
+                                                ),
+                                              ),
+                                            )
+                                          : null),
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.location_on_outlined,
-                                    size: 20,
-                                    color: context.colors.primaryDark,
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: _state.uploading ? null : _pickImage,
+                              icon: const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 16,
+                              ),
+                              label: const Text('사진 변경'),
+                            ),
+                            const SizedBox(height: 16),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '닉네임',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _nickCtrl,
+                              onChanged: (_) => setState(() {}),
+                              decoration: const InputDecoration(
+                                hintText: '닉네임',
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '활동 지역',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: _verifyRegion,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 14,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: context.colors.border,
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      _verified && _regionName != null
-                                          ? _regionName!
-                                          : '지역 미인증',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w500,
-                                        color: _verified
-                                            ? context.colors.textPrimary
-                                            : context.colors.textTertiary,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    _verified ? '재인증' : 'GPS로 인증',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.location_on_outlined,
+                                      size: 20,
                                       color: context.colors.primaryDark,
                                     ),
-                                  ),
-                                  Icon(
-                                    Icons.chevron_right,
-                                    size: 18,
-                                    color: context.colors.textTertiary,
-                                  ),
-                                ],
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        _state.verified &&
+                                                _state.regionName != null
+                                            ? _state.regionName!
+                                            : '지역 미인증',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                          color: _state.verified
+                                              ? context.colors.textPrimary
+                                              : context.colors.textTertiary,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      _state.verified ? '재인증' : 'GPS로 인증',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: context.colors.primaryDark,
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.chevron_right,
+                                      size: 18,
+                                      color: context.colors.textTertiary,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '활동 지역은 현재 위치(GPS)로만 인증돼요.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: context.colors.textTertiary,
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '활동 지역은 현재 위치(GPS)로만 인증돼요.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: context.colors.textTertiary,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    // 내 활동/활동 범위/관심/설정 — 내정보 탭에서 이동해온 섹션들.
-                    if (widget.profile != null) ...[
-                      const SizedBox(height: 28),
-                      _ActivitySection(
-                        profile: widget.profile!,
-                        pendingInvites: widget.pendingInvites,
-                      ),
-                      const SizedBox(height: 12),
-                      _ActivityRangeSection(profile: widget.profile!),
-                      const SizedBox(height: 12),
-                      _InterestSection(profile: widget.profile!),
-                      const SizedBox(height: 12),
-                      // 개인 화면의 업체 섹션은 등록/전환만 — 업체 정보·사진 관리는
-                      // 업체 모드(업체 관리 화면) 전용(0026, 사진 결합 혼란 제거).
-                      _BusinessSection(
-                        isBizMode: false,
-                        onModeChanged: (m) => setState(() => _mode = m),
-                      ),
-                      const SizedBox(height: 12),
-                      _SettingsSection(profile: widget.profile!),
+                      // 내 활동/활동 범위/관심/설정 — 내정보 탭에서 이동해온 섹션들.
+                      if (widget.profile != null) ...[
+                        const SizedBox(height: 28),
+                        _ActivitySection(
+                          profile: widget.profile!,
+                          pendingInvites: widget.pendingInvites,
+                        ),
+                        const SizedBox(height: 12),
+                        _ActivityRangeSection(profile: widget.profile!),
+                        const SizedBox(height: 12),
+                        _InterestSection(profile: widget.profile!),
+                        const SizedBox(height: 12),
+                        // 개인 화면의 업체 섹션은 등록/전환만 — 업체 정보·사진 관리는
+                        // 업체 모드(업체 관리 화면) 전용(0026, 사진 결합 혼란 제거).
+                        _BusinessSection(
+                          isBizMode: false,
+                          onModeChanged: _state.setMode,
+                        ),
+                        const SizedBox(height: 12),
+                        _SettingsSection(profile: widget.profile!),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+          ),
         ),
       ),
     );

@@ -603,7 +603,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   // 바깥 하단에 알약을 그림). 앵커는 여전히 사진 중심(y=52)이어야 하므로
   // 마커 생성부에서 _bizRatingAnchor 로 보정한다.
   static const _bizRatingTarget = 140.0; // 104 + 배지 영역 36
-  static const _bizRatingAnchor = NPoint(0.5, (_bizTarget / 2) / _bizRatingTarget);
+  static const _bizRatingAnchor = NPoint(
+    0.5,
+    (_bizTarget / 2) / _bizRatingTarget,
+  );
 
   /// 인증 마커의 둥근 정사각형 프레임(그림자 + 채움/클립 + 모드별 분리 링).
   /// [fillColor] 를 주면 채우고(글리프 폴백), 없으면 클립만 남긴다(사진 마커 —
@@ -721,7 +724,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         }
       }
       if (photo != null) {
-        out = await _renderBizPhotoIcon(photo, f.ownerPhotoAlignY, dark, rating);
+        out = await _renderBizPhotoIcon(
+          photo,
+          f.ownerPhotoAlignY,
+          dark,
+          rating,
+        );
         photo.dispose();
       } else {
         out = await _iconFor(f.category, verified: true, rating: rating);

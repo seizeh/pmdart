@@ -326,11 +326,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// 섹션 타이틀 3개 — 인라인과 핀(도킹) 복제가 반드시 같은 목록을 써야 한다.
   /// 업체 모드 프로필은 분리된 얼굴 — 반려동물 대신 업체 정보, 평가 대신 방문 후기.
   List<(String, int)> _titles(PublicProfileData p) => _bizFace
-      ? [
-          ('업체 정보', 0),
-          ('방문 후기', _bizReviews.length),
-          ('업체 게시글', _posts.length),
-        ]
+      ? [('업체 정보', 0), ('방문 후기', _bizReviews.length), ('업체 게시글', _posts.length)]
       : [
           ('키우는 반려동물', p.pets.length),
           ('받은 후기', p.reviewCount),

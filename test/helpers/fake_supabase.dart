@@ -83,7 +83,11 @@ class FakeSupabase {
     return http.Response(
       '[]',
       200,
-      headers: {'content-type': 'application/json'},
+      headers: {
+        'content-type': 'application/json',
+        // count(exact) 요청이 기본 응답에서도 0 으로 동작하게(다른 요청엔 무해).
+        'content-range': '*/0',
+      },
       request: req,
     );
   }

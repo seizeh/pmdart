@@ -60,6 +60,13 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
   bool _hasExtraDoc = false;
   PickedDoc? _extraDoc;
 
+  // [선택·접힘] 업종 등록·허가증 동시 제출 (0028 §1) — 신청을 두 번 시키지 않기.
+  // 업종 '승인'은 업체 인증 승인 후에만 나므로(서버 보장) 여기선 접수만 된다.
+  bool _withLicense = false;
+  String? _licType;
+  final _licNoCtrl = TextEditingController();
+  PickedDoc? _licDoc;
+
   bool _submitting = false;
 
   // 업체 정보는 가입 동의 범위 밖(신청 시점 수집)이라 별도 필수 동의를 받는다 (처리방침 §1·§3)
@@ -83,6 +90,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _repCtrl.dispose();
+    _licNoCtrl.dispose();
     super.dispose();
   }
 
@@ -128,7 +136,14 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
   bool get _hasAddress =>
       _address != null || _manualAddrCtrl.text.trim().isNotEmpty;
 
-  bool get _canSubmit => _doneCount == 7 && _agreeCollect && !_submitting;
+  bool get _licenseSectionOk =>
+      _licType != null && _licNoCtrl.text.trim().length >= 4 && _licDoc != null;
+
+  bool get _canSubmit =>
+      _doneCount == 7 &&
+      _agreeCollect &&
+      !_submitting &&
+      (!_withLicense || _licenseSectionOk);
 
   @override
   Widget build(BuildContext context) {
@@ -322,6 +337,53 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
                     picked: _extraDoc,
                     label: '영업 등록증 등 첨부',
                     onPick: (d) => setState(() => _extraDoc = d),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                // 업종 인증 동시 제출(0028 §1) — 승인 후 또 신청하러 오지 않게.
+                _foldToggle(
+                  '동물보호법 업종 등록·허가증도 함께 제출할까요? (선택)',
+                  _withLicense,
+                  (v) => setState(() => _withLicense = v),
+                ),
+                if (_withLicense) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '미용·위탁관리 등 업종별 등록·허가증을 함께 제출하면 업체 인증 승인 후 '
+                    '해당 업종 기능(전후 사진 보내기 등)이 바로 열려요.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: context.colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (key, label) in bizLicenseTypes)
+                        ChoiceChip(
+                          label: Text(label),
+                          selected: _licType == key,
+                          onSelected: (_) => setState(() => _licType = key),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _licNoCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: '등록·허가번호',
+                      hintText: '예: 제 2026-서울종로-0001 호',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _docPicker(
+                    picked: _licDoc,
+                    label: '등록·허가증 첨부',
+                    onPick: (d) => setState(() => _licDoc = d),
                   ),
                 ],
                 const SizedBox(height: 20),
@@ -646,6 +708,31 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
 
   // ── 제출 ──
 
+  /// 업종 인증 동시 제출(0028 §1) — 업체 등록 접수 성공 직후 이어 신청.
+  /// 서버가 pending 업체의 신청을 허용하고, 승인 순서(업체 먼저)는 심사가 보장.
+  Future<void> _applyLicenseTogether() async {
+    try {
+      final path = await StorageService.instance.uploadBusinessDoc(
+        _licDoc!,
+        kind: 'license-$_licType',
+      );
+      final err = await BusinessRepository.instance.applyLicense(
+        type: _licType!,
+        licenseNo: _licNoCtrl.text.trim(),
+        documentPath: path,
+      );
+      if (!mounted) return;
+      _toast(
+        err == null
+            ? '업종 인증도 함께 접수되었어요 — 업체 승인 후 이어서 심사돼요'
+            : '업종 인증 신청은 실패했어요. 승인 후 업체 관리에서 다시 신청할 수 있어요',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _toast('업종 서류 업로드에 실패했어요. 승인 후 업체 관리에서 다시 신청할 수 있어요');
+    }
+  }
+
   Future<void> _submit() async {
     setState(() => _submitting = true);
     // 업로드는 제출 시점에 — 미제출 이탈 시 고아 파일을 만들지 않는다.
@@ -696,6 +783,10 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
               ? '신청이 접수되었어요. 새 업체라 관리자가 서류를 확인할 거예요'
               : '신청이 접수되었어요. 심사 결과를 알림으로 알려드릴게요',
         );
+      }
+      // 업종 인증 동시 제출 — 실패해도 업체 등록 자체는 성공 상태 유지(별도 재신청 가능).
+      if (_withLicense && _licenseSectionOk) {
+        await _applyLicenseTogether();
       }
       await _loadMine(); // pending/approved 상태 화면으로 전환
       return;

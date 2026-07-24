@@ -69,6 +69,7 @@ class AppNotification {
     'location_expired' => '지역 인증이 만료됐어요',
     'security_login' => '새 기기에서 로그인되었어요',
     'schedule_changed' => '약속 일정이 변경됐어요',
+    'vaccine_reminder' => '접종 알림',
     _ => '알림',
   };
 
@@ -89,6 +90,7 @@ class AppNotification {
     'location_expired' => Icons.location_off_outlined,
     'security_login' => Icons.phonelink_lock_outlined,
     'schedule_changed' => Icons.event_repeat_outlined,
+    'vaccine_reminder' => Icons.vaccines_outlined,
     _ => Icons.notifications_outlined,
   };
 }

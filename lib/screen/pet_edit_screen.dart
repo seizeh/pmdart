@@ -6,6 +6,7 @@ import '../services/pet_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import 'pet_identity_enroll_screen.dart';
+import 'vaccination_schedule_screen.dart';
 
 /// 가입 단계 등에서 미리 받아온 펫 정보 초안 — 신규 등록 폼을 프리필한다.
 class PetDraft {
@@ -33,7 +34,18 @@ class PetDraft {
 class PetEditScreen extends StatefulWidget {
   final Pet? pet;
   final PetDraft? draft;
-  const PetEditScreen({super.key, this.pet, this.draft});
+
+  /// 신규 등록(인증 완료) 직후 접종 일정 화면으로 이어간다 — 가입 온보딩의
+  /// "최근에 아이를 데려왔어요" 분기(0028 P3). 일반 경로는 false 로 두면
+  /// 12개월 이내 어린 펫일 때만 가볍게 제안한다.
+  final bool openVaccinationOnCreate;
+
+  const PetEditScreen({
+    super.key,
+    this.pet,
+    this.draft,
+    this.openVaccinationOnCreate = false,
+  });
 
   @override
   State<PetEditScreen> createState() => _PetEditScreenState();
@@ -175,8 +187,23 @@ class _PetEditScreenState extends State<PetEditScreen> {
           }
         }
         if (!mounted) return;
-        Navigator.pop(context, true);
         _toast(invited > 0 ? '반려동물을 등록하고 공동보호자 초대를 보냈어요' : '반려동물을 등록했어요');
+        // 온보딩 "최근에 아이를 데려왔어요" 분기 — 등록 확정 직후 접종 일정으로.
+        if (widget.openVaccinationOnCreate) {
+          _openVaccination(id, source: 'onboarding');
+          return;
+        }
+        // 일반 경로 — 12개월 이내 어린 펫이면 접종 챙김을 가볍게 제안(1회성).
+        if (_birthDate != null &&
+            DateTime.now().difference(_birthDate!).inDays <= 366) {
+          final go = await _suggestVaccination();
+          if (!mounted) return;
+          if (go) {
+            _openVaccination(id, source: 'manage');
+            return;
+          }
+        }
+        Navigator.pop(context, true);
         return;
       }
       if (!mounted) return;
@@ -187,6 +214,49 @@ class _PetEditScreenState extends State<PetEditScreen> {
       setState(() => _saving = false);
       _toast('저장에 실패했어요');
     }
+  }
+
+  /// 등록 화면을 접종 일정 화면으로 교체(pushReplacement) — 일정 화면을 닫으면
+  /// 원래 자리(내정보/메인)로 돌아간다. 호출측 await 결과는 true 로 유지.
+  void _openVaccination(String petId, {required String source}) {
+    Navigator.pushReplacement(
+      context,
+      AppPageRoute(
+        builder: (_) => VaccinationScheduleScreen(
+          petId: petId,
+          petName: _nameCtrl.text.trim(),
+          birthDate: _birthDate,
+          speciesKind: _speciesKind,
+          source: source,
+        ),
+      ),
+      result: true,
+    );
+  }
+
+  /// 어린 펫(12개월 이내) 신규 등록 시 접종 일정 제안 — 거절하면 다시 묻지 않는다.
+  Future<bool> _suggestVaccination() async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('접종 일정을 챙겨드릴까요?'),
+        content: const Text(
+          '어린 아이라면 표준 접종 일정을 등록해두세요.\n접종일 전날과 당일 아침에 알려드려요.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx),
+            child: const Text('괜찮아요'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('좋아요'),
+          ),
+        ],
+      ),
+    );
+    return go == true;
   }
 
   void _toast(String m) {

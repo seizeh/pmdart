@@ -1035,6 +1035,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               content: r.content,
               createdAt: r.createdAt,
               photoUrls: r.photoUrls,
+              videos: r.videos,
               visitNo: r.visitNo,
               hasIncentive: r.hasIncentive,
               seed: r.id,

@@ -1,3 +1,31 @@
+/// 후기 첨부 영상 1개 — videos jsonb 원소({url, thumb_url, path}).
+class ReviewVideo {
+  final String url;
+  final String? thumbUrl; // 포스터(jpeg) — 없으면 어두운 타일 폴백
+  final String? path; // media 버킷 내 경로
+
+  const ReviewVideo({required this.url, this.thumbUrl, this.path});
+
+  factory ReviewVideo.fromJson(Map<String, dynamic> j) => ReviewVideo(
+    url: (j['url'] ?? '') as String,
+    thumbUrl: j['thumb_url'] as String?,
+    path: j['path'] as String?,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'url': url,
+    if (thumbUrl != null) 'thumb_url': thumbUrl,
+    if (path != null) 'path': path,
+  };
+}
+
+/// jsonb 배열 → 영상 목록(형식 불일치 원소는 건너뛴다).
+List<ReviewVideo> reviewVideosFromJson(dynamic v) => [
+  for (final e in (v as List? ?? const []))
+    if (e is Map<String, dynamic> && (e['url'] ?? '') != '')
+      ReviewVideo.fromJson(e),
+];
+
 /// 시설 후기 1건 (facility_reviews_of RPC 기준).
 class FacilityReview {
   final String id;
@@ -7,6 +35,7 @@ class FacilityReview {
   final int rating; // 1~5
   final String? content;
   final List<String> photoUrls;
+  final List<ReviewVideo> videos; // 첨부 영상(최대 2개)
   final DateTime createdAt;
   final bool isMine;
 
@@ -24,6 +53,7 @@ class FacilityReview {
     required this.rating,
     required this.content,
     required this.photoUrls,
+    this.videos = const [],
     required this.createdAt,
     required this.isMine,
     this.visitNo,
@@ -40,6 +70,7 @@ class FacilityReview {
     photoUrls: [
       for (final u in (j['photo_urls'] as List? ?? const [])) u as String,
     ],
+    videos: reviewVideosFromJson(j['videos']),
     createdAt:
         DateTime.tryParse((j['created_at'] ?? '') as String)?.toLocal() ??
         DateTime.now(),

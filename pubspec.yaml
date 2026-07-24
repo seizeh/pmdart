@@ -31,6 +31,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations: # 머티리얼 위젯(날짜/시간 피커 등) 한국어 로컬라이제이션
+    sdk: flutter
+  intl: any # flutter_localizations 가 고정하는 버전을 그대로 따른다
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -42,7 +45,8 @@ dependencies:
   firebase_messaging: ^15.1.3 # OS 푸시 수신/토큰 등록
   flutter_local_notifications: ^18.0.1 # 포그라운드에서도 OS 시스템 알림 표시
   image_picker: ^1.1.2
-  video_thumbnail: ^0.5.3 # 신원 인증 영상→프레임 추출 (0020)
+  video_thumbnail: ^0.5.3 # 신원 인증 영상→프레임 추출 (0020) + 영상 첨부 포스터 생성
+  video_player: ^2.9.2 # 게시글·후기·채팅 영상 첨부 재생
   google_fonts: ^6.2.1
   flutter_naver_map: ^1.4.4
   geolocator: ^13.0.0 # 동네 인증용 고정확도 좌표 + accuracy/isMocked (0017)

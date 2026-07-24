@@ -5,6 +5,7 @@ import '../motion/motion.dart';
 import '../screen/review_detail_screen.dart';
 import '../theme/app_palette.dart';
 import 'blob_background.dart';
+import 'media_widgets.dart' show VideoPlayBadge;
 
 /// 후기 카드 그리드 — 사진+평점 타일(2열), 탭하면 상세 화면(게시글 상세 문법).
 /// 지도 시설 상세·업체 프로필(내정보/타사용자)의 후기 표시 공용 언어.
@@ -14,6 +15,7 @@ class ReviewCardData {
   final String? content;
   final DateTime? createdAt;
   final List<String> photoUrls;
+  final List<ReviewVideo> videos; // 첨부 영상(최대 2개)
   final bool isMine;
 
   /// 같은 사용자의 몇 번째 방문 후기인지(1부터) — 복수 후기 순번 표시.
@@ -41,6 +43,7 @@ class ReviewCardData {
     this.content,
     this.createdAt,
     this.photoUrls = const [],
+    this.videos = const [],
     this.isMine = false,
     this.visitNo,
     this.hasIncentive = false,
@@ -60,6 +63,7 @@ class ReviewCardData {
     content: r.content,
     createdAt: r.createdAt,
     photoUrls: r.photoUrls,
+    videos: r.videos,
     isMine: r.isMine,
     visitNo: r.visitNo,
     hasIncentive: r.hasIncentive,
@@ -121,6 +125,11 @@ class _ReviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final photo = review.photoUrls.isNotEmpty ? review.photoUrls.first : null;
+    // 사진이 없고 영상만 있으면 영상 포스터를 타일 이미지로(+ 중앙 ▶ 배지).
+    final videoOnly = photo == null && review.videos.isNotEmpty;
+    final tileImage =
+        photo ?? (videoOnly ? review.videos.first.thumbUrl : null);
+    final hasMedia = tileImage != null || videoOnly;
     return InkWell(
       onTap: () => _openDetail(context),
       borderRadius: BorderRadius.circular(14),
@@ -134,14 +143,18 @@ class _ReviewCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (photo != null)
+            if (tileImage != null)
               Image.network(
-                photo,
+                tileImage,
                 fit: BoxFit.cover,
                 cacheWidth: 600,
-                errorBuilder: (_, _, _) =>
-                    ColoredBox(color: context.colors.surfaceMuted),
+                errorBuilder: (_, _, _) => videoOnly
+                    ? const ColoredBox(color: Color(0xFF2B2B2B))
+                    : ColoredBox(color: context.colors.surfaceMuted),
               )
+            else if (videoOnly)
+              // 포스터 없는 영상 후기 — 어두운 타일 + ▶ 폴백.
+              const ColoredBox(color: Color(0xFF2B2B2B))
             else ...[
               // 사진 없는 후기 — 게시글과 동일하게 랜덤 블롭 배경(후기별 고정 패턴)
               // 위에 본문을 히어로로 올린다.
@@ -177,8 +190,10 @@ class _ReviewCard extends StatelessWidget {
                 ),
               ),
             ],
+            // 영상 후기 — 중앙 ▶ 배지.
+            if (videoOnly) const Center(child: VideoPlayBadge(size: 40)),
             // 사진 위 가독용 스크림(하단).
-            if (photo != null)
+            if (hasMedia)
               const Positioned(
                 left: 0,
                 right: 0,
@@ -209,10 +224,10 @@ class _ReviewCard extends StatelessWidget {
                       _cornerBadge(
                         context,
                         '${review.visitNo}번째 방문',
-                        onPhoto: photo != null,
+                        onPhoto: hasMedia,
                       ),
                     if (review.hasIncentive)
-                      _cornerBadge(context, '업체 혜택', onPhoto: photo != null),
+                      _cornerBadge(context, '업체 혜택', onPhoto: hasMedia),
                   ],
                 ),
               ),
@@ -234,7 +249,7 @@ class _ReviewCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      color: photo != null
+                      color: hasMedia
                           ? Colors.white
                           : context.colors.textPrimary,
                     ),
@@ -246,7 +261,7 @@ class _ReviewCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: photo != null
+                        color: hasMedia
                             ? const Color(0xE6FFFFFF)
                             : context.colors.primaryDark,
                       ),

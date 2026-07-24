@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/facility_review.dart' show ReviewVideo, reviewVideosFromJson;
 import 'session.dart';
 
 /// 업체(사업자) 인증 — 국세청 확인·신청·상태 조회·계정 전환 (0025).
@@ -222,6 +223,7 @@ class BusinessRepository {
               for (final u in (r['photo_urls'] as List? ?? const []))
                 u as String,
             ],
+            videos: reviewVideosFromJson(r['videos']),
             visitNo: (r['visit_no'] as num?)?.toInt(),
             hasIncentive: r['has_incentive'] == true,
           ),
@@ -388,6 +390,7 @@ class BizFacilityReview {
   final String? content;
   final DateTime? createdAt;
   final List<String> photoUrls;
+  final List<ReviewVideo> videos; // 첨부 영상(최대 2개)
   final int? visitNo; // 같은 사용자의 몇 번째 방문 후기인지
   final bool hasIncentive; // 업체 혜택 받고 작성(표시광고법 표시, 0028 §6)
   const BizFacilityReview({
@@ -398,6 +401,7 @@ class BizFacilityReview {
     this.content,
     this.createdAt,
     this.photoUrls = const [],
+    this.videos = const [],
     this.visitNo,
     this.hasIncentive = false,
   });

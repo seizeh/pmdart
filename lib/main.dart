@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -384,6 +385,15 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
         scaffoldMessengerKey: messengerKey,
         title: 'PawMate',
         debugShowCheckedModeBanner: false,
+        // 머티리얼 위젯(날짜/시간 피커 등) 한국어화 — showDatePicker 는 이 로케일
+        // 설정만으로 한국어(월/요일/버튼)로 표시된다.
+        locale: const Locale('ko'),
+        supportedLocales: const [Locale('ko')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: themeMode, // 설정(내정보 수정 > 화면 테마)에서 변경·저장

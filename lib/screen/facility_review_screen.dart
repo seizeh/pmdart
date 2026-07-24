@@ -5,6 +5,7 @@ import '../services/facility_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../widgets/media_widgets.dart';
 
 /// 시설 후기 작성/수정 (0022). 갤러리 다중 사진 허용. 카페는 작성 시 승격.
 /// 저장 성공 시 true 를 pop.
@@ -27,12 +28,16 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     text: widget.existing?.content ?? '',
   );
   late final List<String> _photos = [...?widget.existing?.photoUrls];
+  // 첨부 동영상(최대 2개) — {url, thumbUrl, path}.
+  late final List<ReviewVideo> _videos = [...?widget.existing?.videos];
   // 업체 혜택(할인·사은품) 수령 표시 — 표시광고법 경제적 이해관계 표시(0028 §6).
   late bool _hasIncentive = widget.existing?.hasIncentive ?? false;
   bool _uploading = false;
+  bool _uploadingVideo = false;
   bool _submitting = false;
 
   static const _maxPhotos = 5;
+  static const _maxVideos = 2;
   final _repo = FacilityReviewRepository.instance;
 
   @override
@@ -70,6 +75,32 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     }
   }
 
+  /// 동영상 선택 → 업로드(포스터 생성 포함). 100MB 초과는 업로드 전에 안내.
+  Future<void> _addVideo() async {
+    if (_videos.length >= _maxVideos || _uploadingVideo) return;
+    final file = await StorageService.instance.pickVideo();
+    if (file == null) return;
+    setState(() => _uploadingVideo = true);
+    try {
+      final up = await StorageService.instance.uploadVideo(
+        file,
+        category: 'facility_review',
+      );
+      if (!mounted) return;
+      setState(
+        () => _videos.add(
+          ReviewVideo(url: up.url, thumbUrl: up.thumbUrl, path: up.path),
+        ),
+      );
+    } on StateError catch (e) {
+      _toast(e.message); // 100MB 초과 등 한국어 안내
+    } catch (_) {
+      _toast('동영상 업로드에 실패했어요');
+    } finally {
+      if (mounted) setState(() => _uploadingVideo = false);
+    }
+  }
+
   /// 후기를 매달 facility_id (카페는 승격해서 확보).
   Future<String> _resolveFacilityId() async {
     final f = widget.facility;
@@ -92,6 +123,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
         rating: _rating,
         body: _contentCtrl.text,
         photoUrls: _photos,
+        videos: _videos,
         hasIncentive: _hasIncentive,
       );
       if (!mounted) return;
@@ -290,6 +322,83 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                             )
                           : Icon(
                               Icons.add_a_photo_outlined,
+                              color: context.colors.textTertiary,
+                            ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '동영상 (${_videos.length}/$_maxVideos)',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var i = 0; i < _videos.length; i++)
+                  Stack(
+                    children: [
+                      SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: VideoPosterTile(
+                          videoUrl: _videos[i].url,
+                          posterUrl: _videos[i].thumbUrl,
+                          borderRadius: BorderRadius.circular(10),
+                          badgeSize: 28,
+                          cacheWidth: 200,
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _videos.removeAt(i)),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                if (_videos.length < _maxVideos)
+                  GestureDetector(
+                    onTap: _addVideo,
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: context.colors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: context.colors.border),
+                      ),
+                      child: _uploadingVideo
+                          ? const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : Icon(
+                              Icons.videocam_outlined,
                               color: context.colors.textTertiary,
                             ),
                     ),

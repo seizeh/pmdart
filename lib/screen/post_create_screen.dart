@@ -18,6 +18,7 @@ import '../services/session.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../widgets/blob_background.dart';
+import '../widgets/media_widgets.dart' show VideoPlayBadge;
 import '../widgets/role_badge.dart';
 import 'image_crop_screen.dart';
 
@@ -51,6 +52,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   bool _submitting = false;
 
   UploadedImage? _uploadedImage;
+  // 첨부 동영상(자유·소식만, 서버 CHECK 동일) — 사진과 상호 배타(단일 미디어 슬롯).
+  UploadedVideo? _uploadedVideo;
   bool _uploadingImage = false;
   // 사진 필수 카테고리(walk/care/give_away)에서 서버 검증 통과 시 받는 1회용 토큰.
   String? _photoToken;
@@ -74,7 +77,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   bool get _giveAway => _category == 'give_away';
 
   // 자유(free)·입양(adoption)·소식(news)을 제외한 카테고리는 사진 촬영 인증 대상.
-  bool get _isPhotoCategory => !['free', 'adoption', 'news'].contains(_category);
+  bool get _isPhotoCategory =>
+      !['free', 'adoption', 'news'].contains(_category);
+
+  // 영상 첨부 가능 카테고리 — 서버 CHECK 와 동일(free·news 만).
+  bool get _allowsVideo => _category == 'free' || _category == 'news';
 
   // 현재 선택(연결)한 반려동물들.
   List<MyPet> get _selectedPets =>
@@ -101,6 +108,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       if (!_allowsSchedule) _scheduledAt = null;
       // 카테고리가 바뀌면 사진 입력 경로(카메라/갤러리)가 달라지므로 초기화.
       _uploadedImage = null;
+      _uploadedVideo = null;
       _photoToken = null;
       _photoPetId = null;
       _uploadingImage = false;
@@ -117,8 +125,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
 
   Widget _editableCard() {
     final color = categoryColor(context, _category);
-    final photoUrl = _uploadedImage?.url;
-    final hasPhoto = photoUrl != null;
+    // 영상 첨부 시 포스터를 대표 이미지로(포스터 없으면 어두운 타일 + ▶).
+    final videoAttached = _uploadedVideo != null;
+    final photoUrl = videoAttached
+        ? _uploadedVideo!.thumbUrl
+        : _uploadedImage?.url;
+    final hasPhoto = photoUrl != null || videoAttached;
     final biz = _activeMode == 'business';
     final me = SessionManager.instance.user;
     final content = _contentCtrl.text.trim();
@@ -134,19 +146,22 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // 배경 — 대표사진 또는 카테고리 색 블롭(피드와 동일).
-            if (hasPhoto)
+            // 배경 — 대표사진(영상은 포스터) 또는 카테고리 색 블롭(피드와 동일).
+            if (photoUrl != null)
               Image.network(
                 photoUrl,
                 fit: BoxFit.cover,
                 cacheWidth: 1200,
-                errorBuilder: (_, _, _) =>
-                    BlobBackground(seed: 'preview/$_category', color: color),
+                errorBuilder: (_, _, _) => videoAttached
+                    ? const ColoredBox(color: Color(0xFF2B2B2B))
+                    : BlobBackground(seed: 'preview/$_category', color: color),
               )
+            else if (videoAttached)
+              const ColoredBox(color: Color(0xFF2B2B2B))
             else
               BlobBackground(seed: 'preview/$_category', color: color),
             // 점진 블러 — 피드 카드와 동일한 하단 뭉갬.
-            if (hasPhoto)
+            if (photoUrl != null)
               Positioned.fill(
                 child: ShaderMask(
                   shaderCallback: (rect) => const LinearGradient(
@@ -198,6 +213,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                   ),
                 ),
               ),
+            // 영상 첨부 — 중앙 ▶ 배지(피드 카드와 동일 문법).
+            if (videoAttached) const Center(child: VideoPlayBadge(size: 52)),
             // 가독용 스크림(피드와 동일).
             const Positioned(
               left: 0,
@@ -224,7 +241,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                     icon: hasPhoto
                         ? Icons.photo_camera_outlined
                         : Icons.add_a_photo_outlined,
-                    tooltip: _needsPhoto ? '사진 촬영(인증)' : '사진 추가',
+                    tooltip: _needsPhoto
+                        ? '사진 촬영(인증)'
+                        : (_allowsVideo ? '사진·동영상 추가' : '사진 추가'),
                     busy: _uploadingImage,
                     onTap: _onPhotoTap,
                   ),
@@ -575,11 +594,14 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     if (mode == 'business') {
       // 미리보기에 상호를 보여주기 위해 업체 프로필도 로드(실패해도 무해).
       unawaited(
-        BusinessRepository.instance.fetchMine().then((biz) {
-          if (mounted && biz != null) {
-            setState(() => _bizName = biz.businessName);
-          }
-        }).catchError((_) {}),
+        BusinessRepository.instance
+            .fetchMine()
+            .then((biz) {
+              if (mounted && biz != null) {
+                setState(() => _bizName = biz.businessName);
+              }
+            })
+            .catchError((_) {}),
       );
     }
     setState(() {
@@ -636,6 +658,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   ///    - 선택 펫이 모두 인증(신뢰) → 직접 촬영(서버 검증) / 갤러리 불러오기 선택.
   Future<void> _onPhotoTap() async {
     if (!_isPhotoCategory) {
+      // 자유·소식은 영상도 허용(서버 CHECK 동일) — 사진/동영상 선택 시트.
+      if (_allowsVideo) return _chooseMediaType();
       return _pickAndUpload(fromCamera: false);
     }
     if (_selectedPets.isEmpty) {
@@ -696,6 +720,88 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  /// 자유·소식 첨부 — 사진/동영상 선택 시트.
+  Future<void> _chooseMediaType() async {
+    final src = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '첨부하기',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.photo_library_outlined,
+                color: context.colors.primaryDark,
+              ),
+              title: const Text('사진'),
+              onTap: () => Navigator.pop(ctx, 'photo'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.videocam_outlined,
+                color: context.colors.primaryDark,
+              ),
+              title: const Text('동영상'),
+              subtitle: const Text('최대 60초 · 100MB'),
+              onTap: () => Navigator.pop(ctx, 'video'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (src == 'photo') return _pickAndUpload(fromCamera: false);
+    if (src == 'video') return _pickAndUploadVideo();
+  }
+
+  /// 동영상 선택 → 업로드(포스터 생성 포함). 100MB 초과는 업로드 전에 안내.
+  Future<void> _pickAndUploadVideo() async {
+    final XFile? file;
+    try {
+      file = await StorageService.instance.pickVideo();
+    } catch (_) {
+      _toast('동영상을 불러오지 못했어요');
+      return;
+    }
+    if (file == null) return;
+    setState(() {
+      _uploadedImage = null;
+      _uploadedVideo = null;
+      _photoToken = null;
+      _photoPetId = null;
+      _uploadingImage = true;
+    });
+    try {
+      final up = await StorageService.instance.uploadVideo(
+        file,
+        category: 'posts',
+      );
+      if (!mounted) return;
+      setState(() {
+        _uploadedVideo = up;
+        _uploadingImage = false;
+      });
+    } on StateError catch (e) {
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      _toast(e.message); // 100MB 초과 등 한국어 안내
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      _toast('동영상 업로드에 실패했어요');
+    }
   }
 
   /// 사진 필수 카테고리(walk/care/give_away): 촬영 대상 펫 결정 → 카메라 촬영 →
@@ -815,6 +921,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     if (cropped == null) return;
     setState(() {
       _uploadedImage = null;
+      _uploadedVideo = null;
       _photoToken = null;
       _photoPetId = null;
       _uploadingImage = true;
@@ -848,6 +955,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   void _removeImage() {
     setState(() {
       _uploadedImage = null;
+      _uploadedVideo = null;
       _photoToken = null;
       _photoPetId = null;
       _uploadingImage = false;
@@ -1107,6 +1215,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     final time = await showTimePicker(
       context: context,
       initialTime: const TimeOfDay(hour: 18, minute: 0),
+      // 원형 다이얼 대신 숫자 입력식 — 시간은 키패드로 바로 입력한다.
+      initialEntryMode: TimePickerEntryMode.inputOnly,
     );
     if (time == null) return;
     setState(() {
@@ -1129,9 +1239,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         content: _contentCtrl.text.trim(),
         scheduledAt: _allowsSchedule ? _scheduledAt : null,
         petIds: _needsPet ? _selectedPetIds.toList() : const [],
-        imageUrl: _uploadedImage?.url,
-        imageMime: _uploadedImage?.mime,
-        imageSize: _uploadedImage?.size,
+        // 단일 미디어 슬롯 — 영상이면 image_url 에 영상, thumb 에 포스터.
+        imageUrl: _uploadedVideo?.url ?? _uploadedImage?.url,
+        imageMime: _uploadedVideo?.mime ?? _uploadedImage?.mime,
+        imageSize: _uploadedVideo?.size ?? _uploadedImage?.size,
+        imageThumbUrl: _uploadedVideo?.thumbUrl,
         photoToken: _photoToken,
       );
       if (!mounted) return;
@@ -1264,4 +1376,3 @@ class _SectionLabel extends StatelessWidget {
     );
   }
 }
-

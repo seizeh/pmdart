@@ -54,17 +54,21 @@ class ChatRoomSummary {
   );
 }
 
-/// 채팅 메시지 (chat_messages). 텍스트 또는 사진(image_url) 메시지.
+/// 채팅 메시지 (chat_messages). 텍스트 / 사진 / 동영상(image_url 슬롯 재사용,
+/// mime 이 video/* 면 image_url 이 영상이고 image_thumbnail_url 이 포스터).
 class ChatMessage {
   final String id;
   final String roomId;
   final String senderId;
   final String content;
   final String? imageUrl;
+  final String? imageMime;
+  final String? imageThumbUrl; // 영상 포스터(jpeg) — 사진 메시지는 null
   final DateTime createdAt;
   final bool mine;
 
-  bool get isImage => imageUrl != null && imageUrl!.isNotEmpty;
+  bool get isVideo => imageMime?.startsWith('video/') ?? false;
+  bool get isImage => imageUrl != null && imageUrl!.isNotEmpty && !isVideo;
 
   const ChatMessage({
     required this.id,
@@ -72,6 +76,8 @@ class ChatMessage {
     required this.senderId,
     required this.content,
     this.imageUrl,
+    this.imageMime,
+    this.imageThumbUrl,
     required this.createdAt,
     required this.mine,
   });
@@ -83,6 +89,8 @@ class ChatMessage {
         senderId: (j['sender_id'] ?? '') as String,
         content: (j['content'] ?? '') as String,
         imageUrl: j['image_url'] as String?,
+        imageMime: j['image_mime_type'] as String?,
+        imageThumbUrl: j['image_thumbnail_url'] as String?,
         createdAt: _date(j['created_at']),
         mine: j['sender_id'] == myId,
       );

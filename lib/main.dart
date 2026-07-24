@@ -18,12 +18,14 @@ import 'screen/notifications_screen.dart';
 import 'screen/post_detail_screen.dart';
 import 'screen/review_detail_screen.dart';
 import 'screen/user_profile_screen.dart';
+import 'screen/vaccination_schedule_screen.dart';
 import 'screen/welcome_screen.dart';
 import 'services/chat_repository.dart';
 import 'services/community_repository.dart';
 import 'services/facility_review_repository.dart';
 import 'services/keyboard_barrier.dart';
 import 'services/local_notice_service.dart';
+import 'services/pet_repository.dart';
 import 'services/push_service.dart';
 import 'services/realtime_service.dart';
 import 'services/session.dart';
@@ -251,6 +253,27 @@ Future<void> openFromPush(
                 builder: (_) => ChatRoomScreen(
                   room: room,
                   originRect: ctx == null ? null : riseOriginRect(ctx),
+                ),
+              ),
+            );
+            return;
+          }
+        case 'pet':
+          // 접종 알림(vaccine_reminder) 등 펫 리소스 — 접종 일정 화면으로.
+          // 펫 조회 실패(삭제·보호자 아님 등)면 아래 알림함 폴백.
+          final pet = await fetchRetry(
+            () => PetRepository.instance.fetchPet(resourceId),
+          );
+          if (pet != null) {
+            popToRoot();
+            nav.push(
+              AppPageRoute(
+                builder: (_) => VaccinationScheduleScreen(
+                  petId: pet.id,
+                  petName: pet.name,
+                  birthDate: pet.birthDate,
+                  speciesKind: pet.speciesKind,
+                  source: 'manage',
                 ),
               ),
             );

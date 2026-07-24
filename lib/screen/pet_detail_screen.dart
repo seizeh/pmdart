@@ -8,6 +8,7 @@ import '../theme/app_palette.dart';
 import '../widgets/pet_trust_badge.dart';
 import '../widgets/role_badge.dart';
 import 'pet_edit_screen.dart';
+import 'vaccination_schedule_screen.dart';
 
 /// 펫 상세 — 펫 정보 + 보호자 목록(실데이터). owner 는 수정/삭제/초대 가능.
 /// [originRect] 가 있으면 카드에서 펼쳐지고/당기면 그 자리로 축소된다
@@ -119,6 +120,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               ],
             ),
             SliverToBoxAdapter(child: _Header(pet: _pet)),
+            SliverToBoxAdapter(child: _vaccinationEntry()),
             SliverToBoxAdapter(
               child: _GuardiansSection(
                 pet: _pet,
@@ -131,6 +133,76 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 접종 일정 진입(0028 P3 분양 스타터) — 보호자 섹션과 같은 카드 언어.
+  Widget _vaccinationEntry() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+      child: Pressable(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.push(
+            context,
+            AppPageRoute(
+              builder: (_) => VaccinationScheduleScreen(
+                petId: _pet.id,
+                petName: _pet.name,
+                birthDate: _pet.birthDate,
+                speciesKind: _pet.speciesKind,
+                source: 'manage',
+              ),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: context.colors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: context.colors.border, width: 0.5),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.vaccines_outlined,
+                color: context.colors.primaryDark,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '접종 일정',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: context.colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '표준 접종 일정을 등록하면 전날·당일 아침에 알려드려요',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: context.colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: context.colors.textTertiary,
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -52,6 +52,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   String? _petKind; // 'dog' | 'cat'
   String? _petGender; // 'male' | 'female'
   DateTime? _petBirth;
+  // "최근에 아이를 데려왔어요" — 체크 시 펫 등록 완료 직후 접종 일정 화면으로
+  // 이어진다(0028 P3 분양 스타터 온보딩 분기).
+  bool _recentAdopt = false;
 
   // 약관 동의 상태 — 필수 4개(연령·이용약관·위치약관·개인정보)가 모두 체크돼야
   // 전화번호 인증 단계로 진행할 수 있다. 마케팅은 선택.
@@ -687,7 +690,42 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            // 분양 스타터(0028 P3) — 체크하면 펫 등록 직후 접종 일정 등록으로 이어진다.
+            InkWell(
+              onTap: () => setState(() => _recentAdopt = !_recentAdopt),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _recentAdopt
+                          ? Icons.check_circle
+                          : Icons.check_circle_outline,
+                      size: 22,
+                      color: _recentAdopt
+                          ? context.colors.primary
+                          : context.colors.textTertiary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '최근에 아이를 데려왔어요 — 접종 일정을 챙겨드려요',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: context.colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
               '공동보호자가 있다면 전화번호를 입력해주세요',
               style: TextStyle(
@@ -828,8 +866,16 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             AppPageRoute(builder: (_) => const BusinessRegisterScreen()),
           );
         } else if (petDraft != null) {
+          // "최근에 아이를 데려왔어요" 체크 시 — 펫 등록(인증 완료) 성공 직후
+          // PetEditScreen 이 접종 일정 화면(source: 'onboarding')으로 이어간다.
+          final recentAdopt = _recentAdopt;
           navigatorKey.currentState?.push(
-            AppPageRoute(builder: (_) => PetEditScreen(draft: petDraft)),
+            AppPageRoute(
+              builder: (_) => PetEditScreen(
+                draft: petDraft,
+                openVaccinationOnCreate: recentAdopt,
+              ),
+            ),
           );
         }
       } else {

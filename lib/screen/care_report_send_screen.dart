@@ -91,11 +91,15 @@ class _CareReportSendScreenState extends State<CareReportSendScreen> {
       return;
     }
     // 발행 성공 — 공유 시트를 띄우고, 닫히면 화면도 닫는다(목록 갱신은 pop true).
+    // 시트를 공유 없이 닫아도 "발행은 됐다"가 명확하도록 토스트로 한 번 더 확인
+    // (피드백이 없으면 사장님이 불안해서 재발행 → 중복 링크 사고, 실기기 확인).
     await showCareReportShareSheet(
       context,
       petLabel: _petCtrl.text.trim(),
       token: token,
+      justIssued: true,
     );
+    _toast('발행되었어요 — 보낸 기록에서 언제든 다시 공유할 수 있어요');
     if (mounted) Navigator.pop(context, true);
   }
 
@@ -276,12 +280,13 @@ class _CareReportSendScreenState extends State<CareReportSendScreen> {
   }
 }
 
-/// 공유 시트 — 발행 직후·보낸 기록 재전송 공용.
+/// 공유 시트 — 발행 직후([justIssued])·보낸 기록 재전송 공용.
 /// 전송 주체는 업체 폰(카톡·문자 등 시스템 공유), 앱은 링크만 만든다(0028 §4.1).
 Future<void> showCareReportShareSheet(
   BuildContext context, {
   required String petLabel,
   required String token,
+  bool justIssued = false,
 }) {
   final url = shareViewUrl(token);
   return showModalBottomSheet<void>(
@@ -297,7 +302,10 @@ Future<void> showCareReportShareSheet(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '$petLabel 사진 링크가 준비됐어요',
+            // 발행 직후엔 '완료' 상태를 명시 — 시트를 그냥 닫아도 재발행하지 않게.
+            justIssued
+                ? '✓ 발행 완료 — $petLabel 사진을 보내주세요'
+                : '$petLabel 사진 링크가 준비됐어요',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,

@@ -13,9 +13,10 @@ class VaccinationRepository {
   /// 펫의 접종 일정(날짜순). 실패 시 null — 빈 목록(미등록)과 구분한다.
   Future<List<VaccinationEvent>?> fetchEvents(String petId) async {
     try {
-      final rows = await _c.rpc('my_vaccination_events', params: {
-        'p_pet': petId,
-      });
+      final rows = await _c.rpc(
+        'my_vaccination_events',
+        params: {'p_pet': petId},
+      );
       return (rows as List)
           .map((r) => VaccinationEvent.fromJson(r as Map<String, dynamic>))
           .toList();
@@ -33,14 +34,17 @@ class VaccinationRepository {
     String? source,
   }) async {
     try {
-      final res = await _c.rpc('set_vaccination_schedule', params: {
-        'p_pet': petId,
-        'p_events': [
-          for (final e in events)
-            {'label': e.label, 'due_date': _dateOnly(e.dueDate)},
-        ],
-        'p_source': source,
-      });
+      final res = await _c.rpc(
+        'set_vaccination_schedule',
+        params: {
+          'p_pet': petId,
+          'p_events': [
+            for (final e in events)
+              {'label': e.label, 'due_date': _dateOnly(e.dueDate)},
+          ],
+          'p_source': source,
+        },
+      );
       return (count: (res as num?)?.toInt() ?? 0, error: null);
     } on PostgrestException catch (e) {
       const codes = ['not_guardian', 'invalid_events', 'invalid_source'];
@@ -56,10 +60,10 @@ class VaccinationRepository {
   /// 완료 체크 토글. 성공 여부 반환(실패 시 UI 는 원복).
   Future<bool> setDone(String eventId, bool done) async {
     try {
-      final res = await _c.rpc('set_vaccination_done', params: {
-        'p_event': eventId,
-        'p_done': done,
-      });
+      final res = await _c.rpc(
+        'set_vaccination_done',
+        params: {'p_event': eventId, 'p_done': done},
+      );
       return res == true;
     } catch (_) {
       return false;
@@ -96,12 +100,10 @@ class VaccinationEvent {
         doneAt: clearDone ? null : (doneAt ?? this.doneAt),
       );
 
-  factory VaccinationEvent.fromJson(Map<String, dynamic> j) =>
-      VaccinationEvent(
-        id: (j['id'] ?? '') as String,
-        label: (j['label'] ?? '') as String,
-        dueDate: DateTime.parse((j['due_date'] ?? '') as String),
-        doneAt:
-            DateTime.tryParse((j['done_at'] ?? '') as String)?.toLocal(),
-      );
+  factory VaccinationEvent.fromJson(Map<String, dynamic> j) => VaccinationEvent(
+    id: (j['id'] ?? '') as String,
+    label: (j['label'] ?? '') as String,
+    dueDate: DateTime.parse((j['due_date'] ?? '') as String),
+    doneAt: DateTime.tryParse((j['done_at'] ?? '') as String)?.toLocal(),
+  );
 }

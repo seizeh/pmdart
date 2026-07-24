@@ -60,7 +60,8 @@ List<SuggestedVaccination> standardVaccinationSchedule({
 
 /// 오늘(포함) 이후의 제안 일정과, 이미 지나 제외된 건수.
 /// 지난 일정은 기본 제외하고 UI 에서 "N건 제외" 한 줄로만 안내한다.
-({List<SuggestedVaccination> upcoming, int excluded}) upcomingVaccinationSchedule({
+({List<SuggestedVaccination> upcoming, int excluded})
+upcomingVaccinationSchedule({
   required DateTime birthDate,
   String? speciesKind,
   DateTime? today,

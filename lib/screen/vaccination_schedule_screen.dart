@@ -71,7 +71,11 @@ class _VaccinationScheduleScreenState extends State<VaccinationScheduleScreen> {
   String _dday(DateTime due) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final diff = DateTime(due.year, due.month, due.day).difference(today).inDays;
+    final diff = DateTime(
+      due.year,
+      due.month,
+      due.day,
+    ).difference(today).inDays;
     if (diff == 0) return '오늘';
     if (diff == 1) return '내일';
     if (diff > 1) return '$diff일 후';
@@ -166,7 +170,9 @@ class _VaccinationScheduleScreenState extends State<VaccinationScheduleScreen> {
       _events = [
         for (final v in events)
           if (v.id == e.id)
-            next ? v.copyWith(doneAt: DateTime.now()) : v.copyWith(clearDone: true)
+            next
+                ? v.copyWith(doneAt: DateTime.now())
+                : v.copyWith(clearDone: true)
           else
             v,
       ];
@@ -312,10 +318,7 @@ class _VaccinationScheduleScreenState extends State<VaccinationScheduleScreen> {
                   )
                 else
                   ...plan.upcoming.map(
-                    (v) => Entrance(
-                      index: i++,
-                      child: _previewRow(v),
-                    ),
+                    (v) => Entrance(index: i++, child: _previewRow(v)),
                   ),
               ],
               const SizedBox(height: 12),
@@ -326,8 +329,7 @@ class _VaccinationScheduleScreenState extends State<VaccinationScheduleScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: ElevatedButton(
-            onPressed:
-                _saving || (plan != null && plan.upcoming.isEmpty)
+            onPressed: _saving || (plan != null && plan.upcoming.isEmpty)
                 ? null
                 : _saveSchedule,
             child: _saving
@@ -420,10 +422,7 @@ class _VaccinationScheduleScreenState extends State<VaccinationScheduleScreen> {
           ),
           Text(
             _date(v.dueDate),
-            style: TextStyle(
-              fontSize: 13,
-              color: context.colors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
           ),
         ],
       ),

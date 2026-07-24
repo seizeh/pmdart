@@ -696,10 +696,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
               onTap: () => setState(() => _recentAdopt = !_recentAdopt),
               borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                 child: Row(
                   children: [
                     Icon(

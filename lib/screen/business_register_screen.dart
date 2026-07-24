@@ -7,6 +7,7 @@ import '../services/juso_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
+import 'boarding_thread_list_screen.dart';
 import 'care_report_list_screen.dart';
 import 'care_report_send_screen.dart';
 import 'connections_screen.dart';
@@ -1594,6 +1595,48 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
                 ),
               ),
             ],
+          ),
+        ],
+        // ── 알림장(0028 P2) — 위탁관리업 인증 업체의 돌봄 일지 도구 ──
+        if (_licenses.any(
+          (l) => l.type == 'boarding' && l.status == 'approved',
+        )) ...[
+          const SizedBox(height: 20),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '알림장',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '맡긴 아이의 오늘 소식(사진·식사·배변)을 보호자에게 전해요.',
+              style: TextStyle(
+                fontSize: 12,
+                color: context.colors.textTertiary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              AppPageRoute(builder: (_) => const BoardingThreadListScreen()),
+            ),
+            icon: const Icon(Icons.menu_book_outlined, size: 18),
+            label: const Text('알림장 열기'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: context.colors.primaryDark,
+              foregroundColor: context.colors.textOnPrimary,
+              minimumSize: const Size.fromHeight(48),
+            ),
           ),
         ],
         const SizedBox(height: 20),

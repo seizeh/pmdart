@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../motion/motion.dart' show AppPageRoute;
 import '../services/care_report_repository.dart';
 import '../theme/app_palette.dart';
+import 'boarding_thread_screen.dart';
 
 /// 받은 케어 기록(보호자) — 업체가 보내준 전후 사진·알림장이 자동 연결되어 쌓인다.
 class CareReportsReceivedScreen extends StatefulWidget {
@@ -144,6 +146,20 @@ class _CareReportsReceivedScreenState extends State<CareReportsReceivedScreen> {
                     ],
                   ),
           ],
+          // 알림장 구조 필드(식사·배변 등) — boarding 기록.
+          for (final e in r.body.entries)
+            if ('${e.value}'.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '${boardingBodyLabel(e.key)} · ${e.value}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.4,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+              ),
           if ((r.note ?? '').isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
@@ -152,6 +168,26 @@ class _CareReportsReceivedScreenState extends State<CareReportsReceivedScreen> {
                 fontSize: 14,
                 height: 1.5,
                 color: context.colors.textPrimary,
+              ),
+            ),
+          ],
+          // 알림장은 스레드 전체 타임라인으로 — 지난 기록까지 한 번에.
+          if (r.kind == 'boarding' && r.threadId != null) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  AppPageRoute(
+                    builder: (_) => BoardingThreadScreen(
+                      threadId: r.threadId!,
+                      petLabel: r.petLabel,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.menu_book_outlined, size: 16),
+                label: const Text('알림장 전체 보기'),
               ),
             ),
           ],

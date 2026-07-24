@@ -11,6 +11,7 @@ import '../state/post_detail_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel, timeAgo;
 import '../widgets/blob_background.dart';
+import '../widgets/media_widgets.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/report_sheet.dart';
 import '../widgets/role_badge.dart';
@@ -349,13 +350,22 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ? Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.network(
-                                post.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => ColoredBox(
-                                  color: context.colors.surfaceMuted,
+                              // 영상 글 — 포스터 히어로 + 중앙 ▶, 탭하면 전체화면
+                              // 플레이어. 사진 글은 기존 대표사진 그대로.
+                              if (post.isVideo)
+                                VideoPosterTile(
+                                  videoUrl: post.imageUrl!,
+                                  posterUrl: post.imageThumbUrl,
+                                  badgeSize: 56,
+                                )
+                              else
+                                Image.network(
+                                  post.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => ColoredBox(
+                                    color: context.colors.surfaceMuted,
+                                  ),
                                 ),
-                              ),
                               // 상태바 스크림 — 어두운 사진에서도 시간·배터리(어두운
                               // 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
                               Positioned(

@@ -40,6 +40,44 @@ class CommunityRepository {
   SupabaseClient get _c => Supabase.instance.client;
   String? get _uid => SessionManager.instance.user?.id;
 
+  /// v_post_feed 행 목록 → [Post] 목록.
+  ///
+  /// 뷰가 아직 미디어 컬럼(image_mime_type/image_thumbnail_url)을 노출하지
+  /// 않으면 posts 에서 보강한다(영상 글 표시용 — posts_select RLS 가 visible
+  /// 행을 모두 통과시키므로 비로그인도 가능). 뷰가 컬럼을 갖게 되면 행에 키가
+  /// 존재하므로 추가 조회 없이 그대로 통과한다. 보강 실패는 사진 표시로 폴백.
+  Future<List<Post>> _postsFromRows(List<dynamic> rows) async {
+    final maps = rows.cast<Map<String, dynamic>>();
+    if (maps.isNotEmpty && !maps.first.containsKey('image_mime_type')) {
+      final ids = [
+        for (final m in maps)
+          if (m['image_url'] != null) m['id'] as String,
+      ];
+      if (ids.isNotEmpty) {
+        try {
+          final media = await _c
+              .from('posts')
+              .select('id, image_mime_type, image_thumbnail_url')
+              .inFilter('id', ids);
+          final byId = {
+            for (final m in (media as List).cast<Map<String, dynamic>>())
+              m['id'] as String: m,
+          };
+          for (final m in maps) {
+            final extra = byId[m['id']];
+            if (extra != null) {
+              m['image_mime_type'] = extra['image_mime_type'];
+              m['image_thumbnail_url'] = extra['image_thumbnail_url'];
+            }
+          }
+        } catch (e) {
+          debugPrint('게시글 미디어 컬럼 보강 실패(사진 표시로 폴백): $e');
+        }
+      }
+    }
+    return [for (final m in maps) Post.fromJson(m)];
+  }
+
   /// 게시글 피드. [category] 가 null 이면 전체. [query] 가 있으면 제목/내용 검색.
   /// 활동 범위가 설정돼 있으면 그 반경 안의 동네 게시글만 조회(서버가 region_code 산출).
   Future<List<Post>> fetchFeed({String? category, String? query}) async {
@@ -68,9 +106,7 @@ class CommunityRepository {
       q = q.inFilter('region_code', codes);
     }
     final rows = await q.order('created_at', ascending: false).limit(100);
-    return (rows as List)
-        .map((r) => Post.fromJson(r as Map<String, dynamic>))
-        .toList();
+    return _postsFromRows(rows as List);
   }
 
   /// 특정 사용자의 게시글 (내 게시글 등).
@@ -83,9 +119,7 @@ class CommunityRepository {
         .select()
         .eq('user_id', userId)
         .order('created_at', ascending: false);
-    var posts = (rows as List)
-        .map((r) => Post.fromJson(r as Map<String, dynamic>))
-        .toList();
+    var posts = await _postsFromRows(rows as List);
     if (authoredAs != null && posts.isNotEmpty) {
       try {
         final modes = await _c
@@ -158,9 +192,7 @@ class CommunityRepository {
         .select()
         .inFilter('id', ids)
         .order('created_at', ascending: false);
-    return (rows as List)
-        .map((r) => Post.fromJson(r as Map<String, dynamic>))
-        .toList();
+    return _postsFromRows(rows as List);
   }
 
   /// 단일 게시글 조회 (알림 등에서 이동용). 없으면 null.
@@ -170,7 +202,8 @@ class CommunityRepository {
         .select()
         .eq('id', postId)
         .maybeSingle();
-    return row == null ? null : Post.fromJson(row);
+    if (row == null) return null;
+    return (await _postsFromRows([row])).first;
   }
 
   /// 내가 하트한 게시글.
@@ -187,9 +220,7 @@ class CommunityRepository {
         .select()
         .inFilter('id', ids)
         .order('created_at', ascending: false);
-    return (rows as List)
-        .map((r) => Post.fromJson(r as Map<String, dynamic>))
-        .toList();
+    return _postsFromRows(rows as List);
   }
 
   /// 하트 토글. 반환값은 토글 후 hearted 상태.
@@ -222,6 +253,7 @@ class CommunityRepository {
     String? imageUrl,
     String? imageMime,
     int? imageSize,
+    String? imageThumbUrl,
     String? photoToken,
   }) async {
     _requireUid();
@@ -236,6 +268,8 @@ class CommunityRepository {
         'p_image_url': imageUrl,
         'p_image_mime': imageMime,
         'p_image_size': imageSize,
+        // 영상 첨부(free/news) 시 포스터 jpeg — 사진 글은 null.
+        'p_image_thumb_url': imageThumbUrl,
         'p_photo_token': photoToken,
       },
     );
@@ -246,7 +280,8 @@ class CommunityRepository {
   /// 일정이 실제로 바뀌면 진행 중 지원자에게 알림/푸시가 서버에서 발송된다.
   /// 카메라 인증 게시글의 검증 사진·카테고리·펫은 편집 대상이 아니다(서버가 무시).
   /// [scheduledAt] 은 일정 게시글이면 현재/변경 값, 아니면 null.
-  /// [editImage] 가 true 면 자유/입양 게시글의 사진을 [image] 값으로 교체(null=제거).
+  /// [editImage] 가 true 면 자유/입양/소식 게시글의 미디어를 [image] 값으로
+  /// 교체(null=제거). 영상으로 교체 시 [imageThumbUrl] 에 포스터를 전달한다.
   Future<void> updatePost(
     String postId, {
     required String title,
@@ -254,6 +289,7 @@ class CommunityRepository {
     DateTime? scheduledAt,
     bool editImage = false,
     UploadedImage? image,
+    String? imageThumbUrl,
   }) async {
     _requireUid();
     await _c.rpc(
@@ -267,6 +303,7 @@ class CommunityRepository {
         'p_image_url': image?.url,
         'p_image_mime': image?.mime,
         'p_image_size': image?.size,
+        'p_image_thumb_url': imageThumbUrl,
       },
     );
   }

@@ -152,6 +152,26 @@ class ChatRoomState extends ChangeNotifier {
     }
   }
 
+  /// 동영상 메시지 전송(파일 선택은 화면이 담당). 성공 null, 실패면 안내 문구.
+  /// 100MB 초과는 업로드 전에 한국어 안내(StateError)로 돌려준다.
+  Future<String?> sendVideo(XFile file) async {
+    if (_sending) return null;
+    _sending = true;
+    notifyListeners();
+    try {
+      final msg = await _repo.sendVideoMessage(room.id, file);
+      _appendMine(msg);
+      return null;
+    } on StateError catch (e) {
+      return e.message; // 100MB 초과 등
+    } catch (e) {
+      return _sendErrorMessage(e, '동영상 전송에 실패했어요');
+    } finally {
+      _sending = false;
+      notifyListeners();
+    }
+  }
+
   void _appendMine(ChatMessage msg) {
     if (!_messages.any((m) => m.id == msg.id)) _messages.add(msg);
     notifyListeners();

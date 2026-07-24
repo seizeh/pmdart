@@ -8,6 +8,7 @@ import '../services/community_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel;
+import '../widgets/media_widgets.dart' show VideoPlayBadge;
 import 'image_crop_screen.dart';
 
 /// 내 게시글 수정 — 제목·내용, 일정 게시글이면 약속 일정, 자유/입양이면 사진까지 편집.
@@ -33,24 +34,118 @@ class _PostEditScreenState extends State<PostEditScreen> {
   bool _saving = false;
   bool _deleting = false;
 
-  // 사진 편집(자유/입양만). null=사진 없음. 변경 시 _imageEdited=true.
-  late String? _imageUrl = widget.post.imageUrl;
+  // 미디어 편집(자유/입양/소식만). null=미디어 없음. 변경 시 _imageEdited=true.
+  // 영상 게시글이면 표시용 URL 은 포스터(썸네일)다.
+  late String? _imageUrl = widget.post.isVideo
+      ? widget.post.imageThumbUrl
+      : widget.post.imageUrl;
+  late bool _isVideo = widget.post.isVideo; // 현재 미디어가 영상인지
   UploadedImage? _newImage; // 새로 올린 사진(있으면 저장 시 이 값 사용)
-  bool _imageEdited = false; // 사용자가 사진을 바꾸거나 지웠는지
+  UploadedVideo? _newVideo; // 새로 올린 동영상(사진과 상호 배타)
+  bool _imageEdited = false; // 사용자가 미디어를 바꾸거나 지웠는지
   bool _uploading = false;
 
   // 원래 약속 일정이 있던 게시글만 일정 편집 노출(카테고리는 못 바꾸므로 유형 고정).
   bool get _hasSchedule => widget.post.scheduledAt != null;
 
-  // 자유/입양 게시글만 사진 편집 허용(카메라 인증 게시글은 검증 사진 고정).
+  // 자유/입양/소식 게시글만 미디어 편집 허용(카메라 인증 게시글은 검증 사진 고정).
   bool get _canEditImage =>
-      widget.post.category == 'free' || widget.post.category == 'adoption';
+      ['free', 'adoption', 'news'].contains(widget.post.category);
+
+  // 영상은 자유/소식만(서버 CHECK 동일 — 입양은 사진만).
+  bool get _canEditVideo =>
+      widget.post.category == 'free' || widget.post.category == 'news';
 
   bool get _canSave =>
       !_uploading &&
       _titleCtrl.text.trim().isNotEmpty &&
       _contentCtrl.text.trim().isNotEmpty &&
       (!_hasSchedule || _scheduledAt != null);
+
+  /// 미디어 추가/교체 진입 — 자유/소식은 사진/동영상 선택, 입양은 사진만.
+  Future<void> _pickMedia() async {
+    if (!_canEditVideo) return _pickImage();
+    final src = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '첨부하기',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.photo_library_outlined,
+                color: context.colors.primaryDark,
+              ),
+              title: const Text('사진'),
+              onTap: () => Navigator.pop(ctx, 'photo'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.videocam_outlined,
+                color: context.colors.primaryDark,
+              ),
+              title: const Text('동영상'),
+              subtitle: const Text('최대 60초 · 100MB'),
+              onTap: () => Navigator.pop(ctx, 'video'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (src == 'photo') return _pickImage();
+    if (src == 'video') return _pickVideo();
+  }
+
+  /// 동영상 선택 → 업로드(포스터 생성 포함). 100MB 초과는 업로드 전에 안내.
+  Future<void> _pickVideo() async {
+    final file = await StorageService.instance.pickVideo();
+    if (file == null || !mounted) return;
+    setState(() => _uploading = true);
+    try {
+      final up = await StorageService.instance.uploadVideo(
+        file,
+        category: 'posts',
+      );
+      if (!mounted) return;
+      setState(() {
+        _newVideo = up;
+        _newImage = null;
+        _imageUrl = up.thumbUrl;
+        _isVideo = true;
+        _imageEdited = true;
+        _uploading = false;
+      });
+    } on StateError catch (e) {
+      if (!mounted) return;
+      setState(() => _uploading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message), // 100MB 초과 등 한국어 안내
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _uploading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('동영상 업로드에 실패했어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   /// 갤러리 선택 → 표시비율 크롭 → 업로드(자유/입양은 촬영 검증 없음).
   Future<void> _pickImage() async {
@@ -77,7 +172,9 @@ class _PostEditScreenState extends State<PostEditScreen> {
       if (!mounted) return;
       setState(() {
         _newImage = up;
+        _newVideo = null;
         _imageUrl = up.url;
+        _isVideo = false;
         _imageEdited = true;
         _uploading = false;
       });
@@ -96,7 +193,9 @@ class _PostEditScreenState extends State<PostEditScreen> {
   void _removeImage() {
     setState(() {
       _newImage = null;
+      _newVideo = null;
       _imageUrl = null;
+      _isVideo = false;
       _imageEdited = true;
     });
   }
@@ -120,6 +219,8 @@ class _PostEditScreenState extends State<PostEditScreen> {
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: base.hour, minute: base.minute),
+      // 원형 다이얼 대신 숫자 입력식 — 시간은 키패드로 바로 입력한다.
+      initialEntryMode: TimePickerEntryMode.inputOnly,
     );
     if (time == null) return;
     setState(() {
@@ -143,7 +244,16 @@ class _PostEditScreenState extends State<PostEditScreen> {
         content: _contentCtrl.text.trim(),
         scheduledAt: _hasSchedule ? _scheduledAt : null,
         editImage: _canEditImage && _imageEdited,
-        image: _newImage, // 제거 시 null → 서버가 사진 제거
+        // 영상 교체 시 단일 미디어 슬롯에 영상 URL/MIME/크기 + 포스터 전달.
+        // 제거 시 null → 서버가 미디어 제거.
+        image: _newVideo != null
+            ? UploadedImage(
+                url: _newVideo!.url,
+                mime: _newVideo!.mime,
+                size: _newVideo!.size,
+              )
+            : _newImage,
+        imageThumbUrl: _newVideo?.thumbUrl,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -290,11 +400,12 @@ class _PostEditScreenState extends State<PostEditScreen> {
               ),
               if (_canEditImage) ...[
                 const SizedBox(height: 20),
-                const _SectionLabel('사진 (선택)'),
+                _SectionLabel(_canEditVideo ? '사진·동영상 (선택)' : '사진 (선택)'),
                 _PhotoEditor(
                   url: _imageUrl,
+                  isVideo: _isVideo,
                   uploading: _uploading,
-                  onPick: _pickImage,
+                  onPick: _pickMedia,
                   onRemove: _removeImage,
                 ),
               ],
@@ -352,8 +463,11 @@ class _PostEditScreenState extends State<PostEditScreen> {
               ],
               const SizedBox(height: 16),
               Text(
-                '사진·카테고리·연결한 반려동물은 수정할 수 없어요. '
-                '변경하려면 삭제 후 다시 작성해주세요.',
+                _canEditImage
+                    ? '카테고리·연결한 반려동물은 수정할 수 없어요. '
+                          '변경하려면 삭제 후 다시 작성해주세요.'
+                    : '사진·카테고리·연결한 반려동물은 수정할 수 없어요. '
+                          '변경하려면 삭제 후 다시 작성해주세요.',
                 style: TextStyle(
                   fontSize: 12,
                   color: context.colors.textTertiary,
@@ -368,14 +482,17 @@ class _PostEditScreenState extends State<PostEditScreen> {
   }
 }
 
-/// 자유/입양 게시글 사진 편집기 — 갤러리 선택/미리보기/삭제(촬영 검증 없음).
+/// 자유/입양/소식 게시글 미디어 편집기 — 갤러리 선택/미리보기/삭제(촬영 검증 없음).
+/// [isVideo] 면 포스터 위에 ▶ 배지(포스터 없으면 어두운 타일 + ▶).
 class _PhotoEditor extends StatelessWidget {
   final String? url;
+  final bool isVideo;
   final bool uploading;
   final VoidCallback onPick;
   final VoidCallback onRemove;
   const _PhotoEditor({
     required this.url,
+    required this.isVideo,
     required this.uploading,
     required this.onPick,
     required this.onRemove,
@@ -394,7 +511,7 @@ class _PhotoEditor extends StatelessWidget {
         child: const Center(child: CircularProgressIndicator()),
       );
     }
-    if (url == null) {
+    if (url == null && !isVideo) {
       return InkWell(
         onTap: onPick,
         borderRadius: BorderRadius.circular(16),
@@ -432,14 +549,24 @@ class _PhotoEditor extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           child: AspectRatio(
             aspectRatio: kPostImageAspectRatio,
-            child: Image.network(
-              url!,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                color: context.colors.surfaceMuted,
-                child: const Center(child: Icon(Icons.image, size: 40)),
-              ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (url != null)
+                  Image.network(
+                    url!,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(
+                      color: context.colors.surfaceMuted,
+                      child: const Center(child: Icon(Icons.image, size: 40)),
+                    ),
+                  )
+                else
+                  // 포스터 없는 영상 — 어두운 타일 + ▶ 폴백.
+                  const ColoredBox(color: Color(0xFF2B2B2B)),
+                if (isVideo) const Center(child: VideoPlayBadge()),
+              ],
             ),
           ),
         ),

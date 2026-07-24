@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 import 'session.dart';
 
 /// 이미지 선택 + Supabase Storage(media 버킷) 업로드.
@@ -30,6 +31,15 @@ class StorageService {
     source: ImageSource.camera,
     preferredCameraDevice: CameraDevice.rear,
     maxDuration: const Duration(seconds: 11),
+  );
+
+  /// 첨부 영상 상한(서버 CHECK 와 동일 — 100MB). 초과 시 업로드 전에 거른다.
+  static const int maxVideoBytes = 100 * 1024 * 1024;
+
+  /// 갤러리에서 첨부용 동영상 1개 선택(최대 60초).
+  Future<XFile?> pickVideo() => _picker.pickVideo(
+    source: ImageSource.gallery,
+    maxDuration: const Duration(seconds: 60),
   );
 
   /// 게시글 사진 실존 검증용: 카메라만(갤러리 진입 불가) 방금 찍은 1장.
@@ -84,6 +94,69 @@ class StorageService {
         );
     final url = _c.storage.from('media').getPublicUrl(path);
     return UploadedImage(url: url, mime: mime, size: bytes.length);
+  }
+
+  /// 첨부 동영상 업로드 — 100MB 초과 시 예외. media 버킷에 영상을 올리고,
+  /// 첫 프레임으로 포스터(jpeg)를 만들어 함께 업로드한다(포스터 실패는 무해 —
+  /// 표시 쪽이 어두운 타일로 폴백).
+  Future<UploadedVideo> uploadVideo(
+    XFile file, {
+    required String category,
+  }) async {
+    final uid = SessionManager.instance.user?.id;
+    if (uid == null) throw StateError('로그인이 필요합니다');
+
+    // 크기 검사 — 전체 바이트를 읽기 전에 길이만 먼저 확인한다.
+    final length = await file.length();
+    if (length > maxVideoBytes) {
+      throw StateError('동영상은 100MB 이하만 첨부할 수 있어요');
+    }
+
+    final ext = file.name.contains('.')
+        ? file.name.split('.').last.toLowerCase()
+        : 'mp4';
+    final mime =
+        file.mimeType ?? (ext == 'mov' ? 'video/quicktime' : 'video/$ext');
+    final bytes = await file.readAsBytes();
+    final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
+    await _c.storage
+        .from('media')
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: mime, upsert: false),
+        );
+    final url = _c.storage.from('media').getPublicUrl(path);
+
+    // 포스터(첫 프레임) — 실패해도 영상 자체는 유효하므로 무시.
+    String? thumbUrl;
+    try {
+      final poster = await VideoThumbnail.thumbnailData(
+        video: file.path,
+        imageFormat: ImageFormat.JPEG,
+        maxWidth: 1024,
+        quality: 75,
+      );
+      if (poster != null) {
+        final up = await uploadBytes(
+          poster,
+          category: category,
+          ext: 'jpg',
+          mime: 'image/jpeg',
+        );
+        thumbUrl = up.url;
+      }
+    } catch (_) {
+      /* 포스터 없이 진행 — 표시 쪽 폴백 */
+    }
+
+    return UploadedVideo(
+      url: url,
+      mime: mime,
+      size: bytes.length,
+      thumbUrl: thumbUrl,
+      path: path,
+    );
   }
 
   // ── 업체 서류(0025 §3.3) — 비공개 business-docs 버킷. 공개 URL 없음, 경로만 저장하고
@@ -181,5 +254,22 @@ class UploadedImage {
     required this.url,
     required this.mime,
     required this.size,
+  });
+}
+
+/// 업로드된 첨부 동영상 — 영상 공개 URL + 포스터(jpeg) URL(실패 시 null).
+/// [path] 는 media 버킷 내 경로(시설 후기 p_videos jsonb 에 함께 저장).
+class UploadedVideo {
+  final String url;
+  final String mime;
+  final int size;
+  final String? thumbUrl;
+  final String path;
+  const UploadedVideo({
+    required this.url,
+    required this.mime,
+    required this.size,
+    required this.path,
+    this.thumbUrl,
   });
 }

@@ -69,7 +69,8 @@ class ChatRepository {
   }
 
   static const _messageCols =
-      'id, room_id, sender_id, content, image_url, created_at';
+      'id, room_id, sender_id, content, image_url, image_mime_type, '
+      'image_thumbnail_url, created_at';
 
   /// 방의 메시지 (오래된→최신).
   Future<List<ChatMessage>> fetchMessages(String roomId) async {
@@ -111,6 +112,31 @@ class ChatRepository {
           'image_url': img.url,
           'image_mime_type': img.mime,
           'image_file_size': img.size,
+        })
+        .select(_messageCols)
+        .single();
+    AppEvents.instance.notifyChat();
+    return ChatMessage.fromJson(row, myId);
+  }
+
+  /// 동영상 메시지 전송 — media 버킷(chat)에 영상+포스터를 올린 뒤 삽입.
+  /// (단일 미디어 슬롯 재사용: image_url=영상, mime=video/*, thumbnail=포스터.
+  /// 방 목록 미리보기 '[동영상]'은 서버 트리거가 처리. 영상 100MB 서버 CHECK.)
+  Future<ChatMessage> sendVideoMessage(String roomId, XFile file) async {
+    final myId = _uid;
+    final video = await StorageService.instance.uploadVideo(
+      file,
+      category: 'chat',
+    );
+    final row = await _c
+        .from('chat_messages')
+        .insert({
+          'room_id': roomId,
+          'sender_id': myId,
+          'image_url': video.url,
+          'image_mime_type': video.mime,
+          'image_file_size': video.size,
+          'image_thumbnail_url': video.thumbUrl,
         })
         .select(_messageCols)
         .single();

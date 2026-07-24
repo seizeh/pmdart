@@ -8,6 +8,7 @@ import '../screen/user_profile_screen.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel, timeAgo;
 import 'blob_background.dart';
+import 'media_widgets.dart' show VideoPlayBadge;
 import 'role_badge.dart';
 
 /// 커뮤니티 게시글 카드 — 애플뮤직 아티스트 카드 스타일.
@@ -24,7 +25,10 @@ class PostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = categoryColor(context, post.category);
-    final hasPhoto = post.imageUrl != null;
+    // 영상 글은 포스터(썸네일)를 대표 이미지로 쓴다. 포스터가 없으면 어두운
+    // 타일 + ▶ 로 폴백(사진 레이아웃 유지 — 본문 히어로 없음).
+    final displayUrl = post.isVideo ? post.imageThumbUrl : post.imageUrl;
+    final hasPhoto = displayUrl != null || post.isVideo;
 
     return Pressable(
       onTap: onTap,
@@ -40,23 +44,27 @@ class PostCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // 배경 — 대표사진 또는 카테고리 색 블롭(뿌옇게, 글마다 랜덤 패턴).
-              if (hasPhoto)
+              // 배경 — 대표사진(영상은 포스터) 또는 카테고리 색 블롭.
+              // 포스터 없는 영상은 어두운 타일.
+              if (displayUrl != null)
                 Image.network(
-                  post.imageUrl!,
+                  displayUrl,
                   fit: BoxFit.cover,
                   // 원본(최대 4284px 폭) 풀해상 디코딩 방지 — 카드 폭이면 충분.
                   cacheWidth: 1200,
-                  errorBuilder: (_, _, _) =>
-                      BlobBackground(seed: post.id, color: color),
+                  errorBuilder: (_, _, _) => post.isVideo
+                      ? const ColoredBox(color: Color(0xFF2B2B2B))
+                      : BlobBackground(seed: post.id, color: color),
                 )
+              else if (post.isVideo)
+                const ColoredBox(color: Color(0xFF2B2B2B))
               else
                 BlobBackground(seed: post.id, color: color),
               // 점진 블러 — 같은 사진의 블러 사본을 세로 그라데이션 마스크로
               // 페이드인(아래로 갈수록 진해짐, 경계선 없음).
               // ClipRect — 마스크가 완전 투명한 상단(0~42%)까지 블러를 래스터하지
               // 않도록, 실제 보이는 하단 구간만 잘라 그린다(블러 비용 ~40% 절감).
-              if (hasPhoto)
+              if (displayUrl != null)
                 Positioned.fill(
                   child: ClipRect(
                     clipper: const _BottomFractionClipper(0.40),
@@ -79,7 +87,7 @@ class PostCard extends StatelessWidget {
                           tileMode: ui.TileMode.clamp,
                         ),
                         child: Image.network(
-                          post.imageUrl!,
+                          displayUrl,
                           fit: BoxFit.cover,
                           cacheWidth: 400, // 블러 사본 — 저해상 디코딩으로 충분
                           errorBuilder: (_, _, _) => const SizedBox.shrink(),
@@ -110,6 +118,8 @@ class PostCard extends StatelessWidget {
                     ),
                   ),
                 ),
+              // 영상 글 — 중앙 ▶ 배지(포스터/어두운 타일 공통).
+              if (post.isVideo) const Center(child: VideoPlayBadge(size: 52)),
               // 가독용 스크림.
               const Positioned(
                 left: 0,

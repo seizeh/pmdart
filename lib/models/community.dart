@@ -31,11 +31,16 @@ class Post {
   final String progressStatus;
   final bool hearted;
   final String? imageUrl;
+  final String? imageMime; // 미디어 MIME — 'video/*' 면 imageUrl 이 영상
+  final String? imageThumbUrl; // 영상 포스터(jpeg) URL — 사진 글은 null
   final String? authorAddress; // 작성자의 현재 활동지역(주소) — 이동 경고 비교용
   final DateTime? editedAt; // 내용 수정 시각(있으면 '수정됨' 표기)
   final String authoredAs; // 작성 모드('personal'|'business') — 작성자 얼굴 라우팅용
 
   bool get isEdited => editedAt != null;
+
+  /// 대표 미디어가 영상인가(단일 미디어 슬롯 재사용 — image_url 에 영상 URL).
+  bool get isVideo => imageMime?.startsWith('video/') ?? false;
 
   const Post({
     required this.id,
@@ -54,6 +59,8 @@ class Post {
     required this.progressStatus,
     required this.hearted,
     this.imageUrl,
+    this.imageMime,
+    this.imageThumbUrl,
     this.authorAddress,
     this.editedAt,
     this.authoredAs = 'personal',
@@ -84,6 +91,8 @@ class Post {
     progressStatus: (j['progress_status'] ?? 'recruiting') as String,
     hearted: j['hearted'] == true,
     imageUrl: j['image_url'] as String?,
+    imageMime: j['image_mime_type'] as String?,
+    imageThumbUrl: j['image_thumbnail_url'] as String?,
     authorAddress: j['author_address'] as String?,
     editedAt: _parseDateNullable(j['edited_at']),
     authoredAs: (j['authored_as'] as String?) ?? 'personal',
@@ -107,6 +116,8 @@ class Post {
     progressStatus: progressStatus,
     hearted: hearted ?? this.hearted,
     imageUrl: imageUrl,
+    imageMime: imageMime,
+    imageThumbUrl: imageThumbUrl,
     authorAddress: authorAddress,
     editedAt: editedAt,
     authoredAs: authoredAs,

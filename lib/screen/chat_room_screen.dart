@@ -10,6 +10,7 @@ import '../services/storage_service.dart';
 import '../state/chat_room_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show timeAgo;
+import '../widgets/media_widgets.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/report_sheet.dart';
 import 'user_profile_screen.dart';
@@ -162,12 +163,59 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     _ctrl.clear();
   }
 
+  /// 첨부 — 사진/동영상 선택 시트 후 해당 전송 경로로.
+  Future<void> _pickAttachment() async {
+    if (_state.sending) return;
+    final src = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: context.colors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                Icons.photo_library_outlined,
+                color: context.colors.primaryDark,
+              ),
+              title: const Text('사진'),
+              onTap: () => Navigator.pop(sheetCtx, 'photo'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.videocam_outlined,
+                color: context.colors.primaryDark,
+              ),
+              title: const Text('동영상'),
+              subtitle: const Text('최대 60초 · 100MB'),
+              onTap: () => Navigator.pop(sheetCtx, 'video'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (src == 'photo') return _sendImage();
+    if (src == 'video') return _sendVideo();
+  }
+
   /// 사진 첨부 — 갤러리에서 선택해 업로드 후 사진 메시지로 전송.
   Future<void> _sendImage() async {
     if (_state.sending) return;
     final file = await StorageService.instance.pickImage();
     if (file == null || !mounted) return;
     final err = await _state.sendImage(file);
+    if (err != null) _toast(err);
+  }
+
+  /// 동영상 첨부 — 갤러리에서 선택해 업로드(포스터 생성) 후 영상 메시지로 전송.
+  Future<void> _sendVideo() async {
+    if (_state.sending) return;
+    final file = await StorageService.instance.pickVideo();
+    if (file == null || !mounted) return;
+    final err = await _state.sendVideo(file);
     if (err != null) _toast(err);
   }
 
@@ -364,7 +412,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                           controller: _ctrl,
                           sending: _state.sending,
                           onSend: _send,
-                          onPickImage: _sendImage,
+                          onPickImage: _pickAttachment,
                         ),
                 ),
               ],
@@ -892,8 +940,16 @@ class _MessageBubble extends StatelessWidget {
               onLongPress: mine
                   ? () => onDeleteMine(message)
                   : () => onReport(message),
-              onTap: message.isImage ? () => _openImage(context) : null,
-              child: message.isImage ? _imageBody() : _textBody(context, mine),
+              onTap: message.isVideo
+                  ? () => openVideoPlayer(context, message.imageUrl!)
+                  : message.isImage
+                  ? () => _openImage(context)
+                  : null,
+              child: message.isVideo
+                  ? _videoBody()
+                  : message.isImage
+                  ? _imageBody()
+                  : _textBody(context, mine),
             ),
           ),
           if (!mine) ...[
@@ -976,6 +1032,22 @@ class _MessageBubble extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// 동영상 메시지 — 사진 버블과 동일한 라운드에 포스터 + 중앙 ▶.
+  /// 탭 처리(플레이어 열기)는 버블의 GestureDetector 가 담당(길게 누르기 공존).
+  Widget _videoBody() {
+    return SizedBox(
+      width: 220,
+      height: 280,
+      child: VideoPosterTile(
+        videoUrl: message.imageUrl!,
+        posterUrl: message.imageThumbUrl,
+        borderRadius: BorderRadius.circular(14),
+        cacheWidth: 440,
+        handleTap: false,
       ),
     );
   }

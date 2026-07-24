@@ -10,6 +10,7 @@ import '../services/session.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show timeAgo;
 import '../widgets/blob_background.dart';
+import '../widgets/media_widgets.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/review_cards.dart';
 import 'user_profile_screen.dart';
@@ -481,6 +482,19 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
             fit: BoxFit.cover,
             width: double.infinity,
             errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+        ),
+      ],
+      // 첨부 영상 — 포스터 + ▶, 탭하면 전체화면 플레이어.
+      for (final v in r.videos) ...[
+        const SizedBox(height: 12),
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: VideoPosterTile(
+            videoUrl: v.url,
+            posterUrl: v.thumbUrl,
+            borderRadius: BorderRadius.circular(14),
+            cacheWidth: 1000,
           ),
         ),
       ],

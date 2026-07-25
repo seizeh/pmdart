@@ -308,6 +308,16 @@ class CommunityRepository {
     );
   }
 
+  /// 게시글 공유 링크 발급 — 공유 뷰어(go.pawmate.kr) 토큰 반환.
+  /// 서버가 게시글당 유효 링크를 재사용한다(30일, visible 게시글만).
+  Future<String> createPostShareLink(String postId) async {
+    _requireUid();
+    final rows =
+        await _c.rpc('create_post_share_link', params: {'p_post': postId})
+            as List;
+    return (rows.first as Map<String, dynamic>)['token'] as String;
+  }
+
   /// 내 게시글 삭제(소프트) — delete_my_post RPC.
   /// 직접 UPDATE 는 결과 행이 posts_select 비가시라 RLS(42501)에 막히므로,
   /// 본인 확인 후 RLS 를 우회하는 SECURITY DEFINER RPC 로 처리한다.

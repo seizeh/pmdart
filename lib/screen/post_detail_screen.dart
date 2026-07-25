@@ -15,7 +15,6 @@ import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel, timeAgo;
 import '../utils/share_links.dart';
 import '../widgets/blob_background.dart';
-import '../widgets/media_widgets.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/post_video_hero.dart';
 import '../widgets/report_sheet.dart';
@@ -77,7 +76,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   // 본문 최상단에서 아래로 당기면 카드로 축소되는 CollapsibleView 용 스크롤 컨트롤러.
   final _scroll = ScrollController();
 
-  // 영상 글의 히어로/컨트롤 바가 공유하는 컨트롤러 — 화면이 소유한다.
+  // 영상 글의 쇼츠형 히어로가 재생하는 컨트롤러 — 화면이 소유한다.
   VideoPlayerController? _video;
   bool _videoError = false;
 
@@ -141,11 +140,31 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (text.isEmpty) return;
     if (await _state.submitComment(text)) {
       _commentCtrl.clear();
-      if (mounted) FocusScope.of(context).unfocus();
+      // 시트 안에서 보낼 때도 키보드가 내려가도록 전역 포커스 해제.
+      FocusManager.instance.primaryFocus?.unfocus();
       await _state.loadComments();
     } else {
       _toast('댓글 작성에 실패했어요');
     }
+  }
+
+  /// 영상 글의 댓글 바텀시트 — 기존 댓글 리스트 + 입력창을 시트로.
+  /// 열람은 게스트도 가능(작성은 [_sendComment] 의 가드가 막는다).
+  void _openComments() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _CommentsSheet(
+        state: _state,
+        controller: _commentCtrl,
+        onSend: _sendComment,
+        onReport: _openCommentMenu,
+      ),
+    );
   }
 
   Future<void> _apply() async {
@@ -391,85 +410,96 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   const SizedBox(width: 8),
                 ],
               ),
-              body: ListView(
-                controller: _scroll,
-                physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
-                padding: const EdgeInsets.only(bottom: 24),
-                children: [
-                  // 히어로 — 영상 글은 원본 비율 영상 + 카드 미러 블러 오버레이,
-                  // 사진 글은 카드와 동일 비율의 대표사진, 사진 없는 글은 카드와
-                  // 같은 블롭 배경 + 본문(같은 위치/스타일). 셋 모두 축소 전환 시
-                  // 피드 카드와 그대로 겹쳐진다.
-                  if (videoHero) ...[
-                    PostVideoHero(
-                      post: post,
-                      controller: _video!,
-                      error: _videoError,
-                      onHeart: _toggleHeart,
-                    ),
-                    // 컨트롤 바 — 히어로와 본문 사이 경계의 슬림 바(테마 색).
-                    // 카드에는 없는 요소라 축소 전환이 시작되면 페이드아웃.
-                    _CollapseFade(child: VideoControlBar(controller: _video!)),
-                  ] else
-                    AspectRatio(
-                      aspectRatio: kPostImageAspectRatio,
-                      child: hasImage
-                          ? Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Image.network(
-                                  post.imageUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => ColoredBox(
-                                    color: context.colors.surfaceMuted,
-                                  ),
-                                ),
-                                // 상태바 스크림 — 어두운 사진에서도 시간·배터리
-                                // (어두운 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
-                                Positioned(
-                                  top: 0,
-                                  left: 0,
-                                  right: 0,
-                                  height:
-                                      MediaQuery.paddingOf(context).top + 24,
-                                  child: const IgnorePointer(
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [
-                                            Colors.white70,
-                                            Colors.transparent,
-                                          ],
+              // 영상 글 — 쇼츠형: 화면 = 전체화면 영상 하나. 스크롤 본문 없이
+              // 뷰포트 높이 1장짜리 리스트로 CollapsibleView 의 당겨서 카드로
+              // 축소하는 드래그 메커니즘만 보존한다. 댓글은 바텀시트, 하트는
+              // 오버레이에서 바로 토글.
+              body: videoHero
+                  ? ListView(
+                      controller: _scroll,
+                      physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
+                      padding: EdgeInsets.zero,
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.sizeOf(context).height,
+                          child: PostVideoHero(
+                            post: post,
+                            controller: _video!,
+                            error: _videoError,
+                            onHeart: _toggleHeart,
+                            onComments: _openComments,
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView(
+                      controller: _scroll,
+                      physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
+                      padding: const EdgeInsets.only(bottom: 24),
+                      children: [
+                        // 히어로 — 사진 글은 카드와 동일 비율의 대표사진, 사진 없는
+                        // 글은 카드와 같은 블롭 배경 + 본문(같은 위치/스타일)로
+                        // 축소 전환 시 피드 카드와 그대로 겹쳐진다.
+                        AspectRatio(
+                          aspectRatio: kPostImageAspectRatio,
+                          child: hasImage
+                              ? Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.network(
+                                      post.imageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => ColoredBox(
+                                        color: context.colors.surfaceMuted,
+                                      ),
+                                    ),
+                                    // 상태바 스크림 — 어두운 사진에서도 시간·배터리
+                                    // (어두운 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
+                                    Positioned(
+                                      top: 0,
+                                      left: 0,
+                                      right: 0,
+                                      height:
+                                          MediaQuery.paddingOf(context).top +
+                                          24,
+                                      child: const IgnorePointer(
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.white70,
+                                                Colors.transparent,
+                                              ],
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : _BlobHero(post: post),
+                                  ],
+                                )
+                              : _BlobHero(post: post),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: _infoChildren(contentInHero: !hasImage),
+                          ),
+                        ),
+                      ],
                     ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: _infoChildren(
-                        contentInHero: !hasImage && !videoHero,
-                        videoHero: videoHero,
-                      ),
+              // 영상 글은 하단 입력바 없음 — 댓글 입력은 시트 안에.
+              bottomNavigationBar: videoHero
+                  ? null
+                  : _BottomBar(
+                      post: post,
+                      controller: _commentCtrl,
+                      sending: _state.sending,
+                      onHeart: _toggleHeart,
+                      onSend: _sendComment,
                     ),
-                  ),
-                ],
-              ),
-              bottomNavigationBar: _BottomBar(
-                post: post,
-                controller: _commentCtrl,
-                sending: _state.sending,
-                onHeart: _toggleHeart,
-                onSend: _sendComment,
-              ),
             );
           },
         ),
@@ -483,51 +513,44 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return c.length <= 180 && '\n'.allMatches(c).length < 9;
   }
 
-  /// 본문 정보 위젯들(카테고리 칩부터 댓글까지).
+  /// 본문 정보 위젯들(카테고리 칩부터 댓글까지) — 사진·블롭 글 전용
+  /// (영상 글은 쇼츠형 전체화면이라 이 섹션을 그리지 않는다).
   /// [contentInHero] 가 true(사진 없는 글)면 본문이 상단 히어로에 있으므로,
   /// 히어로에서 잘리는 긴 글에만 전문을 아래에 덧붙인다.
-  /// [videoHero] 가 true(영상 글)면 카테고리·제목·본문이 히어로 오버레이에
-  /// 있으므로 아래에서 빼고(중복 방지), 작성자 카드부터 이어간다.
-  List<Widget> _infoChildren({
-    required bool contentInHero,
-    bool videoHero = false,
-  }) {
+  List<Widget> _infoChildren({required bool contentInHero}) {
     final post = _state.post;
     final color = categoryColor(context, post.category);
-    final showContent =
-        !videoHero && (!contentInHero || !_heroHoldsFullContent);
+    final showContent = !contentInHero || !_heroHoldsFullContent;
     return [
-      if (!videoHero) ...[
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(100),
-            ),
-            child: Text(
-              categoryLabel(post.category),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(100),
+          ),
+          child: Text(
+            categoryLabel(post.category),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
           ),
         ),
-        const SizedBox(height: 14),
-        Text(
-          post.title,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: context.colors.textPrimary,
-            height: 1.3,
-          ),
+      ),
+      const SizedBox(height: 14),
+      Text(
+        post.title,
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: context.colors.textPrimary,
+          height: 1.3,
         ),
-        const SizedBox(height: 14),
-      ],
+      ),
+      const SizedBox(height: 14),
       _AuthorRow(
         post: post,
         showFollow: !widget.isGuest && !_state.isMyPost,
@@ -1070,53 +1093,144 @@ class _BottomBar extends StatelessWidget {
   }
 }
 
-/// 확장/축소 전환 중(진행도 < 1)에는 숨고, 풀스크린에 안착하면 나타나는 래퍼 —
-/// 영상 컨트롤 바처럼 피드 카드에 없는 요소가 카드 모프에 섞여 보이지 않게 한다.
-class _CollapseFade extends StatefulWidget {
-  final Widget child;
-  const _CollapseFade({required this.child});
+/// 영상 글의 댓글 바텀시트 — 그랩바·카운트 헤더 + 댓글 리스트(드래그 확장) +
+/// 하단 입력창. 상태는 [PostDetailState] 를 그대로 구독해 작성·갱신이 화면과
+/// 실시간으로 동기화된다(시트를 닫으면 오버레이 카운트에도 반영).
+class _CommentsSheet extends StatelessWidget {
+  final PostDetailState state;
+  final TextEditingController controller;
+  final VoidCallback onSend;
+  final void Function(Comment) onReport;
 
-  @override
-  State<_CollapseFade> createState() => _CollapseFadeState();
-}
-
-class _CollapseFadeState extends State<_CollapseFade> {
-  Animation<double>? _progress;
-  bool _visible = true;
-  bool _initialized = false;
-
-  void _onTick() {
-    final want = (_progress?.value ?? 1) >= 1.0;
-    if (want != _visible && mounted) setState(() => _visible = want);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final p = CollapseProgress.of(context);
-    if (!identical(p, _progress)) {
-      _progress?.removeListener(_onTick);
-      _progress = p;
-      _progress?.addListener(_onTick);
-    }
-    if (!_initialized) {
-      _initialized = true;
-      _visible = (p?.value ?? 1) >= 1.0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _progress?.removeListener(_onTick);
-    super.dispose();
-  }
+  const _CommentsSheet({
+    required this.state,
+    required this.controller,
+    required this.onSend,
+    required this.onReport,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: _visible ? 1 : 0,
-      duration: const Duration(milliseconds: 120),
-      child: widget.child,
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      builder: (context, scroll) => ListenableBuilder(
+        listenable: state,
+        builder: (context, _) => Column(
+          children: [
+            const SizedBox(height: 10),
+            // 그랩바.
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: context.colors.border,
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '댓글 ${state.comments.length}',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: ListView(
+                controller: scroll,
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                children: [
+                  _CommentList(
+                    loading: state.loadingComments,
+                    comments: state.comments,
+                    myUserId: SessionManager.instance.user?.id,
+                    onReport: onReport,
+                  ),
+                ],
+              ),
+            ),
+            // 입력바 — 키보드가 올라오면 그 위로 붙는다.
+            Container(
+              decoration: BoxDecoration(
+                color: context.colors.surface,
+                border: Border(
+                  top: BorderSide(color: context.colors.border, width: 0.5),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    12,
+                    8,
+                    12,
+                    8 + MediaQuery.viewInsetsOf(context).bottom,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          minLines: 1,
+                          maxLines: 4,
+                          decoration: InputDecoration(
+                            hintText: '댓글을 입력하세요',
+                            filled: true,
+                            fillColor: context.colors.surfaceMuted,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(100),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(100),
+                              borderSide: BorderSide(
+                                color: context.colors.primary,
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: context.colors.primaryDark,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: state.sending
+                              ? SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: context.colors.textOnPrimary,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.arrow_upward,
+                                  color: context.colors.textOnPrimary,
+                                ),
+                          onPressed: state.sending ? null : onSend,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -166,8 +166,15 @@ class PostCardInfoOverlay extends StatelessWidget {
   /// 본문 미리보기 표시 여부(사진/영상 글). 사진 없는 글은 본문이 히어로에 있다.
   final bool showContent;
   final VoidCallback? onHeart;
+
+  /// 댓글 아이콘 탭(상세 히어로 → 댓글 바텀시트). null 이면 표시 전용(피드 카드).
+  final VoidCallback? onComments;
   final int previewLines;
   final bool expanded;
+
+  /// 펼친 본문의 최대 높이 — 넘치면 내부 스크롤(전체화면 히어로에서 화면을
+  /// 넘지 않게). null 이면 제한 없음.
+  final double? expandedMaxHeight;
   final VoidCallback? onToggleExpand;
 
   const PostCardInfoOverlay({
@@ -175,8 +182,10 @@ class PostCardInfoOverlay extends StatelessWidget {
     required this.post,
     this.showContent = true,
     this.onHeart,
+    this.onComments,
     this.previewLines = 2,
     this.expanded = false,
+    this.expandedMaxHeight,
     this.onToggleExpand,
   });
 
@@ -242,6 +251,7 @@ class PostCardInfoOverlay extends StatelessWidget {
                 content: post.content,
                 previewLines: previewLines,
                 expanded: expanded,
+                expandedMaxHeight: expandedMaxHeight,
                 onToggle: onToggleExpand!,
               ),
           ],
@@ -291,10 +301,15 @@ class PostCardInfoOverlay extends StatelessWidget {
                 onTap: onHeart,
               ),
               const SizedBox(width: 14),
-              _Stat(
-                icon: Icons.chat_bubble_outline,
-                value: post.commentCount,
-                color: const Color(0xCCFFFFFF),
+              // 댓글 — 상세 히어로에선 탭으로 댓글 시트를 연다(시각은 동일).
+              GestureDetector(
+                onTap: onComments,
+                behavior: HitTestBehavior.opaque,
+                child: _Stat(
+                  icon: Icons.chat_bubble_outline,
+                  value: post.commentCount,
+                  color: const Color(0xCCFFFFFF),
+                ),
               ),
               const SizedBox(width: 14),
               _Stat(
@@ -316,12 +331,16 @@ class _ExpandableContent extends StatelessWidget {
   final String content;
   final int previewLines;
   final bool expanded;
+
+  /// 펼친 본문 최대 높이 — 넘치면 내부 스크롤.
+  final double? expandedMaxHeight;
   final VoidCallback onToggle;
 
   const _ExpandableContent({
     required this.content,
     required this.previewLines,
     required this.expanded,
+    this.expandedMaxHeight,
     required this.onToggle,
   });
 
@@ -346,16 +365,27 @@ class _ExpandableContent extends StatelessWidget {
           final overflows = painter.didExceedMaxLines;
           painter.dispose();
           const dim = Color(0xB8FFFFFF);
+          final full = Text(
+            content,
+            maxLines: expanded ? null : previewLines,
+            overflow: expanded ? null : TextOverflow.ellipsis,
+            style: PostCardInfoOverlay._contentStyle,
+          );
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                content,
-                maxLines: expanded ? null : previewLines,
-                overflow: expanded ? null : TextOverflow.ellipsis,
-                style: PostCardInfoOverlay._contentStyle,
-              ),
+              // 펼친 본문이 화면을 넘지 않게 최대 높이에서 내부 스크롤.
+              if (expanded && expandedMaxHeight != null)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: expandedMaxHeight!),
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: full,
+                  ),
+                )
+              else
+                full,
               if (overflows || expanded)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),

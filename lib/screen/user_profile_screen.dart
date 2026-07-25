@@ -1141,13 +1141,39 @@ class PostPhotoTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            post.imageUrl != null
-                ? Image.network(
-                    post.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _textFallback(context),
-                  )
-                : _textFallback(context),
+            // 영상 글은 포스터(썸네일)를 그린다 — imageUrl(영상 파일)을 그대로
+            // 넣으면 이미지 디코딩 실패로 제목 폴백만 보인다.
+            () {
+              final displayUrl = post.isVideo
+                  ? post.imageThumbUrl
+                  : post.imageUrl;
+              if (displayUrl != null) {
+                return Image.network(
+                  displayUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => post.isVideo
+                      ? const ColoredBox(color: Color(0xFF2B2B2B))
+                      : _textFallback(context),
+                );
+              }
+              return post.isVideo
+                  ? const ColoredBox(color: Color(0xFF2B2B2B))
+                  : _textFallback(context);
+            }(),
+            // 영상 표식 — 우상단 작은 배지.
+            if (post.isVideo)
+              const Positioned(
+                top: 8,
+                right: 8,
+                child: IgnorePointer(
+                  child: Icon(
+                    Icons.play_circle_fill,
+                    size: 18,
+                    color: Colors.white,
+                    shadows: [Shadow(color: Color(0x66000000), blurRadius: 6)],
+                  ),
+                ),
+              ),
             // 하트·댓글 수 — 썸네일 우하단(사진 위 스크림). 피드 카드와 동일 지표.
             Positioned(
               left: 0,

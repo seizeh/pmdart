@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/community.dart' show kPostImageAspectRatio;
 import '../theme/app_palette.dart';
@@ -10,7 +11,9 @@ import '../theme/app_palette.dart';
 ///
 /// 원본 사진은 전체가 보이도록(contain) **고정**해두고, 그 위에서 **3:4 크롭 틀이 이동·확대/축소**한다.
 /// 사용자가 틀을 원하는 위치/크기로 맞추면(direct manipulation) 그 영역만 잘라 3:4 바이트로 돌려준다.
-/// 반환: 크롭된 PNG [Uint8List] (취소 시 null).
+/// 반환: 크롭된 **JPEG** [Uint8List] (취소 시 null) — dart:ui 캔버스 출력은 PNG 뿐인데,
+/// 사진성 이미지의 PNG 는 1600px 에서도 12MB(서버 상한)를 넘을 수 있어 네이티브로
+/// JPEG 재인코딩한다(용량 ~1/5, 피드 로딩도 가벼워짐).
 class ImageCropScreen extends StatefulWidget {
   final Uint8List bytes;
   const ImageCropScreen({super.key, required this.bytes});
@@ -136,12 +139,17 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
       );
       final out = await recorder.endRecording().toImage(outW, outH);
       final data = await out.toByteData(format: ui.ImageByteFormat.png);
-      if (!mounted) return;
       if (data == null) {
-        setState(() => _saving = false);
+        if (mounted) setState(() => _saving = false);
         return;
       }
-      Navigator.pop(context, data.buffer.asUint8List());
+      final jpeg = await FlutterImageCompress.compressWithList(
+        data.buffer.asUint8List(),
+        quality: 88,
+        format: CompressFormat.jpeg,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, jpeg);
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);

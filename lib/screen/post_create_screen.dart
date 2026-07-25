@@ -930,8 +930,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       final up = await StorageService.instance.uploadBytes(
         cropped,
         category: 'posts',
-        ext: 'png',
-        mime: 'image/png',
+        ext: 'jpg',
+        mime: 'image/jpeg',
       );
       if (!mounted) return;
       setState(() {

@@ -193,7 +193,8 @@ class _PostVideoHeroState extends State<PostVideoHero> {
                 child: _OverlayPanel(
                   // 풀스크린에선 진행바·홈 인디케이터 위로 띄우고,
                   // 카드 미러에선 카드와 동일하게 바닥에 붙인다.
-                  bottomClearance: _mirror ? 0 : safeBottom + 10,
+                  // 진행바(안전영역 위 2px, 터치 높이 18px)와 겹치지 않는 여백.
+                  bottomClearance: _mirror ? 0 : safeBottom + 24,
                   clearanceDuration: _anchorDuration,
                   child: PostCardInfoOverlay(
                     post: widget.post,
@@ -207,13 +208,14 @@ class _PostVideoHeroState extends State<PostVideoHero> {
                   ),
                 ),
               ),
-              // 재생 진행바 — 화면 최하단의 얇은 경계선(드래그 스크럽 가능).
+              // 재생 진행바 — 하단 경계선(드래그 스크럽 가능). 홈 인디케이터와
+              // 겹치지 않게 안전영역 위로 살짝 올려 둔다.
               // 축소 전환이 시작되면 페이드아웃(카드에 없는 요소).
               if (!widget.error && v.isInitialized)
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: 0,
+                  bottom: safeBottom + 2,
                   child: AnimatedOpacity(
                     opacity: _mirror ? 0 : 1,
                     duration: const Duration(milliseconds: 120),

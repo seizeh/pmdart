@@ -14,9 +14,9 @@ import 'post_card.dart';
 ///
 /// - 세로·정방형 영상은 cover 로 풀스크린, 가로 영상은 검정 배경 위 contain.
 /// - 하단 오버레이는 피드 카드와 동일 위젯([PostCardInfoOverlay])을 공유하고,
-///   블러는 그 뒤에만 깐다: 오버레이 높이 + 위로 ~96px 페이드 구간을 얇은
-///   스트립들로 시그마를 완만히 램프시켜(1→14) 경계가 보이지 않게 하고,
-///   카드와 같은 그라데이션 스크림을 겹친다.
+///   블러는 그 뒤에만 깐다: 피드 카드와 같은 방식으로 같은 영상을 한 겹 더
+///   그려(σ22) 세로 그라데이션 마스크로 페이드인 — 마스크가 연속이라 경계·
+///   계단이 없다. 카드와 같은 그라데이션 스크림을 겹친다.
 /// - 컨트롤은 쇼츠 문법: 영상 탭 = 재생/일시정지(일시정지 시에만 중앙 ▶),
 ///   화면 최하단의 얇은 진행바 하나(드래그 스크럽). 소리 UI 없음.
 /// - 축소(카드 복귀) 전환이 시작되면 영상을 3:4 상단 박스로, 오버레이를 카드
@@ -191,6 +191,36 @@ class _PostVideoHeroState extends State<PostVideoHero> {
                 right: 0,
                 bottom: _mirror ? h - cardH : 0,
                 child: _OverlayPanel(
+                  // 블러 사본 — 카드와 동일한 방식(같은 소스를 한 겹 더 그려
+                  // σ22 블러 + 마스크). 영상 박스 하단 == 패널 하단이므로
+                  // 바닥 정렬 OverflowBox 로 뒤 픽셀과 정확히 겹친다.
+                  blurSourceSize: Size(w, videoBoxH),
+                  blurSource: widget.error
+                      ? const ColoredBox(color: kVideoFallbackBg)
+                      : v.isInitialized
+                      ? Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            const ColoredBox(color: Colors.black),
+                            FittedBox(
+                              fit: fit,
+                              clipBehavior: Clip.hardEdge,
+                              child: SizedBox(
+                                width: v.size.width,
+                                height: v.size.height,
+                                child: VideoPlayer(widget.controller),
+                              ),
+                            ),
+                          ],
+                        )
+                      : widget.post.imageThumbUrl != null
+                      ? Image.network(
+                          widget.post.imageThumbUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              const ColoredBox(color: kVideoFallbackBg),
+                        )
+                      : const ColoredBox(color: kVideoFallbackBg),
                   // 풀스크린에선 진행바·홈 인디케이터 위로 띄우고,
                   // 카드 미러에선 카드와 동일하게 바닥에 붙인다.
                   // 진행바(안전영역 위 2px, 터치 높이 18px)와 겹치지 않는 여백.
@@ -262,10 +292,18 @@ class _PostVideoHeroState extends State<PostVideoHero> {
 }
 
 /// 오버레이 뒤에만 깔리는 점진 블러 패널 — 높이는 콘텐츠(카드 미러 오버레이)가
-/// 결정하고, 위로 [_fadeHeight] 만큼 얇은 스트립들로 시그마를 램프시켜(1→14)
-/// 밴드 경계 없이 영상으로 스며들게 한다. 카드와 같은 스크림을 겹쳐 보정.
+/// 결정한다. 블러는 피드 카드와 **같은 방식**: 같은 소스([blurSource])를 한 겹
+/// 더 그려 σ22 로 블러하고 세로 그라데이션 마스크(dstIn)로 페이드인 — 마스크가
+/// 연속이라 밴드·계단이 원천적으로 없고 블러 패스도 1번이다. 카드와 같은
+/// 스크림을 겹쳐 가독을 보정한다.
 class _OverlayPanel extends StatelessWidget {
   final Widget child;
+
+  /// 블러 사본의 원본 — 뒤에 깔린 영상 박스와 동일한 서브트리.
+  /// [blurSourceSize] = 영상 박스 크기. 영상 박스 하단과 패널 하단이 일치하므로
+  /// 바닥 정렬 OverflowBox 로 그리면 패널 뒤 픽셀과 정확히 겹친다.
+  final Widget blurSource;
+  final Size blurSourceSize;
 
   /// 콘텐츠 아래 여백(진행바·홈 인디케이터 위) — 카드 미러에선 0.
   final double bottomClearance;
@@ -273,32 +311,53 @@ class _OverlayPanel extends StatelessWidget {
 
   const _OverlayPanel({
     required this.child,
+    required this.blurSource,
+    required this.blurSourceSize,
     required this.bottomClearance,
     required this.clearanceDuration,
   });
 
-  /// 페이드 구간 — 스트립 6장 × 16px 로 σ1→12 램프. 그 아래(콘텐츠 구간)는
-  /// σ14 한 장. 인접 σ 차가 ≤2.5 라 스크림과 겹치면 경계가 보이지 않는다.
+  /// 마스크 페이드 구간 — 패널 상단에서 이만큼에 걸쳐 투명 → 불투명.
   static const double _fadeHeight = 96;
-  static const List<double> _rampSigmas = [1, 2.5, 4.5, 7, 9.5, 12];
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 점진 블러 — 패널 전체를 스트립으로 나눠 백드롭 블러.
+        // 점진 블러 — 카드의 블러 사본 문법(ClipRect → ShaderMask → ImageFiltered).
         Positioned.fill(
           child: IgnorePointer(
-            child: Column(
-              children: [
-                for (final sigma in _rampSigmas)
-                  SizedBox(
-                    height: _fadeHeight / _rampSigmas.length,
-                    width: double.infinity,
-                    child: _BlurStrip(sigma: sigma),
+            child: ClipRect(
+              child: ShaderMask(
+                shaderCallback: (rect) => LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: const [Color(0x00FFFFFF), Color(0xFFFFFFFF)],
+                  stops: [0.0, (_fadeHeight / rect.height).clamp(0.0, 1.0)],
+                ).createShader(rect),
+                blendMode: BlendMode.dstIn,
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(
+                    sigmaX: 22,
+                    sigmaY: 22,
+                    tileMode: ui.TileMode.clamp,
                   ),
-                const Expanded(child: _BlurStrip(sigma: 14)),
-              ],
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: OverflowBox(
+                      minWidth: blurSourceSize.width,
+                      maxWidth: blurSourceSize.width,
+                      minHeight: blurSourceSize.height,
+                      maxHeight: blurSourceSize.height,
+                      alignment: Alignment.bottomCenter,
+                      child: SizedBox.fromSize(
+                        size: blurSourceSize,
+                        child: blurSource,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -327,22 +386,6 @@ class _OverlayPanel extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// 한 장의 백드롭 블러 스트립.
-class _BlurStrip extends StatelessWidget {
-  final double sigma;
-  const _BlurStrip({required this.sigma});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        child: const SizedBox.expand(),
-      ),
     );
   }
 }

@@ -109,7 +109,10 @@ class _PostVideoHeroState extends State<PostVideoHero> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              const ColoredBox(color: Colors.black),
+              // 배경은 투명 — 풀스크린에선 영상 박스(내부 검정 포함)가 화면을
+              // 다 덮고, 축소 전환 중엔 카드(3:4) 아래가 비어 뒤 피드가 비친다
+              // (CollapseRoute opaque:false). 검정을 깔면 축소 시 하단에 검은
+              // 여백이 남는다.
               // 영상 — 풀스크린, 축소 전환 중엔 3:4 상단 박스.
               AnimatedPositioned(
                 duration: _anchorDuration,
@@ -337,10 +340,10 @@ class _OverlayPanel extends StatelessWidget {
                 ).createShader(rect),
                 blendMode: BlendMode.dstIn,
                 child: ImageFiltered(
-                  // 카드(σ22)보다 절반 수준 — 전체화면에선 영상 질감이 더 비치게.
+                  // 카드(σ22)보다 낮게 — 전체화면에선 영상 질감이 더 비치게.
                   imageFilter: ui.ImageFilter.blur(
-                    sigmaX: 11,
-                    sigmaY: 11,
+                    sigmaX: 8,
+                    sigmaY: 8,
                     tileMode: ui.TileMode.clamp,
                   ),
                   child: Align(

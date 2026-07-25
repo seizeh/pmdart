@@ -153,12 +153,12 @@ class PostCard extends StatelessWidget {
 }
 
 /// 카드 하단 정보 오버레이 — 카테고리·지역·시간 행, 제목, 본문 미리보기,
-/// 약속 필, 닉네임·하트/댓글/조회 행. [PostCard] 와 게시글 상세의 영상 히어로
-/// (PostVideoHero)가 공유해, 카드 축소 전환 시 두 화면이 픽셀 단위로 겹쳐진다.
+/// 약속 필, 닉네임·하트/댓글/조회 행. [PostCard] 와 게시글 상세의 미디어 히어로
+/// (PostMediaHero)가 공유해, 카드 축소 전환 시 두 화면이 픽셀 단위로 겹쳐진다.
 ///
 /// [onToggleExpand] 가 주어지면(상세 히어로) 본문이 [previewLines] 를 넘칠 때
-/// "더보기/접기" 버튼을 보여주고 [expanded] 에 따라 본문 전체를 펼친다.
-/// 높이 변화는 AnimatedSize 가 받아 아래 행들을 자연스럽게 밀어낸다.
+/// 말줄임(…)으로 접히고, **본문 탭**으로 펼침/접힘을 토글한다(쇼츠 문법 —
+/// 버튼 없음). 높이 변화는 AnimatedSize 가 받아 패널이 위로 자란다.
 /// null 이면(피드 카드) 미리보기 고정 — 기존 카드와 동일.
 class PostCardInfoOverlay extends StatelessWidget {
   final Post post;
@@ -177,6 +177,20 @@ class PostCardInfoOverlay extends StatelessWidget {
   final double? expandedMaxHeight;
   final VoidCallback? onToggleExpand;
 
+  /// 상세 전용 부가 섹션(지원하기 버튼 등) — 본문/약속 필과 하단 스탯 행 사이.
+  /// 카드에는 없는 요소라 [extraVisible] 이 꺼지면(축소 전환 중) 페이드아웃하며
+  /// 접힌다. null 이면(피드 카드) 아예 없음.
+  final Widget? extra;
+  final bool extraVisible;
+
+  /// 상세 히어로용 — 약속 필을 상세 포맷(월·일·오전/오후·분)으로 표시
+  /// (약속/위치 카드가 사라져도 정보 유실이 없게).
+  final bool detailMeta;
+
+  /// 닉네임 탭 동작 재정의(상세 히어로 — 프로필 무한 왕복 방지 pop 등).
+  /// null 이면 기본(작성자 프로필 push — 피드 카드).
+  final VoidCallback? onAuthorTap;
+
   const PostCardInfoOverlay({
     super.key,
     required this.post,
@@ -187,6 +201,10 @@ class PostCardInfoOverlay extends StatelessWidget {
     this.expanded = false,
     this.expandedMaxHeight,
     this.onToggleExpand,
+    this.extra,
+    this.extraVisible = true,
+    this.detailMeta = false,
+    this.onAuthorTap,
   });
 
   static const _contentStyle = TextStyle(
@@ -194,6 +212,16 @@ class PostCardInfoOverlay extends StatelessWidget {
     color: Color(0xE0FFFFFF),
     height: 1.5,
   );
+
+  /// 약속 일정 라벨 — 카드는 짧게(M/D H시), 상세는 연도 생략·12시제로
+  /// (기존 약속/위치 카드의 포맷을 이어받음).
+  static String _scheduleLabel(DateTime d, {required bool detailed}) {
+    if (!detailed) return '${d.month}/${d.day} ${d.hour}시';
+    final ampm = d.hour < 12 ? '오전' : '오후';
+    final h12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final min = d.minute == 0 ? '' : ' ${d.minute}분';
+    return '${d.month}월 ${d.day}일 $ampm $h12시$min';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -259,10 +287,27 @@ class PostCardInfoOverlay extends StatelessWidget {
             const SizedBox(height: 10),
             _MetaPill(
               icon: Icons.event_outlined,
-              label:
-                  '${post.scheduledAt!.month}/${post.scheduledAt!.day} ${post.scheduledAt!.hour}시',
+              label: _scheduleLabel(post.scheduledAt!, detailed: detailMeta),
             ),
           ],
+          // 상세 전용 부가 섹션(지원 버튼 등) — 카드 미러가 우선이라
+          // 축소 전환 중([extraVisible] false)엔 페이드아웃하며 접힌다.
+          if (extra != null)
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 180),
+              firstCurve: Curves.easeOut,
+              secondCurve: Curves.easeOut,
+              sizeCurve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              crossFadeState: extraVisible
+                  ? CrossFadeState.showFirst
+                  : CrossFadeState.showSecond,
+              firstChild: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: extra,
+              ),
+              secondChild: const SizedBox(width: double.infinity),
+            ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -272,19 +317,21 @@ class PostCardInfoOverlay extends StatelessWidget {
               GestureDetector(
                 onTap: post.userId.isEmpty
                     ? null
-                    : () => Navigator.push(
-                        context,
-                        CollapseRoute(
-                          builder: (_) => UserProfileScreen(
-                            userId: post.userId,
-                            previewNickname: post.authorNickname,
-                            originRect: riseOriginRect(context),
-                            cardRadius: 24,
-                            // 작성 모드가 얼굴을 결정(0025 연결 차단)
-                            forcePersonalFace: post.authoredAs != 'business',
+                    : onAuthorTap ??
+                          () => Navigator.push(
+                            context,
+                            CollapseRoute(
+                              builder: (_) => UserProfileScreen(
+                                userId: post.userId,
+                                previewNickname: post.authorNickname,
+                                originRect: riseOriginRect(context),
+                                cardRadius: 24,
+                                // 작성 모드가 얼굴을 결정(0025 연결 차단)
+                                forcePersonalFace:
+                                    post.authoredAs != 'business',
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                 child: Text(
                   post.authorNickname,
                   style: const TextStyle(
@@ -352,7 +399,7 @@ class _ExpandableContent extends StatelessWidget {
       alignment: Alignment.topCenter,
       child: LayoutBuilder(
         builder: (context, c) {
-          // 미리보기 줄수를 넘치는지 실측 — 넘칠 때만 더보기 버튼을 노출.
+          // 미리보기 줄수를 넘치는지 실측 — 넘칠 때만 탭 확장을 허용.
           final painter = TextPainter(
             text: TextSpan(
               text: content,
@@ -364,60 +411,28 @@ class _ExpandableContent extends StatelessWidget {
           )..layout(maxWidth: c.maxWidth);
           final overflows = painter.didExceedMaxLines;
           painter.dispose();
-          const dim = Color(0xB8FFFFFF);
-          final full = Text(
+          final text = Text(
             content,
             maxLines: expanded ? null : previewLines,
             overflow: expanded ? null : TextOverflow.ellipsis,
             style: PostCardInfoOverlay._contentStyle,
           );
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 펼친 본문이 화면을 넘지 않게 최대 높이에서 내부 스크롤.
-              if (expanded && expandedMaxHeight != null)
-                ConstrainedBox(
+          // 펼친 본문이 화면을 넘지 않게 최대 높이에서 내부 스크롤.
+          final body = expanded && expandedMaxHeight != null
+              ? ConstrainedBox(
                   constraints: BoxConstraints(maxHeight: expandedMaxHeight!),
                   child: SingleChildScrollView(
                     physics: const ClampingScrollPhysics(),
-                    child: full,
+                    child: text,
                   ),
                 )
-              else
-                full,
-              if (overflows || expanded)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Pressable(
-                    onTap: onToggle,
-                    borderRadius: BorderRadius.circular(100),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            expanded ? '접기' : '더보기',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: dim,
-                            ),
-                          ),
-                          Icon(
-                            expanded
-                                ? Icons.expand_less_rounded
-                                : Icons.expand_more_rounded,
-                            size: 15,
-                            color: dim,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+              : text;
+          // 본문 탭 = 펼침/접힘 토글(쇼츠 문법, 버튼 없음) — 넘칠 때만.
+          if (!overflows && !expanded) return body;
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onToggle,
+            child: body,
           );
         },
       ),

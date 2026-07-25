@@ -13,13 +13,11 @@ import '../services/report_repository.dart';
 import '../services/session.dart';
 import '../state/post_detail_state.dart';
 import '../theme/app_palette.dart';
-import '../utils/labels.dart' show categoryLabel, timeAgo;
+import '../utils/labels.dart' show timeAgo;
 import '../utils/share_links.dart';
-import '../widgets/blob_background.dart';
 import '../widgets/overlay_icon_button.dart';
-import '../widgets/post_video_hero.dart';
+import '../widgets/post_media_hero.dart';
 import '../widgets/report_sheet.dart';
-import '../widgets/role_badge.dart';
 import 'applicants_screen.dart';
 import 'auth/auth_wall_dialog.dart';
 import 'post_edit_screen.dart';
@@ -32,7 +30,8 @@ class _ReportAction {
   const _ReportAction(this.label, this.onTap);
 }
 
-/// 게시글 상세 — 본문 / 약속·위치 / 작성자 / 댓글(실데이터) / 하트·지원·댓글 작성.
+/// 게시글 상세 — 전 카테고리 쇼츠형: 전체화면 미디어(영상/사진/블롭) 위에
+/// 피드 카드와 동일한 정보 오버레이(+ 매칭 글 지원 버튼), 댓글은 바텀시트.
 class PostDetailScreen extends StatefulWidget {
   final Post post;
   final bool isGuest;
@@ -121,11 +120,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return true;
   }
 
-  Future<void> _toggleFollow() async {
-    if (!_guard('팔로우는 로그인 후 할 수 있어요')) return;
-    await _state.toggleFollow();
-  }
-
   void _startChat() {
     if (!_guard('채팅은 로그인 후 이용할 수 있어요')) return;
     openDirectChat(context, _state.post.userId);
@@ -151,7 +145,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  /// 영상 글의 댓글 바텀시트 — 기존 댓글 리스트 + 입력창을 시트로.
+  /// 댓글 바텀시트(전 카테고리) — 기존 댓글 리스트 + 입력창을 시트로.
   /// 열람은 게스트도 가능(작성은 [_sendComment] 의 가드가 막는다).
   void _openComments() {
     // 전역 키보드 배리어를 시트가 열려 있는 동안 끈다 — 배리어가 켜져 있으면
@@ -223,6 +217,74 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     Navigator.push(
       context,
       AppPageRoute(builder: (_) => ApplicantsScreen(post: _state.post)),
+    );
+  }
+
+  /// 오버레이 닉네임 탭 → 작성자 프로필. 직전 화면이 이 작성자의 프로필이면
+  /// 새로 쌓지 않고 되돌아간다(프로필→게시글→작성자… 무한 스택 방지).
+  void _openAuthor() {
+    final post = _state.post;
+    if (post.userId.isEmpty) return;
+    if (widget.fromUserId != null && widget.fromUserId == post.userId) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    Navigator.push(
+      context,
+      CollapseRoute(
+        builder: (_) => UserProfileScreen(
+          userId: post.userId,
+          previewNickname: post.authorNickname,
+          originRect: riseOriginRect(context),
+          cardRadius: 24,
+          // 프로필에서 이 게시글을 다시 열면 pop(무한 왕복 방지).
+          fromPostId: post.id,
+          // 작성 모드가 얼굴을 결정 — 개인 글 작성자는 개인 얼굴만
+          // (업체 글은 상호로 표시되고 업체 얼굴로 연다, 0025).
+          forcePersonalFace: post.authoredAs != 'business',
+        ),
+      ),
+    );
+  }
+
+  /// 매칭 카테고리(산책·돌봄·나눔) 전용 — 오버레이의 본문/약속 필과 하단 스탯
+  /// 행 사이에 들어갈 지원 액션(카드에는 없음, 상세 전용). 자유·소식 글이나
+  /// 노출 조건 미충족이면 null. 기존 노출 조건 유지:
+  /// 내 글(관리자) → 지원자 보기, 모집 중 + 남의 글 → 지원하기(업체 모드 안내).
+  Widget? _applySection() {
+    final post = _state.post;
+    if (_state.isFreePost) return null;
+    if (_state.canManage) {
+      return _OverlayActionButton(
+        icon: Icons.people_outline,
+        label: '지원자 목록 보기',
+        onTap: _openApplicants,
+      );
+    }
+    if (!_state.managerChecked || post.progressStatus != 'recruiting') {
+      return null;
+    }
+    if (_state.businessMode) {
+      // 업체 모드에선 지원(개인 매칭) 불가 — 버튼 대신 안내.
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: const Color(0x59000000),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          '업체 모드에서는 지원할 수 없어요.\n산책·돌봄 매칭은 일반 모드에서 이용해 주세요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, height: 1.5, color: Colors.white70),
+        ),
+      );
+    }
+    return _OverlayActionButton(
+      icon: Icons.send_outlined,
+      label: '이 게시글에 지원하기',
+      busy: _state.applying,
+      onTap: _state.applying ? null : _apply,
     );
   }
 
@@ -377,15 +439,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           listenable: _state,
           builder: (context, _) {
             final post = _state.post;
-            // 영상 글은 전용 히어로(원본 비율 + 카드 미러 오버레이)로 그린다.
-            final videoHero = post.isVideo && _video != null;
-            final hasImage = post.imageUrl != null && !videoHero;
             return Scaffold(
-              // 영상 글은 투명 — 축소 전환 중 카드(3:4) 아래로 뒤 피드가 비치게
-              // (CollapseRoute opaque:false). 풀스크린에선 영상이 화면을 다 덮는다.
-              backgroundColor: videoHero
-                  ? Colors.transparent
-                  : context.colors.background,
+              // 투명(전 게시글 공통) — 축소 전환 중 카드(3:4) 아래로 뒤 피드가
+              // 비치게(CollapseRoute opaque:false). 풀스크린에선 히어로가
+              // 화면을 다 덮는다.
+              backgroundColor: Colors.transparent,
               // 히어로(사진 또는 블롭 본문)가 상태바까지 차오르도록 앱바를 투명 오버레이로.
               extendBodyBehindAppBar: true,
               appBar: AppBar(
@@ -424,454 +482,35 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   const SizedBox(width: 8),
                 ],
               ),
-              // 영상 글 — 쇼츠형: 화면 = 전체화면 영상 하나. 스크롤 본문 없이
-              // 뷰포트 높이 1장짜리 리스트로 CollapsibleView 의 당겨서 카드로
-              // 축소하는 드래그 메커니즘만 보존한다. 댓글은 바텀시트, 하트는
-              // 오버레이에서 바로 토글.
-              body: videoHero
-                  ? ListView(
-                      controller: _scroll,
-                      physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
-                      padding: EdgeInsets.zero,
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.sizeOf(context).height,
-                          child: PostVideoHero(
-                            post: post,
-                            controller: _video!,
-                            error: _videoError,
-                            onHeart: _toggleHeart,
-                            onComments: _openComments,
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView(
-                      controller: _scroll,
-                      physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
-                      padding: const EdgeInsets.only(bottom: 24),
-                      children: [
-                        // 히어로 — 사진 글은 카드와 동일 비율의 대표사진, 사진 없는
-                        // 글은 카드와 같은 블롭 배경 + 본문(같은 위치/스타일)로
-                        // 축소 전환 시 피드 카드와 그대로 겹쳐진다.
-                        AspectRatio(
-                          aspectRatio: kPostImageAspectRatio,
-                          child: hasImage
-                              ? Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    Image.network(
-                                      post.imageUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => ColoredBox(
-                                        color: context.colors.surfaceMuted,
-                                      ),
-                                    ),
-                                    // 상태바 스크림 — 어두운 사진에서도 시간·배터리
-                                    // (어두운 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
-                                    Positioned(
-                                      top: 0,
-                                      left: 0,
-                                      right: 0,
-                                      height:
-                                          MediaQuery.paddingOf(context).top +
-                                          24,
-                                      child: const IgnorePointer(
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                Colors.white70,
-                                                Colors.transparent,
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : _BlobHero(post: post),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: _infoChildren(contentInHero: !hasImage),
-                          ),
-                        ),
-                      ],
-                    ),
-              // 영상 글은 하단 입력바 없음 — 댓글 입력은 시트 안에.
-              bottomNavigationBar: videoHero
-                  ? null
-                  : _BottomBar(
+              // 전 카테고리 쇼츠형 — 화면 = 전체화면 미디어(영상/사진/블롭)
+              // 하나. 스크롤 본문 없이 뷰포트 높이 1장짜리 리스트로
+              // CollapsibleView 의 당겨서 카드로 축소하는 드래그 메커니즘만
+              // 보존한다. 댓글은 바텀시트, 하트·지원은 오버레이에서.
+              body: ListView(
+                controller: _scroll,
+                physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
+                padding: EdgeInsets.zero,
+                children: [
+                  SizedBox(
+                    height: MediaQuery.sizeOf(context).height,
+                    child: PostMediaHero(
                       post: post,
-                      controller: _commentCtrl,
-                      sending: _state.sending,
+                      controller: _video,
+                      videoError: _videoError,
                       onHeart: _toggleHeart,
-                      onSend: _sendComment,
+                      onComments: _openComments,
+                      onAuthorTap: _openAuthor,
+                      overlayExtra: _applySection(),
                     ),
+                  ),
+                ],
+              ),
             );
           },
         ),
       ),
     );
   }
-
-  /// 히어로에 본문이 다 담겼는지(9줄·짧은 글). 넘치면 아래에 전문을 보여준다.
-  bool get _heroHoldsFullContent {
-    final c = _state.post.content;
-    return c.length <= 180 && '\n'.allMatches(c).length < 9;
-  }
-
-  /// 본문 정보 위젯들(카테고리 칩부터 댓글까지) — 사진·블롭 글 전용
-  /// (영상 글은 쇼츠형 전체화면이라 이 섹션을 그리지 않는다).
-  /// [contentInHero] 가 true(사진 없는 글)면 본문이 상단 히어로에 있으므로,
-  /// 히어로에서 잘리는 긴 글에만 전문을 아래에 덧붙인다.
-  List<Widget> _infoChildren({required bool contentInHero}) {
-    final post = _state.post;
-    final color = categoryColor(context, post.category);
-    final showContent = !contentInHero || !_heroHoldsFullContent;
-    return [
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(100),
-          ),
-          child: Text(
-            categoryLabel(post.category),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-        ),
-      ),
-      const SizedBox(height: 14),
-      Text(
-        post.title,
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          color: context.colors.textPrimary,
-          height: 1.3,
-        ),
-      ),
-      const SizedBox(height: 14),
-      _AuthorRow(
-        post: post,
-        showFollow: !widget.isGuest && !_state.isMyPost,
-        following: _state.following,
-        onFollow: _toggleFollow,
-        popInstead:
-            widget.fromUserId != null && widget.fromUserId == post.userId,
-      ),
-      if (showContent) ...[
-        const SizedBox(height: 20),
-        Divider(height: 1, color: context.colors.border),
-        const SizedBox(height: 20),
-        Text(
-          post.content,
-          style: TextStyle(
-            fontSize: 15,
-            color: context.colors.textPrimary,
-            height: 1.7,
-          ),
-        ),
-      ],
-      if (post.scheduledAt != null || post.location != null) ...[
-        const SizedBox(height: 24),
-        _InfoBox(post: post),
-      ],
-      if (!_state.isFreePost && _state.canManage) ...[
-        const SizedBox(height: 20),
-        OutlinedButton.icon(
-          onPressed: _openApplicants,
-          icon: const Icon(Icons.people_outline),
-          label: const Text('지원자 목록 보기'),
-        ),
-      ] else if (!_state.isFreePost &&
-          _state.managerChecked &&
-          post.progressStatus == 'recruiting') ...[
-        const SizedBox(height: 20),
-        // 업체 모드에선 지원(개인 매칭) 불가 — 버튼 대신 안내.
-        if (_state.businessMode)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            decoration: BoxDecoration(
-              color: context.colors.surfaceMuted,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '업체 모드에서는 지원할 수 없어요.\n산책·돌봄 매칭은 일반 모드에서 이용해 주세요.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color: context.colors.textSecondary,
-              ),
-            ),
-          )
-        else
-          OutlinedButton.icon(
-            onPressed: _state.applying ? null : _apply,
-            icon: _state.applying
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send_outlined),
-            label: const Text('이 게시글에 지원하기'),
-          ),
-      ],
-      const SizedBox(height: 28),
-      Text(
-        '댓글 ${_state.comments.length}',
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          color: context.colors.textPrimary,
-        ),
-      ),
-      const SizedBox(height: 12),
-      _CommentList(
-        loading: _state.loadingComments,
-        comments: _state.comments,
-        myUserId: SessionManager.instance.user?.id,
-        onReport: _openCommentMenu,
-      ),
-    ];
-  }
-}
-
-class _AuthorRow extends StatelessWidget {
-  final Post post;
-  final bool showFollow;
-  final bool following;
-  final VoidCallback onFollow;
-
-  /// 직전 화면이 이 작성자의 프로필 — 새로 쌓지 않고 되돌아간다(무한 왕복 방지).
-  final bool popInstead;
-
-  const _AuthorRow({
-    required this.post,
-    required this.showFollow,
-    required this.following,
-    required this.onFollow,
-    this.popInstead = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 닉네임 탭 → 작성자 프로필. 피드 카드의 닉네임과 동일한 모달 문법 —
-            // 아래에서 떠오르고, 당기거나 뒤로가기 하면 아래로 내려가며 닫힌다.
-            GestureDetector(
-              onTap: post.userId.isEmpty
-                  ? null
-                  // 방금 그 프로필에서 왔으면 축소 애니메이션을 태워 되돌아간다.
-                  : popInstead
-                  ? () => Navigator.of(context).maybePop()
-                  : () => Navigator.push(
-                      context,
-                      CollapseRoute(
-                        builder: (_) => UserProfileScreen(
-                          userId: post.userId,
-                          previewNickname: post.authorNickname,
-                          originRect: riseOriginRect(context),
-                          cardRadius: 24,
-                          // 프로필에서 이 게시글을 다시 열면 pop(무한 왕복 방지).
-                          fromPostId: post.id,
-                          // 작성 모드가 얼굴을 결정 — 개인 글 작성자는 개인 얼굴만
-                          // (업체 글은 상호로 표시되고 업체 얼굴로 연다, 0025)
-                          forcePersonalFace: post.authoredAs != 'business',
-                        ),
-                      ),
-                    ),
-              child: Text(
-                post.authorNickname,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textPrimary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${timeAgo(post.createdAt)} · 조회 ${post.viewCount}${post.isEdited ? ' · 수정됨' : ''}',
-              style: TextStyle(
-                fontSize: 12,
-                color: context.colors.textTertiary,
-              ),
-            ),
-          ],
-        ),
-        const Spacer(),
-        if (showFollow) _FollowButton(following: following, onTap: onFollow),
-      ],
-    );
-  }
-}
-
-/// 팔로우(Pawing) 토글 버튼.
-class _FollowButton extends StatelessWidget {
-  final bool following;
-  final VoidCallback onTap;
-  const _FollowButton({required this.following, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: following
-              ? context.colors.surface
-              : context.colors.primaryDark,
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-            color: following
-                ? context.colors.border
-                : context.colors.primaryDark,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              following ? Icons.check : Icons.add,
-              size: 14,
-              color: following
-                  ? context.colors.textSecondary
-                  : context.colors.textOnPrimary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              following ? 'Pawing 중' : 'Pawing',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: following
-                    ? context.colors.textSecondary
-                    : context.colors.textOnPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoBox extends StatelessWidget {
-  final Post post;
-  const _InfoBox({required this.post});
-
-  // 약속 일정 — 연도 생략·오전/오후 12시제로 짧게(한 줄에 들어가게).
-  static String _formatSchedule(DateTime d) {
-    final ampm = d.hour < 12 ? '오전' : '오후';
-    final h12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
-    final min = d.minute == 0 ? '' : ' ${d.minute}분';
-    return '${d.month}월 ${d.day}일 $ampm $h12시$min';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.colors.border, width: 0.5),
-      ),
-      child: Column(
-        children: [
-          if (post.scheduledAt != null)
-            _row(
-              context,
-              Icons.event_outlined,
-              '약속 일정',
-              _formatSchedule(post.scheduledAt!),
-            ),
-          if (post.scheduledAt != null && post.location != null)
-            const SizedBox(height: 12),
-          if (post.location != null)
-            _row(context, Icons.place_outlined, '위치', post.location!),
-          if (post.authorMoved) ...[
-            const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: context.colors.warning,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '작성자가 현재 다른 지역에 있어요.\n위 위치는 작성 당시 활동 동네예요.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: context.colors.warning,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _row(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String value,
-  ) => Row(
-    children: [
-      Icon(icon, size: 18, color: context.colors.primaryDark),
-      const SizedBox(width: 10),
-      Text(
-        label,
-        style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
-      ),
-      const SizedBox(width: 12),
-      // 값은 남은 폭을 모두 차지하고 우측 정렬 — 한 줄 유지(넘치면 …).
-      Expanded(
-        child: Text(
-          value,
-          textAlign: TextAlign.right,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: context.colors.textPrimary,
-          ),
-        ),
-      ),
-    ],
-  );
 }
 
 class _CommentList extends StatelessWidget {
@@ -989,125 +628,7 @@ class _CommentList extends StatelessWidget {
   }
 }
 
-class _BottomBar extends StatelessWidget {
-  final Post post;
-  final TextEditingController controller;
-  final bool sending;
-  final VoidCallback onHeart;
-  final VoidCallback onSend;
-
-  const _BottomBar({
-    required this.post,
-    required this.controller,
-    required this.sending,
-    required this.onHeart,
-    required this.onSend,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        border: Border(
-          top: BorderSide(color: context.colors.border, width: 0.5),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        // 키보드가 올라오면 입력바가 그 위로 붙게 — bottomNavigationBar 는
-        // viewInsets 를 자동 반영하지 않아 직접 더한다(후기 상세와 동일 수정).
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            12,
-            8,
-            12,
-            8 + MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: onHeart,
-                behavior: HitTestBehavior.opaque,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      post.hearted ? Icons.favorite : Icons.favorite_border,
-                      color: post.hearted
-                          ? context.colors.danger
-                          : context.colors.textSecondary,
-                    ),
-                    Text(
-                      '${post.heartCount}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: context.colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  minLines: 1,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: '댓글을 입력하세요',
-                    filled: true,
-                    fillColor: context.colors.surfaceMuted,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(100),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(100),
-                      borderSide: BorderSide(
-                        color: context.colors.primary,
-                        width: 1.2,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                decoration: BoxDecoration(
-                  color: context.colors.primaryDark,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: sending
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: context.colors.textOnPrimary,
-                          ),
-                        )
-                      : Icon(
-                          Icons.arrow_upward,
-                          color: context.colors.textOnPrimary,
-                        ),
-                  onPressed: sending ? null : onSend,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 영상 글의 댓글 바텀시트 — 그랩바·카운트 헤더 + 댓글 리스트(드래그 확장) +
+/// 댓글 바텀시트(전 카테고리) — 그랩바·카운트 헤더 + 댓글 리스트(드래그 확장) +
 /// 하단 입력창. 상태는 [PostDetailState] 를 그대로 구독해 작성·갱신이 화면과
 /// 실시간으로 동기화된다(시트를 닫으면 오버레이 카운트에도 반영).
 class _CommentsSheet extends StatefulWidget {
@@ -1288,81 +809,57 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   }
 }
 
-/// 사진 없는 글의 상단 히어로 — 피드 카드와 동일한 블롭·본문 배치로 전환을 잇고,
-/// 확장이 끝나면 본문을 히어로 정중앙으로 살짝 내려 앉힌다. 축소(드래그/뒤로가기)가
-/// 시작되면 즉시 카드 위치(하단 정보 여백 170)로 되돌려 피드 카드와 겹치게 한다.
-class _BlobHero extends StatefulWidget {
-  final Post post;
-  const _BlobHero({required this.post});
+/// 오버레이 위 지원 액션 버튼 — 어두운 스크림/미디어 위에서도 읽히는 밝은
+/// 필름 알약(카테고리 태그와 같은 문법). 상세 전용(카드에는 없음).
+class _OverlayActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool busy;
+  final VoidCallback? onTap;
 
-  @override
-  State<_BlobHero> createState() => _BlobHeroState();
-}
-
-class _BlobHeroState extends State<_BlobHero> {
-  Animation<double>? _progress;
-  bool _centered = false; // true=히어로 정중앙, false=피드 카드와 동일 배치
-  bool _initialized = false;
-
-  void _onTick() {
-    final want = (_progress?.value ?? 1) >= 1.0;
-    if (want != _centered && mounted) setState(() => _centered = want);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final p = CollapseProgress.of(context);
-    if (!identical(p, _progress)) {
-      _progress?.removeListener(_onTick);
-      _progress = p;
-      _progress?.addListener(_onTick);
-    }
-    if (!_initialized) {
-      _initialized = true;
-      // 전환 없이 열린 화면(비확장 진입)은 처음부터 중앙 정렬.
-      _centered = (p?.value ?? 1) >= 1.0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _progress?.removeListener(_onTick);
-    super.dispose();
-  }
+  const _OverlayActionButton({
+    required this.icon,
+    required this.label,
+    this.busy = false,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        BlobBackground(
-          seed: widget.post.id,
-          color: categoryColor(context, widget.post.category),
+    final color = context.colors.primaryDark;
+    return Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(12),
         ),
-        Positioned.fill(
-          child: AnimatedPadding(
-            // 내려앉기는 여유 있게, 축소 복귀는 전환이 끝나기 전에 빠르게.
-            duration: Duration(milliseconds: _centered ? 380 : 150),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.fromLTRB(22, 24, 22, _centered ? 24 : 170),
-            child: Center(
-              child: Text(
-                widget.post.content,
-                textAlign: TextAlign.center,
-                maxLines: 9,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: context.colors.textPrimary,
-                  height: 1.6,
-                ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (busy)
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: color),
+              )
+            else
+              Icon(icon, size: 17, color: color),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: color,
               ),
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

@@ -337,9 +337,10 @@ class _OverlayPanel extends StatelessWidget {
                 ).createShader(rect),
                 blendMode: BlendMode.dstIn,
                 child: ImageFiltered(
+                  // 카드(σ22)보다 절반 수준 — 전체화면에선 영상 질감이 더 비치게.
                   imageFilter: ui.ImageFilter.blur(
-                    sigmaX: 22,
-                    sigmaY: 22,
+                    sigmaX: 11,
+                    sigmaY: 11,
                     tileMode: ui.TileMode.clamp,
                   ),
                   child: Align(

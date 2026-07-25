@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 
 import '../models/community.dart';
@@ -153,7 +151,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
     if (file == null) return;
     final raw = await file.readAsBytes();
     if (!mounted) return;
-    final cropped = await Navigator.push<Uint8List>(
+    final cropped = await Navigator.push<CroppedImage>(
       context,
       AppPageRoute(
         fullscreenDialog: true,
@@ -164,10 +162,10 @@ class _PostEditScreenState extends State<PostEditScreen> {
     setState(() => _uploading = true);
     try {
       final up = await StorageService.instance.uploadBytes(
-        cropped,
+        cropped.bytes,
         category: 'posts',
-        ext: 'jpg',
-        mime: 'image/jpeg',
+        ext: cropped.ext,
+        mime: cropped.mime,
       );
       if (!mounted) return;
       setState(() {

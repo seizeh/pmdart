@@ -89,6 +89,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (post.isVideo && post.imageUrl != null) {
       final video = VideoPlayerController.networkUrl(Uri.parse(post.imageUrl!));
       _video = video;
+      // 끝나면 바로 이어서 반복 재생(쇼츠 문법).
+      video.setLooping(true);
       video
           .initialize()
           .then((_) {
@@ -379,7 +381,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             final videoHero = post.isVideo && _video != null;
             final hasImage = post.imageUrl != null && !videoHero;
             return Scaffold(
-              backgroundColor: context.colors.background,
+              // 영상 글은 투명 — 축소 전환 중 카드(3:4) 아래로 뒤 피드가 비치게
+              // (CollapseRoute opaque:false). 풀스크린에선 영상이 화면을 다 덮는다.
+              backgroundColor: videoHero
+                  ? Colors.transparent
+                  : context.colors.background,
               // 히어로(사진 또는 블롭 본문)가 상태바까지 차오르도록 앱바를 투명 오버레이로.
               extendBodyBehindAppBar: true,
               appBar: AppBar(

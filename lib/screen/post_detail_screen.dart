@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:share_plus/share_plus.dart';
+import 'package:video_player/video_player.dart';
 
 import '../models/community.dart';
 import '../motion/motion.dart';
@@ -16,6 +17,7 @@ import '../utils/share_links.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/media_widgets.dart';
 import '../widgets/overlay_icon_button.dart';
+import '../widgets/post_video_hero.dart';
 import '../widgets/report_sheet.dart';
 import '../widgets/role_badge.dart';
 import 'applicants_screen.dart';
@@ -75,16 +77,36 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   // 본문 최상단에서 아래로 당기면 카드로 축소되는 CollapsibleView 용 스크롤 컨트롤러.
   final _scroll = ScrollController();
 
+  // 영상 글의 히어로/컨트롤 바가 공유하는 컨트롤러 — 화면이 소유한다.
+  VideoPlayerController? _video;
+  bool _videoError = false;
+
   @override
   void initState() {
     super.initState();
     _state.init();
+    final post = widget.post;
+    if (post.isVideo && post.imageUrl != null) {
+      final video = VideoPlayerController.networkUrl(Uri.parse(post.imageUrl!));
+      _video = video;
+      video
+          .initialize()
+          .then((_) {
+            if (!mounted) return;
+            setState(() {});
+            video.play();
+          })
+          .catchError((Object e) {
+            if (mounted) setState(() => _videoError = true);
+          });
+    }
   }
 
   @override
   void dispose() {
     _commentCtrl.dispose();
     _scroll.dispose();
+    _video?.dispose();
     _state.dispose();
     super.dispose();
   }
@@ -326,7 +348,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           listenable: _state,
           builder: (context, _) {
             final post = _state.post;
-            final hasImage = post.imageUrl != null;
+            // 영상 글은 전용 히어로(원본 비율 + 카드 미러 오버레이)로 그린다.
+            final videoHero = post.isVideo && _video != null;
+            final hasImage = post.imageUrl != null && !videoHero;
             return Scaffold(
               backgroundColor: context.colors.background,
               // 히어로(사진 또는 블롭 본문)가 상태바까지 차오르도록 앱바를 투명 오버레이로.
@@ -372,23 +396,27 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
                 padding: const EdgeInsets.only(bottom: 24),
                 children: [
-                  // 히어로 — 피드 카드와 동일 비율. 사진 글은 대표사진,
-                  // 사진 없는 글은 카드와 같은 블롭 배경 + 본문(같은 위치/스타일)로
-                  // 축소 전환 시 피드 카드와 그대로 겹쳐진다.
-                  AspectRatio(
-                    aspectRatio: kPostImageAspectRatio,
-                    child: hasImage
-                        ? Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              // 영상 글 — 진입 즉시 인라인 자동재생. 구간·소리·
-                              // 전체화면은 하단 컨트롤 바에서 바로 조절한다.
-                              if (post.isVideo)
-                                InlineVideoPlayer(
-                                  url: post.imageUrl!,
-                                  posterUrl: post.imageThumbUrl,
-                                )
-                              else
+                  // 히어로 — 영상 글은 원본 비율 영상 + 카드 미러 블러 오버레이,
+                  // 사진 글은 카드와 동일 비율의 대표사진, 사진 없는 글은 카드와
+                  // 같은 블롭 배경 + 본문(같은 위치/스타일). 셋 모두 축소 전환 시
+                  // 피드 카드와 그대로 겹쳐진다.
+                  if (videoHero) ...[
+                    PostVideoHero(
+                      post: post,
+                      controller: _video!,
+                      error: _videoError,
+                      onHeart: _toggleHeart,
+                    ),
+                    // 컨트롤 바 — 히어로와 본문 사이 경계의 슬림 바(테마 색).
+                    // 카드에는 없는 요소라 축소 전환이 시작되면 페이드아웃.
+                    _CollapseFade(child: VideoControlBar(controller: _video!)),
+                  ] else
+                    AspectRatio(
+                      aspectRatio: kPostImageAspectRatio,
+                      child: hasImage
+                          ? Stack(
+                              fit: StackFit.expand,
+                              children: [
                                 Image.network(
                                   post.imageUrl!,
                                   fit: BoxFit.cover,
@@ -396,37 +424,41 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                     color: context.colors.surfaceMuted,
                                   ),
                                 ),
-                              // 상태바 스크림 — 어두운 사진에서도 시간·배터리(어두운
-                              // 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
-                              Positioned(
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                height: MediaQuery.paddingOf(context).top + 24,
-                                child: const IgnorePointer(
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          Colors.white70,
-                                          Colors.transparent,
-                                        ],
+                                // 상태바 스크림 — 어두운 사진에서도 시간·배터리
+                                // (어두운 아이콘)가 읽히도록 사진 위쪽만 옅게 밝힌다.
+                                Positioned(
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  height:
+                                      MediaQuery.paddingOf(context).top + 24,
+                                  child: const IgnorePointer(
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.white70,
+                                            Colors.transparent,
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          )
-                        : _BlobHero(post: post),
-                  ),
+                              ],
+                            )
+                          : _BlobHero(post: post),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: _infoChildren(contentInHero: !hasImage),
+                      children: _infoChildren(
+                        contentInHero: !hasImage && !videoHero,
+                        videoHero: videoHero,
+                      ),
                     ),
                   ),
                 ],
@@ -454,40 +486,48 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   /// 본문 정보 위젯들(카테고리 칩부터 댓글까지).
   /// [contentInHero] 가 true(사진 없는 글)면 본문이 상단 히어로에 있으므로,
   /// 히어로에서 잘리는 긴 글에만 전문을 아래에 덧붙인다.
-  List<Widget> _infoChildren({required bool contentInHero}) {
+  /// [videoHero] 가 true(영상 글)면 카테고리·제목·본문이 히어로 오버레이에
+  /// 있으므로 아래에서 빼고(중복 방지), 작성자 카드부터 이어간다.
+  List<Widget> _infoChildren({
+    required bool contentInHero,
+    bool videoHero = false,
+  }) {
     final post = _state.post;
     final color = categoryColor(context, post.category);
-    final showContent = !contentInHero || !_heroHoldsFullContent;
+    final showContent =
+        !videoHero && (!contentInHero || !_heroHoldsFullContent);
     return [
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(100),
-          ),
-          child: Text(
-            categoryLabel(post.category),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: color,
+      if (!videoHero) ...[
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              categoryLabel(post.category),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
             ),
           ),
         ),
-      ),
-      const SizedBox(height: 14),
-      Text(
-        post.title,
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          color: context.colors.textPrimary,
-          height: 1.3,
+        const SizedBox(height: 14),
+        Text(
+          post.title,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textPrimary,
+            height: 1.3,
+          ),
         ),
-      ),
-      const SizedBox(height: 14),
+        const SizedBox(height: 14),
+      ],
       _AuthorRow(
         post: post,
         showFollow: !widget.isGuest && !_state.isMyPost,
@@ -1026,6 +1066,57 @@ class _BottomBar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 확장/축소 전환 중(진행도 < 1)에는 숨고, 풀스크린에 안착하면 나타나는 래퍼 —
+/// 영상 컨트롤 바처럼 피드 카드에 없는 요소가 카드 모프에 섞여 보이지 않게 한다.
+class _CollapseFade extends StatefulWidget {
+  final Widget child;
+  const _CollapseFade({required this.child});
+
+  @override
+  State<_CollapseFade> createState() => _CollapseFadeState();
+}
+
+class _CollapseFadeState extends State<_CollapseFade> {
+  Animation<double>? _progress;
+  bool _visible = true;
+  bool _initialized = false;
+
+  void _onTick() {
+    final want = (_progress?.value ?? 1) >= 1.0;
+    if (want != _visible && mounted) setState(() => _visible = want);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final p = CollapseProgress.of(context);
+    if (!identical(p, _progress)) {
+      _progress?.removeListener(_onTick);
+      _progress = p;
+      _progress?.addListener(_onTick);
+    }
+    if (!_initialized) {
+      _initialized = true;
+      _visible = (p?.value ?? 1) >= 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _progress?.removeListener(_onTick);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _visible ? 1 : 0,
+      duration: const Duration(milliseconds: 120),
+      child: widget.child,
     );
   }
 }

@@ -66,7 +66,7 @@ class PostCard extends StatelessWidget {
               if (displayUrl != null)
                 Positioned.fill(
                   child: ClipRect(
-                    clipper: const _BottomFractionClipper(0.40),
+                    clipper: const BottomFractionClipper(0.40),
                     child: ShaderMask(
                       shaderCallback: (rect) => const LinearGradient(
                         begin: Alignment.topCenter,
@@ -133,134 +133,263 @@ class PostCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // 정보 — 블러 구간 위.
+              // 정보 — 블러 구간 위(상세 히어로와 공유하는 카드 미러).
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          _CategoryTag(category: post.category, color: color),
-                          if (post.location != null &&
-                              post.location!.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: _DongTag(
-                                label: post.location!,
-                                moved: post.authorMoved,
-                              ),
-                            ),
-                          ],
-                          const Spacer(),
-                          Text(
-                            post.isEdited
-                                ? '${timeAgo(post.createdAt)} · 수정됨'
-                                : timeAgo(post.createdAt),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xCCFFFFFF),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        post.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                      // 본문 미리보기 — 사진 없는 글은 상단 히어로로 옮겨 중복 표시 안 함.
-                      if (hasPhoto) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          post.content,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xE0FFFFFF),
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                      if (post.scheduledAt != null) ...[
-                        const SizedBox(height: 10),
-                        _MetaPill(
-                          icon: Icons.event_outlined,
-                          label:
-                              '${post.scheduledAt!.month}/${post.scheduledAt!.day} ${post.scheduledAt!.hour}시',
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          // 닉네임 탭 → 작성자 프로필(안쪽 제스처가 카드 탭보다 우선).
-                          // 오프스크린 원점 — 아래에서 떠오르고, 당기거나 뒤로가기
-                          // 하면 아래로 내려가며 닫힌다(모달 문법).
-                          GestureDetector(
-                            onTap: post.userId.isEmpty
-                                ? null
-                                : () => Navigator.push(
-                                    context,
-                                    CollapseRoute(
-                                      builder: (_) => UserProfileScreen(
-                                        userId: post.userId,
-                                        previewNickname: post.authorNickname,
-                                        originRect: riseOriginRect(context),
-                                        cardRadius: 24,
-                                        // 작성 모드가 얼굴을 결정(0025 연결 차단)
-                                        forcePersonalFace:
-                                            post.authoredAs != 'business',
-                                      ),
-                                    ),
-                                  ),
-                            child: Text(
-                              post.authorNickname,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xE6FFFFFF),
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          HeartButton(
-                            active: post.hearted,
-                            count: post.heartCount,
-                            onTap: onHeart,
-                          ),
-                          const SizedBox(width: 14),
-                          _Stat(
-                            icon: Icons.chat_bubble_outline,
-                            value: post.commentCount,
-                            color: const Color(0xCCFFFFFF),
-                          ),
-                          const SizedBox(width: 14),
-                          _Stat(
-                            icon: Icons.visibility_outlined,
-                            value: post.viewCount,
-                            color: const Color(0xCCFFFFFF),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                child: PostCardInfoOverlay(
+                  post: post,
+                  showContent: hasPhoto,
+                  onHeart: onHeart,
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 카드 하단 정보 오버레이 — 카테고리·지역·시간 행, 제목, 본문 미리보기,
+/// 약속 필, 닉네임·하트/댓글/조회 행. [PostCard] 와 게시글 상세의 영상 히어로
+/// (PostVideoHero)가 공유해, 카드 축소 전환 시 두 화면이 픽셀 단위로 겹쳐진다.
+///
+/// [onToggleExpand] 가 주어지면(상세 히어로) 본문이 [previewLines] 를 넘칠 때
+/// "더보기/접기" 버튼을 보여주고 [expanded] 에 따라 본문 전체를 펼친다.
+/// 높이 변화는 AnimatedSize 가 받아 아래 행들을 자연스럽게 밀어낸다.
+/// null 이면(피드 카드) 미리보기 고정 — 기존 카드와 동일.
+class PostCardInfoOverlay extends StatelessWidget {
+  final Post post;
+
+  /// 본문 미리보기 표시 여부(사진/영상 글). 사진 없는 글은 본문이 히어로에 있다.
+  final bool showContent;
+  final VoidCallback? onHeart;
+  final int previewLines;
+  final bool expanded;
+  final VoidCallback? onToggleExpand;
+
+  const PostCardInfoOverlay({
+    super.key,
+    required this.post,
+    this.showContent = true,
+    this.onHeart,
+    this.previewLines = 2,
+    this.expanded = false,
+    this.onToggleExpand,
+  });
+
+  static const _contentStyle = TextStyle(
+    fontSize: 13,
+    color: Color(0xE0FFFFFF),
+    height: 1.5,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final color = categoryColor(context, post.category);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              _CategoryTag(category: post.category, color: color),
+              if (post.location != null && post.location!.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Flexible(
+                  child: _DongTag(
+                    label: post.location!,
+                    moved: post.authorMoved,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              Text(
+                post.isEdited
+                    ? '${timeAgo(post.createdAt)} · 수정됨'
+                    : timeAgo(post.createdAt),
+                style: const TextStyle(fontSize: 12, color: Color(0xCCFFFFFF)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            post.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          // 본문 미리보기 — 사진 없는 글은 상단 히어로로 옮겨 중복 표시 안 함.
+          if (showContent) ...[
+            const SizedBox(height: 4),
+            if (onToggleExpand == null)
+              Text(
+                post.content,
+                maxLines: previewLines,
+                overflow: TextOverflow.ellipsis,
+                style: _contentStyle,
+              )
+            else
+              _ExpandableContent(
+                content: post.content,
+                previewLines: previewLines,
+                expanded: expanded,
+                onToggle: onToggleExpand!,
+              ),
+          ],
+          if (post.scheduledAt != null) ...[
+            const SizedBox(height: 10),
+            _MetaPill(
+              icon: Icons.event_outlined,
+              label:
+                  '${post.scheduledAt!.month}/${post.scheduledAt!.day} ${post.scheduledAt!.hour}시',
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              // 닉네임 탭 → 작성자 프로필(안쪽 제스처가 카드 탭보다 우선).
+              // 오프스크린 원점 — 아래에서 떠오르고, 당기거나 뒤로가기
+              // 하면 아래로 내려가며 닫힌다(모달 문법).
+              GestureDetector(
+                onTap: post.userId.isEmpty
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        CollapseRoute(
+                          builder: (_) => UserProfileScreen(
+                            userId: post.userId,
+                            previewNickname: post.authorNickname,
+                            originRect: riseOriginRect(context),
+                            cardRadius: 24,
+                            // 작성 모드가 얼굴을 결정(0025 연결 차단)
+                            forcePersonalFace: post.authoredAs != 'business',
+                          ),
+                        ),
+                      ),
+                child: Text(
+                  post.authorNickname,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xE6FFFFFF),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              HeartButton(
+                active: post.hearted,
+                count: post.heartCount,
+                onTap: onHeart,
+              ),
+              const SizedBox(width: 14),
+              _Stat(
+                icon: Icons.chat_bubble_outline,
+                value: post.commentCount,
+                color: const Color(0xCCFFFFFF),
+              ),
+              const SizedBox(width: 14),
+              _Stat(
+                icon: Icons.visibility_outlined,
+                value: post.viewCount,
+                color: const Color(0xCCFFFFFF),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 펼치기/접기 가능한 본문 — 미리보기 줄수를 넘치면 "더보기" 버튼을 붙이고,
+/// 펼침/접힘의 높이 변화를 AnimatedSize(스프링 커브)로 재생한다.
+class _ExpandableContent extends StatelessWidget {
+  final String content;
+  final int previewLines;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  const _ExpandableContent({
+    required this.content,
+    required this.previewLines,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: MotionDurations.base,
+      curve: SpringCurve.standard,
+      alignment: Alignment.topCenter,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          // 미리보기 줄수를 넘치는지 실측 — 넘칠 때만 더보기 버튼을 노출.
+          final painter = TextPainter(
+            text: TextSpan(
+              text: content,
+              style: PostCardInfoOverlay._contentStyle,
+            ),
+            maxLines: previewLines,
+            textDirection: TextDirection.ltr,
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout(maxWidth: c.maxWidth);
+          final overflows = painter.didExceedMaxLines;
+          painter.dispose();
+          const dim = Color(0xB8FFFFFF);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                content,
+                maxLines: expanded ? null : previewLines,
+                overflow: expanded ? null : TextOverflow.ellipsis,
+                style: PostCardInfoOverlay._contentStyle,
+              ),
+              if (overflows || expanded)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Pressable(
+                    onTap: onToggle,
+                    borderRadius: BorderRadius.circular(100),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            expanded ? '접기' : '더보기',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: dim,
+                            ),
+                          ),
+                          Icon(
+                            expanded
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
+                            size: 15,
+                            color: dim,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -375,17 +504,18 @@ class _MetaPill extends StatelessWidget {
 }
 
 /// 위쪽 [topFraction] 을 잘라내고 아래만 남기는 클리퍼 — 마스크로 어차피 안 보이는
-/// 상단 구간의 블러 래스터를 건너뛰기 위한 것.
-class _BottomFractionClipper extends CustomClipper<Rect> {
+/// 상단 구간의 블러 래스터를 건너뛰기 위한 것. 상세 영상 히어로의 하단
+/// 백드롭 블러 밴드(PostVideoHero)도 같은 클리퍼를 쓴다.
+class BottomFractionClipper extends CustomClipper<Rect> {
   final double topFraction;
-  const _BottomFractionClipper(this.topFraction);
+  const BottomFractionClipper(this.topFraction);
 
   @override
   Rect getClip(Size size) =>
       Rect.fromLTRB(0, size.height * topFraction, size.width, size.height);
 
   @override
-  bool shouldReclip(_BottomFractionClipper oldClipper) =>
+  bool shouldReclip(BottomFractionClipper oldClipper) =>
       oldClipper.topFraction != topFraction;
 }
 

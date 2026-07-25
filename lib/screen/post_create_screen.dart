@@ -1,5 +1,4 @@
 import 'dart:async' show unawaited;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -911,7 +910,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     final raw = await file.readAsBytes();
     if (!mounted) return;
     // 보여질 영역 조정 화면(취소하면 첨부 중단).
-    final cropped = await Navigator.push<Uint8List>(
+    final cropped = await Navigator.push<CroppedImage>(
       context,
       AppPageRoute(
         fullscreenDialog: true,
@@ -928,10 +927,10 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     });
     try {
       final up = await StorageService.instance.uploadBytes(
-        cropped,
+        cropped.bytes,
         category: 'posts',
-        ext: 'jpg',
-        mime: 'image/jpeg',
+        ext: cropped.ext,
+        mime: cropped.mime,
       );
       if (!mounted) return;
       setState(() {

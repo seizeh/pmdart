@@ -7,13 +7,22 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/community.dart' show kPostImageAspectRatio;
 import '../theme/app_palette.dart';
 
+/// 크롭 결과 — JPEG 재인코딩 성공 시 jpg, 네이티브 인코더 실패 시 PNG 폴백.
+class CroppedImage {
+  final Uint8List bytes;
+  final String ext;
+  final String mime;
+  const CroppedImage(this.bytes, this.ext, this.mime);
+}
+
 /// 갤러리 사진을 게시 표시 비율(3:4)에 맞게 "보여질 영역"을 고르는 화면.
 ///
 /// 원본 사진은 전체가 보이도록(contain) **고정**해두고, 그 위에서 **3:4 크롭 틀이 이동·확대/축소**한다.
 /// 사용자가 틀을 원하는 위치/크기로 맞추면(direct manipulation) 그 영역만 잘라 3:4 바이트로 돌려준다.
-/// 반환: 크롭된 **JPEG** [Uint8List] (취소 시 null) — dart:ui 캔버스 출력은 PNG 뿐인데,
+/// 반환: [CroppedImage] (취소 시 null) — dart:ui 캔버스 출력은 PNG 뿐인데,
 /// 사진성 이미지의 PNG 는 1600px 에서도 12MB(서버 상한)를 넘을 수 있어 네이티브로
-/// JPEG 재인코딩한다(용량 ~1/5, 피드 로딩도 가벼워짐).
+/// JPEG 재인코딩한다(용량 ~1/5). 인코더를 못 쓰는 상황(핫리로드로 네이티브 플러그인
+/// 미탑재 등)에선 PNG 로 폴백해 첨부 자체는 막히지 않게 한다.
 class ImageCropScreen extends StatefulWidget {
   final Uint8List bytes;
   const ImageCropScreen({super.key, required this.bytes});
@@ -143,13 +152,23 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
         if (mounted) setState(() => _saving = false);
         return;
       }
-      final jpeg = await FlutterImageCompress.compressWithList(
-        data.buffer.asUint8List(),
-        quality: 88,
-        format: CompressFormat.jpeg,
-      );
+      final png = data.buffer.asUint8List();
+      CroppedImage result;
+      try {
+        final jpeg = await FlutterImageCompress.compressWithList(
+          png,
+          quality: 88,
+          format: CompressFormat.jpeg,
+        );
+        result = CroppedImage(jpeg, 'jpg', 'image/jpeg');
+      } catch (e) {
+        // 인코더 불가(핫리로드 등) — PNG 폴백. 대형 사진은 서버 12MB 상한에
+        // 걸릴 수 있으나 첨부 자체는 진행된다.
+        debugPrint('crop: jpeg encode fallback ($e)');
+        result = CroppedImage(png, 'png', 'image/png');
+      }
       if (!mounted) return;
-      Navigator.pop(context, jpeg);
+      Navigator.pop(context, result);
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);

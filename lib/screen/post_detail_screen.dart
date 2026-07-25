@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
+import 'package:share_plus/share_plus.dart';
 
 import '../models/community.dart';
 import '../motion/motion.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
+import '../services/community_repository.dart';
 import '../services/report_repository.dart';
 import '../services/session.dart';
 import '../state/post_detail_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel, timeAgo;
+import '../utils/share_links.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/media_widgets.dart';
 import '../widgets/overlay_icon_button.dart';
@@ -195,6 +198,28 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
+  /// 공유 — 뷰어 링크(go.pawmate.kr, 로그인 없이 열람) 발급 후 시스템 공유 시트.
+  /// 링크는 게시글당 재사용·30일 유효(서버), 전 카테고리 공통.
+  bool _sharing = false;
+  Future<void> _sharePost() async {
+    if (!_guard('공유는 로그인 후 할 수 있어요')) return;
+    if (_sharing) return;
+    _sharing = true;
+    try {
+      final token = await CommunityRepository.instance.createPostShareLink(
+        _state.post.id,
+      );
+      if (!mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(text: '${_state.post.title}\n${shareViewUrl(token)}'),
+      );
+    } catch (_) {
+      _toast('공유 링크를 만들지 못했어요. 잠시 후 다시 시도해주세요');
+    } finally {
+      _sharing = false;
+    }
+  }
+
   /// 게시글 상단 메뉴 — 게시글/작성자 신고(본인 글은 메뉴 미노출).
   void _openPostMenu() {
     if (!_guard('신고는 로그인 후 할 수 있어요')) return;
@@ -314,6 +339,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 // (프로필·펫 상세와 동일한 몰입형).
                 automaticallyImplyLeading: false,
                 actions: [
+                  // 공유 — 전 카테고리 공통(내 글·남 글 모두).
+                  OverlayIconButton(
+                    icon: Icons.ios_share,
+                    tooltip: '공유',
+                    onPressed: _sharePost,
+                  ),
                   if (_state.isMyPost)
                     OverlayIconButton(
                       icon: Icons.edit_outlined,
@@ -350,13 +381,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ? Stack(
                             fit: StackFit.expand,
                             children: [
-                              // 영상 글 — 포스터 히어로 + 중앙 ▶, 탭하면 전체화면
-                              // 플레이어. 사진 글은 기존 대표사진 그대로.
+                              // 영상 글 — 진입 즉시 인라인 자동재생. 구간·소리·
+                              // 전체화면은 하단 컨트롤 바에서 바로 조절한다.
                               if (post.isVideo)
-                                VideoPosterTile(
-                                  videoUrl: post.imageUrl!,
+                                InlineVideoPlayer(
+                                  url: post.imageUrl!,
                                   posterUrl: post.imageThumbUrl,
-                                  badgeSize: 56,
                                 )
                               else
                                 Image.network(

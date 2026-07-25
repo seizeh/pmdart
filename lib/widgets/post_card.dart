@@ -8,7 +8,6 @@ import '../screen/user_profile_screen.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel, timeAgo;
 import 'blob_background.dart';
-import 'media_widgets.dart' show VideoPlayBadge;
 import 'role_badge.dart';
 
 /// 커뮤니티 게시글 카드 — 애플뮤직 아티스트 카드 스타일.
@@ -118,8 +117,6 @@ class PostCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              // 영상 글 — 중앙 ▶ 배지(포스터/어두운 타일 공통).
-              if (post.isVideo) const Center(child: VideoPlayBadge(size: 52)),
               // 가독용 스크림.
               const Positioned(
                 left: 0,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -11,12 +13,19 @@ import '../theme/app_palette.dart';
 const Color _kVideoFallbackBg = Color(0xFF2B2B2B);
 
 /// 전체화면 플레이어 열기 — 채팅 이미지 뷰어와 동일한 페이드 전환(검정 배리어).
-void openVideoPlayer(BuildContext context, String url) {
+/// [controller] 를 넘기면 재생 상태를 공유한다(인라인 → 전체화면 이어보기,
+/// 닫아도 인라인이 같은 위치에서 계속). 소유권은 호출자에 남는다.
+void openVideoPlayer(
+  BuildContext context,
+  String url, {
+  VideoPlayerController? controller,
+}) {
   Navigator.of(context).push(
     PageRouteBuilder(
       opaque: false,
       barrierColor: Colors.black,
-      pageBuilder: (_, _, _) => VideoPlayerScreen(url: url),
+      pageBuilder: (_, _, _) =>
+          VideoPlayerScreen(url: url, controller: controller),
       transitionsBuilder: (_, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
     ),
@@ -105,9 +114,11 @@ class VideoPlayBadge extends StatelessWidget {
 
 /// 전체화면 영상 플레이어 — 네트워크 재생, 재생/일시정지·진행바·닫기.
 /// 화면 탭으로 컨트롤을 토글하고, 배경 검정(채팅 이미지 뷰어와 동일 문법).
+/// [controller] 가 주어지면 그 재생 상태를 이어받는다(소유·해제는 호출자 책임).
 class VideoPlayerScreen extends StatefulWidget {
   final String url;
-  const VideoPlayerScreen({super.key, required this.url});
+  final VideoPlayerController? controller;
+  const VideoPlayerScreen({super.key, required this.url, this.controller});
 
   @override
   State<VideoPlayerScreen> createState() => _VideoPlayerScreenState();
@@ -115,23 +126,31 @@ class VideoPlayerScreen extends StatefulWidget {
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   late final VideoPlayerController _controller;
+  late final bool _ownsController;
   bool _error = false;
   bool _showControls = true;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    _controller
-        .initialize()
-        .then((_) {
-          if (!mounted) return;
-          setState(() {});
-          _controller.play();
-        })
-        .catchError((Object e) {
-          if (mounted) setState(() => _error = true);
-        });
+    _ownsController = widget.controller == null;
+    _controller =
+        widget.controller ??
+        VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    if (_ownsController) {
+      _controller
+          .initialize()
+          .then((_) {
+            if (!mounted) return;
+            setState(() {});
+            _controller.play();
+          })
+          .catchError((Object e) {
+            if (mounted) setState(() => _error = true);
+          });
+    } else if (_controller.value.hasError) {
+      _error = true;
+    }
     // 재생/일시정지·종료 등 상태 변화에 맞춰 컨트롤 아이콘 갱신.
     _controller.addListener(_onTick);
   }
@@ -143,7 +162,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void dispose() {
     _controller.removeListener(_onTick);
-    _controller.dispose();
+    if (_ownsController) _controller.dispose();
     super.dispose();
   }
 
@@ -274,6 +293,265 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 인라인 자동재생 플레이어 — 게시글 상세 히어로용. 진입 즉시 재생되고,
+/// 하단 컨트롤 바에서 재생/일시정지·구간·소리·전체화면을 바로 조절한다.
+/// 부모가 크기를 결정한다(히어로의 AspectRatio 안에서 fill).
+class InlineVideoPlayer extends StatefulWidget {
+  final String url;
+  final String? posterUrl;
+
+  const InlineVideoPlayer({super.key, required this.url, this.posterUrl});
+
+  @override
+  State<InlineVideoPlayer> createState() => _InlineVideoPlayerState();
+}
+
+class _InlineVideoPlayerState extends State<InlineVideoPlayer> {
+  late final VideoPlayerController _controller;
+  bool _error = false;
+  bool _showVolume = false;
+  Timer? _volumeHide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _controller
+        .initialize()
+        .then((_) {
+          if (!mounted) return;
+          setState(() {});
+          _controller.play();
+        })
+        .catchError((Object e) {
+          if (mounted) setState(() => _error = true);
+        });
+    _controller.addListener(_onTick);
+  }
+
+  void _onTick() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _volumeHide?.cancel();
+    _controller.removeListener(_onTick);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _togglePlay() {
+    if (!_controller.value.isInitialized) return;
+    if (_controller.value.isPlaying) {
+      _controller.pause();
+    } else {
+      if (_controller.value.position >= _controller.value.duration) {
+        _controller.seekTo(Duration.zero);
+      }
+      _controller.play();
+    }
+  }
+
+  void _toggleVolumePanel() {
+    setState(() => _showVolume = !_showVolume);
+    _volumeHide?.cancel();
+    if (_showVolume) {
+      _volumeHide = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _showVolume = false);
+      });
+    }
+  }
+
+  void _setVolume(double v) {
+    _controller.setVolume(v);
+    // 조절 중엔 자동 숨김 타이머 연장.
+    _volumeHide?.cancel();
+    _volumeHide = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _showVolume = false);
+    });
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = _controller.value;
+    if (_error) {
+      return const ColoredBox(
+        color: _kVideoFallbackBg,
+        child: Center(child: _PlayerError()),
+      );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 본체 — 초기화 전엔 포스터(있으면) + 스피너로 레이아웃 점프 없이 대기.
+        if (v.isInitialized)
+          FittedBox(
+            fit: BoxFit.cover,
+            clipBehavior: Clip.hardEdge,
+            child: SizedBox(
+              width: v.size.width,
+              height: v.size.height,
+              child: VideoPlayer(_controller),
+            ),
+          )
+        else ...[
+          if (widget.posterUrl != null)
+            Image.network(
+              widget.posterUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) =>
+                  const ColoredBox(color: _kVideoFallbackBg),
+            )
+          else
+            const ColoredBox(color: _kVideoFallbackBg),
+          const Center(child: CircularProgressIndicator(color: Colors.white70)),
+        ],
+        // 영상 영역 탭 → 재생/일시정지 토글.
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _togglePlay,
+            child: AnimatedOpacity(
+              opacity: v.isInitialized && !v.isPlaying ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: const Center(
+                child: IgnorePointer(child: VideoPlayBadge(size: 56)),
+              ),
+            ),
+          ),
+        ),
+        // 소리 조절 패널 — 스피커 아이콘 위에 잠깐 떠 있다 사라진다.
+        if (_showVolume && v.isInitialized)
+          Positioned(
+            right: 8,
+            bottom: 64,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xB3000000),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: SizedBox(
+                width: 120,
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 3,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
+                    overlayShape: SliderComponentShape.noOverlay,
+                    activeTrackColor: Colors.white,
+                    inactiveTrackColor: Colors.white30,
+                    thumbColor: Colors.white,
+                  ),
+                  child: Slider(
+                    value: v.volume.clamp(0.0, 1.0),
+                    onChanged: _setVolume,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // 하단 컨트롤 바 — 항상 표시(상세 화면에서 바로 조절).
+        if (v.isInitialized)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Color(0x99000000)],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 18, 4, 2),
+                child: Row(
+                  children: [
+                    _BarIcon(
+                      icon: v.isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      tooltip: v.isPlaying ? '일시정지' : '재생',
+                      onTap: _togglePlay,
+                    ),
+                    Expanded(
+                      child: VideoProgressIndicator(
+                        _controller,
+                        allowScrubbing: true,
+                        colors: VideoProgressColors(
+                          playedColor: context.colors.primary,
+                          bufferedColor: Colors.white38,
+                          backgroundColor: Colors.white24,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_fmt(v.position)} / ${_fmt(v.duration)}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    _BarIcon(
+                      icon: v.volume == 0
+                          ? Icons.volume_off_rounded
+                          : Icons.volume_up_rounded,
+                      tooltip: '소리',
+                      onTap: _toggleVolumePanel,
+                    ),
+                    _BarIcon(
+                      icon: Icons.fullscreen_rounded,
+                      tooltip: '전체화면',
+                      onTap: () => openVideoPlayer(
+                        context,
+                        widget.url,
+                        controller: _controller,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 인라인 컨트롤 바의 작은 아이콘 버튼(흰색, 배경 없음).
+class _BarIcon extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _BarIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, color: Colors.white, size: 24),
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      onPressed: onTap,
     );
   }
 }

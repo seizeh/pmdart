@@ -8,13 +8,13 @@ import '../motion/motion.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
 import '../services/community_repository.dart';
-import '../services/keyboard_barrier.dart';
 import '../services/report_repository.dart';
 import '../services/session.dart';
 import '../state/post_detail_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show timeAgo;
 import '../utils/share_links.dart';
+import '../widgets/comments_sheet.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/post_media_hero.dart';
 import '../widgets/report_sheet.dart';
@@ -148,27 +148,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   /// 댓글 바텀시트(전 카테고리) — 기존 댓글 리스트 + 입력창을 시트로.
   /// 열람은 게스트도 가능(작성은 [_sendComment] 의 가드가 막는다).
   void _openComments() {
-    // 전역 키보드 배리어를 시트가 열려 있는 동안 끈다 — 배리어가 켜져 있으면
-    // 키보드가 뜬 상태의 첫 탭(전송 버튼 포함)을 흡수해 "한 번 닫혀야 눌리는"
-    // 문제가 생긴다. 리스트 탭으로 키보드 닫기는 시트 내부에서 처리.
-    keyboardBarrierEnabled.value = false;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.colors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => _CommentsSheet(
-        state: _state,
-        controller: _commentCtrl,
+    // 공용 셸 — 배리어 off·포커스 중 드래그 잠금은 showCommentsSheet/셸이 처리.
+    showCommentsSheet<void>(
+      context,
+      builder: (_) => CommentsSheetShell(
+        listenable: _state,
+        title: () => '댓글 ${_state.comments.length}',
+        inputController: _commentCtrl,
+        sending: () => _state.sending,
         onSend: _sendComment,
-        onReport: _openCommentMenu,
+        listBuilder: (_) => _CommentList(
+          loading: _state.loadingComments,
+          comments: _state.comments,
+          myUserId: SessionManager.instance.user?.id,
+          onReport: _openCommentMenu,
+        ),
       ),
-    ).whenComplete(() {
-      keyboardBarrierEnabled.value = true;
-      FocusManager.instance.primaryFocus?.unfocus();
-    });
+    );
   }
 
   Future<void> _apply() async {
@@ -624,187 +620,6 @@ class _CommentList extends StatelessWidget {
           ),
         );
       }).toList(),
-    );
-  }
-}
-
-/// 댓글 바텀시트(전 카테고리) — 그랩바·카운트 헤더 + 댓글 리스트(드래그 확장) +
-/// 하단 입력창. 상태는 [PostDetailState] 를 그대로 구독해 작성·갱신이 화면과
-/// 실시간으로 동기화된다(시트를 닫으면 오버레이 카운트에도 반영).
-class _CommentsSheet extends StatefulWidget {
-  final PostDetailState state;
-  final TextEditingController controller;
-  final VoidCallback onSend;
-  final void Function(Comment) onReport;
-
-  const _CommentsSheet({
-    required this.state,
-    required this.controller,
-    required this.onSend,
-    required this.onReport,
-  });
-
-  @override
-  State<_CommentsSheet> createState() => _CommentsSheetState();
-}
-
-class _CommentsSheetState extends State<_CommentsSheet> {
-  PostDetailState get state => widget.state;
-
-  /// 입력 포커스 추적 — 작성 중에는 시트 드래그(확장/축소)를 잠근다.
-  final _focus = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(_onFocus);
-  }
-
-  void _onFocus() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _focus.removeListener(_onFocus);
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final composing = _focus.hasFocus;
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.92,
-      builder: (context, scroll) => ListenableBuilder(
-        listenable: state,
-        builder: (context, _) => Column(
-          children: [
-            const SizedBox(height: 10),
-            // 그랩바.
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: context.colors.border,
-                borderRadius: BorderRadius.circular(100),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              '댓글 ${state.comments.length}',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: context.colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Expanded(
-              // 리스트 빈 곳 탭 → 키보드 닫기(전역 배리어는 시트 동안 꺼짐).
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-                child: ListView(
-                  controller: scroll,
-                  // 작성 중엔 시트 확장/축소 드래그 잠금(스크롤 물리 차단 —
-                  // DraggableScrollableSheet 는 이 스크롤러블로만 움직인다).
-                  physics: composing
-                      ? const NeverScrollableScrollPhysics()
-                      : null,
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                  children: [
-                    _CommentList(
-                      loading: state.loadingComments,
-                      comments: state.comments,
-                      myUserId: SessionManager.instance.user?.id,
-                      onReport: widget.onReport,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // 입력바 — 키보드가 올라오면 그 위로 붙는다.
-            Container(
-              decoration: BoxDecoration(
-                color: context.colors.surface,
-                border: Border(
-                  top: BorderSide(color: context.colors.border, width: 0.5),
-                ),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    12,
-                    8,
-                    12,
-                    8 + MediaQuery.viewInsetsOf(context).bottom,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: widget.controller,
-                          focusNode: _focus,
-                          minLines: 1,
-                          maxLines: 4,
-                          decoration: InputDecoration(
-                            hintText: '댓글을 입력하세요',
-                            filled: true,
-                            fillColor: context.colors.surfaceMuted,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(100),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(100),
-                              borderSide: BorderSide(
-                                color: context.colors.primary,
-                                width: 1.2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: context.colors.primaryDark,
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: state.sending
-                              ? SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: context.colors.textOnPrimary,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.arrow_upward,
-                                  color: context.colors.textOnPrimary,
-                                ),
-                          onPressed: state.sending ? null : widget.onSend,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

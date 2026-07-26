@@ -32,6 +32,12 @@
   <title>PawMate — 우리 동네 반려 생활</title>
   <link rel="manifest" href="manifest.json">
 
+  <!-- CanvasKit 은 한글 글리프를 번들하지 않는다. 첫 프레임을 그린 뒤에야 빠진
+       글자를 발견하고 Noto Sans KR 조각(총 32KB)을 fonts.gstatic.com 에서 받는데,
+       그때 새 오리진 연결(DNS+TLS)부터 시작하면 그 사이 한글이 전부 □ 로 보인다.
+       핸드셰이크를 미리 끝내 둔다. (google_fonts 의 Baloo2 도 같은 오리진) -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
   <style>
     /* CanvasKit 은 수 MB라 첫 페인트까지 몇 초 걸린다. 그동안 흰 화면 대신
        앱 배경색과 로고를 깔아 둔다(색은 app_palette 의 cream / 다크 배경). */

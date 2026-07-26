@@ -231,13 +231,37 @@ method initializeNcp on channel flutter_naver_map_sdk)
 - ~~**B6. 초기 로딩**~~ ✅ 부분 완료 — `web/index.html` 정비(제목·OG·theme-color),
   앱 배경색 스플래시 + `flutter-first-frame` 에 제거, 아이콘 5종을 앱 아이콘으로
   재생성(전부 Flutter 기본 로고였다), `manifest.json` 정비
-- **B7. 한글 두부(tofu) — 배포 후 확인된 실제 증상.** 첫 로드에서 **몇 초간
-  모든 한글이 □로 보인다.** 스플래시는 첫 프레임에 걷히는데, CanvasKit 은 CJK
-  글리프를 번들하지 않고 폴백 폰트(Noto CJK)를 **첫 프레임 이후에** 받기
-  때문이다. 로컬(localhost)에서는 빨라서 안 보였고 실제 도메인에서 드러났다.
-  → 해결: 한글 폰트를 `pubspec.yaml` 에 번들해 폴백에 의존하지 않게 한다.
-  `google_fonts` 도 런타임 다운로드라 같이 번들로 전환(`welcome_screen.dart`
-  한 곳, Baloo2). **외부에 URL 을 알리기 전에 닫을 것** — 첫인상이 깨진 글자다
+- **B7. 한글 두부(tofu)** ✅ 완화 완료 — **폰트 번들은 하지 않는다**
+
+  증상: 첫 로드에서 몇 초간 모든 한글이 □로 보였다. CanvasKit 은 CJK 글리프를
+  번들하지 않고, **첫 프레임을 그린 뒤에야** 빠진 글자를 발견해 Noto Sans KR 을
+  받는다. localhost 에서는 빨라 안 보였고 실제 도메인에서 드러났다.
+
+  처음엔 한글 폰트 번들로 잡으려 했는데, **실측해보니 처방이 틀렸다**:
+
+  | 항목 | 실측 |
+  |---|---|
+  | 폴백으로 받는 Noto Sans KR | **32KB** (unicode-range 조각 4개) |
+  | 번들할 경우(전체 한글 음절 서브셋) | **1.15MB × 굵기 수** (앱은 w400~w800 사용) |
+  | `canvaskit.wasm` (gstatic, 자체호스팅 전) | **5.3MB** |
+
+  32KB 를 없애자고 2~4MB 를 첫 프레임 앞에 세우는 꼴이라 오히려 손해다. 진짜
+  원인은 용량이 아니라 **순서와 연결 비용**이었다. 그래서:
+
+  - `web/index.html` 에 `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>`
+    — 폰트를 받을 시점에 DNS+TLS 부터 시작하던 것을 미리 끝내 둔다
+  - **CanvasKit 자체 호스팅** — 빌드에 `--no-web-resources-cdn`. 같은 오리진에서
+    Cloudflare 가 brotli 로 **2.0MB** 만 보낸다(gstatic 원본 5.4MB). 서드파티
+    의존도 사라진다. **이 플래그는 배포 때마다 필요하다**
+
+  콜드 로드 실측(적용 후): `main.dart.js` 0.74→2.6s, `canvaskit.wasm` 0.74→2.4s,
+  폰트 요청 3.7s 시작·**7ms 만에 완료**. 두부 구간이 수 초 → 100ms 대로 줄어
+  사실상 보이지 않는다.
+
+  남은 여지(필요해지면): 완전 제거를 원하면 스플래시를 첫 프레임 후 ~250ms 더
+  유지해 폰트 도착을 덮으면 된다. 다만 재방문(폰트 캐시됨)에는 순수 지연이라
+  지금은 넣지 않았다. `google_fonts` 의 Baloo2(웰컴 로고)도 런타임 다운로드지만
+  같은 preconnect 로 덮인다
 
 ### Phase C — 앱 유도 UI
 
@@ -254,8 +278,16 @@ method initializeNcp on channel flutter_naver_map_sdk)
 
 **https://app.pawmate.kr** (= `pawmate-web.pages.dev`)
 
-- Cloudflare Pages 프로젝트 `pawmate-web`. 배포: `flutter build web --release`
-  후 `npx wrangler pages deploy build/web --project-name pawmate-web --branch main`
+- Cloudflare Pages 프로젝트 `pawmate-web`. 배포:
+
+  ```
+  flutter build web --release --no-web-resources-cdn
+  find build/web/canvaskit -name '*.symbols' -delete   # 런타임 미사용, 8MB 절감
+  npx wrangler pages deploy build/web --project-name pawmate-web --branch main
+  ```
+
+  `--no-web-resources-cdn` 는 선택이 아니다 — 빼면 CanvasKit 이 gstatic 에서
+  오면서 한글 두부 구간이 다시 길어진다(B7)
 - `go.pawmate.kr/s` 의 share-proxy Worker 는 건드리지 않았다(경로 충돌 없음)
 - 커스텀 도메인 함정: **wrangler CLI 에는 Pages 커스텀 도메인 명령이 없고**,
   wrangler OAuth 토큰은 `zone(read)` 뿐이라 **DNS 레코드를 만들 수 없다**.

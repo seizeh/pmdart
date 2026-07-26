@@ -88,6 +88,10 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
   /// 탭으로 접기/다시 펼치기, 축소 전환 중에는 강제로 접힌다.
   bool _expanded = true;
 
+  /// 오버레이(블러 패널) 몰입 숨김 — 사진 페이지 탭으로 토글(영상 페이지 탭은
+  /// 재생/일시정지라 제외). 인디케이터·진행바·앱바 아이콘도 함께 숨긴다.
+  bool _overlayHidden = false;
+
   // ── 댓글 — reviewId 가 있는 후기(시설 후기)에만 붙는다 ──
   final _commentCtrl = TextEditingController();
   List<FacilityReviewComment> _comments = [];
@@ -147,7 +151,14 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
 
   void _onCollapseTick() {
     final want = (_progress?.value ?? 1) < 1.0;
-    if (want != _mirror && mounted) setState(() => _mirror = want);
+    if (want != _mirror && mounted) {
+      setState(() {
+        _mirror = want;
+        // 축소 전환 시작 → 숨겨둔 오버레이 자동 복귀(드래그 취소로 풀스크린에
+        // 돌아와도 보이는 상태 유지).
+        if (want) _overlayHidden = false;
+      });
+    }
   }
 
   @override
@@ -165,7 +176,12 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
 
   /// 페이지 전환 — 현재 페이지의 영상만 재생, 나머지는 일시정지.
   void _onPageChanged(int i) {
-    setState(() => _page = i);
+    setState(() {
+      _page = i;
+      // 영상 페이지는 탭이 재생/일시정지라 오버레이를 되살릴 방법이 없다 —
+      // 숨김 상태로 영상 페이지에 들어오면 자동 복귀.
+      if (_videoCtrls.containsKey(i)) _overlayHidden = false;
+    });
     _videoCtrls.forEach((idx, c) {
       if (idx == i) {
         if (c.value.isInitialized) c.play();
@@ -391,12 +407,16 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
             automaticallyImplyLeading: false,
             actions: [
               // 내 후기만 삭제 가능(게시글 상세의 앱바 액션 문법).
+              // 확장 전환이 안착한 뒤 페이드 인(원샷 모프) + 몰입 숨김 동참.
               if (widget.review.isMine && widget.review.onDelete != null)
-                OverlayIconButton(
-                  icon: Icons.delete_outline,
-                  tooltip: '내 후기 삭제',
-                  color: const Color(0xFFFF8A80),
-                  onPressed: _confirmDelete,
+                CollapseSettledFade(
+                  visible: !_overlayHidden,
+                  child: OverlayIconButton(
+                    icon: Icons.delete_outline,
+                    tooltip: '내 후기 삭제',
+                    color: const Color(0xFFFF8A80),
+                    onPressed: _confirmDelete,
+                  ),
                 ),
               const SizedBox(width: 8),
             ],
@@ -459,13 +479,22 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
               height: boxH,
               child: ClipRect(
                 child: hasMedia
-                    ? PageView(
-                        controller: _pageCtrl,
-                        onPageChanged: _onPageChanged,
-                        children: [
-                          for (var i = 0; i < _pages.length; i++)
-                            _mediaPage(context, i),
-                        ],
+                    // 사진 페이지 탭 = 오버레이(블러+정보) 몰입 숨김/복귀 —
+                    // 영상 페이지는 안쪽 탭(재생/일시정지)이 우선이라 제외.
+                    ? GestureDetector(
+                        onTap: _mirror
+                            ? null
+                            : () => setState(
+                                () => _overlayHidden = !_overlayHidden,
+                              ),
+                        child: PageView(
+                          controller: _pageCtrl,
+                          onPageChanged: _onPageChanged,
+                          children: [
+                            for (var i = 0; i < _pages.length; i++)
+                              _mediaPage(context, i),
+                          ],
+                        ),
                       )
                     : Stack(
                         fit: StackFit.expand,
@@ -497,37 +526,41 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
             ),
             // 하단 오버레이 패널 — 카드 미러 정보 + 그 뒤에만 σ8 사본 블러·스크림.
             // 후기 타일에는 이런 패널이 없으므로 축소 전환 중엔 페이드아웃.
+            // 사진 페이지 탭(몰입 숨김) 시에도 부드럽게 사라진다.
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              child: AnimatedOpacity(
-                opacity: _mirror ? 0 : 1,
-                duration: const Duration(milliseconds: 150),
-                child: MediaOverlayPanel(
-                  blurSource: _blurSource(context, w),
-                  blurSourceSize: Size(w, boxH),
-                  bottomClearance: safeBottom + (curIsVideo ? 24 : 10),
-                  clearanceDuration: _anchorDuration,
-                  child: _ReviewInfoOverlay(
-                    review: r,
-                    showContent: hasMedia && content.isNotEmpty,
-                    expanded: expanded,
-                    expandedMaxHeight: h * 0.5,
-                    onToggleExpand: _mirror
-                        ? null
-                        : () => setState(() => _expanded = !_expanded),
-                    commentCount: _reviewId == null ? null : _comments.length,
-                    onComments: _reviewId == null ? null : _openComments,
-                    onAuthorTap:
-                        (r.authorUserId == null || r.authorUserId!.isEmpty)
-                        ? null
-                        // 방문 후기는 개인 활동 — 항상 개인 얼굴.
-                        : () => _openAuthorProfile(
-                            r.authorUserId!,
-                            r.author,
-                            business: false,
-                          ),
+              child: IgnorePointer(
+                ignoring: _mirror || _overlayHidden,
+                child: AnimatedOpacity(
+                  opacity: _mirror || _overlayHidden ? 0 : 1,
+                  duration: const Duration(milliseconds: 180),
+                  child: MediaOverlayPanel(
+                    blurSource: _blurSource(context, w),
+                    blurSourceSize: Size(w, boxH),
+                    bottomClearance: safeBottom + (curIsVideo ? 24 : 10),
+                    clearanceDuration: _anchorDuration,
+                    child: _ReviewInfoOverlay(
+                      review: r,
+                      showContent: hasMedia && content.isNotEmpty,
+                      expanded: expanded,
+                      expandedMaxHeight: h * 0.5,
+                      onToggleExpand: _mirror
+                          ? null
+                          : () => setState(() => _expanded = !_expanded),
+                      commentCount: _reviewId == null ? null : _comments.length,
+                      onComments: _reviewId == null ? null : _openComments,
+                      onAuthorTap:
+                          (r.authorUserId == null || r.authorUserId!.isEmpty)
+                          ? null
+                          // 방문 후기는 개인 활동 — 항상 개인 얼굴.
+                          : () => _openAuthorProfile(
+                              r.authorUserId!,
+                              r.author,
+                              business: false,
+                            ),
+                    ),
                   ),
                 ),
               ),
@@ -540,7 +573,7 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
                 right: 0,
                 child: IgnorePointer(
                   child: AnimatedOpacity(
-                    opacity: _mirror ? 0 : 1,
+                    opacity: _mirror || _overlayHidden ? 0 : 1,
                     duration: const Duration(milliseconds: 120),
                     child: Center(
                       child: Container(
@@ -707,9 +740,17 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
     return AnimatedBuilder(
       animation: _pageCtrl,
       builder: (context, _) {
-        final page = _pageCtrl.hasClients && _pageCtrl.position.haveDimensions
-            ? (_pageCtrl.page ?? _page.toDouble())
-            : _page.toDouble();
+        // PageController.page 는 픽셀을 스크롤 범위로 클램프해 첫/마지막
+        // 페이지의 바운스(오버스크롤)를 반영하지 못한다 — 픽셀에서 직접
+        // 계산해 범위 밖 fractional page 까지 그대로 따라간다(본체와 픽셀
+        // 동기). 클램프는 사본 선택 인덱스에만 적용한다.
+        var page = _page.toDouble();
+        if (_pageCtrl.hasClients) {
+          final pos = _pageCtrl.position;
+          if (pos.haveDimensions && pos.viewportDimension > 0) {
+            page = pos.pixels / pos.viewportDimension;
+          }
+        }
         final first = page.floor().clamp(0, _pages.length - 1);
         final second = (first + 1).clamp(0, _pages.length - 1);
         return Stack(

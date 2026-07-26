@@ -80,10 +80,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   VideoPlayerController? _video;
   bool _videoError = false;
 
+  /// 히어로 오버레이 몰입 숨김(사진 글 탭 토글) — 앱바 아이콘도 함께 숨긴다.
+  bool _overlayHidden = false;
+
   @override
   void initState() {
     super.initState();
-    _state.init();
+    // 카드에서 확장 진입하면 초기 로드(댓글·조회수·권한 등)를 전환이 안착한
+    // 뒤로 미룬다 — 로드 알림(notifyListeners)마다 화면 전체가 리빌드되며
+    // 확장 모프 프레임을 흔들던 문제(전환이 2단계로 끊겨 보임). 게시글 본문은
+    // widget.post 로 이미 완전하므로 첫 프레임 표시에는 영향 없다.
+    if (widget.originRect == null) {
+      _state.init();
+    } else {
+      Future.delayed(const Duration(milliseconds: 480), () {
+        if (mounted) _state.init();
+      });
+    }
     final post = widget.post;
     if (post.isVideo && post.imageUrl != null) {
       final video = VideoPlayerController.networkUrl(Uri.parse(post.imageUrl!));
@@ -453,31 +466,43 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 // (프로필·펫 상세와 동일한 몰입형).
                 automaticallyImplyLeading: false,
                 actions: [
-                  // 공유 — 전 카테고리 공통(내 글·남 글 모두).
-                  OverlayIconButton(
-                    icon: Icons.ios_share,
-                    tooltip: '공유',
-                    onPressed: _sharePost,
+                  // 앱바 아이콘은 확장 전환이 안착한 뒤에 페이드 인 — 카드
+                  // 크로스페이드 중간에 불쑥 나타나 모프가 2단계로 끊겨
+                  // 보이던 문제 해결(후기 상세와 같은 원샷 모프).
+                  // 오버레이 몰입 토글(사진 탭) 시엔 함께 숨는다.
+                  CollapseSettledFade(
+                    visible: !_overlayHidden,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 공유 — 전 카테고리 공통(내 글·남 글 모두).
+                        OverlayIconButton(
+                          icon: Icons.ios_share,
+                          tooltip: '공유',
+                          onPressed: _sharePost,
+                        ),
+                        if (_state.isMyPost)
+                          OverlayIconButton(
+                            icon: Icons.edit_outlined,
+                            tooltip: '수정',
+                            onPressed: _openEdit,
+                          ),
+                        if (!_state.isMyPost)
+                          OverlayIconButton(
+                            icon: Icons.chat_bubble_outline,
+                            tooltip: '채팅하기',
+                            onPressed: _startChat,
+                          ),
+                        if (!_state.isMyPost)
+                          OverlayIconButton(
+                            icon: Icons.report_outlined,
+                            tooltip: '신고',
+                            color: const Color(0xFFFF8A80),
+                            onPressed: _openPostMenu,
+                          ),
+                      ],
+                    ),
                   ),
-                  if (_state.isMyPost)
-                    OverlayIconButton(
-                      icon: Icons.edit_outlined,
-                      tooltip: '수정',
-                      onPressed: _openEdit,
-                    ),
-                  if (!_state.isMyPost)
-                    OverlayIconButton(
-                      icon: Icons.chat_bubble_outline,
-                      tooltip: '채팅하기',
-                      onPressed: _startChat,
-                    ),
-                  if (!_state.isMyPost)
-                    OverlayIconButton(
-                      icon: Icons.report_outlined,
-                      tooltip: '신고',
-                      color: const Color(0xFFFF8A80),
-                      onPressed: _openPostMenu,
-                    ),
                   const SizedBox(width: 8),
                 ],
               ),
@@ -500,6 +525,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       onComments: _openComments,
                       onAuthorTap: _openAuthor,
                       overlayExtra: _applySection(),
+                      onOverlayHiddenChanged: (hidden) =>
+                          setState(() => _overlayHidden = hidden),
                     ),
                   ),
                 ],

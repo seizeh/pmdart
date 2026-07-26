@@ -48,6 +48,10 @@ class PostMediaHero extends StatefulWidget {
   /// 닉네임 탭(프로필 무한 왕복 방지 pop 처리 포함) — 상세 화면이 결정.
   final VoidCallback? onAuthorTap;
 
+  /// 오버레이 몰입 숨김 상태 변경 통지(사진 글 탭 토글) — 화면이 앱바
+  /// 오버레이 아이콘을 함께 숨기는 데 쓴다.
+  final ValueChanged<bool>? onOverlayHiddenChanged;
+
   const PostMediaHero({
     super.key,
     required this.post,
@@ -57,6 +61,7 @@ class PostMediaHero extends StatefulWidget {
     this.onComments,
     this.overlayExtra,
     this.onAuthorTap,
+    this.onOverlayHiddenChanged,
   });
 
   @override
@@ -78,9 +83,24 @@ class _PostMediaHeroState extends State<PostMediaHero> {
   /// 취소되어 풀스크린으로 복귀하면 다시 펼쳐진다.
   bool _expanded = true;
 
+  /// 오버레이(블러 패널) 몰입 숨김 — 사진 글에서 화면 탭으로 토글(영상은 탭이
+  /// 재생/일시정지라 제외). 축소 전환이 시작되면 자동 복귀(카드엔 오버레이가
+  /// 있으므로 페이드 인하며 카드 미러로 수축).
+  bool _overlayHidden = false;
+
   void _onTick() {
     final want = (_progress?.value ?? 1) < 1.0;
-    if (want != _mirror && mounted) setState(() => _mirror = want);
+    if (want != _mirror && mounted) {
+      setState(() {
+        _mirror = want;
+        // 축소 전환 시작 → 숨겨둔 오버레이 자동 복귀(드래그 취소로 풀스크린에
+        // 돌아와도 보이는 상태 유지).
+        if (want && _overlayHidden) {
+          _overlayHidden = false;
+          widget.onOverlayHiddenChanged?.call(false);
+        }
+      });
+    }
   }
 
   @override
@@ -110,7 +130,16 @@ class _PostMediaHeroState extends State<PostMediaHero> {
 
   bool get _isBlob => widget.controller == null && widget.post.imageUrl == null;
 
+  /// 사진 글 — 탭 토글(오버레이 숨김) 대상.
+  bool get _isPhoto =>
+      widget.controller == null && widget.post.imageUrl != null;
+
   void _toggleExpanded() => setState(() => _expanded = !_expanded);
+
+  void _toggleOverlayHidden() {
+    setState(() => _overlayHidden = !_overlayHidden);
+    widget.onOverlayHiddenChanged?.call(_overlayHidden);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +170,8 @@ class _PostMediaHeroState extends State<PostMediaHero> {
         final landscape = v != null && v.isInitialized && v.aspectRatio > 1;
         final fit = landscape && !_mirror ? BoxFit.contain : BoxFit.cover;
         final expanded = _expanded && !_mirror;
+        // 몰입 숨김 — 축소 전환 중엔 항상 표시(카드 미러엔 오버레이가 있다).
+        final overlayHidden = _overlayHidden && !_mirror;
         final safeBottom = MediaQuery.paddingOf(context).bottom;
         final isBlob = _isBlob;
         return Stack(
@@ -162,6 +193,15 @@ class _PostMediaHeroState extends State<PostMediaHero> {
                   fit: StackFit.expand,
                   children: [
                     _mediaSurface(context, v, fit),
+                    // 사진 글 — 화면 탭 = 오버레이(블러+정보) 몰입 숨김/복귀.
+                    // 영상은 탭이 재생/일시정지라 제외(충돌 방지).
+                    if (_isPhoto)
+                      Positioned.fill(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: _mirror ? null : _toggleOverlayHidden,
+                        ),
+                      ),
                     // 블롭 글 — 카드처럼 본문이 히어로의 중심(탭으로 펼침/접힘).
                     if (isBlob)
                       Positioned.fill(
@@ -186,33 +226,44 @@ class _PostMediaHeroState extends State<PostMediaHero> {
               left: 0,
               right: 0,
               bottom: _mirror ? mirrorInset : 0,
-              child: MediaOverlayPanel(
-                // 블러 사본 — 카드와 동일한 방식(같은 소스를 한 겹 더 그려
-                // σ8 블러 + 마스크). 미디어 박스 하단 == 패널 하단이므로
-                // 바닥 정렬 OverflowBox 로 뒤 픽셀과 정확히 겹친다.
-                // 블롭 글은 카드처럼 블러 없이 스크림만.
-                blurSource: _blurSource(v),
-                blurSourceSize: Size(w, boxH),
-                // 풀스크린에선 진행바·홈 인디케이터 위로 띄우고,
-                // 카드 미러에선 카드와 동일하게 바닥에 붙인다.
-                bottomClearance: _mirror
-                    ? 0
-                    : safeBottom + (v != null ? 24 : 10),
-                clearanceDuration: _anchorDuration,
-                child: PostCardInfoOverlay(
-                  post: widget.post,
-                  onHeart: widget.onHeart,
-                  onComments: widget.onComments,
-                  // 블롭 글의 본문은 히어로 센터에 있어 미리보기 중복 표시 안 함
-                  // (카드와 동일).
-                  showContent: !isBlob,
-                  expanded: expanded,
-                  expandedMaxHeight: h * 0.5,
-                  onToggleExpand: isBlob || _mirror ? null : _toggleExpanded,
-                  extra: widget.overlayExtra,
-                  extraVisible: !_mirror,
-                  detailMeta: true,
-                  onAuthorTap: widget.onAuthorTap,
+              // 몰입 숨김 — 부드럽게 사라지고, 축소 전환이 시작되면 페이드 인
+              // 으로 복귀하면서 카드 미러로 수축한다.
+              child: IgnorePointer(
+                ignoring: overlayHidden,
+                child: AnimatedOpacity(
+                  opacity: overlayHidden ? 0 : 1,
+                  duration: const Duration(milliseconds: 200),
+                  child: MediaOverlayPanel(
+                    // 블러 사본 — 카드와 동일한 방식(같은 소스를 한 겹 더 그려
+                    // σ8 블러 + 마스크). 미디어 박스 하단 == 패널 하단이므로
+                    // 바닥 정렬 OverflowBox 로 뒤 픽셀과 정확히 겹친다.
+                    // 블롭 글은 카드처럼 블러 없이 스크림만.
+                    blurSource: _blurSource(v),
+                    blurSourceSize: Size(w, boxH),
+                    // 풀스크린에선 진행바·홈 인디케이터 위로 띄우고,
+                    // 카드 미러에선 카드와 동일하게 바닥에 붙인다.
+                    bottomClearance: _mirror
+                        ? 0
+                        : safeBottom + (v != null ? 24 : 10),
+                    clearanceDuration: _anchorDuration,
+                    child: PostCardInfoOverlay(
+                      post: widget.post,
+                      onHeart: widget.onHeart,
+                      onComments: widget.onComments,
+                      // 블롭 글의 본문은 히어로 센터에 있어 미리보기 중복 표시 안 함
+                      // (카드와 동일).
+                      showContent: !isBlob,
+                      expanded: expanded,
+                      expandedMaxHeight: h * 0.5,
+                      onToggleExpand: isBlob || _mirror
+                          ? null
+                          : _toggleExpanded,
+                      extra: widget.overlayExtra,
+                      extraVisible: !_mirror,
+                      detailMeta: true,
+                      onAuthorTap: widget.onAuthorTap,
+                    ),
+                  ),
                 ),
               ),
             ),

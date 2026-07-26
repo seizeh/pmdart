@@ -279,6 +279,74 @@ class CollapseProgress extends InheritedWidget {
       progress != oldWidget.progress;
 }
 
+/// 확장 전환이 안착(진행도 1)했을 때만 나타나는 래퍼 — 카드에 없는 요소(앱바
+/// 오버레이 아이콘 등)가 카드 크로스페이드 중간에 불쑥 나타나 모프가 2단계로
+/// 끊겨 보이는 것을 막는다. 전환 중·축소 중에는 페이드아웃(카드 미러 우선).
+/// [visible] 로 추가 숨김(오버레이 몰입 토글 등)을 함께 제어할 수 있다.
+class CollapseSettledFade extends StatefulWidget {
+  final Widget child;
+
+  /// 추가 표시 조건 — 안착했더라도 false 면 숨긴다(기본 true).
+  final bool visible;
+  final Duration duration;
+
+  const CollapseSettledFade({
+    super.key,
+    required this.child,
+    this.visible = true,
+    this.duration = const Duration(milliseconds: 180),
+  });
+
+  @override
+  State<CollapseSettledFade> createState() => _CollapseSettledFadeState();
+}
+
+class _CollapseSettledFadeState extends State<CollapseSettledFade> {
+  Animation<double>? _progress;
+  bool _settled = true;
+  bool _initialized = false;
+
+  void _onTick() {
+    final want = (_progress?.value ?? 1) >= 1.0;
+    if (want != _settled && mounted) setState(() => _settled = want);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final p = CollapseProgress.of(context);
+    if (!identical(p, _progress)) {
+      _progress?.removeListener(_onTick);
+      _progress = p;
+      _progress?.addListener(_onTick);
+    }
+    if (!_initialized) {
+      _initialized = true;
+      // 전환 없이 열린 화면(비확장 진입)은 처음부터 표시.
+      _settled = (p?.value ?? 1) >= 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _progress?.removeListener(_onTick);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final show = _settled && widget.visible;
+    return IgnorePointer(
+      ignoring: !show,
+      child: AnimatedOpacity(
+        opacity: show ? 1 : 0,
+        duration: widget.duration,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 class CollapsibleView extends StatefulWidget {
   const CollapsibleView({
     super.key,

@@ -228,9 +228,16 @@ method initializeNcp on channel flutter_naver_map_sdk)
 - ~~**B4. 데스크톱 셸**~~ ✅ 완료 — 결정 5 참고
 - **B5. 스크롤 물리** — 웹 기본 `ScrollBehavior` 는 데스크톱 스크롤바가 붙고
   오버스크롤이 다르다. `BouncingScrollPhysics` 고정 + 스크롤바 숨김
-- **B6. 초기 로딩** — `web/index.html` 이 아직 Flutter 기본 템플릿이다. 앱
-  배경색(`#F1ECE2`) 인라인 스플래시 + OG 메타. `google_fonts` 는
-  `welcome_screen.dart` 한 곳(Baloo2)뿐이므로 번들 폰트로 전환
+- ~~**B6. 초기 로딩**~~ ✅ 부분 완료 — `web/index.html` 정비(제목·OG·theme-color),
+  앱 배경색 스플래시 + `flutter-first-frame` 에 제거, 아이콘 5종을 앱 아이콘으로
+  재생성(전부 Flutter 기본 로고였다), `manifest.json` 정비
+- **B7. 한글 두부(tofu) — 배포 후 확인된 실제 증상.** 첫 로드에서 **몇 초간
+  모든 한글이 □로 보인다.** 스플래시는 첫 프레임에 걷히는데, CanvasKit 은 CJK
+  글리프를 번들하지 않고 폴백 폰트(Noto CJK)를 **첫 프레임 이후에** 받기
+  때문이다. 로컬(localhost)에서는 빨라서 안 보였고 실제 도메인에서 드러났다.
+  → 해결: 한글 폰트를 `pubspec.yaml` 에 번들해 폴백에 의존하지 않게 한다.
+  `google_fonts` 도 런타임 다운로드라 같이 번들로 전환(`welcome_screen.dart`
+  한 곳, Baloo2). **외부에 URL 을 알리기 전에 닫을 것** — 첫인상이 깨진 글자다
 
 ### Phase C — 앱 유도 UI
 
@@ -243,12 +250,27 @@ method initializeNcp on channel flutter_naver_map_sdk)
 - FCM 웹 푸시(서비스워커 + VAPID). iOS Safari 는 PWA 설치 상태에서만 수신
 - PWA `manifest.json` 정비
 
-### Phase E — 배포
+### Phase E — 배포 ✅ 완료 (2026-07-26)
 
-- `app.pawmate.kr` → Cloudflare Pages
-- `go.pawmate.kr/s` 의 share-proxy Worker 는 건드리지 않는다(경로 충돌 없음)
-- GitHub Actions 에서 `--dart-define` 주입 후 Pages 배포
-- CSP — CanvasKit 이 wasm 을 쓰므로 `script-src 'wasm-unsafe-eval'` 필요
+**https://app.pawmate.kr** (= `pawmate-web.pages.dev`)
+
+- Cloudflare Pages 프로젝트 `pawmate-web`. 배포: `flutter build web --release`
+  후 `npx wrangler pages deploy build/web --project-name pawmate-web --branch main`
+- `go.pawmate.kr/s` 의 share-proxy Worker 는 건드리지 않았다(경로 충돌 없음)
+- 커스텀 도메인 함정: **wrangler CLI 에는 Pages 커스텀 도메인 명령이 없고**,
+  wrangler OAuth 토큰은 `zone(read)` 뿐이라 **DNS 레코드를 만들 수 없다**.
+  도메인 등록은 API(`POST /pages/projects/<p>/domains`)로 되지만 DNS 는 대시보드에서
+  사람이 넣어야 한다 — `CNAME app → pawmate-web.pages.dev`, **Proxied(주황)**.
+  API 로 등록하면 대시보드 마법사의 DNS 자동 생성 단계가 건너뛰어져 행에 버튼이
+  안 생긴다. 전파 중 몇 분간 522 가 나는 것은 정상.
+- 검증: `/`·`/p/<postId>`·임의 경로 전부 200(SPA 폴백 동작),
+  `app.pawmate.kr` 전용 인증서 발급(Google Trust Services), OG 메타 서빙 확인
+
+남은 것:
+
+- GitHub Actions 자동 배포(현재는 수동) + `--dart-define` 주입
+- CSP — CanvasKit 이 wasm 을 쓰므로 `script-src 'wasm-unsafe-eval'` 필요.
+  Pages 는 기본 CSP 가 없어 지금도 동작하지만 하드닝 대상(`web/_headers`)
 
 ## 웹에서 재현되지 않는 것
 

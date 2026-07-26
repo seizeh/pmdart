@@ -275,7 +275,7 @@ class PostCardInfoOverlay extends StatelessWidget {
                 style: _contentStyle,
               )
             else
-              _ExpandableContent(
+              ExpandableOverlayText(
                 content: post.content,
                 previewLines: previewLines,
                 expanded: expanded,
@@ -372,9 +372,10 @@ class PostCardInfoOverlay extends StatelessWidget {
   }
 }
 
-/// 펼치기/접기 가능한 본문 — 미리보기 줄수를 넘치면 "더보기" 버튼을 붙이고,
-/// 펼침/접힘의 높이 변화를 AnimatedSize(스프링 커브)로 재생한다.
-class _ExpandableContent extends StatelessWidget {
+/// 펼치기/접기 가능한 본문(오버레이 공용 — 게시글·시설 후기 상세) —
+/// 미리보기 줄수를 넘치면 말줄임(…)으로 접히고 본문 탭으로 토글하며,
+/// 높이 변화를 AnimatedSize(스프링 커브)로 재생한다.
+class ExpandableOverlayText extends StatelessWidget {
   final String content;
   final int previewLines;
   final bool expanded;
@@ -383,7 +384,8 @@ class _ExpandableContent extends StatelessWidget {
   final double? expandedMaxHeight;
   final VoidCallback onToggle;
 
-  const _ExpandableContent({
+  const ExpandableOverlayText({
+    super.key,
     required this.content,
     required this.previewLines,
     required this.expanded,

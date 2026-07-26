@@ -158,7 +158,7 @@ class _PostMediaHeroState extends State<PostMediaHero> {
                     // 블롭 글 — 카드처럼 본문이 히어로의 중심(탭으로 펼침/접힘).
                     if (isBlob)
                       Positioned.fill(
-                        child: _BlobContent(
+                        child: BlobHeroContent(
                           content: widget.post.content,
                           mirror: _mirror,
                           expanded: expanded,
@@ -179,7 +179,7 @@ class _PostMediaHeroState extends State<PostMediaHero> {
               left: 0,
               right: 0,
               bottom: _mirror ? h - cardH : 0,
-              child: _OverlayPanel(
+              child: MediaOverlayPanel(
                 // 블러 사본 — 카드와 동일한 방식(같은 소스를 한 겹 더 그려
                 // σ8 블러 + 마스크). 미디어 박스 하단 == 패널 하단이므로
                 // 바닥 정렬 OverflowBox 로 뒤 픽셀과 정확히 겹친다.
@@ -389,10 +389,10 @@ class _PostMediaHeroState extends State<PostMediaHero> {
   }
 }
 
-/// 블롭 글의 센터 본문 — 카드와 동일한 배치(축소 전환 중엔 카드의 하단 정보
+/// 블롭 글의 센터 본문(게시글·후기 상세 공용) — 카드와 동일한 배치(축소 전환 중엔 카드의 하단 정보
 /// 여백 170 기준)로 전환을 잇고, 풀스크린에선 오버레이 패널 위 공간의 중심.
 /// 본문이 9줄을 넘치면 말줄임(…)으로 접히고 탭으로 펼침/접힘(내부 스크롤 제한).
-class _BlobContent extends StatelessWidget {
+class BlobHeroContent extends StatelessWidget {
   final String content;
   final bool mirror;
   final bool expanded;
@@ -400,7 +400,8 @@ class _BlobContent extends StatelessWidget {
   final Duration anchorDuration;
   final VoidCallback? onToggle;
 
-  const _BlobContent({
+  const BlobHeroContent({
+    super.key,
     required this.content,
     required this.mirror,
     required this.expanded,
@@ -480,12 +481,13 @@ class _BlobContent extends StatelessWidget {
   }
 }
 
-/// 오버레이 뒤에만 깔리는 점진 블러 패널 — 높이는 콘텐츠(카드 미러 오버레이)가
+/// 오버레이 뒤에만 깔리는 점진 블러 패널 — 게시글·시설 후기 상세가 공유한다.
+/// 높이는 콘텐츠(카드 미러 오버레이)가
 /// 결정한다. 블러는 피드 카드와 **같은 방식**: 같은 소스([blurSource])를 한 겹
 /// 더 그려 σ8 로 블러하고 세로 그라데이션 마스크(dstIn)로 페이드인 — 마스크가
 /// 연속이라 밴드·계단이 원천적으로 없고 블러 패스도 1번이다. 카드와 같은
 /// 스크림을 겹쳐 가독을 보정한다. [blurSource] 가 null(블롭 글)이면 스크림만.
-class _OverlayPanel extends StatelessWidget {
+class MediaOverlayPanel extends StatelessWidget {
   final Widget child;
 
   /// 블러 사본의 원본 — 뒤에 깔린 미디어 박스와 동일한 서브트리.
@@ -498,7 +500,8 @@ class _OverlayPanel extends StatelessWidget {
   final double bottomClearance;
   final Duration clearanceDuration;
 
-  const _OverlayPanel({
+  const MediaOverlayPanel({
+    super.key,
     required this.child,
     required this.blurSource,
     required this.blurSourceSize,

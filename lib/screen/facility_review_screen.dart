@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../models/facility_review.dart';
+import '../motion/motion.dart';
 import '../services/facility_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../widgets/media_widgets.dart';
 
-/// 시설 후기 작성/수정 (0022). 갤러리 다중 사진 허용. 카페는 작성 시 승격.
+/// 시설 후기 작성/수정 (0022) — 게시글 작성(post_create_screen)과 같은 디자인
+/// 문법: 섹션 라벨·간격·타이포, 앱바 '등록' 액션, 첨부는 바텀시트(사진/동영상).
+/// 갤러리 다중 사진 허용(자유 비율 — 크롭 없음). 카페는 작성 시 승격.
 /// 저장 성공 시 true 를 pop.
 class FacilityReviewScreen extends StatefulWidget {
   final Facility facility;
@@ -51,6 +54,59 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  /// 첨부 바텀시트 — 사진/동영상 선택(게시글 작성의 첨부 시트와 동일 문법).
+  Future<void> _chooseAttachment() async {
+    final canPhoto = _photos.length < _maxPhotos && !_uploading;
+    final canVideo = _videos.length < _maxVideos && !_uploadingVideo;
+    final src = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '첨부하기',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            ListTile(
+              enabled: canPhoto,
+              leading: Icon(
+                Icons.photo_library_outlined,
+                color: canPhoto
+                    ? context.colors.primaryDark
+                    : context.colors.textTertiary,
+              ),
+              title: const Text('사진'),
+              subtitle: Text('자유 비율 · 최대 $_maxPhotos장'),
+              onTap: () => Navigator.pop(ctx, 'photo'),
+            ),
+            ListTile(
+              enabled: canVideo,
+              leading: Icon(
+                Icons.videocam_outlined,
+                color: canVideo
+                    ? context.colors.primaryDark
+                    : context.colors.textTertiary,
+              ),
+              title: const Text('동영상'),
+              subtitle: Text('최대 60초 · 100MB · $_maxVideos개'),
+              onTap: () => Navigator.pop(ctx, 'video'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (src == 'photo') return _addPhotos();
+    if (src == 'video') return _addVideo();
   }
 
   Future<void> _addPhotos() async {
@@ -177,304 +233,273 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     final editing = widget.existing != null;
     return Scaffold(
       backgroundColor: context.colors.background,
+      // 등록은 앱바 액션 — 게시글 작성과 동일 문법.
       appBar: AppBar(
         title: Text(editing ? '후기 수정' : '후기 작성'),
         actions: [
           if (editing)
             IconButton(
               icon: Icon(Icons.delete_outline, color: context.colors.danger),
+              tooltip: '후기 삭제',
               onPressed: _submitting ? null : _delete,
             ),
+          TextButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    editing ? '수정' : '등록',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+          ),
         ],
       ),
       body: SafeArea(
-        child: ListView(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          children: [
-            Text(
-              widget.facility.name,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: context.colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '별점',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: context.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                for (var i = 1; i <= 5; i++)
-                  GestureDetector(
-                    onTap: () => setState(() => _rating = i),
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: Icon(
-                        i <= _rating ? Icons.star : Icons.star_border,
-                        size: 34,
-                        color: i <= _rating
-                            ? const Color(0xFFFFB300)
-                            : context.colors.border,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              '후기',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: context.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _contentCtrl,
-              minLines: 3,
-              maxLines: 8,
-              maxLength: 1000,
-              decoration: InputDecoration(
-                hintText: '시설에 대한 후기를 남겨주세요',
-                filled: true,
-                fillColor: context.colors.surfaceMuted,
-                contentPadding: const EdgeInsets.all(14),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: context.colors.border),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 시설 이름 + 안내 캡션(게시글 작성의 라벨·캡션 문법).
+              Text(
+                widget.facility.name,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: context.colors.textPrimary,
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '사진 (${_photos.length}/$_maxPhotos)',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: context.colors.textSecondary,
+              const SizedBox(height: 4),
+              Text(
+                '방문 경험을 별점과 후기로 남겨주세요',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.colors.textSecondary,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var i = 0; i < _photos.length; i++)
-                  Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
+              const SizedBox(height: 24),
+              const _SectionLabel('별점'),
+              Row(
+                children: [
+                  for (var i = 1; i <= 5; i++)
+                    Pressable(
+                      scaleTo: 0.85,
+                      borderRadius: BorderRadius.circular(100),
+                      onTap: () => setState(() => _rating = i),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Icon(
+                          i <= _rating
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          size: 36,
+                          color: i <= _rating
+                              ? const Color(0xFFFFB300)
+                              : context.colors.border,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const _SectionLabel('후기'),
+              TextField(
+                controller: _contentCtrl,
+                minLines: 5,
+                maxLines: 10,
+                maxLength: 1000,
+                decoration: const InputDecoration(hintText: '시설에 대한 후기를 남겨주세요'),
+              ),
+              const SizedBox(height: 12),
+              _SectionLabel(
+                '사진·동영상  ·  사진 ${_photos.length}/$_maxPhotos · '
+                '동영상 ${_videos.length}/$_maxVideos',
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < _photos.length; i++)
+                    _thumb(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
                         child: Image.network(
                           _photos[i],
-                          width: 72,
-                          height: 72,
+                          width: 76,
+                          height: 76,
                           fit: BoxFit.cover,
                         ),
                       ),
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _photos.removeAt(i)),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                if (_photos.length < _maxPhotos)
-                  GestureDetector(
-                    onTap: _addPhotos,
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: context.colors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: context.colors.border),
-                      ),
-                      child: _uploading
-                          ? const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : Icon(
-                              Icons.add_a_photo_outlined,
-                              color: context.colors.textTertiary,
-                            ),
+                      onRemove: () => setState(() => _photos.removeAt(i)),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '동영상 (${_videos.length}/$_maxVideos)',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: context.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var i = 0; i < _videos.length; i++)
-                  Stack(
-                    children: [
-                      SizedBox(
-                        width: 72,
-                        height: 72,
+                  for (var i = 0; i < _videos.length; i++)
+                    _thumb(
+                      child: SizedBox(
+                        width: 76,
+                        height: 76,
                         child: VideoPosterTile(
                           videoUrl: _videos[i].url,
                           posterUrl: _videos[i].thumbUrl,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                           badgeSize: 28,
                           cacheWidth: 200,
                         ),
                       ),
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _videos.removeAt(i)),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
+                      onRemove: () => setState(() => _videos.removeAt(i)),
+                    ),
+                  // 첨부 추가 — 탭하면 사진/동영상 선택 바텀시트.
+                  if (_photos.length < _maxPhotos ||
+                      _videos.length < _maxVideos)
+                    Pressable(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: (_uploading || _uploadingVideo)
+                          ? null
+                          : _chooseAttachment,
+                      child: Container(
+                        width: 76,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          color: context.colors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: context.colors.border),
+                        ),
+                        child: (_uploading || _uploadingVideo)
+                            ? const Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.add_rounded,
+                                size: 26,
+                                color: context.colors.textTertiary,
+                              ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              // 표시광고법: 대가성 후기는 경제적 이해관계 표시 의무 — 체크 시
+              // 후기 카드·상세·공유 뷰어에 '업체 혜택 받고 작성' 배지가 붙는다.
+              // 게시글 작성의 선택 카드 문법(선택 시 색 채움 + 테두리 강조).
+              InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => setState(() => _hasIncentive = !_hasIncentive),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _hasIncentive
+                        ? context.colors.primarySoft.withValues(alpha: 0.3)
+                        : context.colors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _hasIncentive
+                          ? context.colors.primary
+                          : context.colors.border,
+                      width: _hasIncentive ? 1.5 : 0.5,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        _hasIncentive
+                            ? Icons.check_circle
+                            : Icons.radio_button_off,
+                        color: _hasIncentive
+                            ? context.colors.primary
+                            : context.colors.textTertiary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '업체로부터 할인·사은품 등 혜택을 받고 작성해요',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: context.colors.textPrimary,
+                                height: 1.4,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.close,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                          ),
+                            if (_hasIncentive) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                '후기에 \'업체 혜택 받고 작성\' 표시가 함께 노출돼요.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: context.colors.textTertiary,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
                   ),
-                if (_videos.length < _maxVideos)
-                  GestureDetector(
-                    onTap: _addVideo,
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: context.colors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: context.colors.border),
-                      ),
-                      child: _uploadingVideo
-                          ? const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : Icon(
-                              Icons.videocam_outlined,
-                              color: context.colors.textTertiary,
-                            ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // 표시광고법: 대가성 후기는 경제적 이해관계 표시 의무 — 체크 시
-            // 후기 카드·상세·공유 뷰어에 '업체 혜택 받고 작성' 배지가 붙는다.
-            InkWell(
-              onTap: () => setState(() => _hasIncentive = !_hasIncentive),
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: Checkbox(
-                        value: _hasIncentive,
-                        onChanged: (v) =>
-                            setState(() => _hasIncentive = v ?? false),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '업체로부터 할인·사은품 등 혜택을 받고 작성해요',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: context.colors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
-            ),
-            if (_hasIncentive)
-              Padding(
-                padding: const EdgeInsets.only(left: 34, top: 2),
-                child: Text(
-                  '후기에 \'업체 혜택 받고 작성\' 표시가 함께 노출돼요.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: context.colors.textTertiary,
-                  ),
-                ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 첨부 썸네일 + 우상단 제거 버튼(공용).
+  Widget _thumb({required Widget child, required VoidCallback onRemove}) {
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          right: 4,
+          top: 4,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
               ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _submitting ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: context.colors.primaryDark,
-                foregroundColor: context.colors.textOnPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: _submitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      editing ? '수정하기' : '등록하기',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+              child: const Icon(Icons.close, size: 16, color: Colors.white),
             ),
-          ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 섹션 라벨 — 게시글 작성 화면과 동일한 타이포.
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: context.colors.textPrimary,
         ),
       ),
     );

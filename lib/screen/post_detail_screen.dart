@@ -430,6 +430,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         originRect: widget.originRect,
         card: widget.cardBuilder,
         cardRadius: widget.cardRadius,
+        // 카드에서 네 변이 동시에 벌어지는 사방 확장 — 히어로의 카드 미러
+        // (세로 중앙 3:4 박스)와 짝.
+        contentAlignment: Alignment.center,
         scrollController: _scroll,
         builder: (context, physics) => ListenableBuilder(
           listenable: _state,

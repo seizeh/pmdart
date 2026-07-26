@@ -624,19 +624,24 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
                 ),
               ),
             // 상태바 스크림 — 어두운 미디어에서도 시간·배터리가 읽히게.
+            // 확장·축소 전환 중에는 카드(타일)에 없는 요소라 페이드 아웃.
             if (hasMedia)
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
                 height: MediaQuery.paddingOf(context).top + 24,
-                child: const IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.white70, Colors.transparent],
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _mirror ? 0 : 1,
+                    duration: const Duration(milliseconds: 120),
+                    child: const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.white70, Colors.transparent],
+                        ),
                       ),
                     ),
                   ),

@@ -295,20 +295,25 @@ class _PostMediaHeroState extends State<PostMediaHero> {
                 ),
               ),
             // 상태바 스크림 — 어두운 미디어에서도 시간·배터리가 읽히게.
-            // 블롭 배경은 밝아 불필요(카드와 동일).
+            // 블롭 배경은 밝아 불필요(카드와 동일). 확장·축소 전환 중에는
+            // 카드에 없는 요소라 회색 띠로 보이므로 페이드 아웃.
             if (!isBlob)
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
                 height: MediaQuery.paddingOf(context).top + 24,
-                child: const IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.white70, Colors.transparent],
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _mirror ? 0 : 1,
+                    duration: const Duration(milliseconds: 120),
+                    child: const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.white70, Colors.transparent],
+                        ),
                       ),
                     ),
                   ),

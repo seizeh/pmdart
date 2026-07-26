@@ -160,6 +160,46 @@ Phase C 로 미룬다.
 3. Edge Function 시크릿에 `WEB_APP_URL=https://app.pawmate.kr` 설정 → 이 시점에
    CTA 가 나타난다
 
+## 결정 7 — 웹 세션은 탭 단위·8시간 상한 ✅ 구현됨
+
+### 먼저, 실제 토큰 모델 (계획 단계의 서술이 틀렸다)
+
+계획에는 "무상태 JWT exp 30일"이라고 적었는데 **옛날 얘기**였다. refresh-token
+phase 2 이후 실제 모델은:
+
+| | 값 |
+|---|---|
+| access TTL | **8시간** (`ACCESS_TTL_CAPABLE`) |
+| access TTL (레거시) | 30일 — `x-client-refresh:1` 헤더를 **안 보낼 때만** |
+| refresh | 슬라이딩 30일 / 절대 90일, 회전형 |
+| 탈취 감지 | `rt_rotate` 재사용 감지 시 family 전체 회수(`reuse_revoked`) |
+
+⚠️ **로그인 요청의 `x-client-refresh:1` 헤더를 빼면 안 된다** — 서버가 레거시
+클라로 보고 30일짜리 access 를 발급해 오히려 나빠진다(`login/index.ts`).
+
+### 정책
+
+httpOnly 쿠키 이관(원래 계획)은 하지 않는다. 로그인 경로 자체를 바꾸는 작업이라
+검증 부담이 큰 데 비해, XSS 가 페이지 안에서 그대로 요청하는 건 어차피 못 막는다.
+웹은 **앱 유입 퍼널**이므로 세션을 짧게 끊는 쪽이 맞는 교환이다.
+
+| | 앱(네이티브) | 웹 |
+|---|---|---|
+| access | secure storage | **sessionStorage**(탭 닫으면 소멸) |
+| user | SharedPreferences | sessionStorage |
+| refresh | secure storage, 회전 | **영속화 안 함**, 갱신에도 안 씀 |
+| 세션 상한 | 30일(회전) | **8시간** |
+
+refresh 를 메모리에는 들고 있는다 — 로그아웃 시 서버 family 회수(`logout` 엣지)에
+필요하기 때문이다. 갱신에는 쓰지 않는다(`isAccessExpiringSoon` 이 웹에서 항상
+false, `_doRefresh` 도 즉시 반환).
+
+구현: `lib/services/session_store.dart`(조건부 export) + `_io`/`_web`,
+`session.dart` 는 `_store` 를 통해서만 접근. 서버 변경 없음.
+
+`flutter_secure_storage` 를 웹에서 안 쓰는 이유: 웹 구현이 localStorage + AES 인데
+복호화 키도 같은 localStorage 에 있어 사실상 난독화다.
+
 ## 작업 단계
 
 ### Phase A — 웹에서 정상 기동 ✅ 완료
@@ -215,12 +255,9 @@ method initializeNcp on channel flutter_naver_map_sdk)
 
 ### Phase B — 웹 고유 문제
 
-- **B1. 토큰 저장** — `session.dart` 의 `FlutterSecureStorage` 는 웹에서
-  localStorage + AES. 무상태 커스텀 JWT(exp 30일)를 그대로 두면 XSS 한 번에
-  30일치 세션이 나간다. 웹은 access 를 메모리에 두고 refresh 를
-  `go.pawmate.kr` Worker 의 httpOnly·SameSite=Lax 쿠키로 옮긴다(pmdb 작업 동반).
-  덤으로 `flutter_secure_storage_web` 이 `dart:html`·`package:js` 를 써서 현재
-  **wasm 빌드를 막는 유일한 의존성**이다 — 이걸 걷어내면 wasm 전환도 열린다
+- **B1. 토큰 저장** ✅ 완료 — 결정 7 참고. `flutter_secure_storage` 를 웹에서
+  쓰지 않게 되면서, `dart:html`·`package:js` 때문에 **wasm 빌드를 막던 유일한
+  의존성**도 웹 경로에서 빠졌다(wasm 전환 여지가 열렸다 — 별도 과제)
 - **B2. juso CORS** — `juso_service.dart` 의 직접 호출은 브라우저에서 막힌다.
   Worker `/api/juso` 프록시 경유. (업체등록은 웹 범위 밖이라 우선순위 낮음)
 - **B3. URL 라우팅** — 최소 `/post/:id`, `/u/:id`. 기존 `AppPageRoute` 모션을

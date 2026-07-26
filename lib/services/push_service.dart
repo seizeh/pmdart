@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../utils/platform_info.dart';
 import 'session.dart';
 
 /// 백그라운드/종료 상태 수신 핸들러(반드시 top-level, vm:entry-point).
@@ -49,7 +48,7 @@ class PushService {
     );
 
     _fm.onTokenRefresh.listen(_register);
-    if (Platform.isIOS) {
+    if (isIOS) {
       // SceneDelegate 환경에선 FCM 의 탭 스트림(onMessageOpenedApp)이 유실된다 —
       // 네이티브(AppDelegate)가 알림 탭을 이 채널로 전달한다(콜드 스타트는 버퍼 회수).
       _iosTapChannel.setMethodCallHandler((call) async {
@@ -76,7 +75,7 @@ class PushService {
   Future<void> registerToken() async {
     if (!SessionManager.instance.isLoggedIn) return;
     try {
-      if (Platform.isIOS) {
+      if (isIOS) {
         // APNs 등록이 비동기라 앱 시작 직후엔 null 일 수 있다 — 준비될 때까지 재시도.
         String? apns;
         for (var i = 0; i < 10 && apns == null; i++) {
@@ -103,7 +102,7 @@ class PushService {
         'register_device_token',
         params: {
           'p_token': token,
-          'p_platform': Platform.isIOS ? 'ios' : 'android',
+          'p_platform': isIOS ? 'ios' : 'android',
           'p_device_name': null,
         },
       );

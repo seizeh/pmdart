@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../models/profile.dart';
@@ -301,7 +302,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             ),
                             const SizedBox(height: 8),
                             InkWell(
-                              onTap: _verifyRegion,
+                              // 웹은 GPS 동네 인증이 없다(docs/web-port.md) —
+                              // 인증 화면으로 못 보내므로 현재 지역 표시만 한다.
+                              onTap: kIsWeb ? null : _verifyRegion,
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(

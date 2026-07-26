@@ -12,6 +12,7 @@ import '../../services/business_repository.dart';
 import '../../services/session.dart';
 import '../../state/my_info_state.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/layout.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/overlay_icon_button.dart';
 import '../../widgets/pet_card.dart';
@@ -331,7 +332,6 @@ class _MyInfoTabState extends State<MyInfoTab>
       );
     }
 
-    final bottomInset = MediaQuery.of(context).padding.bottom;
     return RefreshIndicator(
       onRefresh: _state.load,
       edgeOffset: topPad,
@@ -341,7 +341,7 @@ class _MyInfoTabState extends State<MyInfoTab>
         // 필요 이상 위로 오버스크롤되지 않게 여백을 최소로 잡는다.
         padding: EdgeInsets.only(
           top: topPad + 14,
-          bottom: 62 + bottomInset + 8 + 16,
+          bottom: bottomNavClearance(context) + 8 + 16,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

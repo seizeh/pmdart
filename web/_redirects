@@ -1,0 +1,4 @@
+# SPA 폴백 — /p/<postId> 같은 경로도 index.html 이 받아야 한다(공유 링크 진입).
+# 없으면 새로고침·직접 진입에서 404 가 난다. Cloudflare Pages 규칙 파일이며
+# flutter build web 이 web/ 의 파일을 그대로 build/web 으로 복사한다.
+/*    /index.html   200

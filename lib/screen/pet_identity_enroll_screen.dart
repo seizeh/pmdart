@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 import '../services/pet_enroll_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../utils/temp_file.dart';
 
 /// 펫 신원 인증(0020) — 반려동물 영상 촬영 → 프레임 추출 → 서버 AI 검증(실물·동일개체).
 ///
@@ -70,7 +70,7 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
 
       if (!mounted) return;
       setState(() => _status = '신원 인증 중… (영상 분석)');
-      final videoBytes = await File(video.path).readAsBytes();
+      final videoBytes = await video.readAsBytes();
       final res = await PetEnrollRepository.instance.enroll(
         petId: widget.petId,
         videoBytes: videoBytes,
@@ -78,11 +78,7 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
         frames: frames,
       );
       // 로컬 임시 영상 삭제(잔존 방지).
-      try {
-        await File(video.path).delete();
-      } catch (e) {
-        debugPrint('신원 인증: 임시 영상 삭제 실패(무해): $e');
-      }
+      await deleteTempFile(video.path);
 
       if (!mounted) return;
       setState(() {

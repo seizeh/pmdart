@@ -24,8 +24,9 @@ import 'role_badge.dart' show categoryColor;
 ///   블러는 그 뒤에만: 피드 카드와 같은 방식으로 같은 미디어를 한 겹 더 그려
 ///   σ8 블러 + 세로 그라데이션 마스크 — 마스크가 연속이라 경계·계단이 없다.
 ///   본문 탭으로 펼치면 패널(블러 포함)이 위로 자라며 칩·제목이 밀려 올라간다.
-/// - 축소(카드 복귀) 전환이 시작되면 미디어를 3:4 상단 박스로, 오버레이를 카드
-///   위치로 되돌려(150ms) [CollapsibleView] 의 축소 모프가 피드 카드와 겹친다.
+/// - 축소(카드 복귀) 전환이 시작되면 미디어를 3:4 **세로 중앙** 박스로,
+///   오버레이를 그 하단으로 되돌려(150ms) [CollapsibleView] 의 중심 기준
+///   사방 축소 모프(contentAlignment: center)와 피드 카드가 겹친다.
 ///   카드에 없는 요소(진행바·지원 버튼)는 페이드아웃.
 class PostMediaHero extends StatefulWidget {
   final Post post;
@@ -70,9 +71,12 @@ class _PostMediaHeroState extends State<PostMediaHero> {
   bool _mirror = false;
   bool _initialized = false;
 
-  /// 본문 펼침 상태(오버레이 미리보기 또는 블롭 센터 본문) — 축소 전환 중에는
-  /// 강제로 접히고, 드래그가 취소되어 풀스크린으로 복귀하면 다시 펼쳐진다.
-  bool _expanded = false;
+  /// 본문 펼침 상태(오버레이 미리보기 또는 블롭 센터 본문) — 진입하면 자동으로
+  /// 펼쳐진다(확장 전환이 안착한 뒤 스프링으로 열림 — expanded 는
+  /// `_expanded && !_mirror` 라 카드 미러가 풀리는 순간 AnimatedSize 가 받는다).
+  /// 탭으로 접기/다시 펼치기 토글, 축소 전환 중에는 강제로 접히고 드래그가
+  /// 취소되어 풀스크린으로 복귀하면 다시 펼쳐진다.
+  bool _expanded = true;
 
   void _onTick() {
     final want = (_progress?.value ?? 1) < 1.0;
@@ -126,9 +130,12 @@ class _PostMediaHeroState extends State<PostMediaHero> {
       builder: (context, constraints) {
         final w = constraints.maxWidth;
         final h = constraints.maxHeight;
-        // 축소 전환 중엔 피드 카드와 같은 3:4 상단 박스로.
+        // 축소 전환 중엔 피드 카드와 같은 3:4 박스를 **화면 세로 중앙**에 —
+        // CollapsibleView 의 중심 기준(사방) 확장(contentAlignment: center)과
+        // 짝을 이뤄 윈도 중심과 카드 미러가 항상 겹친다.
         final cardH = w / kPostImageAspectRatio;
         final boxH = _mirror ? cardH : h;
+        final mirrorInset = (h - cardH) / 2;
         // 영상: 세로·정방형은 cover(풀스크린), 가로는 검정 위 contain.
         // 카드 미러 중엔 카드(포스터 cover)와 겹치도록 cover 로. 사진은 늘 cover.
         final landscape = v != null && v.isInitialized && v.aspectRatio > 1;
@@ -140,13 +147,13 @@ class _PostMediaHeroState extends State<PostMediaHero> {
           fit: StackFit.expand,
           children: [
             // 배경은 투명 — 풀스크린에선 미디어 박스가 화면을 다 덮고, 축소
-            // 전환 중엔 카드(3:4) 아래가 비어 뒤 피드가 비친다
+            // 전환 중엔 카드(3:4) 밖이 비어 뒤 피드가 비친다
             // (CollapseRoute opaque:false).
-            // 미디어 — 풀스크린, 축소 전환 중엔 3:4 상단 박스.
+            // 미디어 — 풀스크린, 축소 전환 중엔 3:4 세로 중앙 박스.
             AnimatedPositioned(
               duration: _anchorDuration,
               curve: Curves.easeOutCubic,
-              top: 0,
+              top: _mirror ? mirrorInset : 0,
               left: 0,
               right: 0,
               height: boxH,
@@ -172,13 +179,13 @@ class _PostMediaHeroState extends State<PostMediaHero> {
               ),
             ),
             // 하단 오버레이 패널 — 카드 미러 정보 + 그 뒤에만 점진 블러·스크림.
-            // 풀스크린에선 화면 하단, 축소 전환 중엔 카드(3:4) 하단으로 이동.
+            // 풀스크린에선 화면 하단, 축소 전환 중엔 카드(세로 중앙 3:4) 하단으로.
             AnimatedPositioned(
               duration: _anchorDuration,
               curve: Curves.easeOutCubic,
               left: 0,
               right: 0,
-              bottom: _mirror ? h - cardH : 0,
+              bottom: _mirror ? mirrorInset : 0,
               child: MediaOverlayPanel(
                 // 블러 사본 — 카드와 동일한 방식(같은 소스를 한 겹 더 그려
                 // σ8 블러 + 마스크). 미디어 박스 하단 == 패널 하단이므로

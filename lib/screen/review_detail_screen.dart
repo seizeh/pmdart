@@ -83,8 +83,10 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
   bool _mirror = false;
   bool _mirrorInit = false;
 
-  /// 본문 펼침(오버레이 미리보기 또는 블롭 센터 본문).
-  bool _expanded = false;
+  /// 본문 펼침(오버레이 미리보기 또는 블롭 센터 본문) — 진입하면 자동으로
+  /// 펼쳐진다(확장 전환 안착 후 스프링으로 열림 — 게시글 상세와 동일).
+  /// 탭으로 접기/다시 펼치기, 축소 전환 중에는 강제로 접힌다.
+  bool _expanded = true;
 
   // ── 댓글 — reviewId 가 있는 후기(시설 후기)에만 붙는다 ──
   final _commentCtrl = TextEditingController();
@@ -373,6 +375,9 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
         originRect: widget.originRect,
         card: widget.cardBuilder,
         cardRadius: 14, // _ReviewCard 와 동일 곡률
+        // 타일에서 네 변이 동시에 벌어지는 사방 확장 — 미러(세로 중앙 1:1
+        // 박스)와 짝(게시글 상세와 동일 언어).
+        contentAlignment: Alignment.center,
         scrollController: _scroll,
         builder: (context, physics) => Scaffold(
           // 투명 — 축소 전환 중 카드 아래로 뒤 화면이 비친다(게시글과 동일).
@@ -434,19 +439,21 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
       builder: (context, constraints) {
         final w = constraints.maxWidth;
         final h = constraints.maxHeight;
-        // 축소 전환 중엔 후기 그리드 타일과 같은 정사각(1:1) 상단 박스로.
+        // 축소 전환 중엔 후기 그리드 타일과 같은 정사각(1:1) 박스를 화면 세로
+        // 중앙에 — CollapsibleView 의 중심 기준(사방) 확장과 짝.
         final boxH = _mirror ? w : h;
+        final mirrorInset = (h - w) / 2;
         final expanded = _expanded && !_mirror;
         final safeBottom = MediaQuery.paddingOf(context).bottom;
         final curIsVideo = _videoCtrls.containsKey(_page);
         return Stack(
           fit: StackFit.expand,
           children: [
-            // 미디어 — 풀스크린 페이저, 축소 전환 중엔 정사각 상단 박스.
+            // 미디어 — 풀스크린 페이저, 축소 전환 중엔 정사각 세로 중앙 박스.
             AnimatedPositioned(
               duration: _anchorDuration,
               curve: Curves.easeOutCubic,
-              top: 0,
+              top: _mirror ? mirrorInset : 0,
               left: 0,
               right: 0,
               height: boxH,
@@ -498,7 +505,7 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
                 opacity: _mirror ? 0 : 1,
                 duration: const Duration(milliseconds: 150),
                 child: MediaOverlayPanel(
-                  blurSource: _blurSource(context, v),
+                  blurSource: _blurSource(context, w),
                   blurSourceSize: Size(w, boxH),
                   bottomClearance: safeBottom + (curIsVideo ? 24 : 10),
                   clearanceDuration: _anchorDuration,
@@ -689,14 +696,43 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
     );
   }
 
-  /// 패널 블러의 원본 사본 — 현재 페이지의 미디어와 동일한 서브트리.
+  /// 패널 블러의 원본 사본 — 본체 PageView 의 스크롤을 실시간 추종한다.
+  /// AnimatedBuilder(_pageCtrl)로 현재 페이지 오프셋(fraction)을 읽어, 인접 두
+  /// 페이지의 미디어 사본을 본체와 같은 위치로 translate 해 나란히 그린다
+  /// (픽셀 동기 슬라이드 — 스와이프 중 블러가 따로 놀지 않게). 영상 사본은
+  /// 현재(안착) 페이지만 라이브, 이웃/미초기화는 포스터(기존 규칙 유지).
   /// 블롭(미디어 없음)은 null — 카드처럼 블러 없이 스크림만.
-  Widget? _blurSource(BuildContext context, VideoPlayerValue? v) {
+  Widget? _blurSource(BuildContext context, double w) {
     if (_pages.isEmpty) return null;
-    final page = _pages[_page];
+    return AnimatedBuilder(
+      animation: _pageCtrl,
+      builder: (context, _) {
+        final page = _pageCtrl.hasClients && _pageCtrl.position.haveDimensions
+            ? (_pageCtrl.page ?? _page.toDouble())
+            : _page.toDouble();
+        final first = page.floor().clamp(0, _pages.length - 1);
+        final second = (first + 1).clamp(0, _pages.length - 1);
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            for (final i in {first, second})
+              Transform.translate(
+                // PageView 와 동일한 배치: 페이지 i 는 x = (i - page) * w.
+                offset: Offset((i - page) * w, 0),
+                child: _blurPageCopy(context, i),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 페이지 [i] 의 블러용 사본 — 사진은 저해상 사본(카드와 동일), 영상은
+  /// 현재 페이지만 라이브 VideoPlayer.
+  Widget _blurPageCopy(BuildContext context, int i) {
+    final page = _pages[i];
     final photo = page.photoUrl;
     if (photo != null) {
-      // 사진 — 카드의 블러 사본과 동일(저해상 디코딩으로 충분).
       return Image.network(
         photo,
         fit: BoxFit.cover,
@@ -704,10 +740,12 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
         errorBuilder: (_, _, _) => const SizedBox.shrink(),
       );
     }
-    if (_videoErrors.contains(_page)) {
+    if (_videoErrors.contains(i)) {
       return const ColoredBox(color: kVideoFallbackBg);
     }
-    if (v != null && v.isInitialized) {
+    final ctrl = _videoCtrls[i];
+    if (ctrl != null && i == _page && ctrl.value.isInitialized) {
+      final v = ctrl.value;
       return Stack(
         fit: StackFit.expand,
         children: [
@@ -718,7 +756,7 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
             child: SizedBox(
               width: v.size.width,
               height: v.size.height,
-              child: VideoPlayer(_videoCtrls[_page]!),
+              child: VideoPlayer(ctrl),
             ),
           ),
         ],

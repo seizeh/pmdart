@@ -207,18 +207,20 @@ class _OriginExpand extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
+                    // 콘텐츠는 윈도 중심 기준 — 원본(버튼) 중심에서 네 변이
+                    // 동시에 벌어지는 사방 확장으로 읽힌다.
                     if (originFade < 1)
                       Opacity(
                         opacity: 1 - originFade,
                         child: OverflowBox(
-                          alignment: Alignment.topLeft,
+                          alignment: Alignment.center,
                           minWidth: w,
                           maxWidth: w,
                           minHeight: h,
                           maxHeight: h,
                           child: Transform.scale(
                             scale: scale,
-                            alignment: Alignment.topLeft,
+                            alignment: Alignment.center,
                             filterQuality: FilterQuality.low,
                             child: child,
                           ),
@@ -227,11 +229,14 @@ class _OriginExpand extends StatelessWidget {
                     if (originWidget != null && originFade > 0)
                       Opacity(
                         opacity: originFade,
-                        child: Transform.scale(
-                          scale: win.width / originRect.width,
-                          alignment: Alignment.topLeft,
-                          filterQuality: FilterQuality.low,
-                          child: originWidget,
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: Transform.scale(
+                            scale: win.width / originRect.width,
+                            alignment: Alignment.center,
+                            filterQuality: FilterQuality.low,
+                            child: originWidget,
+                          ),
                         ),
                       ),
                   ],
@@ -284,6 +289,7 @@ class CollapsibleView extends StatefulWidget {
     this.cardRadius = 20,
     this.expandDuration = const Duration(milliseconds: 420),
     this.expandCurve = Curves.easeOutCubic,
+    this.contentAlignment = Alignment.topCenter,
     this.onSettled,
     this.dragHandleTest,
   });
@@ -301,6 +307,15 @@ class CollapsibleView extends StatefulWidget {
   /// 다르게 줄 수 있다(기본은 게시글 상세와 동일).
   final Duration expandDuration;
   final Curve expandCurve;
+
+  /// 확장/축소 중 콘텐츠(와 카드 크로스페이드)의 세로 정렬 기준.
+  /// (콘텐츠 폭은 항상 윈도 폭과 일치해 가로 정렬은 무의미.)
+  /// - [Alignment.topCenter](기본): 콘텐츠 상단이 윈도 상단에 붙는다 —
+  ///   화면 상단 헤더가 카드와 미러되는 화면(프로필·펫 상세·채팅방).
+  /// - [Alignment.center]: 윈도 중심 기준으로 네 변이 동시에 벌어지는
+  ///   **사방 확장** — 카드 미러 콘텐츠를 화면 세로 중앙에 두는 쇼츠형
+  ///   상세(게시글·후기, 히어로의 _mirror 배치와 짝).
+  final Alignment contentAlignment;
 
   /// 축소가 원본 위치에 안착한 뒤(=카드) pop 하기 전에 실행할 2단계 모션.
   /// 예) 채팅방 프로필 카드가 목록 타일 모습으로 변형되는 후속 애니메이션.
@@ -492,6 +507,9 @@ class _CollapsibleViewState extends State<CollapsibleView>
     final cardFade = cardWidget == null
         ? 0.0
         : ((t - 0.5) / 0.5).clamp(0.0, 1.0);
+    // 콘텐츠·카드가 윈도의 어느 지점에 붙어 움직일지 — center 면 윈도 중심
+    // 기준 사방 확장(쇼츠형), topCenter 면 상단 고정(헤더 미러형).
+    final align = widget.contentAlignment;
 
     return Stack(
       fit: StackFit.expand,
@@ -513,14 +531,14 @@ class _CollapsibleViewState extends State<CollapsibleView>
                   Opacity(
                     opacity: 1 - cardFade,
                     child: OverflowBox(
-                      alignment: Alignment.topLeft,
+                      alignment: align,
                       minWidth: w,
                       maxWidth: w,
                       minHeight: h,
                       maxHeight: h,
                       child: Transform.scale(
                         scale: scale,
-                        alignment: Alignment.topLeft,
+                        alignment: align,
                         filterQuality: FilterQuality.low,
                         child: child,
                       ),
@@ -530,10 +548,10 @@ class _CollapsibleViewState extends State<CollapsibleView>
                   Opacity(
                     opacity: cardFade,
                     child: Align(
-                      alignment: Alignment.topLeft,
+                      alignment: align,
                       child: Transform.scale(
                         scale: win.width / origin.width,
-                        alignment: Alignment.topLeft,
+                        alignment: align,
                         filterQuality: FilterQuality.low,
                         child: cardWidget,
                       ),

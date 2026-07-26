@@ -236,6 +236,21 @@ method initializeNcp on channel flutter_naver_map_sdk)
 | `flutter_local_notifications` | `isAndroid` 가 false → `init()` 이 즉시 반환 |
 | `video_thumbnail` | `storage_service` 포스터 생성을 `kIsWeb` 이면 생략 |
 
+⚠️ **A2 에서 놓쳤던 것 — 네이티브 싱글턴의 필드 초기화**
+
+`main()` 에서 `_setupPush()` 만 건너뛰면 충분하다고 봤는데 아니었다.
+`PushService` 는 `final FirebaseMessaging _fm = FirebaseMessaging.instance;` 를
+**인스턴스 필드**로 갖고 있어서, `PushService.instance` 를 처음 참조하는 순간
+Firebase 가 없다며 `[core/no-app]` 로 던진다. 그 참조가 로그인 성공 직후
+(`auth_service.dart` 의 `registerToken()`)와 로그아웃(`clearToken()`)에 있었다.
+
+증상이 고약했다 — 세션은 이미 저장된 뒤라 **"로그인 버튼은 눌리는데 로그인이
+안 된다"**(에러 토스트만 뜨고, 새로고침하면 로그인돼 있음). 게스트 둘러보기만
+확인해서는 절대 안 잡힌다.
+
+교훈: `kIsWeb` 가드는 **초기화 지점이 아니라 공개 진입점마다** 걸어야 하고,
+네이티브 플러그인 핸들은 필드가 아니라 **게터**로 둬야 한다(참조 시점 지연).
+
 **A3. 웹 진입점 차단**
 
 - `main_screen.dart` — `visibleTabs` 도입. 탭 상수는 정체성으로 고정하고 표시

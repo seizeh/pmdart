@@ -116,6 +116,27 @@
 미구현 — 레일 하단의 "앱으로 보기" CTA. 스토어 등록 전이라 링크가 없어
 Phase C 로 미룬다.
 
+### 셸이 Navigator 바깥에 있어서 생기는 함정 두 가지 (배포 후 발견)
+
+컬럼이 Navigator를 **옮기고 좁히기** 때문에, 라우트 안에서 보는 좌표와 크기가
+창의 그것과 달라진다. 둘 다 데스크톱에서만, **창이 넓을수록 더 크게** 어긋난다.
+
+1. **좌표** — 모프의 `originRect` 는 `localToGlobal`(창 좌표)로 잡는데 라우트는
+   컬럼 좌표계다. 보정 없이 쓰면 상세가 엉뚱한 자리(거의 화면 밖)에서 펼쳐진다.
+   → 규약을 "`originRect` 는 언제나 창 좌표"로 못박고, 소비 지점
+   (`CollapsibleView`·`ExpandRoute`)에서 `toRouteRect()` 로 변환한다. 캡처 지점이
+   18곳이라 소비 쪽 3곳에서 잡는 편이 안전하다. `riseOriginRect` 는 MediaQuery
+   기준이라 반대로 `shellOrigin()` 을 더해 규약에 맞춘다.
+
+2. **크기** — `ConstrainedBox` 는 MediaQuery 를 바꾸지 않아 컬럼 안에서도
+   `MediaQuery.size` 가 창 크기로 보고된다. 모프의 도착 사각형이 창 폭으로
+   잡혀 어긋난다. → 컬럼 안에서 MediaQuery 를 컬럼 크기로 덮어쓴다.
+
+   ⚠️ 그런데 이걸 덮으면 **크롬 구성 판단까지 오염된다** — `useSideNav` 가
+   컬럼 폭(460)을 보고 "좁은 화면"으로 오판해 **좌측 레일과 하단 바가 동시에**
+   나온다. 그래서 창 크기는 `ShellMetrics`(InheritedWidget)로 따로 내려보내고,
+   `useSideNav`/`useContentColumn` 은 그 값을 우선 본다.
+
 ## 결정 6 — 공유 링크는 share-view 유지 + 웹앱 CTA 추가 ✅ 구현됨
 
 `go.pawmate.kr/s?t=<token>` 을 웹앱으로 **대체하지 않는다**. 지금 페이지는

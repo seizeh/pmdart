@@ -42,10 +42,24 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!useContentColumn(context)) return child;
 
+    final outer = MediaQuery.of(context);
     final column = Center(
       child: ConstrainedBox(
+        key: contentColumnKey, // toRouteRect 가 이 박스의 화면 위치를 읽는다
         constraints: const BoxConstraints(maxWidth: kContentMaxWidth),
-        child: child,
+        child: LayoutBuilder(
+          // MediaQuery 를 컬럼 크기로 덮어쓴다 — 안 하면 화면이 460 인데 창 폭
+          // (예: 1433)으로 보고돼 MediaQuery.size 로 재는 레이아웃·모프가 어긋난다.
+          // 대신 창 크기는 ShellMetrics 로 따로 내려보낸다 — 크롬 구성(레일이냐
+          // 하단 바냐)은 창 폭 기준이어야 하기 때문(둘 다 나오는 것 방지).
+          builder: (context, c) => ShellMetrics(
+            windowSize: outer.size,
+            child: MediaQuery(
+              data: outer.copyWith(size: Size(c.maxWidth, c.maxHeight)),
+              child: child,
+            ),
+          ),
+        ),
       ),
     );
 

@@ -314,8 +314,11 @@ Firebase 가 없다며 `[core/no-app]` 로 던진다. 그 참조가 로그인 �
 - **B3. URL 라우팅** — 최소 `/post/:id`, `/u/:id`. 기존 `AppPageRoute` 모션을
   깨지 않으려면 `Router` 전면 도입 대신 `onGenerateRoute` 로 간다
 - ~~**B4. 데스크톱 셸**~~ ✅ 완료 — 결정 5 참고
-- **B5. 스크롤 물리** — 웹 기본 `ScrollBehavior` 는 데스크톱 스크롤바가 붙고
-  오버스크롤이 다르다. `BouncingScrollPhysics` 고정 + 스크롤바 숨김
+- **B5. 스크롤 동작** ✅ 완료 — `widgets/app_scroll_behavior.dart`(웹 전용):
+  데스크톱 스크롤바 제거(앱에 없는 요소) + `dragDevices` 에 마우스·트랙패드 추가.
+  후자가 중요하다 — 기본값은 터치·스타일러스뿐이라 **가로 목록(커뮤니티 카테고리
+  칩)이 마우스만 있는 PC 에서 도달 불가**였다(뒤쪽 '입양'·'자유'를 못 씀).
+  오버스크롤 물리는 건드리지 않았다(관측된 문제 없음)
 - ~~**B6. 초기 로딩**~~ ✅ 부분 완료 — `web/index.html` 정비(제목·OG·theme-color),
   앱 배경색 스플래시 + `flutter-first-frame` 에 제거, 아이콘 5종을 앱 아이콘으로
   재생성(전부 Flutter 기본 로고였다), `manifest.json` 정비

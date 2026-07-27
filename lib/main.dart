@@ -35,6 +35,7 @@ import 'services/session.dart';
 import 'services/theme_controller.dart';
 import 'theme/app_theme.dart';
 import 'utils/web_link.dart';
+import 'widgets/app_scroll_behavior.dart';
 import 'widgets/app_shell.dart';
 import 'widgets/app_toast.dart';
 import 'widgets/review_cards.dart';
@@ -481,6 +482,8 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: themeMode, // 설정(내정보 수정 > 화면 테마)에서 변경·저장
+        // 웹만: 데스크톱 스크롤바 숨김 + 마우스 드래그 허용(가로 칩 목록 도달).
+        scrollBehavior: kIsWeb ? const WebScrollBehavior() : null,
         // 전 화면 공통 키보드 해제:
         //  · 스크롤: 하위 스크롤뷰의 드래그 시작을 받아 해제(알림은 계속 전파).
         //  · 탭: 키보드가 떠 있을 때만 전체 화면에 배리어를 깔아, 화면 탭을 '키보드 닫기'

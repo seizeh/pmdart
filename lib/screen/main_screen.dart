@@ -192,8 +192,22 @@ class _MainScreenState extends State<MainScreen>
   void _publishRail() => navRail.value = NavRailConfig(
     currentIndex: _index,
     items: _navItems,
-    onTap: _select,
+    onTap: _selectFromRail,
   );
+
+  /// 레일에서의 탭 — 먼저 이 화면 위에 얹힌 라우트를 모두 닫는다.
+  ///
+  /// 레일은 본문 컬럼 바깥(Navigator 위)에 있어서 **게시글 상세가 열려 있어도
+  /// 계속 보인다.** 그 상태로 누르면 아래 탭만 바뀌고 화면은 상세 그대로라
+  /// "눌러도 아무 일도 안 일어남"으로 보였다. 하단 바(모바일)는 상세에 가려
+  /// 이 상황 자체가 없어 [_select] 를 그대로 쓴다.
+  void _selectFromRail(int i) {
+    final myRoute = ModalRoute.of(context);
+    if (myRoute != null) {
+      Navigator.of(context).popUntil((r) => r == myRoute);
+    }
+    _select(i);
+  }
 
   /// 탭 본문 — 전환 시 방향에서 흘러 들어오는 모션 포함. 가로/세로 크롬 공용.
   Widget _body() => AnimatedBuilder(

@@ -539,12 +539,75 @@ Firebase 가 없다며 `[core/no-app]` 로 던진다. 그 참조가 로그인 �
   안 생긴다. 전파 중 몇 분간 522 가 나는 것은 정상.
 - 검증: `/`·`/p/<postId>`·임의 경로 전부 200(SPA 폴백 동작),
   `app.pawmate.kr` 전용 인증서 발급(Google Trust Services), OG 메타 서빙 확인
+- 자동 배포: `.github/workflows/deploy-web.yml` — main 푸시 시(`lib/**`·`web/**`·
+  `assets/**`·`pubspec.*` 변경에 한해). 수동 배포는 더 이상 필요 없다
+
+### 배포 뒤 재방문자 흰 화면 — 캐시 ✅ 해결 (2026-07-27)
+
+배포 직후 접속하면 스플래시에서 멈추고 콘솔에 이것이 떴다:
+
+```
+LinkError: WebAssembly.instantiate(): Import #234 "a" "sd":
+  function import requires a callable
+```
+
+브라우저에 남은 **옛 `canvaskit.js` 와 새 `canvaskit.wasm`** 이 링크되지 않은
+것이다. 하드 리로드하면 낫지만 사용자가 그걸 알 리 없으니 사실상 흰 화면이다.
+
+**원인은 용량도 버전도 아니고 두 파일의 캐시 수명이 서로 달랐던 것이다.**
+
+- `canvaskit/` 아래는 **내용 해시가 없는 고정 경로**다. 새 빌드가 같은 주소를
+  덮어쓰므로 브라우저는 옛것과 새것을 구별할 방법이 없다
+- `flutter_service_worker.js` 는 요즘 **자기를 unregister 하는 스텁**이다. 예전처럼
+  버전 단위로 한꺼번에 갈아끼워 주던 캐싱 계층이 **더는 없다** (열어서 확인할 것 —
+  존재한다고 캐싱하는 게 아니다)
+- `.wasm` 은 Cloudflare 기본 캐시 대상이 아니라 늘 새것(`cf-cache-status: DYNAMIC`),
+  `.js` 는 `max-age=14400`(4시간). → **wasm 만 새것으로 갈리는 4시간짜리 창**이 생긴다
+
+역설적이지만 **둘 다 4시간 캐시였다면 옛것끼리 짝이 맞아 멀쩡했다.** 문제는 캐시가
+길어서가 아니라 **비대칭**이어서였다.
+
+**둘 다** 있어야 해결된다 — 한쪽만으로는 안 됐다:
+
+| 무엇 | 어디 |
+|---|---|
+| 짝이 맞아야 하는 고정 경로를 `no-cache` 로 | `web/_headers` — **코드** |
+| zone 이 그 헤더를 덮어쓰지 않게 | Cloudflare 대시보드 — **코드로 불가** |
+
+대상은 `/canvaskit/*`, `/flutter_bootstrap.js`, `/flutter.js`, `/main.dart.js`.
+`no-store` 가 아니라 **`no-cache`** 다 — 캐시는 그대로 쓰되 쓰기 전에 물어본다.
+안 바뀌었으면 304(본문 0바이트)라 5.7MB 를 다시 받지 않는다.
+
+⚠️ **`web/_headers` 의 `Cache-Control` 은 Pages 에선 먹지만 커스텀 도메인에선
+zone 이 덮어쓴다.** pawmate.kr 의 **Browser Cache TTL 기본값이 4시간**이라
+`.js` 같은 표준 캐시 확장자의 헤더를 재작성했다. **Caching → Configuration →
+Browser Cache TTL 을 "Respect Existing Headers"** 로 바꿔야 `_headers` 가 산다.
+`app.pawmate.kr/*` 한정 Cache Rule 로 좁혀도 된다.
+
+⚠️ **헤더 검증은 반드시 두 호스트를 나란히 재라.** `app.pawmate.kr` 만 보고
+"`_headers` 가 안 먹는다"고 헛짚었다. `pawmate-web.pages.dev` 에서는 처음부터
+정상 적용되고 있었다 — 둘을 비교해야 zone 이 범인이라는 게 드러난다:
+
+```
+for h in pawmate-web.pages.dev app.pawmate.kr; do
+  curl -sI "https://$h/canvaskit/canvaskit.js?x=$RANDOM" | grep -i cache-control
+done
+# 둘 다 기대: cache-control: no-cache
+```
+
+`?x=$RANDOM` 은 엣지 캐시 키를 비껴가 **오리진 헤더**를 보기 위한 것이다. 붙이지
+않으면 엣지에 남은 옛 헤더를 보고 또 헛짚는다.
+
+⚠️ **로컬 빌드와 배포본을 shasum 비교하지 마라.** 로컬이 master 채널, CI 가
+`channel: stable` 이라 산출물 바이트는 **원래 다르다**. 이걸로 "배포가 깨졌다"고
+판단했다가 틀렸다. 배포본의 정합성은 **배포본끼리** 봐야 한다.
 
 남은 것:
 
-- GitHub Actions 자동 배포(현재는 수동) + `--dart-define` 주입
 - CSP — CanvasKit 이 wasm 을 쓰므로 `script-src 'wasm-unsafe-eval'` 필요.
-  Pages 는 기본 CSP 가 없어 지금도 동작하지만 하드닝 대상(`web/_headers`)
+  Pages 는 기본 CSP 가 없어 지금도 동작하지만 하드닝 대상. `web/_headers` 가
+  이미 있으니 거기 얹으면 된다
+- `--dart-define` 주입(스토어 주소 등)
 
 ## 웹에서 재현되지 않는 것
 

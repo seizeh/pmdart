@@ -369,19 +369,49 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
   Future<void> _openInitialWebLink() async {
     final postId = initialSharedPostId();
     if (postId == null) return;
-    Post? loaded;
-    try {
-      loaded = await CommunityRepository.instance.fetchPost(postId);
-    } catch (e) {
-      // 네트워크 실패 등 — 조용히 평소 진입(웰컴/메인)으로 둔다.
-      debugPrint('공유 링크: 게시글 조회 실패 — $e');
-      return;
+
+    // 네비게이터 준비 대기 — 첫 프레임 직후라 보통 바로 있지만 없으면 잠깐 기다린다
+    // (openFromPush 와 같은 방어).
+    NavigatorState? nav = navigatorKey.currentState;
+    for (var i = 0; i < 20 && nav == null; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      nav = navigatorKey.currentState;
     }
-    final nav = navigatorKey.currentState;
+    if (nav == null || !mounted) return;
+
+    // 콜드 로드에서는 번들·wasm 다운로드와 겹쳐 첫 요청이 일시 실패하곤 한다.
+    // 한 번 실패했다고 포기하면 공유 링크가 **조용히 피드로 떨어진다**(실제로
+    // 간헐 발생을 목격). 예외일 때만 재시도하고, 결과가 null(삭제·비공개)이면
+    // 재시도해봐야 소용없으므로 바로 빠진다.
+    Post? loaded;
+    var failed = false;
+    for (var i = 0; i < 3; i++) {
+      try {
+        loaded = await CommunityRepository.instance.fetchPost(postId);
+        failed = false;
+        break;
+      } catch (e) {
+        failed = true;
+        debugPrint('공유 링크: 게시글 조회 실패(${i + 1}/3) — $e');
+        if (i < 2) await Future.delayed(const Duration(milliseconds: 400));
+      }
+    }
+    if (!mounted) return;
+
     // final 로 받아야 아래 클로저에서 널 프로모션이 유지된다(캡처된 지역변수는
     // 승격이 풀려 dart2js 가 거부한다 — analyzer 만으로는 안 잡힌다).
     final post = loaded;
-    if (post == null || nav == null || !mounted) return;
+    if (post == null) {
+      // 말없이 피드로 떨구지 않는다 — 왜 안 열렸는지 알려준다.
+      final overlay = nav.overlay;
+      if (overlay != null) {
+        AppToast.show(
+          overlay,
+          failed ? '게시글을 불러오지 못했어요' : '삭제되었거나 볼 수 없는 게시글이에요',
+        );
+      }
+      return;
+    }
 
     final guest = !SessionManager.instance.isLoggedIn;
     if (guest) {

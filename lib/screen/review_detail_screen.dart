@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
@@ -790,7 +791,11 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
       return const ColoredBox(color: kVideoFallbackBg);
     }
     final ctrl = _videoCtrls[i];
-    if (ctrl != null && i == _page && ctrl.value.isInitialized) {
+    // 웹은 영상 사본을 블러 원본으로 쓰지 않는다 — 플랫폼 뷰(DOM <video>)라
+    // ShaderMask·ImageFiltered 가 먹지 않고 ClipRect 도 따라오지 않아, 사본이
+    // 진짜 영상 위로 삐져나와 잘려 보인다(post_media_hero._blurSource 참고).
+    // 아래 포스터 폴백으로 흘려보낸다.
+    if (ctrl != null && i == _page && ctrl.value.isInitialized && !kIsWeb) {
       final v = ctrl.value;
       return Stack(
         fit: StackFit.expand,

@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -407,11 +408,18 @@ class _PostMediaHeroState extends State<PostMediaHero> {
 
   /// 패널 블러의 원본 사본 — 뒤에 깔린 미디어와 동일한 서브트리.
   /// 블롭 글은 null(카드처럼 블러 없이 스크림만).
+  ///
+  /// ⚠️ 웹에서는 영상 사본을 쓰지 않는다. `video_player_web` 은 영상을
+  /// `HtmlElementView`(DOM `<video>`)로 그리는데, 플랫폼 뷰는 캔버스 밖에서
+  /// 합성되므로 `ImageFiltered`·`ShaderMask` 가 먹지 않고 `ClipRect` 도 따라오지
+  /// 않는다. 그래서 블러 사본으로 만든 두 번째 `<video>` 가 진짜 영상 위로
+  /// 삐져나와 **영상이 잘려 보였다**. 웹에서는 포스터(정지 프레임)를 블러한다 —
+  /// σ8 로 뭉개지는 하단 패널이라 정지 프레임과 구분이 거의 안 된다.
   Widget? _blurSource(VideoPlayerValue? v) {
     final post = widget.post;
     if (v != null) {
       if (widget.videoError) return const ColoredBox(color: kVideoFallbackBg);
-      if (v.isInitialized) {
+      if (v.isInitialized && !kIsWeb) {
         return Stack(
           fit: StackFit.expand,
           children: [

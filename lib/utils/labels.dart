@@ -23,3 +23,15 @@ String categoryLabel(String category) => switch (category) {
   'news' => '소식',
   _ => category,
 };
+
+/// 받침 유무에 맞춘 주격 조사 — `지도는` / `채팅은`.
+///
+/// "지도은(는)" 같은 괄호 표기를 피한다. 한글 음절이 아니면(영문·숫자로 끝나는
+/// 경우) 판별할 수 없으므로 `는`으로 둔다.
+String withTopicParticle(String word) {
+  if (word.isEmpty) return word;
+  final code = word.codeUnitAt(word.length - 1);
+  const base = 0xAC00, last = 0xD7A3;
+  final hasFinal = code >= base && code <= last && (code - base) % 28 != 0;
+  return '$word${hasFinal ? '은' : '는'}';
+}

@@ -27,6 +27,13 @@ abstract final class Env {
     defaultValue: 'cy02y6r0d5',
   );
 
+  /// 스토어 주소 — 웹에서 앱 전용 기능(지도·채팅)을 누르면 여기로 보낸다.
+  /// **미설정이 기본**이다(출시 전). 비어 있으면 설치 버튼 대신 "출시 준비 중"
+  /// 안내를 보여준다 — 죽은 링크를 노출하지 않기 위한 스위치.
+  /// share-view Edge Function 의 STORE_URL_IOS/ANDROID 와 같은 값을 넣는다.
+  static const storeUrlIos = String.fromEnvironment('STORE_URL_IOS');
+  static const storeUrlAndroid = String.fromEnvironment('STORE_URL_ANDROID');
+
   /// 행안부 juso.go.kr confmKey(클라이언트 키). 위의 값들과 달리 콘솔에서
   /// 앱 단위로 제한할 수 없고 쿼터 소진·남용 여지가 있어 **기본값을 두지 않는다**
   /// — 빌드 시 --dart-define=JUSO_API_KEY=... 로 주입한다.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -6,6 +8,7 @@ import '../services/care_report_repository.dart';
 import '../services/keyboard_barrier.dart';
 import '../theme/app_palette.dart';
 import '../utils/layout.dart';
+import '../widgets/app_invite_dialog.dart';
 import '../widgets/app_shell.dart';
 import 'tabs/chat_tab.dart';
 import 'tabs/community_tab.dart';
@@ -35,10 +38,34 @@ class MainScreen extends StatefulWidget {
       tabChat = 3,
       tabMyInfo = 4;
 
-  /// 이 플랫폼에서 실제로 노출하는 탭 — 표시 순서대로.
-  static const List<int> visibleTabs = kIsWeb
-      ? [tabSearch, tabCommunity, tabMyInfo]
-      : [tabMap, tabSearch, tabCommunity, tabChat, tabMyInfo];
+  /// 내비게이션에 **아이콘으로 노출**하는 탭 — 표시 순서대로. 웹도 5개 전부
+  /// 보여준다. 숨기면 앱에서 뭘 더 할 수 있는지 알 길이 없어 유입으로 이어지지
+  /// 않는다 — 보여주고 누르면 설치를 권한다([appOnlyTabs]).
+  static const List<int> visibleTabs = [
+    tabMap,
+    tabSearch,
+    tabCommunity,
+    tabChat,
+    tabMyInfo,
+  ];
+
+  /// 이 플랫폼에서 **앱 전용**인 탭 — 아이콘은 보이되 누르면 설치 안내가 뜨고
+  /// 화면은 전환되지 않는다. 따라서 내용 위젯도 만들지 않는다(웹 구현이 없는
+  /// 지도 플랫폼뷰가 붙는 것을 막는다).
+  static const Set<int> appOnlyTabs = kIsWeb ? {tabMap, tabChat} : {};
+
+  /// 실제로 내용 위젯을 만드는 탭 — 표시 순서 유지.
+  static final List<int> contentTabs = [
+    for (final t in visibleTabs)
+      if (!appOnlyTabs.contains(t)) t,
+  ];
+
+  /// 앱 전용 탭의 안내 문구에 쓸 이름.
+  static String tabLabel(int tab) => switch (tab) {
+    tabMap => '지도',
+    tabChat => '채팅',
+    _ => '이 기능',
+  };
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -46,12 +73,16 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen>
     with SingleTickerProviderStateMixin {
-  // `_index` 는 `MainScreen.visibleTabs` 안에서의 위치다(탭 상수와 다름).
+  // `_index` 는 `MainScreen.visibleTabs`(아이콘 목록) 안에서의 위치다.
+  // 앱 전용 탭에는 결코 머무르지 않으므로 항상 내용이 있는 탭을 가리킨다.
   int _index = MainScreen.visibleTabs.indexOf(MainScreen.tabCommunity);
   int _direction = 0; // 마지막 탭 이동 방향(+1 오른쪽, -1 왼쪽)
 
   /// 현재 보고 있는 탭의 정체성 상수.
   int get _currentTab => MainScreen.visibleTabs[_index];
+
+  /// IndexedStack 용 — 내용 탭 목록에서의 위치(아이콘 목록과 다를 수 있다).
+  int get _contentIndex => MainScreen.contentTabs.indexOf(_currentTab);
 
   // 하단 네비게이션 바 표시 여부. 커뮤니티에서 아래로 스크롤 시 숨고 위로 올리면 복귀.
   final _navVisible = ValueNotifier<bool>(true);
@@ -67,10 +98,10 @@ class _MainScreenState extends State<MainScreen>
     curve: SpringCurve.standard,
   );
 
-  // 노출하는 탭만 생성한다 — 웹에서 MapTab 을 만들면 웹 구현이 없는 지도
-  // 플랫폼뷰가 붙는다.
+  // 내용이 있는 탭만 생성한다 — 웹에서 MapTab 을 만들면 웹 구현이 없는 지도
+  // 플랫폼뷰가 붙는다. 앱 전용 탭은 아이콘만 있고 화면은 없다.
   late final List<Widget> _tabs = [
-    for (final t in MainScreen.visibleTabs) _buildTab(t),
+    for (final t in MainScreen.contentTabs) _buildTab(t),
   ];
 
   Widget _buildTab(int tab) => switch (tab) {
@@ -115,7 +146,9 @@ class _MainScreenState extends State<MainScreen>
     final tab = MainScreen.tabRequest.value;
     if (tab == null) return;
     MainScreen.tabRequest.value = null;
-    // 이 플랫폼에 없는 탭(웹의 지도·채팅)이면 -1 → 무시.
+    // 앱 전용 탭(웹의 지도·채팅)으로의 요청은 무시한다 — 딥링크는 사용자가 누른
+    // 것이 아니므로 설치 안내를 띄우지 않고 조용히 넘긴다.
+    if (MainScreen.appOnlyTabs.contains(tab)) return;
     final i = MainScreen.visibleTabs.indexOf(tab);
     if (mounted && i >= 0) _select(i);
   }
@@ -125,6 +158,14 @@ class _MainScreenState extends State<MainScreen>
       keyboardBarrierEnabled.value = _currentTab != MainScreen.tabMap;
 
   void _select(int i) {
+    // 앱 전용 탭 — 화면을 바꾸지 않고 설치를 권한다. 선택 상태(알약)도 그대로다.
+    final tab = MainScreen.visibleTabs[i];
+    if (MainScreen.appOnlyTabs.contains(tab)) {
+      unawaited(
+        AppInviteDialog.show(context, feature: MainScreen.tabLabel(tab)),
+      );
+      return;
+    }
     if (i == _index) return;
     setState(() {
       _direction = i > _index ? 1 : -1;
@@ -168,7 +209,7 @@ class _MainScreenState extends State<MainScreen>
       );
     },
     // IndexedStack 으로 각 탭 상태는 보존하고, 전환 순간에만 방향성 있게 흘려 보낸다.
-    child: IndexedStack(index: _index, children: _tabs),
+    child: IndexedStack(index: _contentIndex, children: _tabs),
   );
 
   @override

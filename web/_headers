@@ -1,0 +1,43 @@
+# Cloudflare Pages 응답 헤더 규칙. flutter build web 이 web/ 의 파일을 그대로
+# build/web 으로 복사한다(_redirects 와 같다).
+#
+# ── 왜 필요한가 — 배포 뒤 재방문자 흰 화면 ──────────────────────────────
+#
+# 2026-07-27 배포 직후 스플래시에서 멈추고 콘솔에 이것이 떴다:
+#
+#   LinkError: WebAssembly.instantiate(): Import #234 "a" "sd":
+#   function import requires a callable
+#
+# 브라우저에 남은 **옛 canvaskit.js + 새 canvaskit.wasm** 조합이었다. 하드
+# 리로드하면 낫지만, 사용자가 그걸 알 리 없으니 사실상 흰 화면이다.
+#
+# 구조적으로 재발한다:
+#   · canvaskit/ 아래 파일들은 **내용 해시가 없는 고정 경로**다. 새 빌드가 같은
+#     주소를 덮어쓰므로 브라우저는 옛것과 새것을 구별하지 못한다.
+#   · Pages 기본값이 `max-age=14400`(4시간)이라 그 안에는 재검증조차 안 한다.
+#   · flutter_service_worker.js 는 요즘 **자기를 unregister 하는 스텁**이다.
+#     예전처럼 버전 단위로 한꺼번에 갈아끼워 주는 캐싱 계층이 더는 없다.
+#   → Flutter 버전이 바뀐 배포 뒤 4시간 안에 다시 온 사람은 짝이 안 맞는 쌍을
+#     집어들 수 있다.
+#
+# 그래서 **서로 짝이 맞아야만 동작하는 고정 경로 파일들은 매번 재검증**시킨다.
+# no-store 가 아니라 no-cache 다 — 캐시는 그대로 쓰되 쓰기 전에 물어본다.
+# 안 바뀌었으면 304(본문 0바이트)라 5.7MB 를 다시 받지 않는다. 비용은 요청
+# 왕복 몇 번뿐이고, 그 대가로 흰 화면이 사라진다.
+#
+# ⚠️ 내용 해시가 붙은 경로가 생기면 그건 여기 넣지 말고 immutable 로 둬야 한다.
+
+# 엔진 — canvaskit.js 와 canvaskit.wasm 은 **같은 빌드끼리만** 링크된다.
+/canvaskit/*
+  Cache-Control: no-cache
+
+# 부트스트랩·엔트리 — 어느 엔진을 어떤 해시로 불러올지 여기서 정해진다.
+# 이것만 옛것이면 위의 재검증이 무의미해진다.
+/flutter_bootstrap.js
+  Cache-Control: no-cache
+
+/flutter.js
+  Cache-Control: no-cache
+
+/main.dart.js
+  Cache-Control: no-cache

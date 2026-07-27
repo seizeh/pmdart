@@ -10,18 +10,28 @@ library;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'web_link_meta.dart';
+
 final _uuid = RegExp(
   r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
   r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
 );
 
-/// 진입 URL 이 `/p/<postId>` 면 그 id, 아니면 null.
+/// 이번 진입에서 열어야 할 게시글 id. 두 경로를 지원한다.
+///
+///  1. 주소 `/p/<uuid>` — 웹앱 주소를 직접 열었을 때.
+///  2. `<meta name="pm-post">` — 공유 링크(`go.pawmate.kr/s?t=…`)가 셸에 심어
+///     보낸 값. 주소에는 토큰만 있고 토큰→게시글 해석은 웹앱이 못 하므로
+///     서버가 대신 실어 보낸다([web_link_meta.dart]).
 ///
 /// `--base-href` 로 하위 경로에 배포될 수 있어 앞에서부터 세지 않고 `p` 세그먼트를
 /// 뒤에서 찾는다. uuid 형태가 아니면 무시한다(잘못된 링크로 요청을 낭비하지 않게).
 String? initialSharedPostId() {
   if (!kIsWeb) return null;
-  return sharedPostIdOf(Uri.base);
+  final fromPath = sharedPostIdOf(Uri.base);
+  if (fromPath != null) return fromPath;
+  final injected = injectedPostId();
+  return (injected != null && _uuid.hasMatch(injected)) ? injected : null;
 }
 
 /// [initialSharedPostId] 의 순수 함수 버전 — 테스트용.

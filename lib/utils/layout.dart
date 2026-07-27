@@ -15,6 +15,31 @@ const double kContentMaxWidth = 460.0;
 /// 좌측 내비 레일의 두께(= 하단 바 높이와 동일).
 const double kNavThickness = 62.0;
 
+// ── 마스터-디테일(피드 + 우측 상세 패널) ─────────────────────────────────
+//
+// 데스크톱에서 460 컬럼을 가운데 두면 1440 폭 기준 945px(66%)가 빈 배경이 된다.
+// 그 폭을 상세 패널로 쓴다 — **피드 카드 자체는 그대로**이고(결정 1), 상세를
+// 새 라우트로 덮는 대신 옆에 펼치는 것뿐이다. 커뮤니티 탭에만 적용한다.
+
+/// 피드와 상세 패널 사이 간격.
+const double kDetailPanelGap = 16.0;
+
+/// 상세 패널의 최소 폭 — 폰 폭(460)보다 좁아지면 상세 본문이 앱과 달라진다.
+const double kDetailPanelMinWidth = kContentMaxWidth;
+
+/// 상세 패널의 최대 폭 — 더 넓히면 본문 줄이 길어져 읽기 어렵다.
+/// 초광폭 모니터에서는 이 상한 때문에 우측에 여백이 남고, 피드+패널 묶음은
+/// 레일 옆에 좌측 정렬로 붙는다.
+const double kDetailPanelMaxWidth = 860.0;
+
+/// 마스터-디테일로 갈 최소 **창** 폭.
+/// 레일(86) + 피드(460) + 간격(16) + 패널 최소(460) = 1022 에 여유를 둔 값.
+const double kMasterDetailMinWidth = 1100.0;
+
+/// 피드+패널 묶음의 최대 폭 — [AppShell] 이 본문 컬럼 대신 이 폭을 건다.
+const double kMasterDetailMaxWidth =
+    kContentMaxWidth + kDetailPanelGap + kDetailPanelMaxWidth;
+
 /// 셸 **바깥(창)** 크기를 컬럼 안쪽으로 전달한다.
 ///
 /// 컬럼 안에서는 `MediaQuery` 가 컬럼 크기(460)로 덮여 있어(레이아웃·모프가
@@ -52,13 +77,44 @@ bool useSideNav(BuildContext context) => kIsWeb && _chromeWidth(context) >= 900;
 bool useContentColumn(BuildContext context) =>
     kIsWeb && _chromeWidth(context) > kContentMaxWidth;
 
+/// 이 폭에서 마스터-디테일(피드 좌측 정렬 + 우측 상세 패널)을 쓸지.
+///
+/// [useSideNav] 와 마찬가지로 **창 폭** 기준이다. 900~1100 구간은 레일은 쓰되
+/// 패널을 넣을 폭이 안 나오므로 지금까지의 460 중앙 컬럼 그대로 간다.
+bool useMasterDetail(BuildContext context) =>
+    kIsWeb && _chromeWidth(context) >= kMasterDetailMinWidth;
+
 /// 본문 컬럼의 렌더박스 키 — `AppShell` 이 붙이고 [shellOrigin] 이 읽는다.
 final GlobalKey contentColumnKey = GlobalKey();
 
-/// 셸이 본문을 옮겨 놓은 만큼의 오프셋. 셸이 없거나(네이티브·좁은 화면) 아직
-/// 배치 전이면 `Offset.zero`.
-Offset shellOrigin() {
-  final box = contentColumnKey.currentContext?.findRenderObject() as RenderBox?;
+/// 지금 라우트가 그려지는 박스 — 좌표 변환([toRouteRect])의 기준을 바꾼다.
+///
+/// 기본 기준은 [contentColumnKey](셸의 본문 컬럼)다. 그런데 마스터-디테일의
+/// **상세 패널은 자기 Navigator 를 따로 갖고**, 그 라우트의 원점은 컬럼이 아니라
+/// 패널의 좌상단이다. 기준을 바꾸지 않으면 카드에서 펼쳐지는 모프가 패널 폭만큼
+/// 어긋난다 — 셸을 도입할 때 겪은 것과 **같은 종류의 버그**이므로(web-port.md
+/// 결정 5 함정 1) 기준 자체를 트리에서 내려받게 만든다.
+class RouteHost extends InheritedWidget {
+  const RouteHost({super.key, required this.hostKey, required super.child});
+
+  /// 라우트가 얹히는 박스의 키. `localToGlobal` 로 창 좌표 원점을 읽는다.
+  final GlobalKey hostKey;
+
+  static GlobalKey? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<RouteHost>()?.hostKey;
+
+  @override
+  bool updateShouldNotify(RouteHost old) => old.hostKey != hostKey;
+}
+
+/// 라우트 원점의 창 좌표. 셸이 없거나(네이티브·좁은 화면) 아직 배치 전이면
+/// `Offset.zero` — 즉 네이티브 동작은 그대로다.
+///
+/// [context] 를 주면 가장 가까운 [RouteHost] 를 기준으로 삼는다(상세 패널).
+Offset shellOrigin([BuildContext? context]) {
+  final key =
+      (context == null ? null : RouteHost.maybeOf(context)) ?? contentColumnKey;
+  final box = key.currentContext?.findRenderObject() as RenderBox?;
   if (box == null || !box.hasSize || !box.attached) return Offset.zero;
   return box.localToGlobal(Offset.zero);
 }
@@ -73,9 +129,11 @@ Offset shellOrigin() {
 ///
 /// 규약: `originRect` 는 언제나 **화면 좌표**로 넘긴다. 소비 지점에서 이 함수로
 /// 변환한다. 셸이 없으면 오프셋이 0 이라 네이티브 동작은 그대로다.
-Rect? toRouteRect(Rect? r) {
+///
+/// [context] 로 기준 박스를 찾는다 — 상세 패널 안이면 패널 원점, 아니면 본문 컬럼.
+Rect? toRouteRect(BuildContext context, Rect? r) {
   if (r == null) return null;
-  final o = shellOrigin();
+  final o = shellOrigin(context);
   return o == Offset.zero ? r : r.shift(-o);
 }
 

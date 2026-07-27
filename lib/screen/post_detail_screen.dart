@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:share_plus/share_plus.dart';
@@ -80,12 +81,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   VideoPlayerController? _video;
   bool _videoError = false;
 
-  /// 히어로 오버레이 몰입 숨김(사진 글 탭 토글) — 앱바 아이콘도 함께 숨긴다.
-  bool _overlayHidden = false;
+  /// 원본 보기(오버레이 숨김 + 미디어를 원본 비율로) — 히어로의 사진 탭과
+  /// 앱바 좌측 아이콘이 공유하는 상태. 켜지면 앱바 우측 아이콘·오버레이가 숨고
+  /// 당겨서 축소되는 드래그와 리스트 스크롤이 잠긴다(확대/이동과 충돌 방지).
+  final _originView = ValueNotifier<bool>(false);
+  bool get _overlayHidden => _originView.value;
 
   @override
   void initState() {
     super.initState();
+    // 원본 보기 토글은 히어로(사진 탭)와 앱바 아이콘이 함께 쓴다 — 앱바·드래그
+    // 잠금이 같이 반응하도록 화면도 구독한다.
+    _originView.addListener(() {
+      if (mounted) setState(() {});
+    });
     // 카드에서 확장 진입하면 초기 로드(댓글·조회수·권한 등)를 전환이 안착한
     // 뒤로 미룬다 — 로드 알림(notifyListeners)마다 화면 전체가 리빌드되며
     // 확장 모프 프레임을 흔들던 문제(전환이 2단계로 끊겨 보임). 게시글 본문은
@@ -121,8 +130,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _commentCtrl.dispose();
     _scroll.dispose();
     _video?.dispose();
+    _originView.dispose();
     _state.dispose();
     super.dispose();
+  }
+
+  /// 원본 보기를 붙일 수 있는 미디어인가 — 사진은 언제나(탭·아이콘 모두),
+  /// 영상은 화면을 채우느라 잘리는 세로·정방형만(가로 영상은 이미 전체가
+  /// 보이고, 웹은 플랫폼 뷰라 애초에 자르지 않는다).
+  bool get _canOriginView {
+    final post = _state.post;
+    if (post.imageUrl == null) return false; // 블롭 글
+    if (!post.isVideo) return true;
+    if (kIsWeb) return false;
+    final v = _video?.value;
+    return v != null && v.isInitialized && v.aspectRatio <= 1;
   }
 
   bool _guard(String message) {
@@ -447,6 +469,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         // (세로 중앙 3:4 박스)와 짝.
         contentAlignment: Alignment.center,
         scrollController: _scroll,
+        // 사진 원본 보기(오버레이 숨김) 중에는 당겨서 카드로 축소되는 드래그를
+        // 잠근다 — 확대/이동 제스처가 그대로 커뮤니티 복귀로 읽히지 않도록.
+        // 그 밖에는 기존과 동일(본문이 뷰포트 1장이라 늘 최상단).
+        dragHandleTest: (_) => !_overlayHidden,
         builder: (context, physics) => ListenableBuilder(
           listenable: _state,
           builder: (context, _) {
@@ -465,6 +491,24 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 // 뒤로가기 버튼 없음 — 아래로 당겨 카드로 축소하거나 시스템 뒤로가기
                 // (프로필·펫 상세와 동일한 몰입형).
                 automaticallyImplyLeading: false,
+                // 원본 보기 — 화면을 채우느라 잘린 미디어를 원본 비율로 본다.
+                // 사진은 화면 탭으로도 되지만 영상은 탭이 재생/일시정지라 이
+                // 아이콘이 유일한 입구다. 그래서 영상은 원본 보기 중에도 계속
+                // 보이게 두고(돌아올 길), 사진은 몰입을 위해 함께 숨긴다.
+                leading: _canOriginView
+                    ? CollapseSettledFade(
+                        visible: !_overlayHidden || _video != null,
+                        child: OverlayIconButton(
+                          icon: _overlayHidden
+                              ? Icons.fullscreen
+                              : Icons.aspect_ratio,
+                          tooltip: _overlayHidden ? '화면 채우기' : '원본 보기',
+                          onPressed: () =>
+                              _originView.value = !_originView.value,
+                        ),
+                      )
+                    : null,
+                leadingWidth: 56,
                 actions: [
                   // 앱바 아이콘은 확장 전환이 안착한 뒤에 페이드 인 — 카드
                   // 크로스페이드 중간에 불쑥 나타나 모프가 2단계로 끊겨
@@ -512,7 +556,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               // 보존한다. 댓글은 바텀시트, 하트·지원은 오버레이에서.
               body: ListView(
                 controller: _scroll,
-                physics: physics, // 드래그 중 잠금은 CollapsibleView 가 제공
+                // 원본 보기 중엔 리스트가 세로 드래그를 가져가지 않게 잠근다 —
+                // 스크롤 인식기(슬롭 18)가 확대 이동(슬롭 36)보다 먼저 이겨
+                // 사진을 위아래로 못 옮기던 문제. 그 밖에는 기존과 동일.
+                physics: _overlayHidden
+                    ? const NeverScrollableScrollPhysics()
+                    : physics, // 드래그 중 잠금은 CollapsibleView 가 제공
                 padding: EdgeInsets.zero,
                 children: [
                   SizedBox(
@@ -525,8 +574,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       onComments: _openComments,
                       onAuthorTap: _openAuthor,
                       overlayExtra: _applySection(),
-                      onOverlayHiddenChanged: (hidden) =>
-                          setState(() => _overlayHidden = hidden),
+                      originView: _originView,
                     ),
                   ),
                 ],

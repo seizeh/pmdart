@@ -55,7 +55,7 @@ class StorageService {
 
   /// 업로드 후 공개 URL/메타 반환.
   Future<UploadedImage> upload(XFile file, {required String category}) async {
-    final uid = SessionManager.instance.user?.id;
+    final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
 
     final bytes = await file.readAsBytes();
@@ -83,7 +83,7 @@ class StorageService {
     String ext = 'png',
     String mime = 'image/png',
   }) async {
-    final uid = SessionManager.instance.user?.id;
+    final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
     await _c.storage
@@ -104,7 +104,7 @@ class StorageService {
     XFile file, {
     required String category,
   }) async {
-    final uid = SessionManager.instance.user?.id;
+    final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
 
     // 크기 검사 — 전체 바이트를 읽기 전에 길이만 먼저 확인한다.
@@ -209,7 +209,7 @@ class StorageService {
     PickedDoc doc, {
     required String kind,
   }) async {
-    final uid = SessionManager.instance.user?.id;
+    final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
     final path =
         '$uid/$kind/${DateTime.now().millisecondsSinceEpoch}.${doc.ext}';

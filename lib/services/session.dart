@@ -65,6 +65,17 @@ class SessionManager extends ChangeNotifier {
   AuthUser? _user;
   Future<void>? _refreshing; // 단일비행 갱신 진행 중 Future
 
+  /// 간이 회원(후기 전용, 0029) 단명 토큰 — **메모리에만** 둔다.
+  ///
+  /// 저장하지 않는 게 요구사항이다: 간이 회원은 비회원 취급이라 후기 한 건을 쓰는
+  /// 동안만 존재하고, 다음 후기를 쓰려면 문자 인증을 다시 받아야 한다. 앱을 다시
+  /// 켜면 흔적이 없어야 한다.
+  ///
+  /// [isLoggedIn] 은 [_user] 도 봐야 하므로 이 토큰이 있어도 여전히 false — 앱은
+  /// 계속 게스트로 동작하고, 서버는 status='lite' 라 후기 외 모든 걸 막는다.
+  String? _liteToken;
+  String? _liteUserId;
+
   /// 세션이 서버에서 무효화되어 강제 로그아웃됐을 때 호출(앱이 로그인 화면으로 라우팅).
   /// 타 기기 비번변경/정지·refresh 회수 감지 시. main.dart 가 세팅한다.
   void Function()? onInvalidated;
@@ -77,6 +88,31 @@ class SessionManager extends ChangeNotifier {
   bool get isLoggedIn => _access != null && _user != null;
   bool get isAdmin => _user?.userType == 'admin';
   bool get isRefreshing => _refreshing != null;
+
+  /// 간이 회원 토큰(있으면). main.dart 의 accessToken 콜백이 [token] 다음으로 읽는다.
+  String? get liteToken => _liteToken;
+
+  /// 후기를 쓸 자격이 있는가 — 정식 로그인이거나 간이 인증 구간이면 true.
+  /// [isLoggedIn] 을 쓰면 간이 회원이 요청도 못 보내고 클라이언트에서 막힌다.
+  bool get canWriteReview => isLoggedIn || _liteToken != null;
+
+  /// Storage 경로(`<uid>/...`)에 쓸 사용자 id — 간이 구간이면 간이 계정 id.
+  /// 버킷 RLS 가 첫 폴더를 본인 id 로 검사하므로 토큰의 주인과 반드시 일치해야 한다.
+  String? get storageUserId => _user?.id ?? _liteUserId;
+
+  /// 간이 후기 게시 구간 시작 — 이 토큰으로 사진 업로드와 후기 INSERT 가 나간다.
+  /// 정식 세션이 있으면 무시한다(정식 회원은 자기 세션으로 써야 한다).
+  void beginLiteSession(String token, String userId) {
+    if (_access != null) return;
+    _liteToken = token;
+    _liteUserId = userId;
+  }
+
+  /// 간이 후기 게시 구간 종료 — 성공·실패와 무관하게 반드시 호출(finally).
+  void endLiteSession() {
+    _liteToken = null;
+    _liteUserId = null;
+  }
 
   /// 앱 시작 시 1회 호출 — 저장된 세션 복원(+ 구버전 SharedPreferences 토큰 마이그레이션).
   Future<void> load() async {

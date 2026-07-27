@@ -107,6 +107,44 @@ class PhoneAuthService {
     }
   }
 
+  /// 간이 회원(후기 전용) 인증 — 코드 검증 + 계정 확보 + 단명 토큰 발급을 한 번에.
+  ///
+  /// 정식 가입과 달리 [verifyCode] 를 따로 부르지 않는다. 코드 소지가 곧 세션인
+  /// 경로라, 검증과 토큰 발급 사이가 벌어지면 남이 받은 인증으로 세션을 가로챌
+  /// 창이 생기기 때문이다(서버 signup-lite 주석 참고).
+  ///
+  /// [privacyConsent] 는 전화번호 수집·이용 동의. 서버도 false 면 거부한다.
+  Future<LiteSignupResult> signUpLite({
+    required String phone,
+    required String code,
+    required bool privacyConsent,
+  }) async {
+    try {
+      final res = await _client.functions.invoke(
+        'signup-lite',
+        body: {
+          'phone': phone,
+          'code': code,
+          'privacy_consent': privacyConsent,
+        },
+      );
+      final data = (res.data as Map?) ?? const {};
+      final user = (data['user'] as Map?) ?? const {};
+      return LiteSignupResult(
+        ok: data['ok'] == true,
+        token: data['token'] as String?,
+        userId: user['id'] as String?,
+        displayName: user['display_name'] as String?,
+      );
+    } on FunctionException catch (e) {
+      final detail = e.details;
+      final err = detail is Map ? detail['error'] as String? : null;
+      return LiteSignupResult(ok: false, errorCode: err ?? 'lite_signup_failed');
+    } catch (_) {
+      return const LiteSignupResult(ok: false, errorCode: 'network_error');
+    }
+  }
+
   /// 인증코드 검증. 성공 시 [PhoneVerifyResult.verified] == true.
   Future<PhoneVerifyResult> verifyCode(
     String phone,
@@ -196,6 +234,36 @@ class SignupResult {
     'network_error' => '네트워크 연결을 확인해주세요',
     null => '가입이 완료됐어요',
     _ => '회원가입에 실패했어요',
+  };
+}
+
+/// 간이 회원 인증 결과 — 성공 시 [token] 으로 후기 한 건을 게시할 수 있다.
+class LiteSignupResult {
+  final bool ok;
+  final String? token; // 단명(15분) JWT — 저장 금지, 게시 후 폐기
+  final String? userId;
+  final String? displayName; // 마스크된 표시명(***-1***-**78)
+  final String? errorCode;
+
+  const LiteSignupResult({
+    required this.ok,
+    this.token,
+    this.userId,
+    this.displayName,
+    this.errorCode,
+  });
+
+  String get message => switch (errorCode) {
+    'code_mismatch_or_expired' => '인증번호가 일치하지 않거나 만료됐어요',
+    'invalid_code' => '6자리 인증번호를 입력해주세요',
+    'invalid_phone' => '전화번호 형식이 올바르지 않아요',
+    'privacy_consent_required' => '전화번호 수집·이용에 동의해야 후기를 남길 수 있어요',
+    'account_unavailable' => '이 번호로는 후기를 남길 수 없어요',
+    'rate_limited' => '시도가 너무 많아요. 잠시 후 다시 시도해주세요',
+    'server_misconfigured' => '서버 설정 오류로 진행할 수 없어요',
+    'network_error' => '네트워크 연결을 확인해주세요',
+    null => '인증되었어요',
+    _ => '인증에 실패했어요',
   };
 }
 

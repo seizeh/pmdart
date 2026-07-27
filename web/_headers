@@ -1,6 +1,0 @@
-# 공유 링크(go.pawmate.kr/s)는 이 앱의 셸을 그대로 내려주고 <base href> 로 에셋만
-# app.pawmate.kr 에서 받아간다(docs/web-port.md 결정 6). 그때 canvaskit.wasm 등이
-# fetch() 로 **교차 출처** 요청이 되므로 CORS 허용이 필요하다.
-# 전부 공개 정적 자산이라 * 로 연다(인증·쿠키가 걸린 응답이 아니다).
-/*
-  Access-Control-Allow-Origin: *

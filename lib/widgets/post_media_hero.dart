@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -18,7 +20,11 @@ import 'role_badge.dart' show categoryColor;
 ///
 /// - 영상: 세로·정방형 cover 풀스크린, 가로는 검정 위 contain. 탭 = 재생/일시
 ///   정지(일시정지 시에만 중앙 ▶), 화면 최하단 얇은 진행바(드래그 스크럽).
-/// - 사진: 카드 대표사진이 그대로 화면 전체(cover).
+///   탭이 재생 토글이라 원본 보기는 화면의 앱바 좌측 아이콘([originView])이
+///   맡는다 — cover 로 잘려 있던 위아래가 열리며 원본 비율로 되돌아간다.
+/// - 사진: 카드 대표사진이 그대로 화면 전체(cover). 탭하면 오버레이(블러)가
+///   걷히고 이어서 원본 비율(contain)로 줄어들며 확대/이동이 가능해진다 —
+///   다시 탭하면 화면을 꽉 채우는 cover 로 돌아오며 오버레이가 함께 복귀.
 /// - 블롭: 카드의 블롭 배경 + 본문 센터 배치를 풀스크린으로 승격(본문 탭으로
 ///   펼침/접힘 — 블러 없이 카드처럼 스크림만).
 /// - 하단 오버레이는 피드 카드와 동일 위젯([PostCardInfoOverlay])을 공유하고,
@@ -49,9 +55,11 @@ class PostMediaHero extends StatefulWidget {
   /// 닉네임 탭(프로필 무한 왕복 방지 pop 처리 포함) — 상세 화면이 결정.
   final VoidCallback? onAuthorTap;
 
-  /// 오버레이 몰입 숨김 상태 변경 통지(사진 글 탭 토글) — 화면이 앱바
-  /// 오버레이 아이콘을 함께 숨기는 데 쓴다.
-  final ValueChanged<bool>? onOverlayHiddenChanged;
+  /// 원본 보기(오버레이 숨김 + 원본 비율) 상태 — 화면과 공유한다. 히어로의
+  /// 사진 탭과 화면의 앱바 아이콘이 같은 값을 토글하고, 화면은 이 값으로 앱바
+  /// 아이콘을 숨기고 **당겨서 카드로 축소되는 드래그·스크롤을 잠근다**
+  /// (확대/이동 제스처와 충돌 방지). null 이면 히어로가 내부 상태로 갖는다.
+  final ValueNotifier<bool>? originView;
 
   const PostMediaHero({
     super.key,
@@ -62,14 +70,15 @@ class PostMediaHero extends StatefulWidget {
     this.onComments,
     this.overlayExtra,
     this.onAuthorTap,
-    this.onOverlayHiddenChanged,
+    this.originView,
   });
 
   @override
   State<PostMediaHero> createState() => _PostMediaHeroState();
 }
 
-class _PostMediaHeroState extends State<PostMediaHero> {
+class _PostMediaHeroState extends State<PostMediaHero>
+    with TickerProviderStateMixin {
   Animation<double>? _progress;
 
   /// 축소/확장 전환 중(진행도 < 1) — 카드와 동일한 3:4·접힘 배치로 강제해
@@ -84,23 +93,45 @@ class _PostMediaHeroState extends State<PostMediaHero> {
   /// 취소되어 풀스크린으로 복귀하면 다시 펼쳐진다.
   bool _expanded = true;
 
-  /// 오버레이(블러 패널) 몰입 숨김 — 사진 글에서 화면 탭으로 토글(영상은 탭이
-  /// 재생/일시정지라 제외). 축소 전환이 시작되면 자동 복귀(카드엔 오버레이가
-  /// 있으므로 페이드 인하며 카드 미러로 수축).
-  bool _overlayHidden = false;
+  /// 원본 보기(오버레이 숨김 + 원본 비율) — 화면의 앱바 아이콘과 공유하는 상태.
+  /// 사진은 화면 탭으로도 토글한다(영상은 탭이 재생/일시정지라 아이콘 전용).
+  /// 축소 전환이 시작되면 자동 복귀(카드엔 오버레이가 있으므로 페이드 인하며
+  /// 카드 미러로 수축).
+  late final ValueNotifier<bool> _ownedOrigin = ValueNotifier(false);
+  ValueNotifier<bool> get _origin => widget.originView ?? _ownedOrigin;
+  bool get _overlayHidden => _origin.value;
+
+  /// 영상의 원본 보기 전환(0 = cover, 1 = 원본 비율). 사진은 [OriginalViewPhoto]
+  /// 가 같은 전환을 스스로 갖는다.
+  late final OriginalViewTransition _videoFit = OriginalViewTransition(this);
 
   void _onTick() {
     final want = (_progress?.value ?? 1) < 1.0;
-    if (want != _mirror && mounted) {
-      setState(() {
-        _mirror = want;
-        // 축소 전환 시작 → 숨겨둔 오버레이 자동 복귀(드래그 취소로 풀스크린에
-        // 돌아와도 보이는 상태 유지).
-        if (want && _overlayHidden) {
-          _overlayHidden = false;
-          widget.onOverlayHiddenChanged?.call(false);
-        }
-      });
+    if (want == _mirror || !mounted) return;
+    setState(() => _mirror = want);
+    // 축소 전환 시작 → 숨겨둔 오버레이 자동 복귀(드래그 취소로 풀스크린에
+    // 돌아와도 보이는 상태 유지). 원본 보기였다면 cover 로도 되돌린다.
+    if (want) _origin.value = false;
+  }
+
+  void _onOriginChanged() {
+    if (!mounted) return;
+    setState(() {});
+    _videoFit.set(_origin.value && !_mirror);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _origin.addListener(_onOriginChanged);
+  }
+
+  @override
+  void didUpdateWidget(PostMediaHero oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.originView != oldWidget.originView) {
+      (oldWidget.originView ?? _ownedOrigin).removeListener(_onOriginChanged);
+      _origin.addListener(_onOriginChanged);
     }
   }
 
@@ -123,6 +154,9 @@ class _PostMediaHeroState extends State<PostMediaHero> {
   @override
   void dispose() {
     _progress?.removeListener(_onTick);
+    _origin.removeListener(_onOriginChanged);
+    _ownedOrigin.dispose();
+    _videoFit.dispose();
     super.dispose();
   }
 
@@ -131,16 +165,7 @@ class _PostMediaHeroState extends State<PostMediaHero> {
 
   bool get _isBlob => widget.controller == null && widget.post.imageUrl == null;
 
-  /// 사진 글 — 탭 토글(오버레이 숨김) 대상.
-  bool get _isPhoto =>
-      widget.controller == null && widget.post.imageUrl != null;
-
   void _toggleExpanded() => setState(() => _expanded = !_expanded);
-
-  void _toggleOverlayHidden() {
-    setState(() => _overlayHidden = !_overlayHidden);
-    widget.onOverlayHiddenChanged?.call(_overlayHidden);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -194,15 +219,6 @@ class _PostMediaHeroState extends State<PostMediaHero> {
                   fit: StackFit.expand,
                   children: [
                     _mediaSurface(context, v, fit),
-                    // 사진 글 — 화면 탭 = 오버레이(블러+정보) 몰입 숨김/복귀.
-                    // 영상은 탭이 재생/일시정지라 제외(충돌 방지).
-                    if (_isPhoto)
-                      Positioned.fill(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _mirror ? null : _toggleOverlayHidden,
-                        ),
-                      ),
                     // 블롭 글 — 카드처럼 본문이 히어로의 중심(탭으로 펼침/접힘).
                     if (isBlob)
                       Positioned.fill(
@@ -338,6 +354,10 @@ class _PostMediaHeroState extends State<PostMediaHero> {
   /// 그래서 웹은 **박스를 영상 비율에 맞춰** 애초에 넘칠 것이 없게 한다. cover 가
   /// contain 이 되어 여백(레터박스)이 생기지만, 뒤에 검정 배경이 이미 깔려 있어
   /// 자연스럽고 잘림보다 낫다. 네이티브는 기존 동작 그대로.
+  ///
+  /// cover(세로·정방형)일 때는 원본 보기 토글이 붙는다 — 사진과 같은 문법으로
+  /// contain 렌더를 cover 배율만큼 키워 두고 그 사이를 [_videoFit] 으로 보간해,
+  /// 잘려 있던 위아래가 자연스럽게 열리며 영상 전체가 드러난다.
   Widget _videoSurface(VideoPlayerValue v, BoxFit fit) {
     final player = VideoPlayer(widget.controller!);
     if (kIsWeb) {
@@ -345,14 +365,21 @@ class _PostMediaHeroState extends State<PostMediaHero> {
         child: AspectRatio(aspectRatio: v.aspectRatio, child: player),
       );
     }
-    return FittedBox(
-      fit: fit,
+    final surface = FittedBox(
+      // cover 는 contain 렌더를 배율로 키워 만든다(원본 보기 보간).
+      fit: fit == BoxFit.cover && v.aspectRatio > 0 ? BoxFit.contain : fit,
       clipBehavior: Clip.hardEdge,
       child: SizedBox(
         width: v.size.width,
         height: v.size.height,
         child: player,
       ),
+    );
+    if (fit != BoxFit.cover || v.aspectRatio <= 0) return surface;
+    return OriginalViewFit(
+      progress: _videoFit.animation,
+      mediaAspect: v.aspectRatio,
+      child: surface,
     );
   }
 
@@ -407,22 +434,29 @@ class _PostMediaHeroState extends State<PostMediaHero> {
         ],
       );
     }
-    if (post.imageUrl != null) {
-      // 사진 — 카드와 같은 디코딩 폭이라 피드에서 캐시된 이미지를 재사용한다.
-      return Image.network(
-        post.imageUrl!,
-        fit: BoxFit.cover,
-        cacheWidth: 1200,
-        errorBuilder: (_, _, _) => BlobBackground(
-          seed: post.id,
-          color: categoryColor(context, post.category),
-        ),
-      );
-    }
+    if (post.imageUrl != null) return _photoSurface(context, post);
     // 블롭 — 카드와 동일한 배경(본문은 별도 레이어).
     return BlobBackground(
       seed: post.id,
       color: categoryColor(context, post.category),
+    );
+  }
+
+  /// 사진 표면 — 기본은 카드와 같은 cover(화면 꽉 참), 탭하면 원본 보기로.
+  /// 탭은 확대/이동(InteractiveViewer)의 조상에서 받는다 — 스케일 제스처는
+  /// 움직임이 있어야 승부에 나서므로 제자리 탭은 항상 이쪽이 가져간다.
+  Widget _photoSurface(BuildContext context, Post post) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _mirror ? null : () => _origin.value = !_origin.value,
+      child: OriginalViewPhoto(
+        url: post.imageUrl!,
+        original: _overlayHidden && !_mirror,
+        fallback: BlobBackground(
+          seed: post.id,
+          color: categoryColor(context, post.category),
+        ),
+      ),
     );
   }
 
@@ -477,6 +511,277 @@ class _PostMediaHeroState extends State<PostMediaHero> {
       );
     }
     return null; // 블롭
+  }
+}
+
+/// 사진 디코딩 폭 — 피드 카드와 같은 값이라 캐시된 이미지를 그대로 재사용한다.
+const int kPhotoDecodeWidth = 1200;
+
+/// 원본 보기 전환의 공통 타이밍(0 = 화면을 꽉 채우는 cover, 1 = 원본 비율).
+/// 켤 때는 오버레이(블러 패널) 페이드가 끝난 **뒤에** 축소가 시작되도록 지연을
+/// 두어 두 동작이 순서대로 읽히게 하고, 끌 때는 즉시 되돌린다.
+/// 게시글 상세·후기 상세의 사진/영상이 함께 쓴다.
+class OriginalViewTransition {
+  OriginalViewTransition(
+    TickerProvider vsync, {
+    this.startDelay = const Duration(milliseconds: 170),
+  }) : _ctl = AnimationController(
+         vsync: vsync,
+         duration: const Duration(milliseconds: 420),
+         reverseDuration: const Duration(milliseconds: 360),
+       ) {
+    animation = CurvedAnimation(
+      parent: _ctl,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeOutCubic.flipped,
+    );
+  }
+
+  final AnimationController _ctl;
+  final Duration startDelay;
+  late final Animation<double> animation;
+  Timer? _timer;
+  bool _on = false;
+
+  /// 원본 보기 켜기/끄기(중복 호출은 무시).
+  void set(bool original) {
+    if (original == _on) return;
+    _on = original;
+    _timer?.cancel();
+    if (!original) {
+      _ctl.reverse();
+      return;
+    }
+    _timer = Timer(startDelay, () {
+      if (_on) _ctl.forward();
+    });
+  }
+
+  void dispose() {
+    _timer?.cancel();
+    _ctl.dispose();
+  }
+}
+
+/// cover ↔ 원본 비율(contain)을 연속으로 보간하는 표면.
+///
+/// contain 렌더를 cover 배율만큼 키우면 cover 와 픽셀이 정확히 같으므로(둘 다
+/// 중앙 정렬), [child](= contain 으로 그린 미디어)를 그 배율에서 1 까지
+/// [progress] 로 보간하면 fit 이 연속적으로 바뀌는 자연스러운 축소/확대가 된다.
+/// 넘치는 부분은 조상의 ClipRect 가 잘라 낸다(기존 cover 와 동일).
+class OriginalViewFit extends StatelessWidget {
+  final Animation<double> progress;
+
+  /// 미디어 원본 비율(가로/세로).
+  final double mediaAspect;
+
+  /// contain 으로 그린 미디어.
+  final Widget child;
+
+  /// 원본 보기에서 생기는 여백(레터박스)에 깔 색 — 뒤가 비치면 안 되는 화면은
+  /// 검정. null 이면 여백 없이 [child] 만(뒤에 이미 배경이 있는 영상 등).
+  final Color? backdrop;
+
+  /// 확대/이동을 붙일 때 쓰는 래퍼 — 원본 크기로 안착한 뒤에만 활성화된다.
+  final Widget Function(BuildContext context, Widget child, bool settled)? wrap;
+
+  const OriginalViewFit({
+    super.key,
+    required this.progress,
+    required this.mediaAspect,
+    required this.child,
+    this.backdrop,
+    this.wrap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final boxAspect = c.maxWidth / c.maxHeight;
+        final coverScale = math.max(
+          boxAspect / mediaAspect,
+          mediaAspect / boxAspect,
+        );
+        return AnimatedBuilder(
+          animation: progress,
+          child: child,
+          builder: (context, child) {
+            final t = progress.value.clamp(0.0, 1.0);
+            final scaled = Transform.scale(
+              scale: ui.lerpDouble(coverScale, 1, t),
+              child: child,
+            );
+            final media = wrap?.call(context, scaled, t == 1) ?? scaled;
+            if (backdrop == null || t == 0) return media;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(color: backdrop!.withValues(alpha: t)),
+                media,
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// 사진 표면 — 기본은 화면을 꽉 채우는 cover, [original] 이 켜지면 원본 비율로
+/// 부드럽게 줄어들며 확대/이동(핀치 줌)이 열린다. 다시 끄면 확대/이동이
+/// 원위치로 돌아가며 cover 로 복귀한다. 게시글 상세·후기 상세가 공유.
+///
+/// 원본 비율은 이미지 스트림에서 읽는다(카드와 같은 캐시 키라 재다운로드 없음).
+/// 아직 모르는 동안에는 기존과 같은 cover 로만 그린다.
+class OriginalViewPhoto extends StatefulWidget {
+  final String url;
+  final bool original;
+
+  /// 로드 실패 시 대체 표면.
+  final Widget fallback;
+
+  const OriginalViewPhoto({
+    super.key,
+    required this.url,
+    required this.original,
+    required this.fallback,
+  });
+
+  @override
+  State<OriginalViewPhoto> createState() => _OriginalViewPhotoState();
+}
+
+class _OriginalViewPhotoState extends State<OriginalViewPhoto>
+    with TickerProviderStateMixin {
+  late final OriginalViewTransition _fit = OriginalViewTransition(this);
+
+  /// 확대/이동 — 원본 보기를 끄면 원위치로 애니메이션한다.
+  final TransformationController _zoom = TransformationController();
+  late final AnimationController _zoomResetCtl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+  Animation<Matrix4>? _zoomReset;
+
+  ImageProvider? _provider;
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+  double? _aspect;
+
+  @override
+  void initState() {
+    super.initState();
+    _zoomResetCtl.addListener(() {
+      final a = _zoomReset;
+      if (a != null) _zoom.value = a.value;
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncProvider();
+    _fit.set(widget.original && _aspect != null);
+  }
+
+  @override
+  void didUpdateWidget(OriginalViewPhoto old) {
+    super.didUpdateWidget(old);
+    if (widget.url != old.url) _syncProvider();
+    final on = widget.original && _aspect != null;
+    if (!on && old.original) _resetZoom();
+    _fit.set(on);
+  }
+
+  @override
+  void dispose() {
+    _detachStream();
+    _fit.dispose();
+    _zoomResetCtl.dispose();
+    _zoom.dispose();
+    super.dispose();
+  }
+
+  void _detachStream() {
+    if (_listener != null) _stream?.removeListener(_listener!);
+    _stream = null;
+    _listener = null;
+  }
+
+  /// 원본 크기(비율) 구독 — cover ↔ contain 배율 계산에만 쓴다.
+  void _syncProvider() {
+    final provider = ResizeImage(
+      NetworkImage(widget.url),
+      width: kPhotoDecodeWidth,
+      allowUpscaling: false,
+    );
+    if (provider == _provider) return; // 같은 사진 — 재구독 불필요
+    _detachStream();
+    _provider = provider;
+    _aspect = null;
+    final listener = ImageStreamListener((info, synchronousCall) {
+      final aspect = info.image.width / info.image.height;
+      info.dispose(); // 리스너에 넘어온 사본은 리스너가 정리한다
+      if (_aspect == aspect) return;
+      // 동기 콜백(캐시 적중)은 아직 build 전 — setState 없이 값만 반영한다.
+      if (synchronousCall) {
+        _aspect = aspect;
+      } else if (mounted) {
+        setState(() => _aspect = aspect);
+        // 비율을 늦게 알았는데 이미 원본 보기라면 그때 축소를 시작한다.
+        _fit.set(widget.original);
+      }
+    }, onError: (_, _) {});
+    _stream = provider.resolve(createLocalImageConfiguration(context))
+      ..addListener(listener);
+    _listener = listener;
+  }
+
+  void _resetZoom() {
+    if (_zoom.value == Matrix4.identity()) return;
+    _zoomReset = Matrix4Tween(begin: _zoom.value, end: Matrix4.identity())
+        .animate(
+          CurvedAnimation(parent: _zoomResetCtl, curve: Curves.easeOutCubic),
+        );
+    _zoomResetCtl
+      ..value = 0
+      ..forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = _provider;
+    final aspect = _aspect;
+    if (provider == null || aspect == null || aspect <= 0) {
+      return Image.network(
+        widget.url,
+        fit: BoxFit.cover,
+        cacheWidth: kPhotoDecodeWidth,
+        errorBuilder: (_, _, _) => widget.fallback,
+      );
+    }
+    return OriginalViewFit(
+      progress: _fit.animation,
+      mediaAspect: aspect,
+      // 줄어들며 생기는 여백으로 뒤 화면이 비치지 않게.
+      backdrop: Colors.black,
+      wrap: (context, child, settled) => InteractiveViewer(
+        transformationController: _zoom,
+        // 원본 크기로 안착한 뒤에만 확대/이동 — 전환 중 제스처가 끼어들어
+        // 배율이 어긋나는 것을 막는다.
+        panEnabled: settled,
+        scaleEnabled: settled,
+        minScale: 1,
+        maxScale: 4,
+        child: child,
+      ),
+      child: Image(
+        image: provider,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => widget.fallback,
+      ),
+    );
   }
 }
 

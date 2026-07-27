@@ -16,7 +16,12 @@ import '../widgets/media_widgets.dart';
 import '../widgets/overlay_icon_button.dart';
 import '../widgets/post_card.dart' show ExpandableOverlayText;
 import '../widgets/post_media_hero.dart'
-    show BlobHeroContent, MediaOverlayPanel;
+    show
+        BlobHeroContent,
+        MediaOverlayPanel,
+        OriginalViewFit,
+        OriginalViewPhoto,
+        OriginalViewTransition;
 import '../widgets/review_cards.dart';
 import 'user_profile_screen.dart';
 
@@ -64,7 +69,8 @@ class _MediaPage {
   const _MediaPage.video(this.video) : photoUrl = null;
 }
 
-class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
+class _ReviewDetailScreenState extends State<ReviewDetailScreen>
+    with TickerProviderStateMixin {
   final _scroll = ScrollController();
 
   // ── 미디어 페이징 ──
@@ -89,9 +95,32 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
   /// 탭으로 접기/다시 펼치기, 축소 전환 중에는 강제로 접힌다.
   bool _expanded = true;
 
-  /// 오버레이(블러 패널) 몰입 숨김 — 사진 페이지 탭으로 토글(영상 페이지 탭은
-  /// 재생/일시정지라 제외). 인디케이터·진행바·앱바 아이콘도 함께 숨긴다.
+  /// 원본 보기 — 오버레이(블러 패널)가 걷히고 이어서 미디어가 화면을 채우는
+  /// cover 에서 **원본 비율**로 줄어든다(사진은 그 상태에서 확대/이동 가능).
+  /// 사진 페이지는 탭으로, 영상 페이지는 앱바 좌측 아이콘으로 토글(영상 탭은
+  /// 재생/일시정지라). 인디케이터·진행바·앱바 우측 아이콘도 함께 숨긴다.
   bool _overlayHidden = false;
+
+  /// 영상의 cover ↔ 원본 비율 전환(사진은 [OriginalViewPhoto] 가 스스로 갖는다).
+  late final OriginalViewTransition _videoFit = OriginalViewTransition(this);
+
+  void _setOriginView(bool on) {
+    if (on == _overlayHidden) return;
+    setState(() => _overlayHidden = on);
+    _videoFit.set(on && !_mirror);
+  }
+
+  /// 원본 보기를 붙일 수 있는 페이지인가 — 사진은 언제나, 영상은 화면을
+  /// 채우느라 잘리는 세로·정방형만(가로 영상은 이미 전체가 보이고, 웹은
+  /// 플랫폼 뷰라 애초에 자르지 않는다).
+  bool get _canOriginView {
+    if (_pages.isEmpty) return false;
+    final ctrl = _videoCtrls[_page];
+    if (ctrl == null) return true; // 사진 페이지
+    if (kIsWeb || _videoErrors.contains(_page)) return false;
+    final v = ctrl.value;
+    return v.isInitialized && v.aspectRatio <= 1;
+  }
 
   // ── 댓글 — reviewId 가 있는 후기(시설 후기)에만 붙는다 ──
   final _commentCtrl = TextEditingController();
@@ -152,19 +181,17 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
 
   void _onCollapseTick() {
     final want = (_progress?.value ?? 1) < 1.0;
-    if (want != _mirror && mounted) {
-      setState(() {
-        _mirror = want;
-        // 축소 전환 시작 → 숨겨둔 오버레이 자동 복귀(드래그 취소로 풀스크린에
-        // 돌아와도 보이는 상태 유지).
-        if (want) _overlayHidden = false;
-      });
-    }
+    if (want == _mirror || !mounted) return;
+    setState(() => _mirror = want);
+    // 축소 전환 시작 → 숨겨둔 오버레이 자동 복귀(드래그 취소로 풀스크린에
+    // 돌아와도 보이는 상태 유지). 원본 보기였다면 cover 로도 되돌린다.
+    if (want) _setOriginView(false);
   }
 
   @override
   void dispose() {
     _progress?.removeListener(_onCollapseTick);
+    _videoFit.dispose();
     for (final c in _videoCtrls.values) {
       c.dispose();
     }
@@ -177,12 +204,10 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
 
   /// 페이지 전환 — 현재 페이지의 영상만 재생, 나머지는 일시정지.
   void _onPageChanged(int i) {
-    setState(() {
-      _page = i;
-      // 영상 페이지는 탭이 재생/일시정지라 오버레이를 되살릴 방법이 없다 —
-      // 숨김 상태로 영상 페이지에 들어오면 자동 복귀.
-      if (_videoCtrls.containsKey(i)) _overlayHidden = false;
-    });
+    setState(() => _page = i);
+    // 원본 보기 중엔 페이저가 잠기지만(확대/이동과 충돌 방지), 혹시라도 페이지가
+    // 바뀌면 원본 보기를 풀어 새 미디어를 기본 배치로 보여 준다.
+    _setOriginView(false);
     _videoCtrls.forEach((idx, c) {
       if (idx == i) {
         if (c.value.isInitialized) c.play();
@@ -396,6 +421,9 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
         // 박스)와 짝(게시글 상세와 동일 언어).
         contentAlignment: Alignment.center,
         scrollController: _scroll,
+        // 원본 보기 중에는 당겨서 카드로 축소되는 드래그를 잠근다 — 확대/이동
+        // 제스처가 그대로 화면 복귀로 읽히지 않도록.
+        dragHandleTest: (_) => !_overlayHidden,
         builder: (context, physics) => Scaffold(
           // 투명 — 축소 전환 중 카드 아래로 뒤 화면이 비친다(게시글과 동일).
           backgroundColor: Colors.transparent,
@@ -406,6 +434,23 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
             scrolledUnderElevation: 0,
             // 뒤로가기 버튼 없음 — 아래로 당겨 카드로 축소(게시글 상세와 동일).
             automaticallyImplyLeading: false,
+            // 원본 보기 — 화면을 채우느라 잘린 미디어를 원본 비율로 본다.
+            // 사진은 화면 탭으로도 되지만 영상은 탭이 재생/일시정지라 이 아이콘이
+            // 유일한 입구다. 그래서 영상 페이지에서는 원본 보기 중에도 계속
+            // 보이게 두고(돌아올 길), 사진은 몰입을 위해 함께 숨긴다.
+            leading: _canOriginView
+                ? CollapseSettledFade(
+                    visible: !_overlayHidden || _videoCtrls.containsKey(_page),
+                    child: OverlayIconButton(
+                      icon: _overlayHidden
+                          ? Icons.fullscreen
+                          : Icons.aspect_ratio,
+                      tooltip: _overlayHidden ? '화면 채우기' : '원본 보기',
+                      onPressed: () => _setOriginView(!_overlayHidden),
+                    ),
+                  )
+                : null,
+            leadingWidth: 56,
             actions: [
               // 내 후기만 삭제 가능(게시글 상세의 앱바 액션 문법).
               // 확장 전환이 안착한 뒤 페이드 인(원샷 모프) + 몰입 숨김 동참.
@@ -426,7 +471,12 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
           // CollapsibleView 의 당겨서 축소하는 드래그 메커니즘만 보존.
           body: ListView(
             controller: _scroll,
-            physics: physics,
+            // 원본 보기 중엔 리스트가 세로 드래그를 가져가지 않게 잠근다 —
+            // 스크롤 인식기(슬롭 18)가 확대 이동(슬롭 36)보다 먼저 이겨
+            // 사진을 위아래로 못 옮기던 문제.
+            physics: _overlayHidden
+                ? const NeverScrollableScrollPhysics()
+                : physics,
             padding: EdgeInsets.zero,
             children: [
               SizedBox(
@@ -485,11 +535,14 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
                     ? GestureDetector(
                         onTap: _mirror
                             ? null
-                            : () => setState(
-                                () => _overlayHidden = !_overlayHidden,
-                              ),
+                            : () => _setOriginView(!_overlayHidden),
                         child: PageView(
                           controller: _pageCtrl,
+                          // 원본 보기 중엔 페이저도 잠근다 — 가로 드래그를
+                          // 확대/이동에 넘겨야 사진을 좌우로 옮길 수 있다.
+                          physics: _overlayHidden
+                              ? const NeverScrollableScrollPhysics()
+                              : null,
                           onPageChanged: _onPageChanged,
                           children: [
                             for (var i = 0; i < _pages.length; i++)
@@ -654,17 +707,17 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
     );
   }
 
-  /// 페이지 하나 — 사진(cover) 또는 영상(현재 페이지만 자동재생, 탭 토글).
+  /// 페이지 하나 — 사진(cover, 탭하면 원본 보기) 또는 영상(현재 페이지만
+  /// 자동재생, 탭 = 재생/일시정지 — 원본 보기는 앱바 아이콘으로).
   Widget _mediaPage(BuildContext context, int i) {
     final page = _pages[i];
     final photo = page.photoUrl;
     if (photo != null) {
-      return Image.network(
-        photo,
-        fit: BoxFit.cover,
-        cacheWidth: 1200,
-        errorBuilder: (_, _, _) =>
-            ColoredBox(color: context.colors.surfaceMuted),
+      return OriginalViewPhoto(
+        url: photo,
+        // 현재 페이지에만 — 옆 페이지는 기본(cover) 배치로 대기.
+        original: _overlayHidden && !_mirror && i == _page,
+        fallback: ColoredBox(color: context.colors.surfaceMuted),
       );
     }
     final video = page.video!;
@@ -698,15 +751,7 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
                   ),
                 )
               else
-                FittedBox(
-                  fit: fit,
-                  clipBehavior: Clip.hardEdge,
-                  child: SizedBox(
-                    width: v.size.width,
-                    height: v.size.height,
-                    child: VideoPlayer(ctrl),
-                  ),
-                ),
+                _videoSurface(ctrl, v, fit, i),
             // 포스터 — 초기화 전 cover 로 채우고, 준비되면 페이드아웃.
             IgnorePointer(
               child: AnimatedOpacity(
@@ -743,6 +788,36 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
           ],
         );
       },
+    );
+  }
+
+  /// 영상 표면(네이티브) — cover(세로·정방형)일 때는 원본 보기 토글이 붙는다.
+  /// 사진과 같은 문법으로 contain 렌더를 cover 배율만큼 키워 두고 그 사이를
+  /// [_videoFit] 으로 보간해, 잘려 있던 위아래가 자연스럽게 열린다.
+  /// 여백 검정은 뒤에 이미 깔려 있어 backdrop 은 두지 않는다.
+  Widget _videoSurface(
+    VideoPlayerController ctrl,
+    VideoPlayerValue v,
+    BoxFit fit,
+    int i,
+  ) {
+    final surface = FittedBox(
+      fit: fit == BoxFit.cover && v.aspectRatio > 0 ? BoxFit.contain : fit,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: v.size.width,
+        height: v.size.height,
+        child: VideoPlayer(ctrl),
+      ),
+    );
+    if (fit != BoxFit.cover || v.aspectRatio <= 0) return surface;
+    return OriginalViewFit(
+      // 현재 페이지에만 — 옆 페이지는 기본(cover) 배치로 대기.
+      progress: i == _page
+          ? _videoFit.animation
+          : const AlwaysStoppedAnimation(0),
+      mediaAspect: v.aspectRatio,
+      child: surface,
     );
   }
 

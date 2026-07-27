@@ -84,7 +84,8 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     final canPhoto = _photoCount < _maxPhotos && !_uploading;
     // 동영상은 인코딩·포스터 생성까지 걸려 있어 대기(pending) 처리를 하지 않는다.
     // 비로그인은 사진만 — 인증을 앞당겨 요구하느니 명시적으로 안내한다.
-    final canVideo = _videos.length < _maxVideos && !_uploadingVideo && !_isGuest;
+    final canVideo =
+        _videos.length < _maxVideos && !_uploadingVideo && !_isGuest;
     final src = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -455,8 +456,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                       onRemove: () => setState(() => _videos.removeAt(i)),
                     ),
                   // 첨부 추가 — 탭하면 사진/동영상 선택 바텀시트.
-                  if (_photoCount < _maxPhotos ||
-                      _videos.length < _maxVideos)
+                  if (_photoCount < _maxPhotos || _videos.length < _maxVideos)
                     Pressable(
                       borderRadius: BorderRadius.circular(12),
                       onTap: (_uploading || _uploadingVideo)

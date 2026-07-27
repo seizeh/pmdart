@@ -169,9 +169,7 @@ class _LiteReviewAuthSheetState extends State<_LiteReviewAuthSheet> {
                     ? _send
                     : null,
                 child: Text(
-                  _cooldown > 0
-                      ? '$_cooldown초'
-                      : (_sent ? '재발송' : '인증번호 받기'),
+                  _cooldown > 0 ? '$_cooldown초' : (_sent ? '재발송' : '인증번호 받기'),
                 ),
               ),
             ),
@@ -260,7 +258,8 @@ class _LiteReviewAuthSheetState extends State<_LiteReviewAuthSheet> {
                     const TextSpan(text: ' 및 '),
                     _link('전화번호 수집·이용', _privacyTap, c),
                     const TextSpan(
-                      text: ' 에 동의합니다. 수집한 번호는 후기 작성자 식별과 '
+                      text:
+                          ' 에 동의합니다. 수집한 번호는 후기 작성자 식별과 '
                           '정식 회원 가입 시 계정 연결에 쓰여요.',
                     ),
                   ],

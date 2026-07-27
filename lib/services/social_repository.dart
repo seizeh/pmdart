@@ -108,7 +108,10 @@ class SocialRepository {
     const cols =
         'id, nickname, user_type, profile_image_url, business_name, business_photo_url, review_count, pawing_count, pawmate_count';
     PostgrestTransformBuilder<PostgrestList> byColumn(String column) {
-      final base = _c.from('public_profiles').select(cols).ilike(column, '%$q%');
+      final base = _c
+          .from('public_profiles')
+          .select(cols)
+          .ilike(column, '%$q%');
       return (uid == null ? base : base.neq('id', uid)).limit(30);
     }
 

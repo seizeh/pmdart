@@ -122,11 +122,7 @@ class PhoneAuthService {
     try {
       final res = await _client.functions.invoke(
         'signup-lite',
-        body: {
-          'phone': phone,
-          'code': code,
-          'privacy_consent': privacyConsent,
-        },
+        body: {'phone': phone, 'code': code, 'privacy_consent': privacyConsent},
       );
       final data = (res.data as Map?) ?? const {};
       final user = (data['user'] as Map?) ?? const {};
@@ -139,7 +135,10 @@ class PhoneAuthService {
     } on FunctionException catch (e) {
       final detail = e.details;
       final err = detail is Map ? detail['error'] as String? : null;
-      return LiteSignupResult(ok: false, errorCode: err ?? 'lite_signup_failed');
+      return LiteSignupResult(
+        ok: false,
+        errorCode: err ?? 'lite_signup_failed',
+      );
     } catch (_) {
       return const LiteSignupResult(ok: false, errorCode: 'network_error');
     }

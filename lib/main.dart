@@ -497,9 +497,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
         (route) => false,
       );
     }
-    nav.push(
-      CollapseRoute(builder: (_) => UserProfileScreen(userId: userId)),
-    );
+    nav.push(CollapseRoute(builder: (_) => UserProfileScreen(userId: userId)));
   }
 
   @override

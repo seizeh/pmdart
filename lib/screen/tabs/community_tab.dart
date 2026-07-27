@@ -14,6 +14,7 @@ import '../../services/notification_repository.dart';
 import '../../services/profile_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/layout.dart';
+import '../../widgets/app_invite_dialog.dart';
 import '../../widgets/app_search_field.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/role_badge.dart';
@@ -338,7 +339,17 @@ class _CommunityTabState extends State<CommunityTab>
   }
 
   /// 동네 인증이 없거나 만료된 사용자에게 인증 화면으로 안내.
+  /// 웹은 위치를 수집하지 않으므로(법·신뢰성) 앱으로 보낸다 — 현재 웹에서는
+  /// 글쓰기 FAB 자체가 없어 여기까지 오지 않지만, 경로가 열려도 안전하게.
   void _showRegionGateDialog() {
+    if (kIsWeb) {
+      unawaited(AppInviteDialog.show(context, feature: '동네 인증'));
+      return;
+    }
+    _showRegionGateDialogNative();
+  }
+
+  void _showRegionGateDialogNative() {
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(

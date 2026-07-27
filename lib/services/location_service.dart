@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:geolocator/geolocator.dart';
 
 /// 위치 권한/좌표 획득 결과 코드.
@@ -28,7 +29,20 @@ class LocationService {
   static final LocationService instance = LocationService._();
 
   /// 권한 확인/요청 후 고정확도 현재 좌표를 1회 획득한다.
+  ///
+  /// **웹에서는 위치를 수집하지 않는다(하드 가드).** 두 가지 이유다.
+  ///  · 법: 위치정보는 별도 동의·약관 체계가 걸린 정보다. 앱에서만 받도록
+  ///    설계·고지돼 있으므로 웹에서 브라우저 위치 권한을 띄우는 일 자체가 없어야
+  ///    한다.
+  ///  · 신뢰성: 브라우저 Geolocation 에는 `isMocked` 가 없어 조작을 걸러낼 수
+  ///    없다 — 동네 인증(0017)의 전제가 무너진다.
+  ///
+  /// 현재 호출부(글쓰기·지역인증·지도·촬영인증)는 모두 웹에서 도달 불가지만,
+  /// **도달 불가에 기대지 않는다** — 나중에 경로가 하나 열려도 권한 프롬프트가
+  /// 뜨지 않도록 여기서 막는다.
   Future<LocationResult> getCurrentPosition() async {
+    if (kIsWeb) return const LocationResult(LocationStatus.deniedForever);
+
     // 1) 단말 위치 서비스 on/off
     if (!await Geolocator.isLocationServiceEnabled()) {
       return const LocationResult(LocationStatus.serviceDisabled);

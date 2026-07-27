@@ -16,7 +16,7 @@ Rect riseOriginRect(BuildContext context) {
     size.height,
     size.width,
     size.height,
-  ).shift(shellOrigin());
+  ).shift(shellOrigin(context));
 }
 
 /// 투명 통과 라우트 — 아래 화면(피드)이 그대로 비쳐 보인다.
@@ -142,7 +142,7 @@ class ExpandRoute<T> extends PageRoute<T> {
       reverseCurve: Curves.easeInCubic,
     );
     // 화면 좌표 → 라우트 좌표(셸이 본문을 옮겨 놓은 만큼 보정).
-    final rect = toRouteRect(originRect)!;
+    final rect = toRouteRect(context, originRect)!;
     return _OriginExpand(
       animation: curved,
       originRect: rect,
@@ -536,7 +536,7 @@ class _CollapsibleViewState extends State<CollapsibleView>
     );
     if (!_collapsible) return content;
 
-    final origin = toRouteRect(widget.originRect)!; // 화면 좌표 → 라우트 좌표
+    final origin = toRouteRect(context, widget.originRect)!; // 화면 좌표 → 라우트 좌표
     // card 가 없으면(오프스크린 원점 모달 등) 크로스페이드 없이 콘텐츠만 이동.
     final cardWidget = widget.card == null
         ? null
@@ -572,7 +572,7 @@ class _CollapsibleViewState extends State<CollapsibleView>
   /// 크로스페이드(피드 카드와 동일). 게시글 상세와 완전히 동일한 시각 언어.
   /// [cardWidget] 이 null 이면 크로스페이드 없이 콘텐츠가 불투명하게 이동만 한다.
   Widget _wrapCollapse(BuildContext context, Widget child, Widget? cardWidget) {
-    final origin = toRouteRect(widget.originRect)!; // 화면 좌표 → 라우트 좌표
+    final origin = toRouteRect(context, widget.originRect)!; // 화면 좌표 → 라우트 좌표
     final size = MediaQuery.of(context).size;
     final w = size.width;
     final h = size.height;

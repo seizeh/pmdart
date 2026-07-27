@@ -10,6 +10,7 @@ library;
 export 'app_motion.dart';
 export 'collapse_route.dart';
 export 'entrance.dart';
+export 'flying_card.dart';
 export 'heart_burst.dart';
 export 'pressable.dart';
 export 'spring_page_route.dart';

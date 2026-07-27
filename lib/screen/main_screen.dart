@@ -202,6 +202,9 @@ class _MainScreenState extends State<MainScreen>
       currentIndex: _index,
       items: _navItems,
       onTap: _selectFromRail,
+      // 커뮤니티만 마스터-디테일(피드 + 우측 상세 패널)을 쓴다. 다른 탭은 폰 폭
+      // 컬럼 그대로다 — 탭마다 두 벌을 유지하지 않기 위한 선(docs/web-port.md 결정 1).
+      wide: _currentTab == MainScreen.tabCommunity,
     );
     navRail.value = _railConfig;
   }

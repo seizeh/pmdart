@@ -65,12 +65,45 @@ class _CommunityTabState extends State<CommunityTab>
   // 펼치고, 아래로 당기면 그 자리로 축소시키는 CollapseRoute 에 넘긴다.
   final _cardKeys = <String, GlobalKey>{};
 
-  // 상세보기로 열려있는 카드 id — 그 카드는 상세가 열린 동안 투명(빈자리)으로 두어,
-  // 축소 애니메이션이 실제 카드와 겹치지 않고 빈 슬롯으로 깔끔히 안착하게 한다.
-  String? _openedPostId;
+  // 지금 피드에서 **자리를 비운** 카드들 — 상세로 열려 있거나 패널로/패널에서
+  // 날아가는 중이다. 자리(높이)는 그대로 두고 투명하게만 만든다: 축소 애니메이션이
+  // 실제 카드와 겹치지 않고 빈 슬롯에 안착하며, 데스크톱에서는 그 **빈 슬롯 자체가
+  // "지금 보고 있는 글" 표시이자 돌아올 자리**가 된다.
+  //
+  // 하나가 아니라 집합인 이유: 패널에서 글을 갈아탈 때 나가는 카드와 들어오는 카드가
+  // **동시에** 날아 서로 엇갈린다.
+  final _awayPostIds = <String>{};
 
   // 글쓰기 FAB 위치 캡처용 — 버튼에서 펼쳐지고 버튼으로 축소되는 전환에 사용.
   final _fabKey = GlobalKey();
+
+  // ── 마스터-디테일(데스크톱 웹) — 우측 상세 패널 ─────────────────────────
+  //
+  // 패널은 **자기 Navigator** 를 갖는다. 상세를 위젯으로 직접 박지 않고 라우트로
+  // 두는 이유: 뒤로가기·아래로 당겨 축소(PopScope)·상세 안에서의 추가 이동이
+  // 전부 지금 코드 그대로 동작한다. 상세 화면은 한 줄도 고치지 않는다.
+  final _panelNavKey = GlobalKey<NavigatorState>();
+
+  // 패널 박스 — 라우트 좌표의 기준(RouteHost). 이걸 안 넘기면 카드에서 펼쳐지는
+  // 모프가 본문 컬럼 기준으로 계산돼 피드 폭만큼 어긋난다.
+  final _panelHostKey = GlobalKey();
+
+  // 패널에 열려 있는 게시글 id — 없으면 빈 패널(안내). 카드가 나는 동안에도 이미
+  // 그 글이 주인이다(도중에 다른 글을 누르면 이 값으로 주인이 바뀐 걸 알아챈다).
+  String? _panelPostId;
+
+  // 패널에 올려둔 상세 라우트 — 갈아탈 때 애니메이션 없이 걷어내려고 들고 있는다.
+  Route<void>? _panelRoute;
+
+  // 피드 subtree 를 창 크기 변화 너머로 **살려 두기** 위한 키.
+  //
+  // 1100 경계를 넘으면 피드가 Row 안팎으로 옮겨 다닌다. 키가 없으면 그때마다
+  // 엘리먼트가 새로 만들어져 **스크롤 위치가 0 으로 튀고**, 헤더는 숨은 상태
+  // 그대로라 목록 위에 빈 흰 띠가 남는다. GlobalKey 면 트리만 옮겨 붙는다.
+  final _feedKey = GlobalKey();
+
+  /// 지금 상세를 패널로 여는 배치인지 — 패널 Navigator 가 실제로 붙어 있을 때만.
+  bool get _hasPanel => _panelNavKey.currentState != null;
 
   // 헤더 두 섹션 높이(오버레이+애니메이션): 제목+검색 / 카테고리 칩.
   // 패널이 상태바 아래로 8 떠 있으므로(플로팅 카드) 그만큼 더해 콘텐츠 높이를 유지.
@@ -244,6 +277,7 @@ class _CommunityTabState extends State<CommunityTab>
   }
 
   Future<void> _openPost(Post post) async {
+    if (_hasPanel) return _openPostInPanel(post);
     final rect = _cardRect(post.id);
     // 카드 위치를 알면 그 자리에서 펼치고/당기면 축소되는 상세(투명 CollapseRoute),
     // 못 구하면 표준 라우트로 폴백. 축소 시 나타날 실제 카드는 피드와 동일 위젯.
@@ -254,7 +288,7 @@ class _CommunityTabState extends State<CommunityTab>
       cardBuilder: rect == null ? null : (_) => PostCard(post: post),
     );
     // 카드 확장/축소 동안 원본 카드를 빈자리로(축소가 겹침 없이 안착).
-    if (rect != null) setState(() => _openedPostId = post.id);
+    if (rect != null) setState(() => _awayPostIds.add(post.id));
     await Navigator.push<void>(
       context,
       rect == null
@@ -262,9 +296,115 @@ class _CommunityTabState extends State<CommunityTab>
           : CollapseRoute<void>(builder: (_) => page),
     );
     if (!mounted) return;
-    setState(() => _openedPostId = null); // 상세 닫힘 → 원본 카드 복원
+    setState(() => _awayPostIds.remove(post.id)); // 상세 닫힘 → 원본 카드 복원
     _revealHeaderIfAtTop(); // 최상단이면 헤더 복귀(흰 공백 방지)
     unawaited(_load(silent: true)); // 스크롤 유지한 채 하트/댓글 변동만 반영
+  }
+
+  /// 상세 패널의 화면상 사각형. 아직 배치 전이면 null.
+  Rect? _panelRect() {
+    final box = _panelHostKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || !box.attached) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// 날아간 카드가 패널 안에서 **착지하는 자리** — 카드 크기 그대로, 패널 중앙.
+  /// 여기서부터는 상세가 사방으로 벌어진다(상세의 `contentAlignment` 가 center).
+  Rect _landingRect(Rect card, Rect panel) => Rect.fromCenter(
+    center: panel.center,
+    width: card.width,
+    height: card.height,
+  );
+
+  /// 상세를 우측 패널에 연다(데스크톱) — **카드가 목록을 떠나 패널로 날아간 뒤
+  /// 그 자리에서 펼쳐진다.**
+  ///
+  /// 2단으로 나눈 이유: 이동 구간은 피드와 패널에 걸쳐 있어 어느 한쪽 박스 안에서
+  /// 그리면 잘린다(자세한 사정은 [flyCard] 주석). 착지 뒤의 확장은 패널 안에서
+  /// 끝나므로 기존 [CollapseRoute] 를 그대로 쓴다 — 아래로 당겨 축소도 공짜로 딸려온다.
+  Future<void> _openPostInPanel(Post post) async {
+    final nav = _panelNavKey.currentState;
+    if (nav == null || _panelPostId == post.id) return;
+
+    final cardRect = _cardRect(post.id);
+    final panelRect = _panelRect();
+    // 카드 위치를 못 구하면(스크롤로 화면 밖 등) 모션 없이 바로 띄운다.
+    if (cardRect == null || panelRect == null) {
+      setState(() => _panelPostId = post.id);
+      unawaited(_runPanelRoute(post, null));
+      return;
+    }
+    final landing = _landingRect(cardRect, panelRect);
+
+    // 열려 있던 글은 **즉시** 카드로 되돌려 제 자리로 보낸다. 축소 애니메이션을
+    // 태우면 나가는 카드가 착지점에 머무는 동안 들어오는 카드가 같은 자리에 도착해
+    // 두 장이 겹친다. 이렇게 하면 둘이 서로 엇갈려 지나간다.
+    final leaving = _panelRoute;
+    if (leaving != null) nav.removeRoute(leaving);
+
+    setState(() {
+      _awayPostIds.add(post.id); // 목록에서 자리를 비운다(= 선택 표시)
+      _panelPostId = post.id;
+    });
+
+    // 1단 — 목록에서 패널로 이동.
+    await flyCard(
+      context: context,
+      from: toRouteRect(context, cardRect)!,
+      to: toRouteRect(context, landing)!,
+      card: (_) => PostCard(post: post),
+    );
+    // 나는 동안 다른 글로 갈아탔으면 여기서 멈춘다 — 그 글이 패널의 주인이다.
+    if (!mounted || _panelPostId != post.id) return;
+
+    // 2단 — 착지한 카드에서 상세로 확장.
+    await _runPanelRoute(post, landing);
+  }
+
+  /// 패널에 상세 라우트를 올리고, 닫힐 때까지 기다렸다가 카드를 제 자리로 돌려보낸다.
+  Future<void> _runPanelRoute(Post post, Rect? landing) async {
+    final nav = _panelNavKey.currentState;
+    if (nav == null) return;
+    final route = landing == null
+        ? AppPageRoute<void>(
+            builder: (_) =>
+                PostDetailScreen(post: post, isGuest: widget.isGuest),
+          )
+        : CollapseRoute<void>(
+            builder: (_) => PostDetailScreen(
+              post: post,
+              isGuest: widget.isGuest,
+              // 규약대로 화면 좌표 — 패널의 RouteHost 가 패널 좌표로 바꾼다.
+              originRect: landing,
+              cardBuilder: (_) => PostCard(post: post),
+            ),
+          );
+    _panelRoute = route;
+    nav.push(route);
+
+    await route.popped;
+    if (identical(_panelRoute, route)) _panelRoute = null;
+    if (!mounted) return;
+    // 축소가 끝나면 콘텐츠는 다시 착지점의 카드 모양이다 → 목록의 제 자리로.
+    await _returnCardHome(post, landing);
+    unawaited(_load(silent: true)); // 하트/댓글 변동만 반영(스크롤 유지)
+  }
+
+  /// 패널을 떠난 카드를 목록의 제 자리로 날려 보내고 슬롯을 복원한다.
+  Future<void> _returnCardHome(Post post, Rect? landing) async {
+    // 이미 다른 글이 패널을 차지했으면 그쪽 상태는 건드리지 않는다.
+    if (_panelPostId == post.id) setState(() => _panelPostId = null);
+    // 돌아갈 자리는 **지금** 다시 잰다 — 나 있는 동안 사용자가 스크롤했을 수 있다.
+    final home = _cardRect(post.id);
+    if (landing != null && home != null) {
+      await flyCard(
+        context: context,
+        from: toRouteRect(context, landing)!,
+        to: toRouteRect(context, home)!,
+        card: (_) => PostCard(post: post),
+      );
+    }
+    if (mounted) setState(() => _awayPostIds.remove(post.id));
   }
 
   void _selectCategory(String? c) {
@@ -380,6 +520,81 @@ class _CommunityTabState extends State<CommunityTab>
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        // 창이 넓고(useMasterDetail) **실제로 받은 폭도 충분할 때만** 쪼갠다.
+        // 창 폭만 보면 안 된다 — 이 탭은 IndexedStack 안에 살아 있어서, 다른 탭을
+        // 보는 동안에는 셸이 460 컬럼으로 되돌린 폭을 받는다. 그때 패널을 그리면
+        // 넘친다.
+        final split =
+            useMasterDetail(context) &&
+            c.maxWidth >=
+                kContentMaxWidth + kDetailPanelGap + kDetailPanelMinWidth;
+        final feed = KeyedSubtree(key: _feedKey, child: _feed());
+        if (!split) {
+          // 패널이 사라지면 그 안의 Navigator 도 함께 사라진다 — 열려 있던 라우트는
+          // pop 되는 게 아니라 통째로 폐기되므로 `route.popped` 가 영영 완료되지
+          // 않는다. 여기서 직접 지우지 않으면 id 가 남아, 창을 다시 넓힌 뒤 같은
+          // 글을 눌러도 "이미 열려 있음"으로 무시된다.
+          if (_panelPostId != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _panelPostId != null && !_hasPanel) {
+                setState(() {
+                  _panelPostId = null;
+                  _panelRoute = null;
+                  // 자리를 비워 둔 카드도 되살린다 — 안 그러면 좁은 화면으로
+                  // 내려온 목록에 투명한 빈 슬롯이 영구히 남는다.
+                  _awayPostIds.clear();
+                });
+              }
+            });
+          }
+          return feed;
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 피드는 폰 폭 고정 — 카드 비율이 앱과 같아야 한다(결정 1).
+            SizedBox(width: kContentMaxWidth, child: _sized(feed)),
+            const SizedBox(width: kDetailPanelGap),
+            Expanded(child: _detailPanel()),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 자식에게 **자기가 실제로 차지한 크기**를 MediaQuery 로 알려준다.
+  /// 안 하면 피드가 창(또는 피드+패널) 폭을 자기 크기로 착각한다.
+  Widget _sized(Widget child) => LayoutBuilder(
+    builder: (context, c) => MediaQuery(
+      data: MediaQuery.of(
+        context,
+      ).copyWith(size: Size(c.maxWidth, c.maxHeight)),
+      child: child,
+    ),
+  );
+
+  /// 우측 상세 패널 — 자기 Navigator 를 가진 작은 화면. 비어 있으면 안내를 띄운다.
+  Widget _detailPanel() => SizedBox.expand(
+    key: _panelHostKey, // 라우트 좌표의 기준(RouteHost 로 내려보낸다)
+    child: _sized(
+      RouteHost(
+        hostKey: _panelHostKey,
+        child: Navigator(
+          key: _panelNavKey,
+          onGenerateRoute: (settings) => PageRouteBuilder<void>(
+            settings: settings,
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+            pageBuilder: (_, _, _) => const _EmptyDetailPanel(),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _feed() {
     return Scaffold(
       backgroundColor: context.colors.background,
       // 키보드가 오르내릴 때 매 프레임 본문(블러 카드 리스트) 전체가 재레이아웃되며
@@ -622,7 +837,7 @@ class _CommunityTabState extends State<CommunityTab>
             key: key,
             // 상세로 열려있으면 투명(빈자리)으로 — 레이아웃/크기는 유지해 슬롯 그대로.
             child: Opacity(
-              opacity: post.id == _openedPostId ? 0.0 : 1.0,
+              opacity: _awayPostIds.contains(post.id) ? 0.0 : 1.0,
               // RepaintBoundary 로 각 카드 리페인트를 격리(헤더 블러/애니메이션·이웃 카드
               // 하트 토글이 다른 카드를 다시 그리지 않게 함).
               child: RepaintBoundary(
@@ -638,6 +853,41 @@ class _CommunityTabState extends State<CommunityTab>
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// 아직 아무 글도 고르지 않았을 때의 우측 패널.
+///
+/// 빈 배경으로 두면 "레이아웃이 덜 만들어진 화면"으로 읽힌다. 무엇을 하면 되는지
+/// 한 줄로 알려주는 것까지가 이 패널의 기본 상태다.
+class _EmptyDetailPanel extends StatelessWidget {
+  const _EmptyDetailPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.article_outlined,
+            size: 44,
+            color: colors.textTertiary.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '왼쪽에서 게시글을 고르면\n여기에서 바로 읽을 수 있어요',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: colors.textTertiary,
+            ),
+          ),
+        ],
       ),
     );
   }

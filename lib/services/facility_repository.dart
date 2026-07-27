@@ -225,7 +225,27 @@ class FacilityRepository {
     return const [];
   }
 
-  /// 시설명 검색(지도 검색창). [lat]/[lng] 주면 가까운 순 정렬. 최대 30건.
+  /// 시설 1건 조회 — 매장 QR(`/r/<facilityId>`)로 들어왔을 때 쓴다.
+  ///
+  /// RPC 가 아니라 테이블을 직접 읽는다: facilities 는 RLS 가 `using (true)` 이고
+  /// anon SELECT 라 비로그인도 그대로 읽힌다(반경 RPC 와 달리 좌표가 필요 없다).
+  /// 후기 작성에 좌표는 쓰이지 않으므로 lat/lng 는 0 으로 둔다 — 네이버 카페가
+  /// 아닌 공공데이터 시설은 승격(ensureNaverFacility)도 타지 않는다.
+  Future<Facility?> fetchById(String id) async {
+    final row = await _c
+        .from('facilities')
+        .select(
+          'id, category, name, address, phone, is_open, source, '
+          'avg_rating, review_count, owner_photo_url, owner_photo_align_y, '
+          'business_hours',
+        )
+        .eq('id', id)
+        .maybeSingle();
+    if (row == null) return null;
+    return Facility.fromJson({...row, 'lat': 0, 'lng': 0, 'distance_m': 0});
+  }
+
+  /// 시설명 검색(지도 검색창·검색 탭). [lat]/[lng] 주면 가까운 순 정렬. 최대 30건.
   Future<List<Facility>> searchByName(
     String query, {
     double? lat,

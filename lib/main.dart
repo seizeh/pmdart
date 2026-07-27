@@ -15,6 +15,7 @@ import 'motion/motion.dart';
 import 'screen/activity_screens.dart' show MyReviewsScreen;
 import 'screen/admin/admin_home_screen.dart';
 import 'screen/chat_room_screen.dart';
+import 'screen/facility_review_screen.dart';
 import 'screen/guardian_invites_screen.dart';
 import 'screen/main_screen.dart';
 import 'screen/notifications_screen.dart';
@@ -25,6 +26,7 @@ import 'screen/vaccination_schedule_screen.dart';
 import 'screen/welcome_screen.dart';
 import 'services/chat_repository.dart';
 import 'services/community_repository.dart';
+import 'services/facility_repository.dart';
 import 'services/facility_review_repository.dart';
 import 'services/keyboard_barrier.dart';
 import 'services/local_notice_service.dart';
@@ -100,7 +102,9 @@ Future<void> main() async {
       if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
         await s.refreshOnce();
       }
-      return s.token;
+      // 간이 회원(후기 전용) 토큰은 정식 세션이 없을 때만 쓰인다 — 갱신 대상도
+      // 아니고 저장되지도 않는다(SessionManager.beginLiteSession 참고).
+      return s.token ?? s.liteToken;
     },
   );
 
@@ -369,7 +373,9 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
   /// 되돌아가면 거기서 끊긴다).
   Future<void> _openInitialWebLink() async {
     final postId = initialSharedPostId();
-    if (postId == null) return;
+    final userId = initialSharedUserId();
+    final reviewFacilityId = initialReviewFacilityId();
+    if (postId == null && userId == null && reviewFacilityId == null) return;
 
     // 네비게이터 준비 대기 — 첫 프레임 직후라 보통 바로 있지만 없으면 잠깐 기다린다
     // (openFromPush 와 같은 방어).
@@ -380,6 +386,21 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
     }
     if (nav == null || !mounted) return;
 
+    // 매장 QR(`/r/<facilityId>`) — 그 매장의 후기 작성 화면을 바로 연다.
+    if (reviewFacilityId != null) {
+      await _openReviewWrite(nav, reviewFacilityId);
+      return;
+    }
+
+    // 업체 프로필(`/u/<userId>`). 게시글과 달리 선조회를 하지 않는다: 프로필 화면이
+    // 스스로 로드하며 실패 표시까지 처리하고, 여기서 한 번 더 받아봐야 첫 화면만 늦어진다.
+    if (userId != null) {
+      _openSharedProfile(nav, userId);
+      return;
+    }
+    // 위에서 userId 를 처리하고 돌아갔으므로 여기 오면 postId 는 반드시 있다.
+    final sharedPostId = postId!;
+
     // 콜드 로드에서는 번들·wasm 다운로드와 겹쳐 첫 요청이 일시 실패하곤 한다.
     // 한 번 실패했다고 포기하면 공유 링크가 **조용히 피드로 떨어진다**(실제로
     // 간헐 발생을 목격). 예외일 때만 재시도하고, 결과가 null(삭제·비공개)이면
@@ -388,7 +409,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
     var failed = false;
     for (var i = 0; i < 3; i++) {
       try {
-        loaded = await CommunityRepository.instance.fetchPost(postId);
+        loaded = await CommunityRepository.instance.fetchPost(sharedPostId);
         failed = false;
         break;
       } catch (e) {
@@ -426,6 +447,58 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
       CollapseRoute(
         builder: (_) => PostDetailScreen(post: post, isGuest: guest),
       ),
+    );
+  }
+
+  /// 매장 QR 로 들어와 그 매장의 후기 작성 화면을 연다.
+  ///
+  /// 시설은 업체 계정이 없어도 존재하므로(공공데이터), 인증 전 매장에 뿌린 QR 도
+  /// 그대로 동작한다. 비로그인이면 작성 화면이 게시 시점에 간이 인증을 청한다.
+  ///
+  /// 뒤로 가면 게스트 메인(커뮤니티)이 남도록 그 위에 얹는다 — 후기를 안 쓰기로
+  /// 해도 앱을 둘러보는 쪽으로 이어져야 한다.
+  Future<void> _openReviewWrite(NavigatorState nav, String facilityId) async {
+    Facility? facility;
+    try {
+      facility = await FacilityRepository.instance.fetchById(facilityId);
+    } catch (e) {
+      debugPrint('매장 QR: 시설 조회 실패 — $e');
+    }
+    if (!mounted) return;
+
+    if (!SessionManager.instance.isLoggedIn) {
+      nav.pushAndRemoveUntil(
+        AppPageRoute(builder: (_) => const MainScreen(isGuest: true)),
+        (route) => false,
+      );
+    }
+
+    final f = facility;
+    if (f == null) {
+      final overlay = nav.overlay;
+      if (overlay != null) AppToast.show(overlay, '매장 정보를 불러오지 못했어요');
+      return;
+    }
+    nav.push(CollapseRoute(builder: (_) => FacilityReviewScreen(facility: f)));
+  }
+
+  /// 매장 QR 로 들어온 업체 프로필을 연다.
+  ///
+  /// 게시글 공유와 같은 이유로 비로그인도 통과시키고, 게스트면 웰컴 대신 게스트
+  /// 메인을 깐 뒤 그 위에 얹는다 — 프로필을 닫았을 때 웰컴으로 튕기지 않고
+  /// 둘러보기로 이어져야 한다.
+  ///
+  /// 업체 얼굴로 연다(forcePersonalFace=false). QR 은 매장에서 나눠주는 물건이라
+  /// 맥락이 명백히 업체고, 개인 얼굴로 열면 후기 작성 버튼이 뜨지 않는다.
+  void _openSharedProfile(NavigatorState nav, String userId) {
+    if (!SessionManager.instance.isLoggedIn) {
+      nav.pushAndRemoveUntil(
+        AppPageRoute(builder: (_) => const MainScreen(isGuest: true)),
+        (route) => false,
+      );
+    }
+    nav.push(
+      CollapseRoute(builder: (_) => UserProfileScreen(userId: userId)),
     );
   }
 

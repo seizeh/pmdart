@@ -45,4 +45,54 @@ void main() {
       expect(sharedPostIdOf(Uri.parse('https://x.kr/u/$id')), isNull);
     });
   });
+
+  /// 매장 QR 은 업체 프로필로 보낸다 — share-view 가 `/u/<userId>` 로 302 (0029).
+  group('sharedUserIdOf', () {
+    test('/u/<uuid> 에서 id 를 읽는다', () {
+      expect(sharedUserIdOf(Uri.parse('https://app.pawmate.kr/u/$id')), id);
+    });
+
+    test('하위 경로 배포(--base-href)에서도 읽는다', () {
+      expect(sharedUserIdOf(Uri.parse('https://x.kr/web/u/$id')), id);
+    });
+
+    test('uuid 가 아니면 무시한다', () {
+      expect(sharedUserIdOf(Uri.parse('https://x.kr/u/not-a-uuid')), isNull);
+    });
+
+    test('id 없는 /u 는 무시한다', () {
+      expect(sharedUserIdOf(Uri.parse('https://x.kr/u')), isNull);
+    });
+
+    test('게시글 경로는 잡지 않는다 — 두 딥링크가 서로 섞이면 안 된다', () {
+      expect(sharedUserIdOf(Uri.parse('https://x.kr/p/$id')), isNull);
+    });
+
+    test('평범한 진입(루트)은 null', () {
+      expect(sharedUserIdOf(Uri.parse('https://app.pawmate.kr/')), isNull);
+    });
+  });
+
+  /// 매장 QR 은 그 매장의 후기 작성 화면으로 — share-view 가 `/r/<facilityId>` 로 302.
+  group('reviewFacilityIdOf', () {
+    test('/r/<uuid> 에서 id 를 읽는다', () {
+      expect(reviewFacilityIdOf(Uri.parse('https://app.pawmate.kr/r/$id')), id);
+    });
+
+    test('하위 경로 배포(--base-href)에서도 읽는다', () {
+      expect(reviewFacilityIdOf(Uri.parse('https://x.kr/web/r/$id')), id);
+    });
+
+    test('uuid 가 아니면 무시한다', () {
+      expect(reviewFacilityIdOf(Uri.parse('https://x.kr/r/nope')), isNull);
+    });
+
+    test('세 딥링크는 서로 섞이지 않는다', () {
+      final r = Uri.parse('https://x.kr/r/$id');
+      expect(sharedPostIdOf(r), isNull);
+      expect(sharedUserIdOf(r), isNull);
+      expect(reviewFacilityIdOf(Uri.parse('https://x.kr/p/$id')), isNull);
+      expect(reviewFacilityIdOf(Uri.parse('https://x.kr/u/$id')), isNull);
+    });
+  });
 }

@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import '../../models/pet_search.dart';
 import '../../models/social.dart';
 import '../../motion/motion.dart';
+import '../../services/facility_repository.dart';
 import '../../services/social_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/app_search_field.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/user_tile.dart';
+import '../facility_review_screen.dart';
 import '../pet_profile_screen.dart';
 import '../user_profile_screen.dart';
 
@@ -30,6 +32,8 @@ class _UserSearchTabState extends State<UserSearchTab> {
 
   List<Connection> _results = [];
   List<PetHit> _petResults = [];
+  // 매장(공공데이터 시설) 결과 — 업체 인증 전이라 프로필이 없는 곳도 여기서 찾는다.
+  List<Facility> _facilityResults = [];
   bool _loading = false;
   bool _searched = false;
 
@@ -131,6 +135,7 @@ class _UserSearchTabState extends State<UserSearchTab> {
       setState(() {
         _results = [];
         _petResults = [];
+        _facilityResults = [];
         _searched = false;
         _loading = false;
       });
@@ -148,14 +153,18 @@ class _UserSearchTabState extends State<UserSearchTab> {
     });
     try {
       final repo = SocialRepository.instance;
+      // 매장 검색은 좌표 없이(이름만) — 웹은 위치를 수집하지 않고, 비로그인도
+      // 상호로 찾아 후기까지 갈 수 있어야 한다.
       final results = await Future.wait([
         repo.searchUsers(q),
         repo.searchPets(q),
+        FacilityRepository.instance.searchByName(q),
       ]);
       if (!mounted || myReq != _reqId) return; // 더 최신 검색이 있으면 무시
       setState(() {
         _results = results[0] as List<Connection>;
         _petResults = results[1] as List<PetHit>;
+        _facilityResults = results[2] as List<Facility>;
         _loading = false;
       });
     } catch (_) {
@@ -163,6 +172,7 @@ class _UserSearchTabState extends State<UserSearchTab> {
       setState(() {
         _results = [];
         _petResults = [];
+        _facilityResults = [];
         _loading = false;
       });
     }
@@ -174,6 +184,7 @@ class _UserSearchTabState extends State<UserSearchTab> {
     setState(() {
       _results = [];
       _petResults = [];
+      _facilityResults = [];
       _searched = false;
       _loading = false;
     });
@@ -208,7 +219,7 @@ class _UserSearchTabState extends State<UserSearchTab> {
                   AppSearchField(
                     controller: _ctrl,
                     autofocus: true,
-                    hintText: '닉네임이나 반려동물의 이름으로 검색',
+                    hintText: '매장·닉네임·반려동물 이름으로 검색',
                     onChanged: _onChanged,
                     onSubmitted: (v) {
                       final q = v.trim();
@@ -245,12 +256,17 @@ class _UserSearchTabState extends State<UserSearchTab> {
         ],
       );
     }
-    if (_results.isEmpty && _petResults.isEmpty) {
+    if (_results.isEmpty && _petResults.isEmpty && _facilityResults.isEmpty) {
       return _hint('검색 결과가 없어요', topPad);
     }
     return ListView(
       padding: EdgeInsets.only(top: topPad, left: 20, right: 20, bottom: 20),
       children: [
+        // 매장을 맨 위에 — 후기를 남기러 온 손님이 가장 먼저 찾는 대상이다.
+        if (_facilityResults.isNotEmpty) ...[
+          _sectionHeader('매장'),
+          for (final f in _facilityResults) _facilityTile(f),
+        ],
         if (_petResults.isNotEmpty) ...[
           _sectionHeader('반려동물'),
           for (final pet in _petResults)
@@ -282,6 +298,64 @@ class _UserSearchTabState extends State<UserSearchTab> {
       child: UserTile(connection: c, onTap: () => _openUser(c)),
     ),
   );
+
+  /// 매장 타일 — 누르면 그 매장의 후기 작성 화면으로. 업체 인증 여부와 무관하게
+  /// 시설 행만 있으면 동작한다(QR 로 들어온 동선과 같은 목적지).
+  Widget _facilityTile(Facility f) {
+    final c = context.colors;
+    final meta = [
+      kFacilityLabels[f.category] ?? f.category,
+      if ((f.address ?? '').isNotEmpty) f.address!,
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Pressable(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.push(
+          context,
+          AppPageRoute<bool>(builder: (_) => FacilityReviewScreen(facility: f)),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: c.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: c.border, width: 0.5),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      f.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: c.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(Icons.rate_review_outlined, size: 20, color: c.primaryDark),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _sectionHeader(String label) => Padding(
     padding: const EdgeInsets.only(top: 12, bottom: 4),

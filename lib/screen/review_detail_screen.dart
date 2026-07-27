@@ -102,7 +102,11 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen>
   bool _overlayHidden = false;
 
   /// 영상의 cover ↔ 원본 비율 전환(사진은 [OriginalViewPhoto] 가 스스로 갖는다).
-  late final OriginalViewTransition _videoFit = OriginalViewTransition(this);
+  ///
+  /// ⚠️ lazy(`late` 초기화)로 두면 안 된다 — 사진만 있는 후기에서는 한 번도
+  /// 읽히지 않아 dispose 가 처음 접근하는 순간 티커를 만들고, 이미 비활성인
+  /// 엘리먼트에서 TickerMode 조상을 찾다 assert 로 터진다.
+  late final OriginalViewTransition _videoFit;
 
   void _setOriginView(bool on) {
     if (on == _overlayHidden) return;
@@ -137,6 +141,7 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen>
   @override
   void initState() {
     super.initState();
+    _videoFit = OriginalViewTransition(this);
     // 영상 페이지 컨트롤러 — 미리 만들고, 재생은 현재 페이지일 때만(루프).
     for (var i = 0; i < _pages.length; i++) {
       final v = _pages[i].video;

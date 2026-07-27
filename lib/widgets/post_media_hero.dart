@@ -97,13 +97,17 @@ class _PostMediaHeroState extends State<PostMediaHero>
   /// 사진은 화면 탭으로도 토글한다(영상은 탭이 재생/일시정지라 아이콘 전용).
   /// 축소 전환이 시작되면 자동 복귀(카드엔 오버레이가 있으므로 페이드 인하며
   /// 카드 미러로 수축).
-  late final ValueNotifier<bool> _ownedOrigin = ValueNotifier(false);
+  final ValueNotifier<bool> _ownedOrigin = ValueNotifier(false);
   ValueNotifier<bool> get _origin => widget.originView ?? _ownedOrigin;
   bool get _overlayHidden => _origin.value;
 
   /// 영상의 원본 보기 전환(0 = cover, 1 = 원본 비율). 사진은 [OriginalViewPhoto]
   /// 가 같은 전환을 스스로 갖는다.
-  late final OriginalViewTransition _videoFit = OriginalViewTransition(this);
+  ///
+  /// ⚠️ lazy(`late` 초기화)로 두면 안 된다 — 사진·블롭 글에서는 한 번도 읽히지
+  /// 않아 dispose 가 처음 접근하는 순간 티커를 만들고, 이미 비활성인 엘리먼트에서
+  /// TickerMode 조상을 찾다 assert 로 터진다.
+  late final OriginalViewTransition _videoFit;
 
   void _onTick() {
     final want = (_progress?.value ?? 1) < 1.0;
@@ -123,6 +127,7 @@ class _PostMediaHeroState extends State<PostMediaHero>
   @override
   void initState() {
     super.initState();
+    _videoFit = OriginalViewTransition(this);
     _origin.addListener(_onOriginChanged);
   }
 
@@ -654,7 +659,7 @@ class OriginalViewPhoto extends StatefulWidget {
 
 class _OriginalViewPhotoState extends State<OriginalViewPhoto>
     with TickerProviderStateMixin {
-  late final OriginalViewTransition _fit = OriginalViewTransition(this);
+  late final OriginalViewTransition _fit;
 
   /// 확대/이동 — 원본 보기를 끄면 원위치로 애니메이션한다.
   final TransformationController _zoom = TransformationController();
@@ -672,6 +677,7 @@ class _OriginalViewPhotoState extends State<OriginalViewPhoto>
   @override
   void initState() {
     super.initState();
+    _fit = OriginalViewTransition(this);
     _zoomResetCtl.addListener(() {
       final a = _zoomReset;
       if (a != null) _zoom.value = a.value;

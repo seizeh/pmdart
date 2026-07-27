@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
@@ -686,15 +687,26 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
           children: [
             const ColoredBox(color: Colors.black), // letterbox 여백
             if (v.isInitialized)
-              FittedBox(
-                fit: fit,
-                clipBehavior: Clip.hardEdge,
-                child: SizedBox(
-                  width: v.size.width,
-                  height: v.size.height,
-                  child: VideoPlayer(ctrl),
+              // 웹은 FittedBox 대신 AspectRatio — 플랫폼 뷰(DOM <video>)에는 클립이
+              // 먹지 않아 cover 로 확대한 만큼 박스 밖으로 흘러넘친다
+              // (post_media_hero._videoSurface 의 주석 참고).
+              if (kIsWeb)
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: v.aspectRatio,
+                    child: VideoPlayer(ctrl),
+                  ),
+                )
+              else
+                FittedBox(
+                  fit: fit,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: v.size.width,
+                    height: v.size.height,
+                    child: VideoPlayer(ctrl),
+                  ),
                 ),
-              ),
             // 포스터 — 초기화 전 cover 로 채우고, 준비되면 페이드아웃.
             IgnorePointer(
               child: AnimatedOpacity(
@@ -790,7 +802,11 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
       return const ColoredBox(color: kVideoFallbackBg);
     }
     final ctrl = _videoCtrls[i];
-    if (ctrl != null && i == _page && ctrl.value.isInitialized) {
+    // 웹은 영상 사본을 블러 원본으로 쓰지 않는다 — 플랫폼 뷰(DOM <video>)라
+    // ShaderMask·ImageFiltered 가 먹지 않고 ClipRect 도 따라오지 않아, 사본이
+    // 진짜 영상 위로 삐져나와 잘려 보인다(post_media_hero._blurSource 참고).
+    // 아래 포스터 폴백으로 흘려보낸다.
+    if (ctrl != null && i == _page && ctrl.value.isInitialized && !kIsWeb) {
       final v = ctrl.value;
       return Stack(
         fit: StackFit.expand,

@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../utils/platform_info.dart';
 import 'session.dart';
 
 /// 백그라운드/종료 상태 수신 핸들러(반드시 top-level, vm:entry-point).
@@ -20,14 +19,19 @@ class PushService {
   PushService._();
   static final PushService instance = PushService._();
 
-  final FirebaseMessaging _fm = FirebaseMessaging.instance;
+  /// ⚠️ 필드가 아니라 게터다. 필드로 두면 `PushService.instance` 를 만드는
+  /// 순간 평가되는데, 웹은 Firebase 를 초기화하지 않으므로(main.dart 가
+  /// _setupPush 를 건너뜀) `[core/no-app]` 로 던진다. 그러면 로그인 성공 직후
+  /// registerToken 호출에서 터져 "로그인이 안 된다"로 보인다.
+  /// 아래 공개 진입점들이 웹을 먼저 걸러내므로 웹에서는 평가되지 않는다.
+  FirebaseMessaging get _fm => FirebaseMessaging.instance;
   bool _inited = false;
 
   /// 알림 탭으로 앱 진입 시(type, resourceType, resourceId).
   void Function(String type, String? resourceType, String? resourceId)? onOpen;
 
   Future<void> init() async {
-    if (_inited) return;
+    if (kIsWeb || _inited) return; // 웹은 FCM 미사용(Phase D)
     _inited = true;
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     final settings = await _fm.requestPermission(
@@ -49,7 +53,7 @@ class PushService {
     );
 
     _fm.onTokenRefresh.listen(_register);
-    if (Platform.isIOS) {
+    if (isIOS) {
       // SceneDelegate 환경에선 FCM 의 탭 스트림(onMessageOpenedApp)이 유실된다 —
       // 네이티브(AppDelegate)가 알림 탭을 이 채널로 전달한다(콜드 스타트는 버퍼 회수).
       _iosTapChannel.setMethodCallHandler((call) async {
@@ -74,9 +78,10 @@ class PushService {
 
   /// 로그인 성공/앱 시작 시 호출 — 현재 FCM 토큰을 서버에 등록.
   Future<void> registerToken() async {
+    if (kIsWeb) return; // 웹은 FCM 미사용 — Firebase 미초기화라 만지면 던진다
     if (!SessionManager.instance.isLoggedIn) return;
     try {
-      if (Platform.isIOS) {
+      if (isIOS) {
         // APNs 등록이 비동기라 앱 시작 직후엔 null 일 수 있다 — 준비될 때까지 재시도.
         String? apns;
         for (var i = 0; i < 10 && apns == null; i++) {
@@ -103,7 +108,7 @@ class PushService {
         'register_device_token',
         params: {
           'p_token': token,
-          'p_platform': Platform.isIOS ? 'ios' : 'android',
+          'p_platform': isIOS ? 'ios' : 'android',
           'p_device_name': null,
         },
       );
@@ -115,6 +120,7 @@ class PushService {
 
   /// 로그아웃/세션 무효화 시 — FCM 토큰 삭제. 서버 토큰은 다음 발송 실패로 자동 비활성화된다.
   Future<void> clearToken() async {
+    if (kIsWeb) return; // 위와 동일 — 로그아웃 경로가 여기서 죽으면 세션이 안 지워진다
     try {
       await _fm.deleteToken();
     } catch (e) {

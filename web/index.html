@@ -1,46 +1,78 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    서빙 경로가 루트가 아니면 flutter build 의 --base-href 가 아래 값을 치환한다.
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="우리 동네 반려 생활 — 산책 메이트·돌봄 이웃을 찾고, 동네 반려 소식을 나눠요.">
 
-  <!-- iOS meta tags & icons -->
+  <!-- 링크 미리보기(카톡·슬랙 등). 공유 링크 자체는 go.pawmate.kr 의 서버 렌더링
+       뷰어가 담당하고, 여기는 웹앱 주소를 직접 공유했을 때의 폴백이다
+       (Flutter 웹은 클라이언트 렌더링이라 크롤러가 본문을 못 읽는다). -->
+  <meta property="og:site_name" content="PawMate">
+  <meta property="og:title" content="PawMate — 우리 동네 반려 생활">
+  <meta property="og:description" content="산책 메이트·돌봄 이웃을 찾고, 동네 반려 소식을 나눠요.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="icons/Icon-512.png">
+
+  <!-- iOS 홈화면 추가(PWA) -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="pawmate">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PawMate">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <meta name="theme-color" content="#F5EFE3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
 
-  <title>pawmate</title>
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <title>PawMate — 우리 동네 반려 생활</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- CanvasKit 은 한글 글리프를 번들하지 않는다. 첫 프레임을 그린 뒤에야 빠진
+       글자를 발견하고 Noto Sans KR 조각(총 32KB)을 fonts.gstatic.com 에서 받는데,
+       그때 새 오리진 연결(DNS+TLS)부터 시작하면 그 사이 한글이 전부 □ 로 보인다.
+       핸드셰이크를 미리 끝내 둔다. (google_fonts 의 Baloo2 도 같은 오리진) -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <style>
+    /* CanvasKit 은 수 MB라 첫 페인트까지 몇 초 걸린다. 그동안 흰 화면 대신
+       앱 배경색과 로고를 깔아 둔다(색은 app_palette 의 cream / 다크 배경). */
+    html, body { margin: 0; padding: 0; height: 100%; background: #F5EFE3; }
+    #splash {
+      position: fixed; inset: 0; display: flex;
+      align-items: center; justify-content: center;
+      background: #F5EFE3; transition: opacity .3s ease;
+    }
+    #splash img { width: 96px; height: 96px; animation: breathe 1.8s ease-in-out infinite; }
+    @keyframes breathe {
+      0%, 100% { opacity: .45; transform: scale(.97); }
+      50%      { opacity: 1;   transform: scale(1); }
+    }
+    @media (prefers-color-scheme: dark) {
+      html, body, #splash { background: #121212; }
+    }
+    /* 모션 최소화 설정 존중 */
+    @media (prefers-reduced-motion: reduce) {
+      #splash img { animation: none; opacity: .8; }
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="splash"><img src="icons/Icon-192.png" alt="PawMate" width="96" height="96"></div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <script>
+    // Flutter 가 첫 프레임을 그리면 스플래시를 걷어낸다.
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('splash');
+      if (!s) return;
+      s.style.opacity = '0';
+      setTimeout(function () { s.remove(); }, 300);
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

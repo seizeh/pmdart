@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import '../utils/platform_info.dart';
 
 /// 포그라운드 OS 알림(Android 전용) — 앱이 켜져 있을 때도 백그라운드 푸시와
 /// 동일한 형태의 시스템 알림으로 보여준다(기존 하단 토스트 배너 대체).
@@ -35,7 +36,7 @@ class LocalNoticeService {
   );
 
   Future<void> init() async {
-    if (_inited || !Platform.isAndroid) return;
+    if (_inited || !isAndroid) return;
     _inited = true;
     try {
       // 권한 요청은 FCM(requestPermission)이 이미 담당 — 여기선 요청하지 않는다.

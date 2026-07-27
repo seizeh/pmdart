@@ -39,6 +39,13 @@ class TermsScreen extends StatefulWidget {
     requireReadToAgree: agree,
   );
 
+  /// 간이 후기 이용조건 + 전화번호 수집·이용 동의(0029) — 비회원 후기 작성용.
+  static TermsScreen liteReview({bool agree = false}) => TermsScreen(
+    title: '간이 후기 이용조건',
+    assetPath: 'assets/terms/lite_review_terms.md',
+    requireReadToAgree: agree,
+  );
+
   @override
   State<TermsScreen> createState() => _TermsScreenState();
 }

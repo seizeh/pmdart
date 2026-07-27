@@ -64,7 +64,11 @@ class FacilityReviewRepository {
     List<ReviewVideo> videos = const [],
     bool hasIncentive = false,
   }) async {
-    if (_uid == null) throw StateError('로그인이 필요합니다');
+    // 간이 회원(0029)은 SessionManager.user 가 없으므로 _uid 로 판정하면 안 된다 —
+    // 토큰만 있고 프로필이 없는 상태가 정상이다. 최종 판정은 서버(app.uid_lite).
+    if (!SessionManager.instance.canWriteReview) {
+      throw StateError('로그인이 필요합니다');
+    }
     final b = (body ?? '').trim();
     await _c.rpc(
       'add_facility_review',

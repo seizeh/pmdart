@@ -2,12 +2,21 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/gestures.dart' show VelocityTracker;
 import 'package:flutter/material.dart';
 
+import '../utils/layout.dart' show shellOrigin, toRouteRect;
+
 /// 아래에서 위로 떠오르는 모달형 원점 — [CollapsibleView.originRect] 에 넘기면
 /// 화면이 하단(오프스크린)에서 슬라이드 업으로 등장하고, 당기거나 뒤로가기 시
 /// 아래로 내려가며 닫힌다. 카드 크로스페이드는 생략(card: null).
 Rect riseOriginRect(BuildContext context) {
   final size = MediaQuery.sizeOf(context);
-  return Rect.fromLTWH(0, size.height, size.width, size.height);
+  // originRect 규약은 '화면 좌표'다(utils/layout.dart toRouteRect 참고). 여기서는
+  // MediaQuery(=라우트 크기) 기준으로 만들므로 셸 오프셋을 더해 화면 좌표로 맞춘다.
+  return Rect.fromLTWH(
+    0,
+    size.height,
+    size.width,
+    size.height,
+  ).shift(shellOrigin());
 }
 
 /// 투명 통과 라우트 — 아래 화면(피드)이 그대로 비쳐 보인다.
@@ -132,10 +141,12 @@ class ExpandRoute<T> extends PageRoute<T> {
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
+    // 화면 좌표 → 라우트 좌표(셸이 본문을 옮겨 놓은 만큼 보정).
+    final rect = toRouteRect(originRect)!;
     return _OriginExpand(
       animation: curved,
-      originRect: originRect,
-      collapsedRadius: originRadius ?? originRect.height / 2,
+      originRect: rect,
+      collapsedRadius: originRadius ?? rect.height / 2,
       origin: origin,
       child: child,
     );
@@ -525,7 +536,7 @@ class _CollapsibleViewState extends State<CollapsibleView>
     );
     if (!_collapsible) return content;
 
-    final origin = widget.originRect!;
+    final origin = toRouteRect(widget.originRect)!; // 화면 좌표 → 라우트 좌표
     // card 가 없으면(오프스크린 원점 모달 등) 크로스페이드 없이 콘텐츠만 이동.
     final cardWidget = widget.card == null
         ? null
@@ -561,7 +572,7 @@ class _CollapsibleViewState extends State<CollapsibleView>
   /// 크로스페이드(피드 카드와 동일). 게시글 상세와 완전히 동일한 시각 언어.
   /// [cardWidget] 이 null 이면 크로스페이드 없이 콘텐츠가 불투명하게 이동만 한다.
   Widget _wrapCollapse(BuildContext context, Widget child, Widget? cardWidget) {
-    final origin = widget.originRect!;
+    final origin = toRouteRect(widget.originRect)!; // 화면 좌표 → 라우트 좌표
     final size = MediaQuery.of(context).size;
     final w = size.width;
     final h = size.height;

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,10 +10,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'env.dart';
 import 'firebase_options.dart';
+import 'models/community.dart' show Post;
 import 'motion/motion.dart';
 import 'screen/activity_screens.dart' show MyReviewsScreen;
 import 'screen/admin/admin_home_screen.dart';
 import 'screen/chat_room_screen.dart';
+import 'screen/facility_review_screen.dart';
 import 'screen/guardian_invites_screen.dart';
 import 'screen/main_screen.dart';
 import 'screen/notifications_screen.dart';
@@ -23,6 +26,7 @@ import 'screen/vaccination_schedule_screen.dart';
 import 'screen/welcome_screen.dart';
 import 'services/chat_repository.dart';
 import 'services/community_repository.dart';
+import 'services/facility_repository.dart';
 import 'services/facility_review_repository.dart';
 import 'services/keyboard_barrier.dart';
 import 'services/local_notice_service.dart';
@@ -32,6 +36,9 @@ import 'services/realtime_service.dart';
 import 'services/session.dart';
 import 'services/theme_controller.dart';
 import 'theme/app_theme.dart';
+import 'utils/web_link.dart';
+import 'widgets/app_scroll_behavior.dart';
+import 'widgets/app_shell.dart';
 import 'widgets/app_toast.dart';
 import 'widgets/review_cards.dart';
 
@@ -61,19 +68,23 @@ Future<void> main() async {
   await ThemeController.load();
 
   // 네이버 지도 SDK 초기화 (NCP Maps 신규 인증 - Client ID)
-  await FlutterNaverMap().init(
-    clientId: Env.naverMapClientId,
-    onAuthFailed: (ex) {
-      switch (ex) {
-        case NQuotaExceededException(:final message):
-          debugPrint('네이버 지도 사용량 초과: $message');
-        case NUnauthorizedClientException() ||
-            NClientUnspecifiedException() ||
-            NAnotherAuthFailedException():
-          debugPrint('네이버 지도 인증 실패: $ex');
-      }
-    },
-  );
+  // 웹은 지도 탭 자체가 없다(docs/web-port.md) — 플러그인이 웹 구현을 갖고 있지
+  // 않아 여기서 던지면 runApp 전에 죽어 흰 화면이 된다.
+  if (!kIsWeb) {
+    await FlutterNaverMap().init(
+      clientId: Env.naverMapClientId,
+      onAuthFailed: (ex) {
+        switch (ex) {
+          case NQuotaExceededException(:final message):
+            debugPrint('네이버 지도 사용량 초과: $message');
+          case NUnauthorizedClientException() ||
+              NClientUnspecifiedException() ||
+              NAnotherAuthFailedException():
+            debugPrint('네이버 지도 인증 실패: $ex');
+        }
+      },
+    );
+  }
 
   // Supabase 연결
   // publishableKey(공개 키)만 클라이언트에 둔다. service_role 키는 절대 포함 금지.
@@ -91,7 +102,9 @@ Future<void> main() async {
       if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
         await s.refreshOnce();
       }
-      return s.token;
+      // 간이 회원(후기 전용) 토큰은 정식 세션이 없을 때만 쓰인다 — 갱신 대상도
+      // 아니고 저장되지도 않는다(SessionManager.beginLiteSession 참고).
+      return s.token ?? s.liteToken;
     },
   );
 
@@ -109,6 +122,10 @@ Future<void> main() async {
   if (SessionManager.instance.isLoggedIn) RealtimeService.instance.start();
 
   runApp(const PawMateApp());
+
+  // 웹은 OS 푸시를 쓰지 않는다 — 서비스워커·VAPID 세팅이 필요하고 iOS Safari 는
+  // PWA 설치 상태에서만 수신된다. 웹 푸시는 Phase D(docs/web-port.md).
+  if (kIsWeb) return;
 
   // OS 푸시(FCM) 초기화는 앱 시작(runApp)을 막지 않도록 백그라운드로.
   // (init 이 iOS 권한 다이얼로그 응답 대기 + APNs 미설정 getToken 에서 블록될 수 있어,
@@ -341,7 +358,146 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
     // 시작 시 1회 세션 유효성 확인.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       SessionManager.instance.checkAliveAndClearIfDead();
+      unawaited(_openInitialWebLink());
     });
+  }
+
+  /// 공유 링크로 들어온 웹 진입(`/p/<postId>`) — 게시글 상세를 바로 연다.
+  ///
+  /// `openFromPush` 를 쓰지 않는 이유: 그쪽은 알림 라우팅이라 로그인 사용자
+  /// 전용이다. 공유 링크는 **비로그인 열람이 목적**이므로(설치 전 가치, 0028
+  /// 원칙 2) 게스트도 통과해야 한다.
+  ///
+  /// 비로그인이면 웰컴 화면 대신 게스트 메인을 깔고 그 위에 상세를 얹는다 —
+  /// 상세를 닫았을 때 커뮤니티 피드가 나와야 둘러보기로 이어진다(웰컴으로
+  /// 되돌아가면 거기서 끊긴다).
+  Future<void> _openInitialWebLink() async {
+    final postId = initialSharedPostId();
+    final userId = initialSharedUserId();
+    final reviewFacilityId = initialReviewFacilityId();
+    if (postId == null && userId == null && reviewFacilityId == null) return;
+
+    // 네비게이터 준비 대기 — 첫 프레임 직후라 보통 바로 있지만 없으면 잠깐 기다린다
+    // (openFromPush 와 같은 방어).
+    NavigatorState? nav = navigatorKey.currentState;
+    for (var i = 0; i < 20 && nav == null; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      nav = navigatorKey.currentState;
+    }
+    if (nav == null || !mounted) return;
+
+    // 매장 QR(`/r/<facilityId>`) — 그 매장의 후기 작성 화면을 바로 연다.
+    if (reviewFacilityId != null) {
+      await _openReviewWrite(nav, reviewFacilityId);
+      return;
+    }
+
+    // 업체 프로필(`/u/<userId>`). 게시글과 달리 선조회를 하지 않는다: 프로필 화면이
+    // 스스로 로드하며 실패 표시까지 처리하고, 여기서 한 번 더 받아봐야 첫 화면만 늦어진다.
+    if (userId != null) {
+      _openSharedProfile(nav, userId);
+      return;
+    }
+    // 위에서 userId 를 처리하고 돌아갔으므로 여기 오면 postId 는 반드시 있다.
+    final sharedPostId = postId!;
+
+    // 콜드 로드에서는 번들·wasm 다운로드와 겹쳐 첫 요청이 일시 실패하곤 한다.
+    // 한 번 실패했다고 포기하면 공유 링크가 **조용히 피드로 떨어진다**(실제로
+    // 간헐 발생을 목격). 예외일 때만 재시도하고, 결과가 null(삭제·비공개)이면
+    // 재시도해봐야 소용없으므로 바로 빠진다.
+    Post? loaded;
+    var failed = false;
+    for (var i = 0; i < 3; i++) {
+      try {
+        loaded = await CommunityRepository.instance.fetchPost(sharedPostId);
+        failed = false;
+        break;
+      } catch (e) {
+        failed = true;
+        debugPrint('공유 링크: 게시글 조회 실패(${i + 1}/3) — $e');
+        if (i < 2) await Future.delayed(const Duration(milliseconds: 400));
+      }
+    }
+    if (!mounted) return;
+
+    // final 로 받아야 아래 클로저에서 널 프로모션이 유지된다(캡처된 지역변수는
+    // 승격이 풀려 dart2js 가 거부한다 — analyzer 만으로는 안 잡힌다).
+    final post = loaded;
+    if (post == null) {
+      // 말없이 피드로 떨구지 않는다 — 왜 안 열렸는지 알려준다.
+      final overlay = nav.overlay;
+      if (overlay != null) {
+        AppToast.show(
+          overlay,
+          failed ? '게시글을 불러오지 못했어요' : '삭제되었거나 볼 수 없는 게시글이에요',
+        );
+      }
+      return;
+    }
+
+    final guest = !SessionManager.instance.isLoggedIn;
+    if (guest) {
+      nav.pushAndRemoveUntil(
+        AppPageRoute(builder: (_) => const MainScreen(isGuest: true)),
+        (route) => false,
+      );
+    }
+    // 앱 공통 상세 언어 — 아래에서 떠오르고, 쓸어내리면 닫힌다.
+    nav.push(
+      CollapseRoute(
+        builder: (_) => PostDetailScreen(post: post, isGuest: guest),
+      ),
+    );
+  }
+
+  /// 매장 QR 로 들어와 그 매장의 후기 작성 화면을 연다.
+  ///
+  /// 시설은 업체 계정이 없어도 존재하므로(공공데이터), 인증 전 매장에 뿌린 QR 도
+  /// 그대로 동작한다. 비로그인이면 작성 화면이 게시 시점에 간이 인증을 청한다.
+  ///
+  /// 뒤로 가면 게스트 메인(커뮤니티)이 남도록 그 위에 얹는다 — 후기를 안 쓰기로
+  /// 해도 앱을 둘러보는 쪽으로 이어져야 한다.
+  Future<void> _openReviewWrite(NavigatorState nav, String facilityId) async {
+    Facility? facility;
+    try {
+      facility = await FacilityRepository.instance.fetchById(facilityId);
+    } catch (e) {
+      debugPrint('매장 QR: 시설 조회 실패 — $e');
+    }
+    if (!mounted) return;
+
+    if (!SessionManager.instance.isLoggedIn) {
+      nav.pushAndRemoveUntil(
+        AppPageRoute(builder: (_) => const MainScreen(isGuest: true)),
+        (route) => false,
+      );
+    }
+
+    final f = facility;
+    if (f == null) {
+      final overlay = nav.overlay;
+      if (overlay != null) AppToast.show(overlay, '매장 정보를 불러오지 못했어요');
+      return;
+    }
+    nav.push(CollapseRoute(builder: (_) => FacilityReviewScreen(facility: f)));
+  }
+
+  /// 매장 QR 로 들어온 업체 프로필을 연다.
+  ///
+  /// 게시글 공유와 같은 이유로 비로그인도 통과시키고, 게스트면 웰컴 대신 게스트
+  /// 메인을 깐 뒤 그 위에 얹는다 — 프로필을 닫았을 때 웰컴으로 튕기지 않고
+  /// 둘러보기로 이어져야 한다.
+  ///
+  /// 업체 얼굴로 연다(forcePersonalFace=false). QR 은 매장에서 나눠주는 물건이라
+  /// 맥락이 명백히 업체고, 개인 얼굴로 열면 후기 작성 버튼이 뜨지 않는다.
+  void _openSharedProfile(NavigatorState nav, String userId) {
+    if (!SessionManager.instance.isLoggedIn) {
+      nav.pushAndRemoveUntil(
+        AppPageRoute(builder: (_) => const MainScreen(isGuest: true)),
+        (route) => false,
+      );
+    }
+    nav.push(CollapseRoute(builder: (_) => UserProfileScreen(userId: userId)));
   }
 
   @override
@@ -397,6 +553,8 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: themeMode, // 설정(내정보 수정 > 화면 테마)에서 변경·저장
+        // 웹만: 데스크톱 스크롤바 숨김 + 마우스 드래그 허용(가로 칩 목록 도달).
+        scrollBehavior: kIsWeb ? const WebScrollBehavior() : null,
         // 전 화면 공통 키보드 해제:
         //  · 스크롤: 하위 스크롤뷰의 드래그 시작을 받아 해제(알림은 계속 전파).
         //  · 탭: 키보드가 떠 있을 때만 전체 화면에 배리어를 깔아, 화면 탭을 '키보드 닫기'
@@ -412,42 +570,47 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
               : SystemUiOverlayStyle.dark;
           return AnnotatedRegion<SystemUiOverlayStyle>(
             value: overlay,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (n) {
-                // 세로 스크롤만 키보드를 닫는다 — 가로 스크롤(카테고리 칩 등 캐러셀)은
-                // 검색 도중의 필터 조작이므로 키보드·포커스를 유지해야 한다
-                // (닫으면 searchActive 가 풀려 칩이 함께 사라지는 문제).
-                if (n is ScrollStartNotification &&
-                    n.dragDetails != null &&
-                    n.metrics.axis == Axis.vertical) {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                }
-                return false;
-              },
-              child: ValueListenableBuilder<bool>(
-                valueListenable: keyboardBarrierEnabled,
-                builder: (_, barrierOn, _) => Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    child ?? const SizedBox.shrink(),
-                    // 지도 등 자체 처리 화면(barrierOn=false)에서는 배리어를 끈다.
-                    // translucent — 탭은 배리어가 아레나에서 먼저 이겨 '키보드 닫기'로
-                    // 흡수하되(아래 위젯 안 눌림), 드래그는 아래로 통과해 스크롤이
-                    // 정상 동작한다(스크롤 시작 시 위 리스너가 키보드를 닫음).
-                    // opaque 였을 때 키보드가 뜬 동안 카테고리 칩 가로 스크롤 등
-                    // 모든 스크롤이 먹통이 되던 문제 수정.
-                    if (keyboardUp && barrierOn)
-                      Positioned.fill(
-                        // 예외 영역(카테고리 칩 등)은 배리어 히트 자체를 건너뛴다.
-                        child: KeyboardBarrierHitFilter(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onTap: () =>
-                                FocusManager.instance.primaryFocus?.unfocus(),
+            // 넓은 화면(데스크톱 웹)에서 본문을 폰 폭 컬럼으로 묶고 좌측 레일을
+            // 둔다. 좁은 화면·네이티브에서는 통과만 한다(docs/web-port.md).
+            // Navigator 바깥이라 상세 라우트가 얹혀도 컬럼·레일이 유지된다.
+            child: AppShell(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (n) {
+                  // 세로 스크롤만 키보드를 닫는다 — 가로 스크롤(카테고리 칩 등 캐러셀)은
+                  // 검색 도중의 필터 조작이므로 키보드·포커스를 유지해야 한다
+                  // (닫으면 searchActive 가 풀려 칩이 함께 사라지는 문제).
+                  if (n is ScrollStartNotification &&
+                      n.dragDetails != null &&
+                      n.metrics.axis == Axis.vertical) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                  }
+                  return false;
+                },
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: keyboardBarrierEnabled,
+                  builder: (_, barrierOn, _) => Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      child ?? const SizedBox.shrink(),
+                      // 지도 등 자체 처리 화면(barrierOn=false)에서는 배리어를 끈다.
+                      // translucent — 탭은 배리어가 아레나에서 먼저 이겨 '키보드 닫기'로
+                      // 흡수하되(아래 위젯 안 눌림), 드래그는 아래로 통과해 스크롤이
+                      // 정상 동작한다(스크롤 시작 시 위 리스너가 키보드를 닫음).
+                      // opaque 였을 때 키보드가 뜬 동안 카테고리 칩 가로 스크롤 등
+                      // 모든 스크롤이 먹통이 되던 문제 수정.
+                      if (keyboardUp && barrierOn)
+                        Positioned.fill(
+                          // 예외 영역(카테고리 칩 등)은 배리어 히트 자체를 건너뛴다.
+                          child: KeyboardBarrierHitFilter(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onTap: () =>
+                                  FocusManager.instance.primaryFocus?.unfocus(),
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

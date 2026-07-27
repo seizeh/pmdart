@@ -42,3 +42,23 @@ jobs:
             END{pct=h*100/t; printf "라인 커버리지 %.1f%% (%d/%d)\n", pct, h, t;
                 exit (pct>=12)?0:1}' \
             coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # `dart:io` 금지 게이트 — 웹에서 컴파일은 되지만 Platform.isIOS 등이 런타임에
+      # UnsupportedError 를 던진다(빌드로는 안 잡히고 흰 화면으로만 드러남).
+      # 플랫폼 판별은 lib/utils/platform_info.dart, 파일 조작은 조건부 import 파사드로.
+      - name: dart:io 직접 사용 금지
+        shell: bash
+        run: |
+          hits=$(git ls-files | grep -E '^lib/.*\.dart$' \
+            | grep -v '^lib/utils/temp_file_io\.dart$' \
+            | xargs grep -ln "^import 'dart:io'" || true)
+          if [ -n "$hits" ]; then
+            echo "dart:io 를 직접 import 한 파일 — docs/web-port.md 참고:"
+            echo "$hits"
+            exit 1
+          fi
+
+      # 웹 빌드 게이트 — 앱 쪽 변경이 웹 번들을 조용히 깨는 것을 막는다.
+      # (런타임 회귀까지는 못 잡는다. 위 dart:io 게이트가 그 몫을 일부 담당.)
+      - name: 웹 빌드
+        run: flutter build web --release --no-wasm-dry-run

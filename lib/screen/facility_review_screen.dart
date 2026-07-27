@@ -1,12 +1,25 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../models/facility_review.dart';
 import '../motion/motion.dart';
 import '../services/facility_repository.dart';
 import '../services/facility_review_repository.dart';
+import '../services/session.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../widgets/lite_review_auth_sheet.dart';
 import '../widgets/media_widgets.dart';
+
+/// 인증 전에 고른 사진 — 업로드는 인증 후에만 가능하다(Storage RLS 가 `<uid>/...`
+/// 폴더 기준이라 비로그인은 쓰지 못한다). 미리보기는 바이트로 그린다(웹·앱 공통).
+class _PendingPhoto {
+  final XFile file;
+  final Uint8List bytes;
+  const _PendingPhoto(this.file, this.bytes);
+}
 
 /// 시설 후기 작성/수정 (0022) — 게시글 작성(post_create_screen)과 같은 디자인
 /// 문법: 섹션 라벨·간격·타이포, 앱바 '등록' 액션, 첨부는 바텀시트(사진/동영상).
@@ -39,9 +52,19 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
   bool _uploadingVideo = false;
   bool _submitting = false;
 
+  /// 비로그인 손님이 고른 사진 — 게시 직전 간이 인증을 마친 뒤 한꺼번에 올린다.
+  /// 인증을 취소해도 고른 사진이 사라지지 않게 여기 남겨 둔다(초안 보존).
+  final List<_PendingPhoto> _pending = [];
+
   static const _maxPhotos = 5;
   static const _maxVideos = 2;
   final _repo = FacilityReviewRepository.instance;
+
+  /// 비로그인 작성 — 간이 회원(0029) 경로. 게시 시점에만 인증을 요구한다.
+  bool get _isGuest => !SessionManager.instance.isLoggedIn;
+
+  /// 사진 개수는 업로드된 것 + 대기 중인 것의 합.
+  int get _photoCount => _photos.length + _pending.length;
 
   @override
   void dispose() {
@@ -58,8 +81,11 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
 
   /// 첨부 바텀시트 — 사진/동영상 선택(게시글 작성의 첨부 시트와 동일 문법).
   Future<void> _chooseAttachment() async {
-    final canPhoto = _photos.length < _maxPhotos && !_uploading;
-    final canVideo = _videos.length < _maxVideos && !_uploadingVideo;
+    final canPhoto = _photoCount < _maxPhotos && !_uploading;
+    // 동영상은 인코딩·포스터 생성까지 걸려 있어 대기(pending) 처리를 하지 않는다.
+    // 비로그인은 사진만 — 인증을 앞당겨 요구하느니 명시적으로 안내한다.
+    final canVideo =
+        _videos.length < _maxVideos && !_uploadingVideo && !_isGuest;
     final src = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -97,7 +123,11 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                     : context.colors.textTertiary,
               ),
               title: const Text('동영상'),
-              subtitle: Text('최대 60초 · 100MB · $_maxVideos개'),
+              subtitle: Text(
+                _isGuest
+                    ? '동영상은 회원가입 후 첨부할 수 있어요'
+                    : '최대 60초 · 100MB · $_maxVideos개',
+              ),
               onTap: () => Navigator.pop(ctx, 'video'),
             ),
             const SizedBox(height: 8),
@@ -110,9 +140,27 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
   }
 
   Future<void> _addPhotos() async {
-    if (_photos.length >= _maxPhotos || _uploading) return;
+    if (_photoCount >= _maxPhotos || _uploading) return;
     final files = await StorageService.instance.pickImages();
     if (files.isEmpty) return;
+
+    // 비로그인은 아직 uid 가 없어 Storage 에 못 쓴다 — 게시 직전 인증 후 올린다.
+    if (_isGuest) {
+      setState(() => _uploading = true);
+      try {
+        for (final f in files) {
+          if (_photoCount >= _maxPhotos) break;
+          _pending.add(_PendingPhoto(f, await f.readAsBytes()));
+        }
+        if (mounted) setState(() {});
+      } catch (_) {
+        _toast('사진을 읽지 못했어요');
+      } finally {
+        if (mounted) setState(() => _uploading = false);
+      }
+      return;
+    }
+
     setState(() => _uploading = true);
     try {
       for (final f in files) {
@@ -170,9 +218,42 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     );
   }
 
+  /// 게시. 비로그인이면 **여기서** 간이 인증을 받는다 — 쓰기 전에 가입을 요구하면
+  /// 대부분 이탈하므로, 다 쓰고 게시를 누르는 순간에만 번호 인증을 청한다(0029).
+  ///
+  /// 인증을 취소하면 아무것도 잃지 않고 작성 화면으로 돌아온다(별점·본문·사진 유지).
   Future<void> _submit() async {
     setState(() => _submitting = true);
+
+    String? liteToken;
+    if (_isGuest) {
+      final auth = await showLiteReviewAuthSheet(context);
+      if (!mounted) return;
+      if (auth == null || auth.token == null) {
+        // 취소 — 초안은 그대로 두고 버튼만 되살린다.
+        setState(() => _submitting = false);
+        return;
+      }
+      if (auth.userId == null) {
+        setState(() => _submitting = false);
+        _toast('인증 정보를 받지 못했어요. 다시 시도해주세요');
+        return;
+      }
+      liteToken = auth.token;
+      SessionManager.instance.beginLiteSession(liteToken!, auth.userId!);
+    }
+
     try {
+      // 인증을 마쳤으니 이제 Storage 에 쓸 수 있다 — 대기 중이던 사진을 올린다.
+      for (final p in _pending) {
+        final up = await StorageService.instance.upload(
+          p.file,
+          category: 'facility_review',
+        );
+        _photos.add(up.url);
+      }
+      _pending.clear();
+
       final fid = await _resolveFacilityId();
       await _repo.addReview(
         facilityId: fid,
@@ -187,12 +268,18 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
+      final msg = e.toString();
       // 자기 업체 후기는 서버가 차단(own_facility) — 안내를 구분한다.
       _toast(
-        e.toString().contains('own_facility')
+        msg.contains('own_facility')
             ? '내 업체에는 후기를 남길 수 없어요'
+            : msg.contains('reverify_required')
+            ? '인증이 만료됐어요. 다시 시도해주세요'
             : '후기 저장에 실패했어요',
       );
+    } finally {
+      // 간이 토큰은 게시 한 건에만 쓰이고 즉시 버린다(저장하지 않는다).
+      if (liteToken != null) SessionManager.instance.endLiteSession();
     }
   }
 
@@ -319,7 +406,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
               ),
               const SizedBox(height: 12),
               _SectionLabel(
-                '사진·동영상  ·  사진 ${_photos.length}/$_maxPhotos · '
+                '사진·동영상  ·  사진 $_photoCount/$_maxPhotos · '
                 '동영상 ${_videos.length}/$_maxVideos',
               ),
               Wrap(
@@ -339,6 +426,20 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                       ),
                       onRemove: () => setState(() => _photos.removeAt(i)),
                     ),
+                  // 아직 업로드 전인 사진(비로그인) — 게시 때 함께 올라간다.
+                  for (var i = 0; i < _pending.length; i++)
+                    _thumb(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          _pending[i].bytes,
+                          width: 76,
+                          height: 76,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      onRemove: () => setState(() => _pending.removeAt(i)),
+                    ),
                   for (var i = 0; i < _videos.length; i++)
                     _thumb(
                       child: SizedBox(
@@ -355,8 +456,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                       onRemove: () => setState(() => _videos.removeAt(i)),
                     ),
                   // 첨부 추가 — 탭하면 사진/동영상 선택 바텀시트.
-                  if (_photos.length < _maxPhotos ||
-                      _videos.length < _maxVideos)
+                  if (_photoCount < _maxPhotos || _videos.length < _maxVideos)
                     Pressable(
                       borderRadius: BorderRadius.circular(12),
                       onTap: (_uploading || _uploadingVideo)

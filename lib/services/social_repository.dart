@@ -17,6 +17,10 @@ class SocialRepository {
     return id;
   }
 
+  /// 비로그인에서도 부를 수 있는 읽기 경로용 — 게스트면 null.
+  /// 쓰기(팔로우 등)는 여전히 [_uid] 를 써서 비로그인이면 즉시 실패해야 한다.
+  String? get _uidOrNull => SessionManager.instance.user?.id;
+
   /// 팔로우(Pawing). 이미 팔로우 중이면 무시.
   /// [business] 가 true 면 업체 얼굴을 팔로우한 것 — 목록(v_pawing)에서 상호·대표
   /// 사진으로 표시된다. 같은 사용자의 개인/업체 얼굴은 **독립적으로** 팔로우된다
@@ -87,29 +91,33 @@ class SocialRepository {
 
   /// 사용자 검색 (닉네임). 나 자신은 제외, 팔로우 여부 포함.
   /// 아이디(username)는 비공개 값이라 검색 대상에서 제외한다.
+  ///
+  /// **비로그인도 검색된다**(0029) — QR 로 들어온 손님이 상호로 업체를 찾아
+  /// 프로필의 후기 작성까지 가야 하기 때문이다. public_profiles 는 이미 anon
+  /// SELECT 가 열려 있어 서버 변경은 없다. 게스트는 제외할 '나'도, 표시할 팔로우
+  /// 상태도 없으므로 두 조건을 건너뛴다(uid 가 null 인 채 .neq 를 걸면 필터가
+  /// 깨져 결과가 통째로 사라진다).
   Future<List<Connection>> searchUsers(String query) async {
     final q = query.trim();
     if (q.isEmpty) return const [];
-    final uid = _uid;
+    final uid = _uidOrNull;
     // 두 얼굴은 각자 검색된다(0026 §2 개정): 닉네임 매칭 = 개인 얼굴 결과,
     // 상호 매칭 = 업체 얼굴 결과(승인 업체는 주인 모드와 무관하게 상시 공개).
     // 개인 얼굴 결과에서는 business_name 을 비워 배지·업체 라우팅이 붙지 않게 —
     // 어떤 사용자가 어떤 업체를 운영하는지의 연결 비노출은 그대로 유지된다.
     const cols =
         'id, nickname, user_type, profile_image_url, business_name, business_photo_url, review_count, pawing_count, pawmate_count';
+    PostgrestTransformBuilder<PostgrestList> byColumn(String column) {
+      final base = _c
+          .from('public_profiles')
+          .select(cols)
+          .ilike(column, '%$q%');
+      return (uid == null ? base : base.neq('id', uid)).limit(30);
+    }
+
     final results = await Future.wait([
-      _c
-          .from('public_profiles')
-          .select(cols)
-          .ilike('nickname', '%$q%')
-          .neq('id', uid)
-          .limit(30),
-      _c
-          .from('public_profiles')
-          .select(cols)
-          .ilike('business_name', '%$q%')
-          .neq('id', uid)
-          .limit(30),
+      byColumn('nickname'),
+      byColumn('business_name'),
     ]);
 
     Connection personalFace(Map<String, dynamic> r) => Connection(
@@ -143,13 +151,16 @@ class SocialRepository {
   );
 
   /// 내가 팔로우 중인 대상 표시 — 얼굴(개인/업체) 단위로 매칭.
+  /// 게스트는 팔로우 자체가 없으므로 조회 없이 그대로 돌려준다.
   Future<List<Connection>> _withFollowing(List<Connection> list) async {
     if (list.isEmpty) return list;
+    final uid = _uidOrNull;
+    if (uid == null) return list;
     final ids = list.map((c) => c.userId).toList();
     final following = await _c
         .from('pawings')
         .select('following_id, context')
-        .eq('follower_id', _uid)
+        .eq('follower_id', uid)
         .inFilter('following_id', ids);
     final followingSet = {
       for (final f in following as List)
@@ -168,14 +179,16 @@ class SocialRepository {
 
   /// 승인 업체 전체 목록(업체 얼굴, 상호 가나다순) — 검색 전 기본 화면용.
   /// public_profiles 는 승인(approved) 업체만 business_name 을 노출한다.
+  /// 검색 탭을 열자마자 보이는 화면이라 [searchUsers] 와 같이 비로그인도 열린다.
   Future<List<Connection>> listBusinesses() async {
     const cols =
         'id, nickname, user_type, profile_image_url, business_name, business_photo_url, review_count, pawing_count, pawmate_count';
-    final rows = await _c
+    final uid = _uidOrNull;
+    final base = _c
         .from('public_profiles')
         .select(cols)
-        .not('business_name', 'is', null)
-        .neq('id', _uid)
+        .not('business_name', 'is', null);
+    final rows = await (uid == null ? base : base.neq('id', uid))
         .order('business_name', ascending: true)
         .limit(100);
     return _withFollowing([

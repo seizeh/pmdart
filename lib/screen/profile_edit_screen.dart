@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../models/profile.dart';
@@ -12,6 +13,7 @@ import '../services/storage_service.dart';
 import '../services/theme_controller.dart';
 import '../state/profile_edit_state.dart';
 import '../theme/app_palette.dart';
+import '../widgets/app_invite_dialog.dart';
 import 'activity_screens.dart';
 import 'blocked_users_screen.dart';
 import 'business_register_screen.dart';
@@ -301,7 +303,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             ),
                             const SizedBox(height: 8),
                             InkWell(
-                              onTap: _verifyRegion,
+                              // 웹은 위치를 아예 수집하지 않는다(법·신뢰성 —
+                              // LocationService.getCurrentPosition 주석 참고).
+                              // 눌리는데 아무 일도 안 나는 상태로 두지 않고
+                              // 앱에서 하도록 안내한다.
+                              onTap: kIsWeb
+                                  ? () => AppInviteDialog.show(
+                                      context,
+                                      feature: '동네 인증',
+                                    )
+                                  : _verifyRegion,
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -338,7 +349,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                       ),
                                     ),
                                     Text(
-                                      _state.verified ? '재인증' : 'GPS로 인증',
+                                      kIsWeb
+                                          ? '앱에서'
+                                          : (_state.verified
+                                                ? '재인증'
+                                                : 'GPS로 인증'),
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
@@ -358,7 +373,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                '활동 지역은 현재 위치(GPS)로만 인증돼요.',
+                                kIsWeb
+                                    ? '활동 지역 인증은 앱에서만 할 수 있어요.'
+                                    : '활동 지역은 현재 위치(GPS)로만 인증돼요.',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: context.colors.textTertiary,

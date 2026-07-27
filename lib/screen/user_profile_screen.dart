@@ -12,7 +12,6 @@ import '../motion/motion.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
 import '../services/facility_repository.dart' show Facility;
-import '../services/session.dart';
 import '../state/user_profile_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
@@ -961,13 +960,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool get _canWriteBizReview => !_isMe && _profile?.businessFacilityId != null;
 
   /// 업체 프로필에서 바로 후기 작성 — 지도 상세와 동일한 작성 화면으로.
+  /// 비로그인도 그대로 들어간다(0029) — 인증은 작성 화면의 '게시' 시점에 간이
+  /// 회원 시트로 받는다. 쓰기 전에 가입을 요구하면 대부분 이탈하기 때문이다.
   Future<void> _writeBizReview() async {
-    if (!SessionManager.instance.isLoggedIn) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('후기는 로그인 후 남길 수 있어요')));
-      return;
-    }
     final p = _profile;
     final fid = p?.businessFacilityId;
     if (p == null || fid == null) return;

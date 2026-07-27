@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 
@@ -12,6 +13,8 @@ import '../../services/keyboard_barrier.dart';
 import '../../services/notification_repository.dart';
 import '../../services/profile_repository.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/layout.dart';
+import '../../widgets/app_invite_dialog.dart';
 import '../../widgets/app_search_field.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/role_badge.dart';
@@ -336,7 +339,17 @@ class _CommunityTabState extends State<CommunityTab>
   }
 
   /// 동네 인증이 없거나 만료된 사용자에게 인증 화면으로 안내.
+  /// 웹은 위치를 수집하지 않으므로(법·신뢰성) 앱으로 보낸다 — 현재 웹에서는
+  /// 글쓰기 FAB 자체가 없어 여기까지 오지 않지만, 경로가 열려도 안전하게.
   void _showRegionGateDialog() {
+    if (kIsWeb) {
+      unawaited(AppInviteDialog.show(context, feature: '동네 인증'));
+      return;
+    }
+    _showRegionGateDialogNative();
+  }
+
+  void _showRegionGateDialogNative() {
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
@@ -378,7 +391,8 @@ class _CommunityTabState extends State<CommunityTab>
           // paddingOf — viewInsets(키보드) 변화에는 리빌드되지 않도록 padding 만 구독.
           final topInset = MediaQuery.paddingOf(context).top;
           // 하단 바(높이 62 + 하단 안전영역) 뒤로 콘텐츠가 확장되므로 그만큼 하단 여백.
-          final bottomInset = MediaQuery.paddingOf(context).bottom;
+          // 좌측 레일(넓은 화면)에서는 가릴 것이 없어 0 이 된다.
+          final bottomChrome = bottomNavClearance(context);
           return Stack(
             children: [
               // 게시글 스크롤 — 헤더 높이만큼 상단 패딩(헤더는 위에 오버레이).
@@ -395,7 +409,7 @@ class _CommunityTabState extends State<CommunityTab>
                       ),
                       _buildList(),
                       SliverToBoxAdapter(
-                        child: SizedBox(height: 62 + bottomInset + 24),
+                        child: SizedBox(height: bottomChrome + 24),
                       ),
                     ],
                   ),
@@ -453,45 +467,51 @@ class _CommunityTabState extends State<CommunityTab>
         },
       ),
       // 아래로 스크롤 시 스프링으로 아래로 사라지고, 위로 올리면 bounce 로 팝하며 복귀.
-      floatingActionButton: AnimatedBuilder(
-        animation: _fabCtrl,
-        builder: (context, child) {
-          final o = _fabCtrl.value.clamp(0.0, 1.0);
-          // extendBody 로 화면 끝까지 확장되므로 하단 바(62)+안전영역만큼 띄워
-          // FAB 가 바 뒤로 가려지지 않게 한다.
-          return Padding(
-            padding: EdgeInsets.only(
-              // iOS 는 홈 인디케이터 인셋 체감상 하단 메뉴바와 너무 붙어 보여
-              // 조금 더 띄운다(Android 는 현행 간격 유지).
-              bottom:
-                  (Theme.of(context).platform == TargetPlatform.iOS
-                      ? 108.0
-                      : 90.0) +
-                  MediaQuery.paddingOf(context).bottom,
-            ),
-            child: Opacity(
-              opacity: o,
-              child: Transform.translate(
-                offset: Offset(0, (1 - _fabCtrl.value) * 96),
-                child: IgnorePointer(ignoring: o < 0.5, child: child),
+      // 웹은 글쓰기가 앱 전용이라 FAB 자체를 노출하지 않는다(docs/web-port.md) —
+      // 동네 인증이 없어 서버(create_post_verified)가 어차피 막는다.
+      floatingActionButton: kIsWeb
+          ? null
+          : AnimatedBuilder(
+              animation: _fabCtrl,
+              builder: (context, child) {
+                final o = _fabCtrl.value.clamp(0.0, 1.0);
+                // extendBody 로 화면 끝까지 확장되므로 하단 바(62)+안전영역만큼 띄워
+                // FAB 가 바 뒤로 가려지지 않게 한다.
+                return Padding(
+                  padding: EdgeInsets.only(
+                    // iOS 는 홈 인디케이터 인셋 체감상 하단 메뉴바와 너무 붙어 보여
+                    // 조금 더 띄운다(Android 는 현행 간격 유지).
+                    bottom:
+                        (Theme.of(context).platform == TargetPlatform.iOS
+                            ? 108.0
+                            : 90.0) +
+                        MediaQuery.paddingOf(context).bottom,
+                  ),
+                  child: Opacity(
+                    opacity: o,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - _fabCtrl.value) * 96),
+                      child: IgnorePointer(ignoring: o < 0.5, child: child),
+                    ),
+                  ),
+                );
+              },
+              child: FloatingActionButton.extended(
+                key: _fabKey,
+                onPressed: _openCreate,
+                // 카테고리 칩(0.7)이 아닌 상단 필름과 동일한 투명도(0.92) 적용.
+                backgroundColor: context.colors.primaryDark.withValues(
+                  alpha: 0.92,
+                ),
+                foregroundColor: context.colors.textOnPrimary,
+                elevation: 0,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text(
+                  '글 쓰기',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
-          );
-        },
-        child: FloatingActionButton.extended(
-          key: _fabKey,
-          onPressed: _openCreate,
-          // 카테고리 칩(0.7)이 아닌 상단 필름과 동일한 투명도(0.92) 적용.
-          backgroundColor: context.colors.primaryDark.withValues(alpha: 0.92),
-          foregroundColor: context.colors.textOnPrimary,
-          elevation: 0,
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text(
-            '글 쓰기',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-      ),
     );
   }
 

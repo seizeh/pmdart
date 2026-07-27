@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
@@ -54,7 +55,7 @@ class StorageService {
 
   /// 업로드 후 공개 URL/메타 반환.
   Future<UploadedImage> upload(XFile file, {required String category}) async {
-    final uid = SessionManager.instance.user?.id;
+    final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
 
     final bytes = await file.readAsBytes();
@@ -82,7 +83,7 @@ class StorageService {
     String ext = 'png',
     String mime = 'image/png',
   }) async {
-    final uid = SessionManager.instance.user?.id;
+    final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
     await _c.storage
@@ -103,7 +104,7 @@ class StorageService {
     XFile file, {
     required String category,
   }) async {
-    final uid = SessionManager.instance.user?.id;
+    final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
 
     // 크기 검사 — 전체 바이트를 읽기 전에 길이만 먼저 확인한다.
@@ -129,14 +130,18 @@ class StorageService {
     final url = _c.storage.from('media').getPublicUrl(path);
 
     // 포스터(첫 프레임) — 실패해도 영상 자체는 유효하므로 무시.
+    // 웹은 video_thumbnail 구현이 없다(MissingPluginException) — 아래 catch 가
+    // 삼키긴 하지만 무의미한 왕복이라 아예 건너뛴다. 표시 쪽 폴백이 받는다.
     String? thumbUrl;
     try {
-      final poster = await VideoThumbnail.thumbnailData(
-        video: file.path,
-        imageFormat: ImageFormat.JPEG,
-        maxWidth: 1024,
-        quality: 75,
-      );
+      final poster = kIsWeb
+          ? null
+          : await VideoThumbnail.thumbnailData(
+              video: file.path,
+              imageFormat: ImageFormat.JPEG,
+              maxWidth: 1024,
+              quality: 75,
+            );
       if (poster != null) {
         final up = await uploadBytes(
           poster,
@@ -204,7 +209,7 @@ class StorageService {
     PickedDoc doc, {
     required String kind,
   }) async {
-    final uid = SessionManager.instance.user?.id;
+    final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
     final path =
         '$uid/$kind/${DateTime.now().millisecondsSinceEpoch}.${doc.ext}';

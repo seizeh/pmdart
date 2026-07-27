@@ -180,7 +180,11 @@ class _MainScreenState extends State<MainScreen>
   @override
   void dispose() {
     MainScreen.tabRequest.removeListener(_onTabRequest);
-    navRail.value = null; // 로그아웃 등으로 벗어나면 레일도 사라진다
+    // 로그아웃 등으로 벗어나면 레일도 사라진다 — 단 **내가 올린 것일 때만** 지운다.
+    // 로그인은 pushAndRemoveUntil 이라 새 MainScreen 의 initState 가 먼저 돌고
+    // 게스트 MainScreen 의 dispose 가 나중에 온다. 무조건 null 로 지우면 방금 올라온
+    // 레일까지 지워져 **로그인하면 데스크톱 내비게이션이 통째로 사라진다.**
+    if (identical(navRail.value, _railConfig)) navRail.value = null;
     _tab.dispose();
     _navVisible.dispose();
     super.dispose();
@@ -189,11 +193,18 @@ class _MainScreenState extends State<MainScreen>
   /// 좌측 레일(넓은 화면)에 현재 탭 상태를 공개 — 그리는 것은 [AppShell] 이다.
   /// 레일이 본문 컬럼 **바깥**에 있어야 하고 상세 라우트 위에서도 유지돼야 해서
   /// 여기서 직접 그리지 않는다.
-  void _publishRail() => navRail.value = NavRailConfig(
-    currentIndex: _index,
-    items: _navItems,
-    onTap: _selectFromRail,
-  );
+  /// 이 인스턴스가 마지막으로 공개한 설정 — dispose 에서 "내 것일 때만" 지우려고
+  /// 들고 있는다([dispose] 참고).
+  NavRailConfig? _railConfig;
+
+  void _publishRail() {
+    _railConfig = NavRailConfig(
+      currentIndex: _index,
+      items: _navItems,
+      onTap: _selectFromRail,
+    );
+    navRail.value = _railConfig;
+  }
 
   /// 레일에서의 탭 — 먼저 이 화면 위에 얹힌 라우트를 모두 닫는다.
   ///

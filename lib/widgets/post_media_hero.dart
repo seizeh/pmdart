@@ -327,6 +327,35 @@ class _PostMediaHeroState extends State<PostMediaHero> {
   }
 
   /// 미디어 박스 본체 — 영상(재생/포스터/에러), 사진(cover), 블롭 배경.
+  /// 영상 표면 — 네이티브는 `FittedBox`(넘치는 만큼 잘라 채움), 웹은 `AspectRatio`.
+  ///
+  /// ⚠️ 웹에서 `FittedBox(clipBehavior: hardEdge)` 를 쓰면 안 된다.
+  /// `video_player_web` 의 영상은 `HtmlElementView`(DOM `<video>`)이고 플랫폼 뷰는
+  /// 캔버스 밖에서 합성되므로 **클립이 먹지 않는다**. 원본 크기(예: 1080×1920)를
+  /// cover 로 확대하면 넘치는 부분이 잘리지 않고 그대로 박스 밖으로 흘러넘쳐
+  /// 위아래 UI 를 덮는다(실측: 박스 밖 위로 -50px, 아래로 +50px).
+  ///
+  /// 그래서 웹은 **박스를 영상 비율에 맞춰** 애초에 넘칠 것이 없게 한다. cover 가
+  /// contain 이 되어 여백(레터박스)이 생기지만, 뒤에 검정 배경이 이미 깔려 있어
+  /// 자연스럽고 잘림보다 낫다. 네이티브는 기존 동작 그대로.
+  Widget _videoSurface(VideoPlayerValue v, BoxFit fit) {
+    final player = VideoPlayer(widget.controller!);
+    if (kIsWeb) {
+      return Center(
+        child: AspectRatio(aspectRatio: v.aspectRatio, child: player),
+      );
+    }
+    return FittedBox(
+      fit: fit,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: v.size.width,
+        height: v.size.height,
+        child: player,
+      ),
+    );
+  }
+
   Widget _mediaSurface(BuildContext context, VideoPlayerValue? v, BoxFit fit) {
     final post = widget.post;
     if (v != null) {
@@ -340,16 +369,7 @@ class _PostMediaHeroState extends State<PostMediaHero> {
               child: Center(child: VideoErrorLabel()),
             )
           else ...[
-            if (v.isInitialized)
-              FittedBox(
-                fit: fit,
-                clipBehavior: Clip.hardEdge,
-                child: SizedBox(
-                  width: v.size.width,
-                  height: v.size.height,
-                  child: VideoPlayer(widget.controller!),
-                ),
-              ),
+            if (v.isInitialized) _videoSurface(v, fit),
             // 포스터 — 초기화 전 cover 로 채우고, 준비되면 페이드아웃.
             IgnorePointer(
               child: AnimatedOpacity(

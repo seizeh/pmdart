@@ -687,15 +687,26 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen> {
           children: [
             const ColoredBox(color: Colors.black), // letterbox 여백
             if (v.isInitialized)
-              FittedBox(
-                fit: fit,
-                clipBehavior: Clip.hardEdge,
-                child: SizedBox(
-                  width: v.size.width,
-                  height: v.size.height,
-                  child: VideoPlayer(ctrl),
+              // 웹은 FittedBox 대신 AspectRatio — 플랫폼 뷰(DOM <video>)에는 클립이
+              // 먹지 않아 cover 로 확대한 만큼 박스 밖으로 흘러넘친다
+              // (post_media_hero._videoSurface 의 주석 참고).
+              if (kIsWeb)
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: v.aspectRatio,
+                    child: VideoPlayer(ctrl),
+                  ),
+                )
+              else
+                FittedBox(
+                  fit: fit,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: v.size.width,
+                    height: v.size.height,
+                    child: VideoPlayer(ctrl),
+                  ),
                 ),
-              ),
             // 포스터 — 초기화 전 cover 로 채우고, 준비되면 페이드아웃.
             IgnorePointer(
               child: AnimatedOpacity(

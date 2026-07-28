@@ -144,17 +144,19 @@ void main() {
   });
 
   group('MyPet', () {
-    test('trust_score 3 이상이면 사진 인증 생략 대상(isTrusted)', () {
-      const p = MyPet(id: 'x', name: '뽀삐', species: '믹스', role: 'owner');
-      expect(p.isTrusted, isFalse);
-      const q = MyPet(
+    // 사진 인증 면제는 신뢰도(trust_score)가 아니라 게시글 순번으로 정해진다
+    // — 첫 글과 4·10번째 글에만 촬영 인증(자세한 규칙은 photo_gate_test.dart).
+    test('촬영 인증은 첫 글에 필요하고 두 번째 글부터 면제', () {
+      const first = MyPet(id: 'x', name: '뽀삐', species: '믹스', role: 'owner');
+      expect(first.needsPhotoGate, isTrue);
+      const second = MyPet(
         id: 'x',
         name: '뽀삐',
         species: '믹스',
         role: 'owner',
-        trustScore: 3,
+        verifyPostCount: 1,
       );
-      expect(q.isTrusted, isTrue);
+      expect(second.needsPhotoGate, isFalse);
     });
   });
 }

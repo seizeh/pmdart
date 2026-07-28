@@ -417,7 +417,8 @@ class CommunityRepository {
     final rows = await _c
         .from('pet_guardians')
         .select(
-          'role, pets(id, name, species, pet_status, identity_verified, pet_match_count, trust_score)',
+          'role, pets(id, name, species, pet_status, identity_verified, '
+          'pet_match_count, trust_score, verify_post_count)',
         )
         .eq('user_id', uid);
     final result = <MyPet>[];
@@ -434,6 +435,7 @@ class CommunityRepository {
           isIdentityVerified: pet['identity_verified'] == true,
           matchCount: (pet['pet_match_count'] ?? 0) as int,
           trustScore: (pet['trust_score'] ?? 0) as int,
+          verifyPostCount: (pet['verify_post_count'] ?? 0) as int,
         ),
       );
     }

@@ -313,7 +313,12 @@ class _UserSearchTabState extends State<UserSearchTab> {
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.push(
           context,
-          AppPageRoute<bool>(builder: (_) => FacilityReviewScreen(facility: f)),
+          CollapseRoute<bool>(
+            builder: (_) => FacilityReviewScreen(
+              facility: f,
+              originRect: riseOriginRect(context),
+            ),
+          ),
         ),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

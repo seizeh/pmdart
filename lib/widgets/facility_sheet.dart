@@ -116,8 +116,12 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
     // 복수 후기 허용 — 항상 새 후기 작성(방문 차수는 서버가 순번으로 표시).
     final ok = await Navigator.push<bool>(
       context,
-      AppPageRoute(
-        builder: (_) => FacilityReviewScreen(facility: widget.facility),
+      CollapseRoute(
+        builder: (_) => FacilityReviewScreen(
+          facility: widget.facility,
+          // 아래에서 떠오르고, 쓸어내리면 닫힌다(작성 화면 공통 문법).
+          originRect: riseOriginRect(context),
+        ),
       ),
     );
     if (ok == true) unawaited(_load());

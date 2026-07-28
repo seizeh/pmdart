@@ -1,7 +1,8 @@
 import 'dart:async' show unawaited;
-import 'dart:ui' as ui;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../data/mock_data.dart' show categoryLabel;
@@ -18,6 +19,7 @@ import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/media_widgets.dart' show VideoPlayBadge;
+import '../widgets/post_media_hero.dart' show MediaOverlayPanel;
 import '../widgets/role_badge.dart';
 import 'image_crop_screen.dart';
 
@@ -26,8 +28,28 @@ import 'image_crop_screen.dart';
 ///  · walk_together / walk_proxy / care : 펫 다중 선택 + 약속 일정 필수
 ///  · give_away : 본인 owner 인 펫 1마리만 + 약속 일정 없음
 ///  · adoption / free : 펫 선택 없음
+///
+/// 화면 = 게시글 상세(쇼츠형)와 같은 **전체화면 카드 하나**다. 앱바 제목·뒤로가기
+/// 없이 미디어(사진/영상 포스터/블롭)가 화면을 채우고, 하단 오버레이에서 모든
+/// 입력을 한다(카테고리·제목·본문·일정·펫). 닫기는 상세와 동일하게 **아래로
+/// 쓸어내리기**(또는 시스템 뒤로가기) — [originRect] 로 준 원본(글쓰기 버튼)으로
+/// 축소되며 닫힌다.
 class PostCreateScreen extends StatefulWidget {
-  const PostCreateScreen({super.key});
+  /// 펼쳐지고·축소될 원본 사각형(글쓰기 FAB). null 이면 축소 제스처 없이 일반 화면.
+  final Rect? originRect;
+
+  /// 축소 안착 시 크로스페이드할 원본 위젯(FAB 고스트).
+  final WidgetBuilder? cardBuilder;
+
+  /// 원본의 모서리 곡률 — 축소가 안착할 때 곡률이 튀지 않도록 원본과 맞춘다.
+  final double cardRadius;
+
+  const PostCreateScreen({
+    super.key,
+    this.originRect,
+    this.cardBuilder,
+    this.cardRadius = 28,
+  });
 
   @override
   State<PostCreateScreen> createState() => _PostCreateScreenState();
@@ -49,6 +71,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   List<MyPet> _pets = [];
   bool _loadingPets = true;
   bool _submitting = false;
+
+  // 아래로 당기면 원본(글쓰기 버튼)으로 축소되는 CollapsibleView 용 스크롤 컨트롤러.
+  final _scroll = ScrollController();
 
   UploadedImage? _uploadedImage;
   // 첨부 동영상(자유·소식만, 서버 CHECK 동일) — 사진과 상호 배타(단일 미디어 슬롯).
@@ -119,11 +144,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   // 펼쳐지고, 하나를 고르면 다시 접힌다(바텀시트 없음).
   bool _categoryExpanded = false;
 
-  // ── 편집형 미리보기 카드 — 피드 카드(PostCard)와 동일한 시각 문법에
-  //    제목 인라인 입력·카테고리/일정 탭 편집·좌상단 사진 버튼을 얹은 것.
-  //    (레이아웃을 바꿀 땐 widgets/post_card.dart 와 함께 맞출 것)
+  // ── 편집형 전체화면 에디터 — 게시글 상세(PostMediaHero)와 동일한 시각 문법:
+  //    미디어(사진/영상 포스터/블롭)가 화면을 채우고 하단 오버레이 패널에 정보.
+  //    다른 점은 그 정보가 전부 **입력 가능**하다는 것뿐이다.
+  //    (레이아웃을 바꿀 땐 widgets/post_media_hero.dart·post_card.dart 와 맞출 것)
 
-  Widget _editableCard() {
+  Widget _editorHero() {
     final color = categoryColor(context, _category);
     // 영상 첨부 시 포스터를 대표 이미지로(포스터 없으면 어두운 타일 + ▶).
     final videoAttached = _uploadedVideo != null;
@@ -131,20 +157,16 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         ? _uploadedVideo!.thumbUrl
         : _uploadedImage?.url;
     final hasPhoto = photoUrl != null || videoAttached;
-    final biz = _activeMode == 'business';
-    final me = SessionManager.instance.user;
-    final content = _contentCtrl.text.trim();
+    final topPad = MediaQuery.paddingOf(context).top;
+    final warn = _regionMismatch && _activeMode == 'personal';
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: context.colors.border, width: 0.5),
-      ),
-      child: AspectRatio(
-        aspectRatio: kPostImageAspectRatio,
-        child: Stack(
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth;
+        final h = box.maxHeight;
+        return Stack(
           fit: StackFit.expand,
+          clipBehavior: Clip.hardEdge,
           children: [
             // 배경 — 대표사진(영상은 포스터) 또는 카테고리 색 블롭(피드와 동일).
             if (photoUrl != null)
@@ -160,81 +182,42 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               const ColoredBox(color: Color(0xFF2B2B2B))
             else
               BlobBackground(seed: 'preview/$_category', color: color),
-            // 점진 블러 — 피드 카드와 동일한 하단 뭉갬.
-            if (photoUrl != null)
-              Positioned.fill(
-                child: ShaderMask(
-                  shaderCallback: (rect) => const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00FFFFFF),
-                      Color(0x00FFFFFF),
-                      Color(0xFFFFFFFF),
-                    ],
-                    stops: [0.0, 0.42, 0.85],
-                  ).createShader(rect),
-                  blendMode: BlendMode.dstIn,
-                  child: ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(
-                      sigmaX: 22,
-                      sigmaY: 22,
-                      tileMode: ui.TileMode.clamp,
-                    ),
-                    child: Image.network(
-                      photoUrl,
-                      fit: BoxFit.cover,
-                      cacheWidth: 400,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
-                  ),
-                ),
-              ),
-            // 사진 없는 글 — 본문 히어로(아래 '내용'에서 입력한 값이 실시간 반영).
+            // 사진 없는 글 — 본문이 곧 히어로다(상세의 블롭 본문과 같은 자리에서
+            // 그대로 입력한다).
             if (!hasPhoto)
-              Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 170),
-                  child: Center(
-                    child: Text(
-                      content.isEmpty ? '내용이 여기에 표시돼요' : content,
-                      textAlign: TextAlign.center,
-                      maxLines: 9,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: content.isEmpty
-                            ? context.colors.textTertiary
-                            : context.colors.textPrimary,
-                        height: 1.6,
-                      ),
-                    ),
-                  ),
-                ),
+              Positioned(
+                top: topPad + 56 + (warn ? 96 : 0),
+                left: 22,
+                right: 22,
+                bottom: h * 0.42,
+                child: Center(child: _contentField(hero: true)),
               ),
             // 영상 첨부 — 중앙 ▶ 배지(피드 카드와 동일 문법).
-            if (videoAttached) const Center(child: VideoPlayBadge(size: 52)),
-            // 가독용 스크림(피드와 동일).
-            const Positioned(
+            if (videoAttached) const Center(child: VideoPlayBadge(size: 56)),
+            // 하단 오버레이 패널 — 상세와 동일(뒤에만 점진 블러 + 스크림).
+            Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              height: 210,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0x00000000), Color(0x73000000)],
-                  ),
-                ),
+              child: MediaOverlayPanel(
+                blurSource: photoUrl == null
+                    ? null
+                    : Image.network(
+                        photoUrl,
+                        fit: BoxFit.cover,
+                        cacheWidth: 400,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                blurSourceSize: Size(w, h),
+                bottomClearance: MediaQuery.paddingOf(context).bottom + 10,
+                clearanceDuration: const Duration(milliseconds: 200),
+                child: _overlayEditor(hasPhoto: hasPhoto, color: color),
               ),
             ),
-            // 좌상단 — 사진 추가/교체(+제거) 버튼.
+            // 좌상단 — 사진 추가/교체(+제거) 버튼(앱바 높이에 맞춰 정렬).
             Positioned(
-              top: 10,
-              left: 10,
+              top: topPad + 8,
+              left: 12,
               child: Row(
                 children: [
                   _cardIconButton(
@@ -258,203 +241,397 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                 ],
               ),
             ),
-            // 하단 정보 — 카테고리·일정은 탭 편집, 제목은 그 자리에서 입력.
+            // 우상단 — 등록. 앱바 대신 히어로에 직접 얹는다(확장 전환이 안착한
+            // 뒤 나타나 모프 중간에 불쑥 뜨지 않게).
             Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 카테고리 — 탭하면 태그가 제자리에서 전체 목록으로 펼쳐지고,
-                    // 하나를 고르면(같은 걸 고르면 그대로) 다시 접힌다.
-                    // 모션은 앱 공통 스프링 언어: 확장은 standard 스프링,
-                    // 알약들은 Entrance 스태거로 튀어오르고, 탭엔 Pressable 촉감.
-                    AnimatedSize(
-                      duration: MotionDurations.base,
-                      curve: SpringCurve.standard,
-                      alignment: Alignment.bottomLeft,
-                      child: _categoryExpanded && !biz
-                          ? Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                for (final (i, c) in _categories.indexed)
-                                  Entrance(
-                                    index: i,
-                                    offsetY: 12,
-                                    fromScale: 0.85,
-                                    child: Pressable(
-                                      scaleTo: 0.9,
-                                      borderRadius: BorderRadius.circular(100),
-                                      onTap: () {
-                                        if (c != _category) _selectCategory(c);
-                                        setState(
-                                          () => _categoryExpanded = false,
-                                        );
-                                      },
-                                      child: _previewPill(
-                                        text: categoryLabel(c),
-                                        textColor: categoryColor(context, c),
-                                        selected: c == _category,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            )
-                          : Row(
-                              children: [
-                                // 선택 직후엔 태그가 살짝 튀며 안착 — 선택 피드백.
-                                KeyedSubtree(
-                                  key: ValueKey('cat-tag-$_category'),
-                                  child: Entrance(
-                                    index: 0,
-                                    offsetY: 6,
-                                    fromScale: 0.8,
-                                    child: Pressable(
-                                      scaleTo: 0.9,
-                                      borderRadius: BorderRadius.circular(100),
-                                      onTap: biz
-                                          ? null
-                                          : () => setState(
-                                              () => _categoryExpanded = true,
-                                            ),
-                                      child: _previewPill(
-                                        text: categoryLabel(_category),
-                                        textColor: color,
-                                        trailing: biz
-                                            ? null
-                                            : Icons.expand_more,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                if (!biz && _verifiedDong != null) ...[
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.place_outlined,
-                                          size: 13,
-                                          color: Color(0xCCFFFFFF),
-                                        ),
-                                        const SizedBox(width: 2),
-                                        Flexible(
-                                          child: Text(
-                                            _verifiedDong!,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xE6FFFFFF),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                                const Spacer(),
-                                const Text(
-                                  '방금 전',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xCCFFFFFF),
-                                  ),
-                                ),
-                              ],
+              top: topPad + 8,
+              right: 12,
+              child: CollapseSettledFade(child: _submitPill()),
+            ),
+            // 지역 불일치 경고는 개인 글만 — 업체 소식은 사업장 주소 기준.
+            if (warn)
+              Positioned(
+                top: topPad + 60,
+                left: 16,
+                right: 16,
+                child: _RegionWarning(
+                  current: _currentDong!,
+                  verified: _verifiedDong!,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 하단 오버레이의 입력 묶음 — 피드 카드의 정보 배치를 그대로 따르되
+  /// 카테고리·제목·본문·일정·펫을 그 자리에서 편집한다.
+  Widget _overlayEditor({required bool hasPhoto, required Color color}) {
+    final biz = _activeMode == 'business';
+    final me = SessionManager.instance.user;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 카테고리 — 탭하면 태그가 제자리에서 전체 목록으로 펼쳐지고,
+          // 하나를 고르면(같은 걸 고르면 그대로) 다시 접힌다.
+          // 모션은 앱 공통 스프링 언어: 확장은 standard 스프링,
+          // 알약들은 Entrance 스태거로 튀어오르고, 탭엔 Pressable 촉감.
+          AnimatedSize(
+            duration: MotionDurations.base,
+            curve: SpringCurve.standard,
+            alignment: Alignment.bottomLeft,
+            child: _categoryExpanded && !biz
+                ? Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final (i, c) in _categories.indexed)
+                        Entrance(
+                          index: i,
+                          offsetY: 12,
+                          fromScale: 0.85,
+                          child: Pressable(
+                            scaleTo: 0.9,
+                            borderRadius: BorderRadius.circular(100),
+                            onTap: () {
+                              if (c != _category) _selectCategory(c);
+                              setState(() => _categoryExpanded = false);
+                            },
+                            child: _previewPill(
+                              text: categoryLabel(c),
+                              textColor: categoryColor(context, c),
+                              selected: c == _category,
                             ),
-                    ),
-                    const SizedBox(height: 10),
-                    // 제목 — 카드 위에서 바로 입력(피드 타이포와 동일).
-                    TextField(
-                      controller: _titleCtrl,
-                      maxLines: 1,
-                      onChanged: (_) => setState(() {}),
-                      cursorColor: Colors.white,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        isCollapsed: true,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        filled: false,
-                        hintText: '제목을 입력하세요',
-                        hintStyle: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0x99FFFFFF),
-                        ),
-                      ),
-                    ),
-                    if (hasPhoto) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        content.isEmpty ? '내용은 아래에서 입력해요' : content,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: content.isEmpty
-                              ? const Color(0x99FFFFFF)
-                              : const Color(0xE0FFFFFF),
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                    if (_allowsSchedule) ...[
-                      const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: _pickDateTime,
-                        child: _previewMetaPill(
-                          icon: Icons.event_outlined,
-                          label: _scheduledAt == null
-                              ? (_needsSchedule ? '약속 일정 선택 (필수)' : '약속 일정 선택')
-                              : '${_scheduledAt!.month}/${_scheduledAt!.day} ${_scheduledAt!.hour}시',
-                          editable: true,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          biz
-                              ? (_bizName ?? me?.nickname ?? '')
-                              : (me?.nickname ?? ''),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xE6FFFFFF),
                           ),
                         ),
-                        const Spacer(),
-                        _previewStat(Icons.favorite_border),
-                        const SizedBox(width: 14),
-                        _previewStat(Icons.chat_bubble_outline),
-                        const SizedBox(width: 14),
-                        _previewStat(Icons.visibility_outlined),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      // 선택 직후엔 태그가 살짝 튀며 안착 — 선택 피드백.
+                      KeyedSubtree(
+                        key: ValueKey('cat-tag-$_category'),
+                        child: Entrance(
+                          index: 0,
+                          offsetY: 6,
+                          fromScale: 0.8,
+                          child: Pressable(
+                            scaleTo: 0.9,
+                            borderRadius: BorderRadius.circular(100),
+                            onTap: biz
+                                ? null
+                                : () =>
+                                      setState(() => _categoryExpanded = true),
+                            child: _previewPill(
+                              text: categoryLabel(_category),
+                              textColor: color,
+                              trailing: biz ? null : Icons.expand_more,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (!biz && _verifiedDong != null) ...[
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.place_outlined,
+                                size: 13,
+                                color: Color(0xCCFFFFFF),
+                              ),
+                              const SizedBox(width: 2),
+                              Flexible(
+                                child: Text(
+                                  _verifiedDong!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xE6FFFFFF),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
-                    ),
-                  ],
+                      const Spacer(),
+                      const Text(
+                        '방금 전',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xCCFFFFFF),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 10),
+          // 제목 — 카드 위에서 바로 입력(피드 타이포와 동일).
+          TextField(
+            controller: _titleCtrl,
+            maxLines: 1,
+            onChanged: (_) => setState(() {}),
+            cursorColor: Colors.white,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              isCollapsed: true,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              filled: false,
+              hintText: '제목을 입력하세요',
+              hintStyle: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: Color(0x99FFFFFF),
+              ),
+            ),
+          ),
+          // 사진 글의 본문 — 카드의 미리보기 두 줄 자리에서 그대로 입력.
+          // (사진이 없으면 본문은 화면 중앙 히어로가 맡는다.)
+          if (hasPhoto) ...[
+            const SizedBox(height: 4),
+            _contentField(hero: false),
+          ],
+          if (_allowsSchedule) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: _pickDateTime,
+              child: _previewMetaPill(
+                icon: Icons.event_outlined,
+                label: _scheduledAt == null
+                    ? (_needsSchedule ? '약속 일정 선택 (필수)' : '약속 일정 선택')
+                    : '${_scheduledAt!.month}/${_scheduledAt!.day} ${_scheduledAt!.hour}시',
+                editable: true,
+              ),
+            ),
+          ],
+          // 촬영 인증 규칙(1·4·10번째 글) + 선택한 펫별 진행도.
+          // 어두운 히어로 위에 얹히므로 흰 필름을 깔아 읽히게 한다.
+          if (_isPhotoCategory) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ColoredBox(
+                color: Colors.white.withValues(alpha: 0.92),
+                child: _PhotoGateNotice(
+                  pets: _selectedPets,
+                  needsPhoto: _needsPhoto,
                 ),
               ),
             ),
           ],
+          if (_giveAway) ...[
+            const SizedBox(height: 6),
+            const Text(
+              '분양이 완료되면 소유권이 자동으로 입양자에게 이전돼요',
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.4,
+                color: Color(0xCCFFFFFF),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          // 카드의 하트·댓글·조회수 자리 — 작성 중엔 반응 수치가 의미가
+          // 없으므로 그 자리에서 연결할 반려동물을 고른다(자유·입양·
+          // 소식은 펫이 없어 작성자만 남는다).
+          Row(
+            children: [
+              Text(
+                biz ? (_bizName ?? me?.nickname ?? '') : (me?.nickname ?? ''),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xE6FFFFFF),
+                ),
+              ),
+              if (_needsPet) ...[
+                const SizedBox(width: 10),
+                Expanded(child: _petPicker()),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 본문 입력 — 사진 없는 글은 화면 중앙 히어로(피드 카드의 본문 자리),
+  /// 사진 글은 제목 아래 두 줄 미리보기 자리에서 그대로 입력한다.
+  Widget _contentField({required bool hero}) {
+    return TextField(
+      controller: _contentCtrl,
+      onChanged: (_) => setState(() {}),
+      minLines: 1,
+      maxLines: hero ? 9 : 3,
+      textAlign: hero ? TextAlign.center : TextAlign.start,
+      cursorColor: hero ? context.colors.textPrimary : Colors.white,
+      style: hero
+          ? TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: context.colors.textPrimary,
+              height: 1.6,
+            )
+          : const TextStyle(
+              fontSize: 13,
+              color: Color(0xE0FFFFFF),
+              height: 1.5,
+            ),
+      decoration: InputDecoration(
+        isDense: true,
+        isCollapsed: true,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        filled: false,
+        hintText: hero ? '내용을 입력하세요' : '내용을 입력하세요',
+        hintStyle: hero
+            ? TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: context.colors.textTertiary,
+                height: 1.6,
+              )
+            : const TextStyle(
+                fontSize: 13,
+                color: Color(0x99FFFFFF),
+                height: 1.5,
+              ),
+      ),
+    );
+  }
+
+  /// 연결할 반려동물 선택 — 하단 정보 줄에서 가로로 훑어 고른다.
+  /// 분양(give_away)은 본인이 소유자인 펫 1마리만.
+  Widget _petPicker() {
+    if (_loadingPets) {
+      return const Align(
+        alignment: Alignment.centerLeft,
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white70,
+          ),
+        ),
+      );
+    }
+    final pets = _pets.where((p) => !_giveAway || p.role == 'owner').toList();
+    if (pets.isEmpty) {
+      return Text(
+        _giveAway ? '소유자인 반려동물이 없어요' : '반려동물을 먼저 등록해주세요',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 11.5, color: Color(0xCCFFFFFF)),
+      );
+    }
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        itemCount: pets.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
+        itemBuilder: (_, i) => Center(child: _petChip(pets[i], i)),
+      ),
+    );
+  }
+
+  Widget _petChip(MyPet p, int index) {
+    final selected = _selectedPetIds.contains(p.id);
+    return Entrance(
+      index: index,
+      offsetY: 8,
+      fromScale: 0.9,
+      child: Pressable(
+        scaleTo: 0.92,
+        borderRadius: BorderRadius.circular(100),
+        onTap: () => _togglePet(p),
+        child: AnimatedContainer(
+          duration: MotionDurations.base,
+          curve: SpringCurve.standard,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: selected
+                ? context.colors.primaryDark
+                : Colors.white.withValues(alpha: 0.88),
+            borderRadius: BorderRadius.circular(100),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected ? Icons.check_circle : Icons.pets_outlined,
+                size: 13,
+                color: selected ? Colors.white : context.colors.textSecondary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                p.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : context.colors.textPrimary,
+                ),
+              ),
+              // 이번 글이 인증 순번(1·4·10)이 아닌 펫 — 촬영 없이 게시 가능.
+              if (_isPhotoCategory && !p.needsPhotoGate) ...[
+                const SizedBox(width: 3),
+                Icon(
+                  Icons.verified_outlined,
+                  size: 12,
+                  color: selected
+                      ? const Color(0xCCFFFFFF)
+                      : context.colors.primaryDark,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  /// 펫 선택 토글 — 분양은 1마리(단일 선택). 검증 사진이 묶인 펫이 빠지면
+  /// 사진·토큰을 무효화한다(다른 아이 사진으로 등록되는 것 방지).
+  void _togglePet(MyPet p) {
+    setState(() {
+      if (_giveAway) {
+        if (_selectedPetIds.contains(p.id)) {
+          _selectedPetIds.clear();
+        } else {
+          _selectedPetIds
+            ..clear()
+            ..add(p.id);
+        }
+      } else if (_selectedPetIds.contains(p.id)) {
+        _selectedPetIds.remove(p.id);
+      } else {
+        _selectedPetIds.add(p.id);
+      }
+      if (_photoPetId != null && !_selectedPetIds.contains(_photoPetId)) {
+        _uploadedImage = null;
+        _photoToken = null;
+        _photoPetId = null;
+      }
+    });
   }
 
   /// 카드 위 원형 아이콘 버튼(좌상단 사진 컨트롤) — 사진 위 가독용 프로스트.
@@ -560,22 +737,6 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       ),
     );
   }
-
-  Widget _previewStat(IconData icon) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, size: 16, color: const Color(0xCCFFFFFF)),
-      const SizedBox(width: 4),
-      const Text(
-        '0',
-        style: TextStyle(
-          fontSize: 12,
-          color: Color(0xCCFFFFFF),
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ],
-  );
 
   @override
   void initState() {
@@ -966,220 +1127,84 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _contentCtrl.dispose();
+    _scroll.dispose();
     super.dispose();
+  }
+
+  /// 등록 — 앱바 자리(우상단)의 알약 버튼. 뒤로가기·제목이 없으므로 화면에서
+  /// 유일한 상단 크롬이다.
+  Widget _submitPill() {
+    final enabled = _canSubmit && !_submitting;
+    return Pressable(
+      scaleTo: 0.92,
+      borderRadius: BorderRadius.circular(100),
+      onTap: enabled ? _submit : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: enabled ? context.colors.primaryDark : const Color(0x59000000),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: _submitting
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Text(
+                '등록',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: enabled ? Colors.white : const Color(0x99FFFFFF),
+                ),
+              ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.colors.background,
-      appBar: AppBar(
-        title: const Text('새 게시글'),
-        actions: [
-          TextButton(
-            onPressed: (_canSubmit && !_submitting) ? _submit : null,
-            child: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text(
-                    '등록',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 지역 불일치 경고는 개인 글만 — 업체 소식은 사업장 주소 기준.
-              if (_regionMismatch && _activeMode == 'personal') ...[
-                _RegionWarning(
-                  current: _currentDong!,
-                  verified: _verifiedDong!,
+    final overlay = Theme.of(context).brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
+    // 원본(글쓰기 버튼)에서 펼쳐지고, 아래로 쓸어내리면 그 자리로 축소되며
+    // 닫힌다 — 게시글 상세와 같은 래퍼(뒤로가기 버튼이 없는 이유).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlay,
+      child: CollapsibleView(
+        originRect: widget.originRect,
+        card: widget.cardBuilder,
+        cardRadius: widget.cardRadius,
+        // 원본 중심에서 네 변이 동시에 벌어지는 사방 확장(상세와 동일).
+        contentAlignment: Alignment.center,
+        scrollController: _scroll,
+        builder: (context, physics) => Scaffold(
+          // 투명 — 축소 전환 중 뒤 커뮤니티가 비친다(CollapseRoute opaque:false).
+          backgroundColor: Colors.transparent,
+          // 앱바 없음 — 투명 앱바를 두면 그 띠가 히어로 좌상단 사진 버튼의 탭을
+          // 가로채 버튼이 죽는다. 등록 버튼은 히어로 안에 직접 얹는다.
+          // 화면 = 전체화면 에디터 1장. 스크롤 본문은 없고, 뷰포트 높이짜리
+          // 리스트로 CollapsibleView 의 '당겨서 축소' 드래그만 보존한다.
+          //
+          // 높이는 MediaQuery(창 크기)가 아니라 **실제 본문 제약**에서 받는다 —
+          // 웹 셸(AppShell)이 본문을 가운데 컬럼·SafeArea 안으로 밀어넣고,
+          // 키보드가 뜨면 Scaffold 가 본문을 줄이므로 창 크기와 어긋난다.
+          body: LayoutBuilder(
+            builder: (context, box) => ListView(
+              controller: _scroll,
+              physics: physics,
+              padding: EdgeInsets.zero,
+              children: [
+                SizedBox(
+                  height: math.max(box.maxHeight, 420),
+                  child: _editorHero(),
                 ),
-                const SizedBox(height: 16),
               ],
-              // 미리보기 = 편집 캔버스. 카드 위에서 직접 수정한다:
-              //  · 제목: 카드의 제목 자리를 탭해 바로 입력
-              //  · 카테고리: 카테고리 태그 탭 → 선택 시트(개인 모드만)
-              //  · 약속 일정: 일정 알약 탭 → 날짜/시간 선택
-              //  · 사진: 좌상단 카메라 아이콘(사진 있으면 X 로 제거)
-              // 내용·반려동물 선택만 아래 별도 섹션에서.
-              const _SectionLabel('미리보기'),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Text(
-                  '커뮤니티에 이렇게 보여요 — 카드를 직접 탭해서 수정하세요',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: context.colors.textSecondary,
-                  ),
-                ),
-              ),
-              _editableCard(),
-              if (_isPhotoCategory)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: _PhotoGateNotice(
-                    pets: _selectedPets,
-                    needsPhoto: _needsPhoto,
-                  ),
-                ),
-              const SizedBox(height: 24),
-              const _SectionLabel('내용'),
-              TextField(
-                controller: _contentCtrl,
-                maxLines: 8,
-                decoration: const InputDecoration(hintText: '자세한 내용을 적어주세요'),
-                onChanged: (_) => setState(() {}),
-              ),
-              if (_needsPet) ...[
-                const SizedBox(height: 20),
-                _SectionLabel(_giveAway ? '분양할 반려동물 (소유자만, 1마리)' : '연결할 반려동물'),
-                if (_loadingPets)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_pets
-                    .where((p) => !_giveAway || p.role == 'owner')
-                    .isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: context.colors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _giveAway
-                          ? '분양은 본인이 소유자인 반려동물이 있어야 작성할 수 있어요'
-                          : '연결할 반려동물이 없어요. 먼저 반려동물을 등록해주세요',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: context.colors.textSecondary,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ..._pets
-                    .where((p) {
-                      if (_giveAway) return p.role == 'owner';
-                      return true;
-                    })
-                    .map((p) {
-                      final selected = _selectedPetIds.contains(p.id);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => setState(() {
-                            if (_giveAway) {
-                              _selectedPetIds
-                                ..clear()
-                                ..add(p.id);
-                            } else {
-                              if (selected) {
-                                _selectedPetIds.remove(p.id);
-                              } else {
-                                _selectedPetIds.add(p.id);
-                              }
-                            }
-                            // 검증 사진이 묶인 펫이 선택 해제되면 사진을 무효화한다.
-                            if (_photoPetId != null &&
-                                !_selectedPetIds.contains(_photoPetId)) {
-                              _uploadedImage = null;
-                              _photoToken = null;
-                              _photoPetId = null;
-                            }
-                          }),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? context.colors.primarySoft.withValues(
-                                      alpha: 0.3,
-                                    )
-                                  : context.colors.surface,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: selected
-                                    ? context.colors.primary
-                                    : context.colors.border,
-                                width: selected ? 1.5 : 0.5,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  selected
-                                      ? Icons.check_circle
-                                      : Icons.radio_button_off,
-                                  color: selected
-                                      ? context.colors.primary
-                                      : context.colors.textTertiary,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    '${p.name}  ·  ${p.species}',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: context.colors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                                // 이번 글이 인증 순번이 아닌 펫 — 촬영 없이 게시 가능.
-                                if (!p.needsPhotoGate && _isPhotoCategory) ...[
-                                  const _TrustBadge(),
-                                  const SizedBox(width: 6),
-                                ],
-                                RoleBadge(role: p.role, compact: true),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                if (_giveAway)
-                  Container(
-                    margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: context.colors.warning.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 16,
-                          color: context.colors.warning,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '분양이 완료되면 소유권이 자동으로 입양자에게 이전됩니다.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: context.colors.textPrimary,
-                              height: 1.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-              const SizedBox(height: 40),
-            ],
+            ),
           ),
         ),
       ),
@@ -1419,61 +1444,6 @@ class _PhotoGateNotice extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// 면제 배지 — 이번 글이 인증 순번이 아닌 펫에 붙는다(펫 선택 타일).
-class _TrustBadge extends StatelessWidget {
-  const _TrustBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: context.colors.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.verified_outlined,
-            size: 13,
-            color: context.colors.primaryDark,
-          ),
-          SizedBox(width: 3),
-          Text(
-            '인증 면제',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: context.colors.primaryDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: context.colors.textPrimary,
-        ),
       ),
     );
   }

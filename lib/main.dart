@@ -479,7 +479,13 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
       if (overlay != null) AppToast.show(overlay, '매장 정보를 불러오지 못했어요');
       return;
     }
-    nav.push(CollapseRoute(builder: (_) => FacilityReviewScreen(facility: f)));
+    final rctx = nav.context;
+    nav.push(
+      CollapseRoute(
+        builder: (_) =>
+            FacilityReviewScreen(facility: f, originRect: riseOriginRect(rctx)),
+      ),
+    );
   }
 
   /// 매장 QR 로 들어온 업체 프로필을 연다.

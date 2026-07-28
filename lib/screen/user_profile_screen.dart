@@ -968,8 +968,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (p == null || fid == null) return;
     final ok = await Navigator.push<bool>(
       context,
-      AppPageRoute(
+      CollapseRoute(
         builder: (_) => FacilityReviewScreen(
+          // 아래에서 떠오르고, 쓸어내리면 닫힌다(작성 화면 공통 문법).
+          originRect: riseOriginRect(context),
           // 작성 화면은 id·이름 등 표시 정보만 쓴다(비네이버라 좌표 불필요).
           facility: Facility(
             id: fid,

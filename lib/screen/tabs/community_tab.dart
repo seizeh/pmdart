@@ -464,16 +464,18 @@ class _CommunityTabState extends State<CommunityTab>
       return;
     }
     final rect = _fabRect();
-    // 버튼에서 펼쳐지고 버튼으로 축소되는 전환(상세 화면과 같은 맥락). 못 구하면 표준 전환.
+    // 버튼에서 펼쳐지고, 아래로 쓸어내리면 버튼으로 축소되며 닫히는 전환 —
+    // 작성 화면이 게시글 상세와 같은 전체화면 카드라 상세와 동일한 래퍼를 쓴다.
+    // 버튼 위치를 못 구하면 하단에서 떠오르는 모달형 원점으로 대체.
     final created = await Navigator.push<bool>(
       context,
-      rect == null
-          ? AppPageRoute(builder: (_) => const PostCreateScreen())
-          : ExpandRoute<bool>(
-              originRect: rect,
-              builder: (_) => const PostCreateScreen(),
-              origin: (_) => const _FabGhost(),
-            ),
+      CollapseRoute<bool>(
+        builder: (_) => PostCreateScreen(
+          originRect: rect ?? riseOriginRect(context),
+          cardBuilder: rect == null ? null : (_) => const _FabGhost(),
+          cardRadius: rect == null ? 0 : rect.height / 2,
+        ),
+      ),
     );
     if (created == true) unawaited(_load());
   }

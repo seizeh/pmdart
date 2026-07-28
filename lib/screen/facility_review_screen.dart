@@ -1,6 +1,8 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../models/facility_review.dart';
@@ -10,8 +12,11 @@ import '../services/facility_review_repository.dart';
 import '../services/session.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../widgets/blob_background.dart';
 import '../widgets/lite_review_auth_sheet.dart';
 import '../widgets/media_widgets.dart';
+import '../widgets/overlay_icon_button.dart';
+import '../widgets/post_media_hero.dart' show MediaOverlayPanel;
 
 /// 인증 전에 고른 사진 — 업로드는 인증 후에만 가능하다(Storage RLS 가 `<uid>/...`
 /// 폴더 기준이라 비로그인은 쓰지 못한다). 미리보기는 바이트로 그린다(웹·앱 공통).
@@ -22,16 +27,32 @@ class _PendingPhoto {
 }
 
 /// 시설 후기 작성/수정 (0022) — 게시글 작성(post_create_screen)과 같은 디자인
-/// 문법: 섹션 라벨·간격·타이포, 앱바 '등록' 액션, 첨부는 바텀시트(사진/동영상).
+/// 문법: 화면이 곧 **전체화면 후기 카드**다. 앱바 제목·뒤로가기 없이 미디어
+/// (사진/영상 포스터/블롭)가 화면을 채우고, 하단 오버레이에서 별점·본문·혜택
+/// 표시·첨부를 그 자리에서 편집한다. 닫기는 **아래로 쓸어내리기**(또는 시스템
+/// 뒤로가기) — [originRect] 로 준 원본으로 축소되며 닫힌다.
 /// 갤러리 다중 사진 허용(자유 비율 — 크롭 없음). 카페는 작성 시 승격.
 /// 저장 성공 시 true 를 pop.
 class FacilityReviewScreen extends StatefulWidget {
   final Facility facility;
   final FacilityReview? existing; // 있으면 수정
+
+  /// 펼쳐지고·축소될 원본 사각형. null 이면 축소 제스처 없이 일반 화면.
+  final Rect? originRect;
+
+  /// 축소 안착 시 크로스페이드할 원본 위젯(없으면 콘텐츠만 이동).
+  final WidgetBuilder? cardBuilder;
+
+  /// 원본의 모서리 곡률 — 축소 안착 시 곡률이 튀지 않도록 원본과 맞춘다.
+  final double cardRadius;
+
   const FacilityReviewScreen({
     super.key,
     required this.facility,
     this.existing,
+    this.originRect,
+    this.cardBuilder,
+    this.cardRadius = 0,
   });
 
   @override
@@ -56,6 +77,9 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
   /// 인증을 취소해도 고른 사진이 사라지지 않게 여기 남겨 둔다(초안 보존).
   final List<_PendingPhoto> _pending = [];
 
+  // 아래로 당기면 원본으로 축소되는 CollapsibleView 용 스크롤 컨트롤러.
+  final _scroll = ScrollController();
+
   static const _maxPhotos = 5;
   static const _maxVideos = 2;
   final _repo = FacilityReviewRepository.instance;
@@ -69,6 +93,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
   @override
   void dispose() {
     _contentCtrl.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -317,289 +342,548 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final editing = widget.existing != null;
-    return Scaffold(
-      backgroundColor: context.colors.background,
-      // 등록은 앱바 액션 — 게시글 작성과 동일 문법.
-      appBar: AppBar(
-        title: Text(editing ? '후기 수정' : '후기 작성'),
-        actions: [
-          if (editing)
-            IconButton(
-              icon: Icon(Icons.delete_outline, color: context.colors.danger),
-              tooltip: '후기 삭제',
-              onPressed: _submitting ? null : _delete,
+    final overlay = Theme.of(context).brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
+    // 원본에서 펼쳐지고, 아래로 쓸어내리면 그 자리로 축소되며 닫힌다 —
+    // 게시글 작성·상세와 같은 래퍼(뒤로가기 버튼이 없는 이유).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlay,
+      child: CollapsibleView(
+        originRect: widget.originRect,
+        card: widget.cardBuilder,
+        cardRadius: widget.cardRadius,
+        contentAlignment: Alignment.center,
+        scrollController: _scroll,
+        builder: (context, physics) => Scaffold(
+          // 투명 — 축소 전환 중 뒤 화면이 비친다(CollapseRoute opaque:false).
+          backgroundColor: Colors.transparent,
+          // 앱바 없음 — 투명 앱바를 두면 그 띠가 히어로 좌상단 첨부 버튼의
+          // 탭을 가로채 버튼이 죽는다. 상단 버튼들은 히어로 안에 직접 얹는다.
+          // 화면 = 전체화면 에디터 1장. 스크롤 본문은 없고, 뷰포트 높이짜리
+          // 리스트로 CollapsibleView 의 '당겨서 축소' 드래그만 보존한다.
+          //
+          // 높이는 MediaQuery(창 크기)가 아니라 **실제 본문 제약**에서 받는다 —
+          // 웹 셸(AppShell)이 본문을 가운데 컬럼·SafeArea 안으로 밀어넣고,
+          // 키보드가 뜨면 Scaffold 가 본문을 줄이므로 창 크기와 어긋난다.
+          body: LayoutBuilder(
+            builder: (context, box) => ListView(
+              controller: _scroll,
+              physics: physics,
+              padding: EdgeInsets.zero,
+              children: [
+                SizedBox(
+                  height: math.max(box.maxHeight, 420),
+                  child: _editorHero(),
+                ),
+              ],
             ),
-          TextButton(
-            onPressed: _submitting ? null : _submit,
-            child: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    editing ? '수정' : '등록',
-                    style: const TextStyle(
-                      fontSize: 15,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 게시(수정) — 앱바 자리의 알약 버튼. 화면에서 유일한 상단 크롬이다.
+  Widget _submitPill(bool editing) {
+    return Pressable(
+      scaleTo: 0.92,
+      borderRadius: BorderRadius.circular(100),
+      onTap: _submitting ? null : _submit,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: _submitting
+              ? const Color(0x59000000)
+              : context.colors.primaryDark,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: _submitting
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Text(
+                editing ? '수정' : '등록',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+      ),
+    );
+  }
+
+  // ── 편집형 전체화면 에디터 — 후기 상세·게시글 작성과 동일한 시각 문법:
+  //    미디어(사진/영상 포스터/블롭)가 화면을 채우고 하단 오버레이 패널에 정보.
+  //    다른 점은 그 정보가 전부 **입력 가능**하다는 것뿐이다.
+  //    (레이아웃을 바꿀 땐 widgets/review_cards.dart·post_media_hero.dart 와 맞출 것)
+  Widget _editorHero() {
+    final photoUrl = _photos.isNotEmpty ? _photos.first : null;
+    // 비로그인 초안 사진은 아직 URL 이 없다 — 바이트로 그린다.
+    final pending = photoUrl == null && _pending.isNotEmpty
+        ? _pending.first
+        : null;
+    final videoOnly = photoUrl == null && pending == null && _videos.isNotEmpty;
+    final posterUrl = videoOnly ? _videos.first.thumbUrl : null;
+    final hasMedia = photoUrl != null || pending != null || videoOnly;
+    final topPad = MediaQuery.paddingOf(context).top;
+    final busy = _uploading || _uploadingVideo;
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth;
+        final h = box.maxHeight;
+        return Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // 배경 — 대표 사진(영상만이면 포스터), 없으면 블롭(시설마다 고정 패턴).
+            if (photoUrl != null)
+              Image.network(
+                photoUrl,
+                fit: BoxFit.cover,
+                cacheWidth: 1200,
+                errorBuilder: (_, _, _) =>
+                    ColoredBox(color: context.colors.surfaceMuted),
+              )
+            else if (pending != null)
+              Image.memory(pending.bytes, fit: BoxFit.cover)
+            else if (videoOnly)
+              posterUrl == null
+                  ? const ColoredBox(color: Color(0xFF2B2B2B))
+                  : Image.network(
+                      posterUrl,
+                      fit: BoxFit.cover,
+                      cacheWidth: 1200,
+                      errorBuilder: (_, _, _) =>
+                          const ColoredBox(color: Color(0xFF2B2B2B)),
+                    )
+            else
+              BlobBackground(
+                seed: 'facility_review/${widget.facility.id}',
+                color: context.colors.primary,
+              ),
+            // 사진 없는 후기 — 본문이 곧 히어로다(그 자리에서 그대로 쓴다).
+            if (!hasMedia)
+              Positioned(
+                top: topPad + 56,
+                left: 22,
+                right: 22,
+                bottom: h * 0.42,
+                child: Center(child: _contentField(hero: true)),
+              ),
+            // 영상만 첨부 — 중앙 ▶ 배지(후기 카드와 동일 문법).
+            if (videoOnly) const Center(child: VideoPlayBadge(size: 56)),
+            // 하단 오버레이 패널 — 상세와 동일(뒤에만 점진 블러 + 스크림).
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: MediaOverlayPanel(
+                blurSource: photoUrl == null
+                    ? null
+                    : Image.network(
+                        photoUrl,
+                        fit: BoxFit.cover,
+                        cacheWidth: 400,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                blurSourceSize: Size(w, h),
+                bottomClearance: MediaQuery.paddingOf(context).bottom + 10,
+                clearanceDuration: const Duration(milliseconds: 200),
+                child: _overlayEditor(hasMedia: hasMedia),
+              ),
+            ),
+            // 좌상단 — 첨부 추가 / 대표 첨부 제거.
+            Positioned(
+              top: topPad + 8,
+              left: 12,
+              child: Row(
+                children: [
+                  _cardIconButton(
+                    icon: hasMedia
+                        ? Icons.add_photo_alternate_outlined
+                        : Icons.add_a_photo_outlined,
+                    tooltip: '사진·동영상 첨부',
+                    busy: busy,
+                    onTap: _chooseAttachment,
+                  ),
+                  if (hasMedia && !busy) ...[
+                    const SizedBox(width: 8),
+                    _cardIconButton(
+                      icon: Icons.close,
+                      tooltip: '대표 첨부 제거',
+                      onTap: _removeLeadMedia,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // 우상단 — 게시(수정) / 삭제. 앱바 대신 히어로에 직접 얹는다.
+            // 확장 전환이 안착한 뒤 나타난다(모프 중간에 불쑥 뜨지 않게).
+            Positioned(
+              top: topPad + 8,
+              right: 12,
+              child: CollapseSettledFade(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.existing != null)
+                      // 게시 중에는 삭제를 막는다(중복 요청 방지).
+                      IgnorePointer(
+                        ignoring: _submitting,
+                        child: OverlayIconButton(
+                          icon: Icons.delete_outline,
+                          tooltip: '후기 삭제',
+                          color: const Color(0xFFFF8A80),
+                          onPressed: _delete,
+                        ),
+                      ),
+                    const SizedBox(width: 4),
+                    _submitPill(widget.existing != null),
+                  ],
+                ),
+              ),
+            ),
+            // 업체 혜택 배지 — 실제 후기 카드에 붙는 코너 배지의 미리보기.
+            if (_hasIncentive)
+              Positioned(
+                top: topPad + 60,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: hasMedia
+                        ? const Color(0x66000000)
+                        : context.colors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    '업체 혜택',
+                    style: TextStyle(
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w700,
+                      color: hasMedia
+                          ? Colors.white
+                          : context.colors.textSecondary,
                     ),
                   ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 하단 오버레이의 입력 묶음 — 후기 카드의 정보 배치를 그대로 따르되
+  /// 별점·본문·혜택 표시·첨부를 그 자리에서 편집한다.
+  Widget _overlayEditor({required bool hasMedia}) {
+    final me = SessionManager.instance.user;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 별점 — 카드 위에서 바로 매긴다(선택 시 살짝 튀는 촉감).
+          Row(
+            children: [
+              for (var i = 1; i <= 5; i++)
+                Pressable(
+                  scaleTo: 0.85,
+                  borderRadius: BorderRadius.circular(100),
+                  onTap: () => setState(() => _rating = i),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: Icon(
+                      i <= _rating
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      size: 30,
+                      color: i <= _rating
+                          ? const Color(0xFFFFB300)
+                          : const Color(0x99FFFFFF),
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 6),
+              Text(
+                '$_rating',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                '방금 전',
+                style: TextStyle(fontSize: 12, color: Color(0xCCFFFFFF)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.facility.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          // 사진 있는 후기의 본문 — 카드의 미리보기 자리에서 그대로 입력.
+          // (사진이 없으면 본문은 화면 중앙 히어로가 맡는다.)
+          if (hasMedia) ...[
+            const SizedBox(height: 4),
+            _contentField(hero: false),
+          ],
+          const SizedBox(height: 10),
+          // 표시광고법: 대가성 후기는 경제적 이해관계 표시 의무 — 켜면 후기
+          // 카드·상세·공유 뷰어에 '업체 혜택' 배지가 붙는다(카드 우상단 미리보기).
+          _incentivePill(),
+          const SizedBox(height: 12),
+          // 후기 카드의 평점·작성자 줄 — 그 자리에서 첨부를 관리한다.
+          Row(
+            children: [
+              Text(
+                me?.nickname ?? '나',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xE6FFFFFF),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: _attachmentStrip()),
+            ],
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 시설 이름 + 안내 캡션(게시글 작성의 라벨·캡션 문법).
-              Text(
-                widget.facility.name,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: context.colors.textPrimary,
-                ),
+    );
+  }
+
+  /// 본문 입력 — 사진 없는 후기는 화면 중앙 히어로(후기 카드의 본문 자리),
+  /// 사진 후기는 시설명 아래 미리보기 자리에서 그대로 입력한다.
+  Widget _contentField({required bool hero}) {
+    return TextField(
+      controller: _contentCtrl,
+      onChanged: (_) => setState(() {}),
+      minLines: 1,
+      maxLines: hero ? 9 : 3,
+      maxLength: 1000,
+      textAlign: hero ? TextAlign.center : TextAlign.start,
+      cursorColor: hero ? context.colors.textPrimary : Colors.white,
+      style: hero
+          ? TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: context.colors.textPrimary,
+              height: 1.6,
+            )
+          : const TextStyle(
+              fontSize: 13,
+              color: Color(0xE0FFFFFF),
+              height: 1.5,
+            ),
+      decoration: InputDecoration(
+        isDense: true,
+        isCollapsed: true,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        filled: false,
+        counterText: '', // 글자수 카운터는 몰입형 오버레이에 어울리지 않는다
+        hintText: '방문 후기를 남겨주세요',
+        hintStyle: hero
+            ? TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: context.colors.textTertiary,
+                height: 1.6,
+              )
+            : const TextStyle(
+                fontSize: 13,
+                color: Color(0x99FFFFFF),
+                height: 1.5,
               ),
-              const SizedBox(height: 4),
-              Text(
-                '방문 경험을 별점과 후기로 남겨주세요',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: context.colors.textSecondary,
-                ),
+      ),
+    );
+  }
+
+  /// 업체 혜택(할인·사은품) 수령 표시 토글 — 켜면 카드 우상단에 배지가 뜬다.
+  Widget _incentivePill() {
+    final on = _hasIncentive;
+    return Pressable(
+      scaleTo: 0.94,
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => setState(() => _hasIncentive = !on),
+      child: AnimatedContainer(
+        duration: MotionDurations.base,
+        curve: SpringCurve.standard,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: on
+              ? context.colors.primaryDark
+              : Colors.white.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              on ? Icons.check_circle : Icons.card_giftcard_outlined,
+              size: 13,
+              color: on ? Colors.white : context.colors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '업체 혜택 받고 작성',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: on ? Colors.white : context.colors.textSecondary,
               ),
-              const SizedBox(height: 24),
-              const _SectionLabel('별점'),
-              Row(
-                children: [
-                  for (var i = 1; i <= 5; i++)
-                    Pressable(
-                      scaleTo: 0.85,
-                      borderRadius: BorderRadius.circular(100),
-                      onTap: () => setState(() => _rating = i),
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Icon(
-                          i <= _rating
-                              ? Icons.star_rounded
-                              : Icons.star_outline_rounded,
-                          size: 36,
-                          color: i <= _rating
-                              ? const Color(0xFFFFB300)
-                              : context.colors.border,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const _SectionLabel('후기'),
-              TextField(
-                controller: _contentCtrl,
-                minLines: 5,
-                maxLines: 10,
-                maxLength: 1000,
-                decoration: const InputDecoration(hintText: '시설에 대한 후기를 남겨주세요'),
-              ),
-              const SizedBox(height: 12),
-              _SectionLabel(
-                '사진·동영상  ·  사진 $_photoCount/$_maxPhotos · '
-                '동영상 ${_videos.length}/$_maxVideos',
-              ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (var i = 0; i < _photos.length; i++)
-                    _thumb(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          _photos[i],
-                          width: 76,
-                          height: 76,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      onRemove: () => setState(() => _photos.removeAt(i)),
-                    ),
-                  // 아직 업로드 전인 사진(비로그인) — 게시 때 함께 올라간다.
-                  for (var i = 0; i < _pending.length; i++)
-                    _thumb(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.memory(
-                          _pending[i].bytes,
-                          width: 76,
-                          height: 76,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      onRemove: () => setState(() => _pending.removeAt(i)),
-                    ),
-                  for (var i = 0; i < _videos.length; i++)
-                    _thumb(
-                      child: SizedBox(
-                        width: 76,
-                        height: 76,
-                        child: VideoPosterTile(
-                          videoUrl: _videos[i].url,
-                          posterUrl: _videos[i].thumbUrl,
-                          borderRadius: BorderRadius.circular(12),
-                          badgeSize: 28,
-                          cacheWidth: 200,
-                        ),
-                      ),
-                      onRemove: () => setState(() => _videos.removeAt(i)),
-                    ),
-                  // 첨부 추가 — 탭하면 사진/동영상 선택 바텀시트.
-                  if (_photoCount < _maxPhotos || _videos.length < _maxVideos)
-                    Pressable(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: (_uploading || _uploadingVideo)
-                          ? null
-                          : _chooseAttachment,
-                      child: Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          color: context.colors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: context.colors.border),
-                        ),
-                        child: (_uploading || _uploadingVideo)
-                            ? const Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              )
-                            : Icon(
-                                Icons.add_rounded,
-                                size: 26,
-                                color: context.colors.textTertiary,
-                              ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // 표시광고법: 대가성 후기는 경제적 이해관계 표시 의무 — 체크 시
-              // 후기 카드·상세·공유 뷰어에 '업체 혜택 받고 작성' 배지가 붙는다.
-              // 게시글 작성의 선택 카드 문법(선택 시 색 채움 + 테두리 강조).
-              InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => setState(() => _hasIncentive = !_hasIncentive),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: _hasIncentive
-                        ? context.colors.primarySoft.withValues(alpha: 0.3)
-                        : context.colors.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _hasIncentive
-                          ? context.colors.primary
-                          : context.colors.border,
-                      width: _hasIncentive ? 1.5 : 0.5,
-                    ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        _hasIncentive
-                            ? Icons.check_circle
-                            : Icons.radio_button_off,
-                        color: _hasIncentive
-                            ? context.colors.primary
-                            : context.colors.textTertiary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '업체로부터 할인·사은품 등 혜택을 받고 작성해요',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: context.colors.textPrimary,
-                                height: 1.4,
-                              ),
-                            ),
-                            if (_hasIncentive) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                '후기에 \'업체 혜택 받고 작성\' 표시가 함께 노출돼요.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: context.colors.textTertiary,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// 첨부 썸네일 + 우상단 제거 버튼(공용).
-  Widget _thumb({required Widget child, required VoidCallback onRemove}) {
-    return Stack(
-      children: [
-        child,
-        Positioned(
-          right: 4,
-          top: 4,
-          child: GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
+  /// 첨부 관리 — 후기 카드의 통계 자리에서 사진·동영상을 훑어 보고 지운다.
+  /// 첫 번째 항목이 카드 배경(대표)이 된다. 추가는 좌상단 버튼 한 곳에서만
+  /// (여기 '+' 칩과 둘로 나뉘어 있으면 같은 동작의 입구가 중복된다).
+  Widget _attachmentStrip() {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        children: [
+          for (var i = 0; i < _photos.length; i++)
+            _stripThumb(
+              child: Image.network(
+                _photos[i],
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                cacheWidth: 200,
               ),
-              child: const Icon(Icons.close, size: 16, color: Colors.white),
+              onRemove: () => setState(() => _photos.removeAt(i)),
             ),
-          ),
-        ),
-      ],
+          // 아직 업로드 전인 사진(비로그인) — 게시 때 함께 올라간다.
+          for (var i = 0; i < _pending.length; i++)
+            _stripThumb(
+              child: Image.memory(
+                _pending[i].bytes,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+              ),
+              onRemove: () => setState(() => _pending.removeAt(i)),
+            ),
+          for (var i = 0; i < _videos.length; i++)
+            _stripThumb(
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: VideoPosterTile(
+                  videoUrl: _videos[i].url,
+                  posterUrl: _videos[i].thumbUrl,
+                  borderRadius: BorderRadius.circular(10),
+                  badgeSize: 18,
+                  cacheWidth: 200,
+                ),
+              ),
+              onRemove: () => setState(() => _videos.removeAt(i)),
+            ),
+        ],
+      ),
     );
   }
-}
 
-/// 섹션 라벨 — 게시글 작성 화면과 동일한 타이포.
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
+  /// 첨부 스트립의 썸네일 한 칸(+ 제거 배지).
+  Widget _stripThumb({required Widget child, required VoidCallback onRemove}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipRRect(borderRadius: BorderRadius.circular(10), child: child),
+            Positioned(
+              right: -4,
+              top: -4,
+              child: GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Color(0xCC000000),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, size: 12, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: context.colors.textPrimary,
+  /// 대표(첫) 첨부 제거 — 카드 좌상단 × 버튼.
+  void _removeLeadMedia() {
+    setState(() {
+      if (_photos.isNotEmpty) {
+        _photos.removeAt(0);
+      } else if (_pending.isNotEmpty) {
+        _pending.removeAt(0);
+      } else if (_videos.isNotEmpty) {
+        _videos.removeAt(0);
+      }
+    });
+  }
+
+  /// 카드 위 원형 아이콘 버튼(좌상단 첨부 컨트롤) — 사진 위 가독용 프로스트.
+  Widget _cardIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    bool busy = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: busy ? null : onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            color: Color(0x66000000),
+            shape: BoxShape.circle,
+          ),
+          child: busy
+              ? const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Icon(icon, size: 20, color: Colors.white),
         ),
       ),
     );

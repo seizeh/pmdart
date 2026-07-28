@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -358,6 +359,16 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
         builder: (context, physics) => Scaffold(
           // 투명 — 축소 전환 중 뒤 화면이 비친다(CollapseRoute opaque:false).
           backgroundColor: Colors.transparent,
+          // 웹(모바일 브라우저)에서는 키보드가 **본문 위로 덮게** 둔다.
+          //
+          // 이 화면은 뷰포트 높이 한 장짜리 에디터라, 본문을 키보드만큼 줄이면
+          // 히어로·평점·입력칸이 한꺼번에 눌려 세로 비율이 눈에 띄게 무너진다.
+          // 네이티브 앱은 지금 동작을 유지한다(기본값) — 이 작업 범위가 아니다.
+          //
+          // 브라우저가 레이아웃 뷰포트까지 줄이는 것은 여기서 못 막는다.
+          // web/index.html 의 viewport `interactive-widget` 과 **짝**이어야
+          // 실제로 안 줄어든다(한쪽만 고치면 다른 쪽이 그대로 줄인다).
+          resizeToAvoidBottomInset: kIsWeb ? false : null,
           // 앱바 없음 — 투명 앱바를 두면 그 띠가 히어로 좌상단 첨부 버튼의
           // 탭을 가로채 버튼이 죽는다. 상단 버튼들은 히어로 안에 직접 얹는다.
           // 화면 = 전체화면 에디터 1장. 스크롤 본문은 없고, 뷰포트 높이짜리

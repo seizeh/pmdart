@@ -27,6 +27,33 @@
 #
 # ⚠️ 내용 해시가 붙은 경로가 생기면 그건 여기 넣지 말고 immutable 로 둬야 한다.
 
+# ── CSP ────────────────────────────────────────────────────────────────
+#
+# 오리진 목록은 추측이 아니라 **실제 네트워크 로그로 세었다**(게스트 진입 →
+# 커뮤니티 피드 → 상세). 빠뜨리면 그 기능만 조용히 죽으므로 늘리는 건 신중히,
+# 줄이는 건 실측 후에.
+#
+#   self                          앱 번들·CanvasKit(자체 호스팅)·assets
+#   'wasm-unsafe-eval'            CanvasKit 이 WebAssembly 를 인스턴스화한다.
+#                                 이것만 빠져도 첫 프레임부터 흰 화면이다.
+#   static.cloudflareinsights.com Cloudflare 가 자동 주입하는 RUM 비콘.
+#                                 우리 코드엔 없지만 실제로 로드된다.
+#   fonts.gstatic.com             CanvasKit 이 한글 폴백(Noto Sans KR)을 **fetch 로**
+#                                 받는다 → font-src 뿐 아니라 connect-src 에도 필요.
+#   supabase.co (https/wss)       REST·스토리지·realtime(알림/채팅 라이브 구독).
+#   blob:/data:                   Flutter 의 이미지 디코딩·워커.
+#
+# style-src 에 'unsafe-inline' 은 뺄 수 없다 — index.html 의 스플래시 <style> 과
+# Flutter 가 런타임에 만드는 <style> 이 둘 다 인라인이다. 반면 script-src 는
+# 인라인 스크립트를 splash.js 로 빼서 'self' 로 유지했다(splash.js 주석 참고).
+#
+# frame-ancestors 'none' — 이 앱을 iframe 에 넣는 곳은 없다. go.pawmate.kr 의
+# 공유 링크는 302 리다이렉트지 임베드가 아니다.
+#
+# ⚠️ 되돌리기: 이 줄 하나만 지우고 재배포하면 CSP 가 사라진다.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://vyatppuxmpulqtxevfpk.supabase.co; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' blob: data: https://vyatppuxmpulqtxevfpk.supabase.co wss://vyatppuxmpulqtxevfpk.supabase.co https://fonts.gstatic.com; media-src 'self' blob: https://vyatppuxmpulqtxevfpk.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+
 # 엔진 — canvaskit.js 와 canvaskit.wasm 은 **같은 빌드끼리만** 링크된다.
 /canvaskit/*
   Cache-Control: no-cache

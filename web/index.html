@@ -64,15 +64,8 @@
 <body>
   <div id="splash"><img src="icons/Icon-192.png" alt="PawMate" width="96" height="96"></div>
 
-  <script>
-    // Flutter 가 첫 프레임을 그리면 스플래시를 걷어낸다.
-    window.addEventListener('flutter-first-frame', function () {
-      var s = document.getElementById('splash');
-      if (!s) return;
-      s.style.opacity = '0';
-      setTimeout(function () { s.remove(); }, 300);
-    });
-  </script>
+  <!-- 스플래시 제거. 인라인이 아니라 파일인 이유는 splash.js 주석 참고(CSP). -->
+  <script src="splash.js" defer></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

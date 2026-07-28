@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
@@ -16,16 +17,91 @@ class StorageService {
   final ImagePicker _picker = ImagePicker();
   SupabaseClient get _c => Supabase.instance.client;
 
+  /// 사진 한 장의 **긴 변** 상한 — 가로·세로 양쪽에 건다.
+  ///
+  /// 종전에는 `maxWidth` 만 걸었는데, 그러면 **세로로 긴 요즘 폰 사진은 축소가
+  /// 아예 일어나지 않는다** — 1206×2622 사진은 가로가 1600 미만이라 그대로
+  /// 통과했다(실측: 5.4MB PNG 가 무보정으로 업로드 대기). `maxWidth`/`maxHeight`
+  /// 는 '이 안에 맞추기'(비율 유지·확대 없음)라 둘 다 주면 긴 변이 상한이 된다.
+  static const double _photoEdge = 1600;
+
+  /// 서류는 작은 글씨가 읽혀야 승인 심사가 가능하므로 더 크게 둔다.
+  static const double _docEdge = 2400;
+
+  /// 이보다 크면 품질을 한 단계 낮춰 다시 인코딩한다.
+  static const int _recompressOverBytes = 2 * 1024 * 1024;
+
   /// 갤러리에서 이미지 1장 선택 (적당히 리사이즈/압축).
-  Future<XFile?> pickImage() => _picker.pickImage(
-    source: ImageSource.gallery,
-    maxWidth: 1600,
-    imageQuality: 85,
-  );
+  Future<XFile?> pickImage({double edge = _photoEdge}) async {
+    final f = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: edge,
+      maxHeight: edge,
+      imageQuality: 85,
+    );
+    return f == null ? null : _normalizePhoto(f);
+  }
 
   /// 갤러리에서 여러 장 선택(후기용 — 미리 찍은 사진 허용).
-  Future<List<XFile>> pickImages() =>
-      _picker.pickMultiImage(maxWidth: 1600, imageQuality: 85);
+  Future<List<XFile>> pickImages() async {
+    final files = await _picker.pickMultiImage(
+      maxWidth: _photoEdge,
+      maxHeight: _photoEdge,
+      imageQuality: 85,
+    );
+    return Future.wait(files.map(_normalizePhoto));
+  }
+
+  /// 업로드 직전 정규화 — 사진이 PNG 로 새어 나가는 것을 막는 **안전망**.
+  ///
+  /// 웹의 picker 는 canvas 로 리사이즈하는데 `toBlob(type, quality)` 의 quality 가
+  /// **JPEG/WebP 에만** 적용된다. PNG 로 들어오면 PNG 로 재인코딩되어 오히려
+  /// 커질 수 있다(실측: 526KB → 682KB, 130%).
+  ///
+  /// ⚠️ **네이티브도 예외가 아니다.** "picker 가 imageQuality 를 주면 알아서
+  /// JPEG 로 바꾼다"고 보고 웹에만 걸었다가 틀린 것으로 드러났다 — 프로덕션
+  /// media 버킷의 PNG 19장(평균 3.8MB, 최대 14.2MB)은 웹 배포 **이전** 날짜의
+  /// 앱 업로드였다. 긴 변 상한이 걸리지 않으면 리사이즈 자체가 일어나지 않고,
+  /// 리사이즈가 없으면 재인코딩도 없어 원본 PNG 가 그대로 올라간다.
+  /// 상한을 고친 지금은 대부분 JPEG 로 나오지만, 안전망은 양쪽에 둔다.
+  ///
+  /// 실패하면 원본을 그대로 반환한다. 업로드 자체를 막지는 않는다(종전과 동일).
+  Future<XFile> _normalizePhoto(XFile file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final name = file.name.toLowerCase();
+      final isJpeg =
+          (file.mimeType ?? '').contains('jpeg') ||
+          name.endsWith('.jpg') ||
+          name.endsWith('.jpeg');
+      final tooBig = bytes.length > _recompressOverBytes;
+      if (isJpeg && !tooBig) return file; // 흔한 경로 — 그대로 둔다
+
+      final out = await FlutterImageCompress.compressWithList(
+        bytes,
+        // 이미 picker 가 긴 변을 줄였으므로 여기서 또 줄이지 않는다.
+        // ⚠️ 이 패키지의 minWidth/minHeight 는 '짧은 변 하한'이라 작은 값을 주면
+        //    과하게 축소된다. 크게 줘야 '축소 없음'이 된다.
+        minWidth: 100000,
+        minHeight: 100000,
+        quality: tooBig ? 70 : 85,
+        format: CompressFormat.jpeg,
+      );
+      // 이득이 없으면(투명 PNG 등) 원본을 지킨다.
+      if (out.isEmpty || out.length >= bytes.length) return file;
+      final base = file.name.contains('.')
+          ? file.name.substring(0, file.name.lastIndexOf('.'))
+          : file.name;
+      return XFile.fromData(
+        out,
+        name: '$base.jpg',
+        mimeType: 'image/jpeg',
+        length: out.length,
+      );
+    } catch (_) {
+      return file; // 디코드 실패(비-Safari 의 HEIC 등) — 종전 동작 유지
+    }
+  }
 
   /// 신원 인증용: 카메라 영상만(갤러리 진입 불가). 무작위 임무 수행 영상(~11초).
   Future<XFile?> capturePetVideo() => _picker.pickVideo(
@@ -45,13 +121,17 @@ class StorageService {
 
   /// 게시글 사진 실존 검증용: 카메라만(갤러리 진입 불가) 방금 찍은 1장.
   /// EXIF 위치는 신뢰하지 않으므로(위치는 geolocator 로 별도 취득) 메타데이터 요청 안 함.
-  Future<XFile?> capturePostPhoto() => _picker.pickImage(
-    source: ImageSource.camera,
-    preferredCameraDevice: CameraDevice.rear,
-    maxWidth: 1600,
-    imageQuality: 85,
-    requestFullMetadata: false,
-  );
+  Future<XFile?> capturePostPhoto() async {
+    final f = await _picker.pickImage(
+      source: ImageSource.camera,
+      preferredCameraDevice: CameraDevice.rear,
+      maxWidth: _photoEdge,
+      maxHeight: _photoEdge,
+      imageQuality: 85,
+      requestFullMetadata: false,
+    );
+    return f == null ? null : _normalizePhoto(f);
+  }
 
   /// 업로드 후 공개 URL/메타 반환.
   Future<UploadedImage> upload(XFile file, {required String category}) async {
@@ -187,9 +267,10 @@ class StorageService {
     );
   }
 
-  /// 갤러리 사진을 서류로 선택 — 휴대폰으로 찍은 등록증용(리사이즈/압축 동일).
+  /// 갤러리 사진을 서류로 선택 — 휴대폰으로 찍은 등록증용.
+  /// 사진과 달리 [_docEdge] 로 크게 남긴다 — 작은 글씨가 뭉개지면 승인 심사를 못 한다.
   Future<PickedDoc?> pickDocumentFromGallery() async {
-    final f = await pickImage();
+    final f = await pickImage(edge: _docEdge);
     if (f == null) return null;
     final bytes = await f.readAsBytes();
     var ext = f.name.contains('.')

@@ -36,6 +36,7 @@ import 'services/realtime_service.dart';
 import 'services/session.dart';
 import 'services/theme_controller.dart';
 import 'theme/app_theme.dart';
+import 'utils/firebase_web_sdk.dart';
 import 'utils/web_link.dart';
 import 'widgets/app_scroll_behavior.dart';
 import 'widgets/app_shell.dart';
@@ -123,10 +124,10 @@ Future<void> main() async {
 
   runApp(const PawMateApp());
 
-  // 웹은 OS 푸시를 쓰지 않는다 — 서비스워커·VAPID 세팅이 필요하고 iOS Safari 는
-  // PWA 설치 상태에서만 수신된다. 웹 푸시는 Phase D(docs/web-port.md).
-  if (kIsWeb) return;
-
+  // 웹도 푸시를 쓴다(Phase D) — 서비스워커(web/firebase-messaging-sw.js) + VAPID.
+  // iOS Safari 는 **홈 화면에 추가(PWA 설치)한 상태에서만** 수신한다. 일반 탭에서는
+  // 권한 요청 자체가 실패하는데, PushService 가 예외를 삼키므로 무해하다.
+  //
   // OS 푸시(FCM) 초기화는 앱 시작(runApp)을 막지 않도록 백그라운드로.
   // (init 이 iOS 권한 다이얼로그 응답 대기 + APNs 미설정 getToken 에서 블록될 수 있어,
   //  await 하면 흰 화면에서 멈춘다.)
@@ -329,6 +330,10 @@ Future<void> openFromPush(
 
 Future<void> _setupPush() async {
   try {
+    // 웹은 Firebase JS SDK 를 우리가 먼저 로드한다(CSP — web/firebase-sdk.js).
+    // 이 대기를 빼면 초기화가 로드를 앞질러 플러그인의 인라인 주입 경로로 새고,
+    // 그 인라인은 CSP 에 막혀 있어 푸시가 조용히 죽는다.
+    await ensureFirebaseSdkReady();
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );

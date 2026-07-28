@@ -39,4 +39,18 @@ abstract final class Env {
   /// — 빌드 시 --dart-define=JUSO_API_KEY=... 로 주입한다.
   /// 비우면 주소 검색이 비활성화되고 업체등록 화면이 수동 입력으로 폴백한다.
   static const jusoApiKey = String.fromEnvironment('JUSO_API_KEY');
+
+  /// 웹 푸시(FCM) VAPID **공개** 키 — Firebase 콘솔의 '웹 푸시 인증서' 키 쌍.
+  ///
+  /// 공개값이 맞다. 비밀키는 Firebase 가 갖고 있고, 이 공개키는 원래 클라이언트
+  /// 번들에 실려 브라우저가 구독을 만들 때 쓰인다(supabasePublishableKey 와 같은 급).
+  ///
+  /// 비어 있으면 **웹 푸시를 통째로 건너뛴다** — 알림 권한 팝업만 뜨고 토큰은 못 받는
+  /// 어중간한 상태를 만들지 않기 위한 스위치다(storeUrl* 와 같은 관용구).
+  /// 웹이 아닌 플랫폼에서는 쓰이지 않는다.
+  static const webPushVapidKey = String.fromEnvironment(
+    'WEB_PUSH_VAPID_KEY',
+    defaultValue:
+        'BAvGbYzuiBHUJCDSanC43cgKrt4gRMUwqHtm25RjsC93znXwpcO9xlIdG5U9A1CtjuBwMITyPzaNLWygkifNJZc',
+  );
 }

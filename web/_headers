@@ -42,6 +42,14 @@
 #                                 받는다 → font-src 뿐 아니라 connect-src 에도 필요.
 #   supabase.co (https/wss)       REST·스토리지·realtime(알림/채팅 라이브 구독).
 #   blob:/data:                   Flutter 의 이미지 디코딩·워커.
+#   www.gstatic.com               **웹 푸시**(Phase D). firebase_core_web 이 런타임에
+#                                 <script src="gstatic/firebasejs/…"> 를 주입하고,
+#                                 firebase-messaging-sw.js 도 같은 곳을 importScripts
+#                                 한다. 서비스워커는 **자기 스크립트와 함께 내려온
+#                                 CSP** 를 따르므로 이게 없으면 페이지는 되는데 SW 만
+#                                 조용히 죽는다.
+#   *.googleapis.com (3종)        FCM 토큰 발급·설치 ID 등록. 빠지면 getToken 이
+#                                 실패해 알림 권한만 받고 토큰은 못 받는다.
 #
 # style-src 에 'unsafe-inline' 은 뺄 수 없다 — index.html 의 스플래시 <style> 과
 # Flutter 가 런타임에 만드는 <style> 이 둘 다 인라인이다. 반면 script-src 는
@@ -52,7 +60,7 @@
 #
 # ⚠️ 되돌리기: 이 줄 하나만 지우고 재배포하면 CSP 가 사라진다.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://vyatppuxmpulqtxevfpk.supabase.co; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' blob: data: https://vyatppuxmpulqtxevfpk.supabase.co wss://vyatppuxmpulqtxevfpk.supabase.co https://fonts.gstatic.com; media-src 'self' blob: https://vyatppuxmpulqtxevfpk.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://vyatppuxmpulqtxevfpk.supabase.co; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' blob: data: https://vyatppuxmpulqtxevfpk.supabase.co wss://vyatppuxmpulqtxevfpk.supabase.co https://fonts.gstatic.com https://www.gstatic.com https://fcmregistrations.googleapis.com https://firebaseinstallations.googleapis.com; media-src 'self' blob: https://vyatppuxmpulqtxevfpk.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 # 엔진 — canvaskit.js 와 canvaskit.wasm 은 **같은 빌드끼리만** 링크된다.
 /canvaskit/*

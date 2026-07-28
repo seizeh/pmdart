@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../env.dart';
 import '../utils/platform_info.dart';
 import 'session.dart';
 
@@ -20,19 +21,35 @@ class PushService {
   static final PushService instance = PushService._();
 
   /// ⚠️ 필드가 아니라 게터다. 필드로 두면 `PushService.instance` 를 만드는
-  /// 순간 평가되는데, 웹은 Firebase 를 초기화하지 않으므로(main.dart 가
-  /// _setupPush 를 건너뜀) `[core/no-app]` 로 던진다. 그러면 로그인 성공 직후
-  /// registerToken 호출에서 터져 "로그인이 안 된다"로 보인다.
-  /// 아래 공개 진입점들이 웹을 먼저 걸러내므로 웹에서는 평가되지 않는다.
+  /// 순간 평가되는데, Firebase 초기화 전이면 `[core/no-app]` 로 던진다. 그러면
+  /// 로그인 성공 직후 registerToken 호출에서 터져 "로그인이 안 된다"로 보인다
+  /// (웹 이식 때 실제로 겪었다). 공개 진입점들이 [_enabled] 로 먼저 거르므로
+  /// 초기화되지 않은 상태에서는 평가되지 않는다.
   FirebaseMessaging get _fm => FirebaseMessaging.instance;
   bool _inited = false;
 
   /// 알림 탭으로 앱 진입 시(type, resourceType, resourceId).
   void Function(String type, String? resourceType, String? resourceId)? onOpen;
 
+  /// 이 플랫폼에서 푸시를 쓸 수 있는지.
+  ///
+  /// 웹은 VAPID 공개키가 있어야 토큰을 못 받는다 — 키 없이 진행하면 브라우저
+  /// 알림 권한 팝업만 띄우고 등록은 실패하는, 사용자에게 가장 나쁜 상태가 된다.
+  /// 그래서 키가 비면 아예 시작하지 않는다.
+  static bool get _enabled => !kIsWeb || Env.webPushVapidKey.isNotEmpty;
+
   Future<void> init() async {
-    if (kIsWeb || _inited) return; // 웹은 FCM 미사용(Phase D)
+    if (!_enabled || _inited) return;
     _inited = true;
+
+    // 웹은 아래 네이티브 전용 배선(백그라운드 핸들러·APNs·iOS 탭 채널)이 전부
+    // 해당 없다. 표시는 firebase-messaging-sw.js 가, 탭 라우팅은 그 SW 의
+    // notificationclick(webpush.fcm_options.link)이 담당한다.
+    if (kIsWeb) {
+      if (SessionManager.instance.isLoggedIn) await registerToken();
+      return;
+    }
+
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     final settings = await _fm.requestPermission(
       alert: true,
@@ -78,9 +95,17 @@ class PushService {
 
   /// 로그인 성공/앱 시작 시 호출 — 현재 FCM 토큰을 서버에 등록.
   Future<void> registerToken() async {
-    if (kIsWeb) return; // 웹은 FCM 미사용 — Firebase 미초기화라 만지면 던진다
+    if (!_enabled) return; // Firebase 미초기화 상태에서 만지면 [core/no-app] 로 던진다
     if (!SessionManager.instance.isLoggedIn) return;
     try {
+      if (kIsWeb) {
+        // 웹은 VAPID 공개키가 있어야 구독이 만들어진다. 이 호출이 루트의
+        // /firebase-messaging-sw.js 를 등록하고 브라우저 알림 권한도 함께 묻는다.
+        final token = await _fm.getToken(vapidKey: Env.webPushVapidKey);
+        debugPrint('push(web): FCM token ${token == null ? '없음' : '수신됨'}');
+        if (token != null) await _register(token);
+        return;
+      }
       if (isIOS) {
         // APNs 등록이 비동기라 앱 시작 직후엔 null 일 수 있다 — 준비될 때까지 재시도.
         String? apns;
@@ -108,7 +133,13 @@ class PushService {
         'register_device_token',
         params: {
           'p_token': token,
-          'p_platform': isIOS ? 'ios' : 'android',
+          // ⚠️ 'web' 은 device_tokens_platform_check 에도 있어야 한다
+          // (pmdb 20260728180000). 없으면 INSERT 가 거부돼 조용히 실패한다.
+          'p_platform': kIsWeb
+              ? 'web'
+              : isIOS
+              ? 'ios'
+              : 'android',
           'p_device_name': null,
         },
       );
@@ -120,7 +151,7 @@ class PushService {
 
   /// 로그아웃/세션 무효화 시 — FCM 토큰 삭제. 서버 토큰은 다음 발송 실패로 자동 비활성화된다.
   Future<void> clearToken() async {
-    if (kIsWeb) return; // 위와 동일 — 로그아웃 경로가 여기서 죽으면 세션이 안 지워진다
+    if (!_enabled) return; // 로그아웃 경로가 여기서 죽으면 세션이 안 지워진다
     try {
       await _fm.deleteToken();
     } catch (e) {

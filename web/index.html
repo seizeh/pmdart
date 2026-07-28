@@ -7,7 +7,14 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- interactive-widget=resizes-visual — 모바일 브라우저에서 키보드가 올라올 때
+       **레이아웃 뷰포트를 줄이지 않는다**. 기본값(resizes-content)이면 뷰포트가
+       줄면서 Flutter 캔버스가 통째로 짧아져, 뷰포트 한 장짜리 화면(후기 작성 등)의
+       세로 비율이 눌린다. resizes-visual 은 시각 뷰포트만 줄어드는 것이라 화면은
+       그대로 두고 키보드가 위를 덮되, 포커스된 입력칸은 브라우저가 보이는 영역으로
+       스크롤해 준다(overlays-content 는 그 스크롤 보조까지 없어져 입력칸이 가려질
+       수 있다). Scaffold 쪽 resizeToAvoidBottomInset 과 짝이다. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
   <meta name="description" content="우리 동네 반려 생활 — 산책 메이트·돌봄 이웃을 찾고, 동네 반려 소식을 나눠요.">
 
   <!-- 링크 미리보기(카톡·슬랙 등). 공유 링크 자체는 go.pawmate.kr 의 서버 렌더링

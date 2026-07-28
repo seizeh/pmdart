@@ -62,7 +62,13 @@
   </style>
 </head>
 <body>
-  <div id="splash"><img src="icons/Icon-192.png" alt="PawMate" width="96" height="96"></div>
+  <!-- splash-logo.png 는 **투명 배경**이다(assets/images/IMG_3.png 에서 잘라냈다).
+       PWA 아이콘(icons/Icon-192.png)을 여기 쓰면 안 된다 — 그쪽은 홈화면용이라
+       불투명 배경이 구워져 있고, 그 베이지가 아래 #F5EFE3 과 미묘하게 다른 데다
+       그라데이션이라 96x96 정사각 테두리가 그대로 드러난다.
+       반대로 PWA 아이콘을 투명하게 만드는 것도 안 된다 — iOS 가 홈화면에서
+       투명을 검정으로 합성한다. 그래서 스플래시용만 따로 둔다. -->
+  <div id="splash"><img src="splash-logo.png" alt="PawMate" width="96" height="96"></div>
 
   <!-- 스플래시 제거. 인라인이 아니라 파일인 이유는 splash.js 주석 참고(CSP). -->
   <script src="splash.js" defer></script>

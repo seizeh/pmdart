@@ -111,10 +111,11 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   List<MyPet> get _selectedPets =>
       _pets.where((p) => _selectedPetIds.contains(p.id)).toList();
 
-  // 촬영 인증이 필요한지 — 신뢰도는 펫별. 선택한 펫 중 미인증(trust<3)이 있을 때만 필요.
-  // 선택한 펫이 모두 신뢰도 3 이상이면 사진 인증 생략(사진은 선택적 첨부만).
+  // 촬영 인증이 필요한지 — 게이트는 펫별 게시글 순번(1·4·10번째)이다.
+  // 선택한 펫 중 하나라도 그 순번이면 필요하고, 아니면 생략(사진은 선택 첨부).
+  // 서버(create_post_verified → app.needs_photo_gate)와 같은 규칙.
   bool get _needsPhoto =>
-      _isPhotoCategory && _selectedPets.any((p) => !p.isTrusted);
+      _isPhotoCategory && _selectedPets.any((p) => p.needsPhotoGate);
 
   // 현재 위치가 인증 동네와 다를 때 경고 — 게시글은 인증 동네 기준으로 등록됨.
   String? _currentDong; // 지금 있는 동
@@ -419,28 +420,19 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
               ),
             ),
           ],
-          // 촬영 인증 안내 — 선택한 펫 중 신뢰도 미달이 있을 때만.
-          if (_needsPhoto) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(
-                  Icons.photo_camera_outlined,
-                  size: 13,
-                  color: Color(0xCCFFFFFF),
+          // 촬영 인증 규칙(1·4·10번째 글) + 선택한 펫별 진행도.
+          // 어두운 히어로 위에 얹히므로 흰 필름을 깔아 읽히게 한다.
+          if (_isPhotoCategory) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ColoredBox(
+                color: Colors.white.withValues(alpha: 0.92),
+                child: _PhotoGateNotice(
+                  pets: _selectedPets,
+                  needsPhoto: _needsPhoto,
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    '좌상단 카메라로 선택한 아이를 직접 촬영해야 등록할 수 있어요',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      height: 1.4,
-                      color: Color(0xCCFFFFFF),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
           if (_giveAway) ...[
@@ -599,8 +591,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                   color: selected ? Colors.white : context.colors.textPrimary,
                 ),
               ),
-              // 신뢰도 3 이상 — 사진 인증 없이 게시 가능(펫 목록의 '인증 면제').
-              if (_isPhotoCategory && p.isTrusted) ...[
+              // 이번 글이 인증 순번(1·4·10)이 아닌 펫 — 촬영 없이 게시 가능.
+              if (_isPhotoCategory && !p.needsPhotoGate) ...[
                 const SizedBox(width: 3),
                 Icon(
                   Icons.verified_outlined,
@@ -823,8 +815,8 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   /// 사진 영역 탭 분기.
   ///  · 자유/입양: 갤러리 자유 업로드.
   ///  · 사진 인증 카테고리: 반려동물을 먼저 선택해야 함(선택 전엔 갤러리 못 엶).
-  ///    - 선택 펫 중 미인증(trust<3) 포함 → 직접 촬영(서버 검증)만.
-  ///    - 선택 펫이 모두 인증(신뢰) → 직접 촬영(서버 검증) / 갤러리 불러오기 선택.
+  ///    - 선택 펫 중 인증 순번(1·4·10번째 글) 포함 → 직접 촬영(서버 검증)만.
+  ///    - 선택 펫이 모두 면제 순번 → 직접 촬영(서버 검증) / 갤러리 불러오기 선택.
   Future<void> _onPhotoTap() async {
     if (!_isPhotoCategory) {
       // 자유·소식은 영상도 허용(서버 CHECK 동일) — 사진/동영상 선택 시트.
@@ -835,13 +827,13 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       _toast('먼저 인증할 반려동물을 선택해주세요');
       return;
     }
-    if (_selectedPets.any((p) => !p.isTrusted)) {
-      return _captureAndVerify(); // 미인증 펫 포함 → 촬영 인증 필수
+    if (_selectedPets.any((p) => p.needsPhotoGate)) {
+      return _captureAndVerify(); // 인증 순번 펫 포함 → 촬영 인증 필수
     }
-    return _choosePhotoSource(); // 모두 인증된 펫 → 촬영/갤러리 선택
+    return _choosePhotoSource(); // 모두 면제 순번 → 촬영/갤러리 선택
   }
 
-  /// 인증된(신뢰) 펫만 선택된 경우 — 촬영/갤러리 소스 선택 시트.
+  /// 면제 순번 펫만 선택된 경우 — 촬영/갤러리 소스 선택 시트.
   Future<void> _choosePhotoSource() async {
     final src = await showModalBottomSheet<String>(
       context: context,
@@ -1342,6 +1334,113 @@ class _RegionWarning extends StatelessWidget {
                 height: 1.45,
                 color: context.colors.textSecondary,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 사진 인증 규칙 안내 + 선택한 펫별 진행도.
+///
+/// 촬영 인증은 **펫마다 1·4·10번째 글에서만** 요구한다(총 3번). 사용자에게
+/// 이 규칙이 보이지 않으면 "글 쓸 때마다 매번 찍어야 하나?" 로 읽히므로,
+/// 규칙 한 줄 + 지금 선택한 펫이 몇 번째 글인지·다음 인증은 언제인지 함께 보여준다.
+/// 규칙은 서버 `app.needs_photo_gate` 와 같다([MyPet.photoGatePostNos]).
+class _PhotoGateNotice extends StatelessWidget {
+  final List<MyPet> pets;
+  final bool needsPhoto;
+
+  const _PhotoGateNotice({required this.pets, required this.needsPhoto});
+
+  /// 펫 한 마리의 진행도 한 줄.
+  static String lineFor(MyPet p) {
+    final no = p.nextPostNo;
+    if (p.needsPhotoGate) {
+      return '${p.name} · 이번이 $no번째 글이라 촬영 인증이 필요해요';
+    }
+    final next = p.nextGatePostNo;
+    if (next == null) {
+      return '${p.name} · 인증 3번을 모두 마쳤어요. 이제 촬영 없이 올릴 수 있어요';
+    }
+    return '${p.name} · 이번이 $no번째 글이라 인증 없이 올려요 (다음 인증은 $next번째)';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gateNos = MyPet.photoGatePostNos.join('·');
+    final accent = needsPhoto
+        ? context.colors.warning
+        : context.colors.primaryDark;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            needsPhoto ? Icons.photo_camera_outlined : Icons.verified_outlined,
+            size: 16,
+            color: accent,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '촬영 인증은 반려동물마다 $gateNos번째 글에만 필요해요',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  pets.isEmpty
+                      ? '반려동물을 선택하면 이번 글에 인증이 필요한지 알려드려요.'
+                      : '세 번을 마치면 그다음부터는 촬영 없이 올릴 수 있어요.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.colors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                for (final p in pets)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '· ${lineFor(p)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: p.needsPhotoGate
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: p.needsPhotoGate
+                            ? context.colors.textPrimary
+                            : context.colors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                if (needsPhoto) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '카드 좌상단 카메라로 그 아이를 직접 촬영해주세요.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.colors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

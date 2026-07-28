@@ -165,9 +165,29 @@ class MyPet {
   final String role; // owner / co_guardian
   final bool isIdentityVerified; // AI 인증 기준 사진 등록 여부 (0019)
   final int matchCount; // 개체 일치 누적 횟수 (AI 매칭)
-  final int trustScore; // 약속 완료+평가로 쌓인 신뢰도. >=3 이면 사진 인증 생략.
+  final int trustScore; // 약속 완료+평가로 쌓인 신뢰도(배지용 — 사진 게이트와 무관)
 
-  bool get isTrusted => trustScore >= 3;
+  /// 이 펫으로 올린 검증 카테고리(산책·돌봄·분양) 게시글 누적 수
+  /// (`pets.verify_post_count`). 게시글을 지워도 줄지 않는다.
+  final int verifyPostCount;
+
+  /// 촬영 인증을 요구하는 게시글 순번 — 서버 `app.needs_photo_gate` 와 같은 규칙.
+  /// 첫 글에서 실존을 확인하고, 4·10번째에 표본 재확인. 그 뒤로는 요구하지 않는다.
+  static const List<int> photoGatePostNos = [1, 4, 10];
+
+  /// 지금 쓰는 글이 이 펫의 몇 번째 검증 카테고리 글인지(1부터).
+  int get nextPostNo => verifyPostCount + 1;
+
+  /// 이번 글에 촬영 인증이 필요한가.
+  bool get needsPhotoGate => photoGatePostNos.contains(nextPostNo);
+
+  /// 다음으로 인증을 요구하는 글 순번 — 셋을 다 마쳤으면 null.
+  int? get nextGatePostNo {
+    for (final no in photoGatePostNos) {
+      if (no > nextPostNo) return no;
+    }
+    return null;
+  }
 
   const MyPet({
     required this.id,
@@ -177,5 +197,6 @@ class MyPet {
     this.isIdentityVerified = false,
     this.matchCount = 0,
     this.trustScore = 0,
+    this.verifyPostCount = 0,
   });
 }

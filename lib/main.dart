@@ -30,6 +30,7 @@ import 'services/facility_repository.dart';
 import 'services/facility_review_repository.dart';
 import 'services/keyboard_barrier.dart';
 import 'services/local_notice_service.dart';
+import 'services/observability.dart';
 import 'services/pet_repository.dart';
 import 'services/push_service.dart';
 import 'services/realtime_service.dart';
@@ -122,7 +123,9 @@ Future<void> main() async {
   // 로그인 상태면 realtime 재인증 + 알림 실시간 구독(벨/목록/채팅 목록 라이브 갱신).
   if (SessionManager.instance.isLoggedIn) RealtimeService.instance.start();
 
-  runApp(const PawMateApp());
+  // runApp 을 직접 부르지 않는다 — 오류 보고를 먼저 세운 뒤 앱을 띄운다.
+  // (SENTRY_DSN 미설정이면 종전과 동일하게 곧바로 runApp — Observability 참고)
+  await Observability.bootstrap(const PawMateApp());
 
   // 웹도 푸시를 쓴다(Phase D) — 서비스워커(web/firebase-messaging-sw.js) + VAPID.
   // iOS Safari 는 **홈 화면에 추가(PWA 설치)한 상태에서만** 수신한다. 일반 탭에서는

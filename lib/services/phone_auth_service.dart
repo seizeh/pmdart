@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'error_reporter.dart';
+
 /// 전화 인증코드 발급/검증 서비스.
 ///
 /// 실제 코드 생성·SMS 발송·검증은 모두 Supabase Edge Function
@@ -29,7 +31,9 @@ class PhoneAuthService {
       );
     } on FunctionException catch (e) {
       return PhoneCodeResult.fromFunctionException(e);
-    } catch (_) {
+    } catch (e, st) {
+      // SMS 발송 실패는 가입 자체를 막는다 — 조용히 지나가면 안 된다.
+      ErrorReporter.userFacing(e, where: 'phoneAuth.sendCode', stackTrace: st);
       return const PhoneCodeResult(ok: false, errorCode: 'network_error');
     }
   }
@@ -44,7 +48,12 @@ class PhoneAuthService {
         params: {'p_username': username},
       );
       return UsernameCheckResult(ok: true, available: res == true);
-    } catch (_) {
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'phoneAuth.checkUsername',
+        why: '중복확인 실패 시 화면이 "확인 불가" 로 폴백하고 가입은 서버가 최종 검증',
+      );
       return const UsernameCheckResult(ok: false);
     }
   }
@@ -102,7 +111,12 @@ class PhoneAuthService {
       final detail = e.details;
       final code = detail is Map ? detail['error'] as String? : null;
       return ResetPasswordResult(ok: false, errorCode: code ?? 'reset_failed');
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'phoneAuth.resetPassword',
+        stackTrace: st,
+      );
       return const ResetPasswordResult(ok: false, errorCode: 'network_error');
     }
   }
@@ -139,7 +153,12 @@ class PhoneAuthService {
         ok: false,
         errorCode: err ?? 'lite_signup_failed',
       );
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'phoneAuth.liteSignup',
+        stackTrace: st,
+      );
       return const LiteSignupResult(ok: false, errorCode: 'network_error');
     }
   }
@@ -165,7 +184,12 @@ class PhoneAuthService {
         verified: false,
         errorCode: errorCode ?? 'verify_failed',
       );
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'phoneAuth.verifyCode',
+        stackTrace: st,
+      );
       return const PhoneVerifyResult(
         verified: false,
         errorCode: 'network_error',

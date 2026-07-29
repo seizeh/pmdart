@@ -53,4 +53,23 @@ abstract final class Env {
     defaultValue:
         'BAvGbYzuiBHUJCDSanC43cgKrt4gRMUwqHtm25RjsC93znXwpcO9xlIdG5U9A1CtjuBwMITyPzaNLWygkifNJZc',
   );
+
+  /// Sentry DSN — 오류 리포팅 전송지(`docs/error-policy.md`).
+  ///
+  /// DSN 은 공개돼도 되는 값이다(이벤트를 '보낼' 수만 있고 읽지는 못한다). 그래도
+  /// **기본값을 두지 않는다** — 개발·테스트 실행이 운영 프로젝트로 이벤트를 흘리면
+  /// 신호가 잡음에 묻힌다. jusoApiKey 와 같은 이유의 스위치다.
+  ///
+  /// 비어 있으면 Sentry 초기화를 통째로 건너뛴다(Observability.bootstrap).
+  static const sentryDsn = String.fromEnvironment('SENTRY_DSN');
+
+  /// 이벤트를 나눌 환경 이름 — Sentry 대시보드에서 필터에 쓴다.
+  static const sentryEnvironment = String.fromEnvironment(
+    'SENTRY_ENVIRONMENT',
+    defaultValue: 'development',
+  );
+
+  /// 릴리스 식별자(`pawmate@2.0.0+6` 형태). 비우면 Sentry 가 알아서 붙인다.
+  /// CI 에서 `--dart-define=APP_RELEASE=pawmate@$(버전)` 로 주입한다.
+  static const appRelease = String.fromEnvironment('APP_RELEASE');
 }

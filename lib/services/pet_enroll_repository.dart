@@ -24,14 +24,18 @@ class PetEnrollResult {
         return '실제 반려동물이 또렷이 보이게 다시 촬영해주세요';
       case 'not_consistent_pet':
         return '영상에 여러 동물이 보여요. 한 마리만 나오게 다시 촬영해주세요';
+      case 'frames_not_from_video':
+        return '영상 확인에 실패했어요. 처음부터 다시 촬영해주세요';
       case 'species_mismatch':
         return '등록한 종과 영상 속 동물이 달라요. 종(강아지/고양이)을 확인해주세요';
       case 'too_few_frames':
         return '영상이 너무 짧아요. 더 길게(약 5초) 다시 촬영해주세요';
       case 'ai_unavailable':
         return 'AI 사용량이 많아 잠시 지연되고 있어요. 잠시 후 다시 시도해주세요';
+      // 원인은 길이가 아니라 해상도·비트레이트(촬영 화질 제한 없음) — "짧게
+      // 다시" 류의 사용자가 실행 불가능한 지시를 주지 않는다.
       case 'video_too_large':
-        return '영상이 너무 커요. 더 짧게 다시 촬영해주세요';
+        return '영상 용량이 커서 처리하지 못했어요. 잠시 후 다시 시도하거나 고객센터로 문의해주세요';
       default:
         return '신원 인증에 실패했어요. 다시 시도해주세요';
     }

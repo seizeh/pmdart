@@ -511,10 +511,117 @@ Firebase 가 없다며 `[core/no-app]` 로 던진다. 그 참조가 로그인 �
 - 채팅 탭 자리·글쓰기 FAB 등 앱 전용 기능 진입 시 동일 다이얼로그
 - 상단 스마트 배너(선택) — 모바일 브라우저에서만
 
-### Phase D — 선택
+### Phase D — 웹 푸시 ✅ 구현됨 (2026-07-28)
 
-- FCM 웹 푸시(서비스워커 + VAPID). iOS Safari 는 PWA 설치 상태에서만 수신
-- PWA `manifest.json` 정비
+FCM 웹 푸시. **네이티브 경로는 건드리지 않았다** — 같은 `send-push` 가 같은 토큰
+필드로 나가고, 플랫폼 블록만 하나 늘었다.
+
+| 구간 | 담당 |
+|---|---|
+| 토큰 발급 | `PushService.registerToken()` → `getToken(vapidKey:)` |
+| 백그라운드 표시 | `web/firebase-messaging-sw.js` (SDK 가 자동 표시) |
+| 탭 라우팅 | 같은 SW 의 `notificationclick` → `webpush.fcm_options.link` |
+| 발송 | pmdb `send-push` — `webpush` 블록 추가 |
+
+구현 지점: `web/firebase-messaging-sw.js`, `web/firebase-sdk.js`(신설),
+`web/index.html`, `web/_headers`, `lib/env.dart`, `lib/main.dart`,
+`lib/services/push_service.dart`, `lib/utils/firebase_web_sdk*.dart`,
+pmdb `migrations/20260728180000_device_tokens_web_platform.sql`,
+pmdb `functions/send-push/index.ts`.
+
+#### 함정 1 — CSP 가 Firebase SDK 를 막는다 (진단에 가장 오래 걸림)
+
+`firebase_core_web` 은 SDK 를 gstatic 에서 `<script src>` 로 가져오지 **않는다**.
+**인라인 `<script>`** 를 만들어 head 에 넣고 그 안에서 `import(gstatic…)` 한다.
+우리 `script-src` 에는 `'unsafe-inline'` 이 없으므로 그 인라인이 실행되지 않고,
+트리거 함수가 정의되지 않아 초기화가 이렇게 죽는다:
+
+```
+푸시 초기화 건너뜀: Error: _this[method] is not a function
+```
+
+**증상만으로는 CSP 가 원인이라는 게 전혀 드러나지 않는다** — Trusted Types 정책은
+정상 생성되고(콘솔에 로그까지 남는다), gstatic 요청은 0건이고, 에러는 난독화된
+interop 메시지다. 릴리스 빌드로는 더 알아볼 수 없어 `--profile` 빌드로 이름을
+살려야 실제 메시지가 나온다.
+
+해법은 `'unsafe-inline'` 을 여는 것이 **아니다**(그러면 CSP 를 세운 의미가 없다).
+`_initializeCore` 가 `globalContext['firebase_core'] != null` 이면 주입을 건너뛰므로,
+**SDK 를 우리가 먼저 로드해 그 전역을 채운다**(`web/firebase-sdk.js`). 그 파일은
+외부 파일이라 `'self'` 로 실행되고, 안의 `import()` 는 `script-src` 의
+`www.gstatic.com` 이 받는다.
+
+⚠️ `main.dart` 는 `Firebase.initializeApp` **전에** 그 프라미스를 기다려야 한다
+(`ensureFirebaseSdkReady`). 안 기다리면 CanvasKit 이 빨리 뜬 경우 초기화가 선로드를
+앞질러 **다시 막힌 주입 경로로 샌다** — 될 때도 있고 안 될 때도 있는 형태로 나온다.
+
+⚠️ `web/firebase-sdk.js` 의 전역 이름·SDK 버전은 `firebase_core_web` 의 규약이다
+(`firebase_<service.override ?? name>`, `supportedFirebaseJsSdkVersion`).
+플러그인을 올릴 때 같이 맞춰야 하고, 어긋나면 위 증상으로 되돌아간다.
+
+#### 함정 2 — `device_tokens.platform` CHECK
+
+종전 제약이 `('ios','android')` 뿐이라 `'web'` 은 **INSERT 자체가 거부**된다.
+`register_device_token` 은 platform 을 검증하지 않고 그대로 넣으므로, 클라이언트가
+아무리 맞아도 조용히 실패한다(`notification_type` CHECK 를 빠뜨려 트리거가 조용히
+삼키던 것과 같은 부류). 마이그레이션 `20260728180000` 이 짝이다.
+
+#### 스위치
+
+`Env.webPushVapidKey` 가 비면 **웹 푸시를 통째로 건너뛴다**(`storeUrl*` 관용구).
+브라우저 알림 권한 팝업만 뜨고 토큰은 못 받는 어중간한 상태를 만들지 않기 위해서다.
+되돌리려면 이 값을 비우고 재배포하면 된다.
+
+#### 검증 결과 (2026-07-28~29)
+
+프로덕션(`pawmate-web.pages.dev`)에서 로그인 상태로:
+
+| 항목 | 결과 |
+|---|---|
+| SDK 선로드 · Firebase 초기화 | ✅ `getApps() == 1` |
+| 서비스워커 | ✅ `activated`, scope `/firebase-cloud-messaging-push-scope` |
+| 푸시 구독 | ✅ endpoint `fcm.googleapis.com` |
+| 서버 토큰 등록 | ✅ `platform='web'`, `is_active=true` |
+| 발송 | ✅ `push_status='sent'`, `push_error=null`, 토큰 살아 있음 |
+
+#### ⚠️ 남은 결함 — 탭이 열려 있으면 알림이 안 보인다
+
+후기·댓글로 실제 알림을 만들었는데 **화면에 아무것도 뜨지 않았다.** 서버는 정상
+발송했고(위 표) FCM 도 토큰을 거부하지 않았다(`is_active` 유지). 표시 경로 자체도
+멀쩡하다 — `registration.showNotification()` 을 직접 부르면 잘 뜬다.
+
+원인은 **포그라운드 라우팅**이다. Firebase JS SDK 는 **보이는 클라이언트(탭)가 있으면**
+메시지를 SW 의 `onBackgroundMessage` 가 아니라 **페이지의 `onMessage` 로 보내고,
+알림을 직접 표시하지 않는다.** 현재 코드는 웹에서 `onMessage` 를 구독하지 않으므로
+그대로 버려진다. 즉 **탭을 닫거나 다른 창에 가 있을 때만 알림이 온다.**
+
+네이티브는 이 구간을 realtime 이 맡는다(`_showNotificationBanner` →
+`LocalNoticeService`). 그런데 `LocalNoticeService` 는 `isAndroid` 게이트라 웹에서
+no-op 이다. 그래서 웹 포그라운드에는 **표시 주체가 아무도 없다.**
+
+고치는 두 가지 방향:
+
+1. **realtime 경로에 웹 구현을 붙인다** — `LocalNoticeService` 가 웹에서
+   `registration.showNotification()` 을 쓰게. 기존 억제 규칙("보고 있는 채팅방은
+   조용히" 등)을 그대로 물려받는 게 장점. 구조상 이쪽이 맞다.
+2. `FirebaseMessaging.onMessage` 를 웹에서 구독해 직접 표시. 간단하지만 억제 규칙이
+   realtime 쪽과 갈라진다.
+
+어느 쪽이든 **알림 탭 시 라우팅**을 정해야 한다 — SW 로 띄우면 클릭이 SW 의
+`notificationclick` 으로 가고 `c.navigate(link)` 는 페이지를 새로 로드한다(이미 열린
+탭인데 리로드). 페이지 레벨 `new Notification()` 은 `onclick` 을 페이지에서 받아
+인앱 라우팅이 가능하지만 Android Chrome 에서는 쓸 수 없다.
+
+#### 알아둘 것
+
+- **iOS Safari 는 홈 화면에 추가(PWA 설치)한 상태에서만** 수신한다. 일반 탭에서는
+  권한 요청 자체가 실패하는데 `PushService` 가 예외를 삼키므로 무해하다.
+- 웹 딥링크는 `/p/<postId>` 하나뿐이다(`web_link.dart`). 채팅·지도 알림은 눌러도
+  웹앱 루트로 간다 — 웹에 그 화면이 없으므로 의도한 동작이다. 없는 경로로 보내면
+  SPA 폴백이 200 을 주고 빈 화면이 된다.
+- 주소가 `*.pages.dev` 인 것은 **무관하다**. 웹 푸시는 오리진 단위라 커스텀 도메인이
+  아니어도 정상 동작한다(실측으로 확인).
+- PWA `manifest.json` 정비는 Phase B6 에서 이미 했다.
 
 ### Phase E — 배포 ✅ 완료 (2026-07-26)
 

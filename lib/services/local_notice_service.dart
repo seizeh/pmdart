@@ -4,14 +4,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../utils/platform_info.dart';
+import '../utils/web_notification.dart';
 
-/// 포그라운드 OS 알림(Android 전용) — 앱이 켜져 있을 때도 백그라운드 푸시와
+/// 포그라운드 OS 알림(Android · **웹**) — 앱이 켜져 있을 때도 백그라운드 푸시와
 /// 동일한 형태의 시스템 알림으로 보여준다(기존 하단 토스트 배너 대체).
 ///
 /// 표시는 realtime 알림 구독(main.dart) 경로가 호출한다 — FCM 포그라운드가
 /// 아니라 realtime 을 쓰는 이유(시뮬레이터·토큰 미등록에서도 도착)와
 /// "보고 있는 채팅방은 조용히" 같은 건별 억제 규칙은 기존과 동일하다.
 /// 백그라운드/종료 상태 표시는 그대로 서버 notification 페이로드 → OS 담당.
+///
+/// **웹도 이 경로가 필요하다.** Firebase JS SDK 는 보이는 탭이 있으면 메시지를
+/// 서비스워커가 아니라 페이지로 보내고 **알림을 표시하지 않는다** — 그래서 웹
+/// 포그라운드에는 표시 주체가 아무도 없었다(docs/web-port.md Phase D). 여기에
+/// 붙이면 "보고 있는 채팅방은 조용히" 같은 기존 억제 규칙을 그대로 물려받는다.
 ///
 /// ⚠️ iOS 에서는 이 플러그인을 초기화하지 않는다 — UNUserNotificationCenter
 /// 델리게이트를 가로채 FCM 의 포그라운드 표시/알림 탭 라우팅(onMessageOpenedApp)
@@ -36,7 +42,13 @@ class LocalNoticeService {
   );
 
   Future<void> init() async {
-    if (_inited || !isAndroid) return;
+    if (_inited) return;
+    // 웹은 플러그인이 아니라 브라우저 Notification 을 쓴다 — 초기화할 것이 없다.
+    if (kIsWeb) {
+      _inited = true;
+      return;
+    }
+    if (!isAndroid) return;
     _inited = true;
     try {
       // 권한 요청은 FCM(requestPermission)이 이미 담당 — 여기선 요청하지 않는다.
@@ -66,6 +78,18 @@ class LocalNoticeService {
   }) async {
     if (!_inited) return; // iOS — FCM OS 배너가 담당
     if ((title ?? '').isEmpty && (body ?? '').isEmpty) return;
+    if (kIsWeb) {
+      await showWebNotification(
+        title: title,
+        body: body,
+        // 같은 채팅방 연속 메시지는 갱신, 그 외는 개별 표시(아래 android 와 동일 규칙).
+        tag: (type == 'chat_message' && resourceId != null)
+            ? 'chat:$resourceId'
+            : 'n:${_seq++}',
+        onClick: () => onTap?.call(type, resourceType, resourceId),
+      );
+      return;
+    }
     try {
       await _plugin.show(
         // 같은 채팅방 연속 메시지는 갱신, 그 외는 개별 표시.

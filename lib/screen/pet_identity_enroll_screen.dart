@@ -29,7 +29,10 @@ class PetIdentityEnrollScreen extends StatefulWidget {
 
 class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
   // 전 구간 분산 샘플링(앞 몰림 방지). 영상이 짧으면 마지막 프레임으로 클램프됨.
-  static const _frameTimesMs = [800, 2500, 4000, 5500];
+  // 정수 초 격자 고정 — Gemini 는 영상을 1fps 로 샘플링하므로, 어중간한 시각
+  // (예: 800ms)의 프레임은 서버 frames_from_video 판정에서 "영상에 없는 장면"
+  // 오탐을 만들 수 있다. 베타 측정(pmdb #135) 중에는 변경 금지(측정 오염).
+  static const _frameTimesMs = [1000, 2000, 3000, 4000];
 
   bool _busy = false;
   String? _status;

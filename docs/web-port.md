@@ -584,9 +584,9 @@ interop 메시지다. 릴리스 빌드로는 더 알아볼 수 없어 `--profile
 | 서버 토큰 등록 | ✅ `platform='web'`, `is_active=true` |
 | 발송 | ✅ `push_status='sent'`, `push_error=null`, 토큰 살아 있음 |
 
-#### ⚠️ 남은 결함 — 탭이 열려 있으면 알림이 안 보인다
+#### 함정 3 — 탭이 열려 있으면 알림이 안 보인다 ✅ 해결 (2026-07-29)
 
-후기·댓글로 실제 알림을 만들었는데 **화면에 아무것도 뜨지 않았다.** 서버는 정상
+배포 후 후기·댓글로 실제 알림을 만들었는데 **화면에 아무것도 뜨지 않았다.** 서버는 정상
 발송했고(위 표) FCM 도 토큰을 거부하지 않았다(`is_active` 유지). 표시 경로 자체도
 멀쩡하다 — `registration.showNotification()` 을 직접 부르면 잘 뜬다.
 
@@ -599,18 +599,22 @@ interop 메시지다. 릴리스 빌드로는 더 알아볼 수 없어 `--profile
 `LocalNoticeService`). 그런데 `LocalNoticeService` 는 `isAndroid` 게이트라 웹에서
 no-op 이다. 그래서 웹 포그라운드에는 **표시 주체가 아무도 없다.**
 
-고치는 두 가지 방향:
+**`FirebaseMessaging.onMessage` 를 따로 구독하는 대신 realtime 경로에 웹 구현을
+붙였다**(`LocalNoticeService` + `utils/web_notification*.dart`). 이유:
 
-1. **realtime 경로에 웹 구현을 붙인다** — `LocalNoticeService` 가 웹에서
-   `registration.showNotification()` 을 쓰게. 기존 억제 규칙("보고 있는 채팅방은
-   조용히" 등)을 그대로 물려받는 게 장점. 구조상 이쪽이 맞다.
-2. `FirebaseMessaging.onMessage` 를 웹에서 구독해 직접 표시. 간단하지만 억제 규칙이
-   realtime 쪽과 갈라진다.
+- **기존 억제 규칙을 그대로 물려받는다** — "보고 있는 채팅방은 조용히",
+  "`resumed` 일 때만"
+- **이중 알림이 없다** — 탭이 숨으면 `lifecycleState != resumed` 라 이쪽이 스스로
+  빠지고 SW 가 받는다. 포그라운드/백그라운드 분담이 자연스럽게 유지된다
 
-어느 쪽이든 **알림 탭 시 라우팅**을 정해야 한다 — SW 로 띄우면 클릭이 SW 의
-`notificationclick` 으로 가고 `c.navigate(link)` 는 페이지를 새로 로드한다(이미 열린
-탭인데 리로드). 페이지 레벨 `new Notification()` 은 `onclick` 을 페이지에서 받아
-인앱 라우팅이 가능하지만 Android Chrome 에서는 쓸 수 없다.
+표시는 SW 의 `showNotification` 이 아니라 **페이지 레벨 `Notification`** 이다.
+클릭을 페이지에서 받아야 인앱 라우팅(`onTap` → `openFromPush`)이 되기 때문 — SW 로
+띄우면 클릭이 `notificationclick` 으로 가고 이미 열린 탭을 `navigate()` 로 **리로드**
+하게 된다. 대신 페이지 레벨 생성자는 **Android Chrome 에서 던지므로** 조용히 넘긴다
+(포그라운드라 사용자가 이미 앱을 보고 있고, 백그라운드는 어차피 SW 담당).
+
+⚠️ 이 경로는 **realtime 이 살아 있어야** 동작한다. 웹에서 realtime 을 끄거나
+`connect-src` 에서 `wss://…supabase.co` 를 빼면 포그라운드 알림이 조용히 사라진다.
 
 #### 알아둘 것
 

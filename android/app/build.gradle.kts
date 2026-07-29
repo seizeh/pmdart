@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("kotlin-android")
     id("com.google.gms.google-services") // FCM(google-services.json 적용)
+    id("com.google.firebase.crashlytics") // 릴리스 매핑 파일 업로드(난독화 심볼)
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }

@@ -22,6 +22,7 @@ plugins {
     id("com.android.application") version "8.11.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
     id("com.google.gms.google-services") version "4.4.2" apply false // FCM(google-services.json)
+    id("com.google.firebase.crashlytics") version "3.0.6" apply false // 크래시 리포팅(#157)
 }
 
 include(":app")

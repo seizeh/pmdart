@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -61,6 +63,28 @@ Future<void> main() async {
       statusBarBrightness: Brightness.light, // iOS
     ),
   );
+
+  // 크래시 리포팅(Crashlytics) — 베타 진입 조건(#157): 사용자가 겪은 실패를
+  // 수집한다. 웹은 Crashlytics 미지원이라 제외(웹 Firebase 는 _setupPush 경로).
+  // 초기화 실패가 앱 시작을 막으면 안 되므로 _setupPush 와 같은 원칙으로 삼킨다.
+  if (!kIsWeb) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      // 디버그 빌드의 개발 크래시가 베타 데이터를 오염시키지 않게 릴리스만 수집.
+      await FirebaseCrashlytics.instance
+          .setCrashlyticsCollectionEnabled(!kDebugMode);
+      FlutterError.onError =
+          FirebaseCrashlytics.instance.recordFlutterFatalError;
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+    } catch (e) {
+      debugPrint('Crashlytics 초기화 건너뜀(Firebase 미설정?): $e');
+    }
+  }
 
   // 저장된 로그인 세션 복원
   await SessionManager.instance.load();
@@ -334,9 +358,12 @@ Future<void> _setupPush() async {
     // 이 대기를 빼면 초기화가 로드를 앞질러 플러그인의 인라인 주입 경로로 새고,
     // 그 인라인은 CSP 에 막혀 있어 푸시가 조용히 죽는다.
     await ensureFirebaseSdkReady();
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    // 네이티브는 main() 의 Crashlytics 경로에서 이미 초기화됨 — 중복 호출 방지.
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
     PushService.instance.onOpen = (type, resourceType, resourceId) {
       unawaited(openFromPush(type, resourceType, resourceId));
     };

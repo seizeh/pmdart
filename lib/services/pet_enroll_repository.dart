@@ -24,6 +24,8 @@ class PetEnrollResult {
         return '실제 반려동물이 또렷이 보이게 다시 촬영해주세요';
       case 'not_consistent_pet':
         return '영상에 여러 동물이 보여요. 한 마리만 나오게 다시 촬영해주세요';
+      case 'frames_not_from_video':
+        return '영상 확인에 실패했어요. 처음부터 다시 촬영해주세요';
       case 'species_mismatch':
         return '등록한 종과 영상 속 동물이 달라요. 종(강아지/고양이)을 확인해주세요';
       case 'too_few_frames':

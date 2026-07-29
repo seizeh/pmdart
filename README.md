@@ -65,6 +65,21 @@ flowchart LR
 - **모션**: `lib/motion/` 의 스프링 프리미티브(Pressable·Entrance·CollapseRoute 등)를
   전 화면이 공유 — 카드 확장/축소, 쓸어내려 닫기 등 일관된 전환 언어.
 
+### 설계 결정 기록 — [docs/adr/](docs/adr/)
+
+왜 그렇게 만들었는지, 그리고 **그 선택의 대가로 무엇을 밟았는지** 를 10건으로 남겼다.
+기능 목록보다 이쪽이 코드베이스를 정확히 설명한다.
+
+| 결정 | 무엇을 밟았나 |
+|---|---|
+| [Supabase Auth 대신 커스텀 인증](docs/adr/0001-custom-phone-auth.md) | 무상태 JWT 라 정지시킨 사용자가 30일간 계속 접근됐다 |
+| [불변식은 DB 에서 강제](docs/adr/0002-invariants-in-db.md) | 함수는 막고 있었지만 PostgREST 직접 INSERT 로 뚫렸다 |
+| [DEFINER 객체에 쓰기 경로 금지](docs/adr/0003-definer-view-write-paths.md) | 공개 anon 키만으로 로그인 없이 관리자 승격이 가능했다 |
+| [마이그레이션 리플레이 CI](docs/adr/0005-db-change-management.md) | 켜자마자 재정의로 유실된 알림 필터가 잡혔다 |
+| [`dart:io` CI 금지](docs/adr/0006-web-port-dart-io-gate.md) | 웹에서 컴파일은 되는데 런타임에 흰 화면 |
+
+전체 목록과 형식은 [docs/adr/README.md](docs/adr/README.md).
+
 ## 저장소 구조
 
 ```

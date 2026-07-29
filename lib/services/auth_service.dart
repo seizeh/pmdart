@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
+import 'error_reporter.dart';
 import 'push_service.dart';
 import 'realtime_service.dart';
 import 'session.dart';
@@ -36,7 +37,9 @@ class AuthService {
       final detail = e.details;
       final code = detail is Map ? detail['error'] as String? : null;
       return AuthResult(ok: false, errorCode: code ?? 'login_failed');
-    } catch (_) {
+    } catch (e, st) {
+      // 로그인은 첫 관문이라 실패가 곧 이탈이다 — 빈도를 봐야 한다.
+      ErrorReporter.userFacing(e, where: 'auth.login', stackTrace: st);
       return const AuthResult(ok: false, errorCode: 'network_error');
     }
   }
@@ -49,8 +52,12 @@ class AuthService {
     if (r != null) {
       try {
         await _client.functions.invoke('logout', body: {'refresh_token': r});
-      } catch (_) {
-        /* 회수 실패해도 로컬은 정리 */
+      } catch (e) {
+        ErrorReporter.ignored(
+          e,
+          where: 'auth.logout.revoke',
+          why: '서버 회수 실패해도 로컬 세션은 정리한다(토큰은 만료로 무효화)',
+        );
       }
     }
     await SessionManager.instance.clear();
@@ -81,7 +88,8 @@ class AuthService {
       final detail = e.details;
       final code = detail is Map ? detail['error'] as String? : null;
       return AuthResult(ok: false, errorCode: code ?? 'change_failed');
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(e, where: 'auth.changePassword', stackTrace: st);
       return const AuthResult(ok: false, errorCode: 'network_error');
     }
   }

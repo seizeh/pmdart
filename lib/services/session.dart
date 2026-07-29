@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'error_reporter.dart';
 import 'session_store.dart';
 
 /// 로그인된 사용자 정보(JWT 의 sub 에 해당하는 user_id 포함).
@@ -134,7 +135,10 @@ class SessionManager extends ChangeNotifier {
     if (userStr != null) {
       try {
         _user = AuthUser.fromJson(jsonDecode(userStr) as Map);
-      } catch (_) {
+      } catch (e, st) {
+        // 저장된 사용자 JSON 이 깨졌다 = 모델 변경과 저장본이 어긋났다는 뜻.
+        // 로그인 상태가 조용히 풀리는 원인이라 반드시 알아야 한다.
+        ErrorReporter.report(e, where: 'session.restoreUser', stackTrace: st);
         _user = null;
       }
     }
@@ -226,18 +230,29 @@ class SessionManager extends ChangeNotifier {
         // realtime(채팅) 연결도 새 토큰으로 재인증 — 안 하면 8h 후 만료로 끊길 수 있음.
         try {
           unawaited(Supabase.instance.client.realtime.setAuth(_access));
-        } catch (_) {
-          /* realtime 미연결 등 */
+        } catch (e) {
+          ErrorReporter.ignored(
+            e,
+            where: 'session.realtimeReauth',
+            why: 'realtime 미연결 — 다음 연결 시 새 토큰으로 붙는다',
+          );
         }
         // notifyListeners 안 함 — 로그인 상태 변화 없음(토큰만 교체, 리빌드 불필요).
       } else {
         await _invalidate(); // 예상 밖 응답 → 세션 만료 처리
       }
-    } on FunctionException catch (_) {
+    } on FunctionException catch (e) {
+      // 강제 로그아웃은 사용자가 바로 체감한다 — 빈도가 튀면 서버 쪽 문제다.
+      ErrorReporter.userFacing(e, where: 'session.refresh.rejected');
       await _invalidate(); // 401 invalid_refresh 등 → 강제 로그아웃
-    } catch (_) {
+    } catch (e) {
       // 네트워크 오류: 세션 유지(다음 요청에서 재시도). 기존 access 로 계속 시도.
       // (서버가 이미 회전을 커밋했더라도 rt_rotate 의 유실 복구가 세션을 살린다.)
+      ErrorReporter.ignored(
+        e,
+        where: 'session.refresh',
+        why: '네트워크 오류 — 세션 유지하고 다음 요청에서 재시도',
+      );
     }
   }
 
@@ -252,7 +267,12 @@ class SessionManager extends ChangeNotifier {
       );
     } on FunctionException {
       rethrow; // 401 등 명시적 거절은 재시도 대상 아님
-    } catch (_) {
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'session.refresh.retry',
+        why: '1회 재시도로 흡수 — 실패하면 위에서 다시 잡힌다',
+      );
       await Future.delayed(const Duration(seconds: 1));
       return await Supabase.instance.client.functions.invoke(
         'refresh',
@@ -271,8 +291,13 @@ class SessionManager extends ChangeNotifier {
         await _invalidate();
         return true;
       }
-    } catch (_) {
+    } catch (e) {
       // 네트워크/일시 오류: 무효로 단정하지 않음(오탐 로그아웃 방지).
+      ErrorReporter.ignored(
+        e,
+        where: 'session.aliveCheck',
+        why: '일시 오류를 세션 무효로 단정하면 오탐 로그아웃이 난다',
+      );
     }
     return false;
   }
@@ -294,7 +319,13 @@ class SessionManager extends ChangeNotifier {
               as Map;
       final exp = payload['exp'];
       return exp is int ? exp : null;
-    } catch (_) {
+    } catch (e) {
+      // 만료시각을 못 읽으면 호출부가 '알 수 없음' 으로 다루고 갱신을 시도한다.
+      ErrorReporter.ignored(
+        e,
+        where: 'session.jwtExp',
+        why: '해독 실패 시 호출부가 갱신을 시도하므로 동작에 영향 없음',
+      );
       return null;
     }
   }

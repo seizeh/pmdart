@@ -6,6 +6,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
+import 'error_reporter.dart';
 import 'session.dart';
 
 /// 이미지 선택 + Supabase Storage(media 버킷) 업로드.
@@ -98,8 +99,13 @@ class StorageService {
         mimeType: 'image/jpeg',
         length: out.length,
       );
-    } catch (_) {
-      return file; // 디코드 실패(비-Safari 의 HEIC 등) — 종전 동작 유지
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'storage.transcodeHeic',
+        why: '디코드 실패(비-Safari 의 HEIC 등) — 원본을 그대로 올린다',
+      );
+      return file;
     }
   }
 
@@ -231,8 +237,12 @@ class StorageService {
         );
         thumbUrl = up.url;
       }
-    } catch (_) {
-      /* 포스터 없이 진행 — 표시 쪽 폴백 */
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'storage.videoPoster',
+        why: '포스터 생성 실패 — 표시 쪽이 기본 썸네일로 폴백한다',
+      );
     }
 
     return UploadedVideo(
@@ -313,7 +323,13 @@ class StorageService {
       return await _c.storage
           .from('business-docs')
           .createSignedUrl(path, expiresIn);
-    } catch (_) {
+    } catch (e, st) {
+      // 사업자 서류 열람 실패 — 관리자 심사가 막힌다.
+      ErrorReporter.report(
+        e,
+        where: 'storage.signedUrl.businessDocs',
+        stackTrace: st,
+      );
       return null;
     }
   }

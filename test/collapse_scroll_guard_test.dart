@@ -98,7 +98,10 @@ void main() {
     expect(progress!.value, 1.0);
 
     // 본문을 300px 내려 읽던 상태로 만든다.
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -300));
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -300),
+    );
     await tester.pumpAndSettle();
     expect(innerPosition(tester).pixels, greaterThan(200));
 
@@ -120,7 +123,10 @@ void main() {
 
     // 100px 만 내려두고, 그보다 훨씬 큰 당김 한 번 — 스크롤이 소진돼
     // 최상단에 닿아도 이 손가락으론 축소가 시작되면 안 된다(래치).
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -100));
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -100),
+    );
     await tester.pumpAndSettle();
 
     final g = await tester.startGesture(const Offset(400, 300));

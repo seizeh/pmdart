@@ -320,7 +320,7 @@ class CollapseVetoes extends InheritedWidget {
 /// CollapsibleView 밖이면 무동작.
 class CollapseScrollGuard extends StatefulWidget {
   final Widget Function(BuildContext context, ScrollController controller)
-      builder;
+  builder;
   const CollapseScrollGuard({super.key, required this.builder});
 
   @override
@@ -555,7 +555,8 @@ class _CollapsibleViewState extends State<CollapsibleView>
       // 본문이 최상단에 닿아도 그 손가락으론 축소하지 않는다(한 제스처 한 동작 —
       // 도착과 동시에 화면이 닫히는 과민함 방지). 떼었다 다시 당기면 축소.
       _vetoLatched = _vetoLatched || _vetoes.any((v) => v(_dragStart));
-      final canStart = !_vetoLatched &&
+      final canStart =
+          !_vetoLatched &&
           (widget.dragHandleTest != null
               ? widget.dragHandleTest!(_dragStart)
               : _atTop);

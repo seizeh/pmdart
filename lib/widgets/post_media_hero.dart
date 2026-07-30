@@ -862,9 +862,14 @@ class BlobHeroContent extends StatelessWidget {
               final body = expanded
                   ? ConstrainedBox(
                       constraints: BoxConstraints(maxHeight: expandedMaxHeight),
-                      child: SingleChildScrollView(
-                        physics: const ClampingScrollPhysics(),
-                        child: text,
+                      // 스크롤 우선 — 본문이 최상단으로 돌아오기 전까지는 아래로
+                      // 당겨도 카드 축소가 시작되지 않는다(CollapseScrollGuard).
+                      child: CollapseScrollGuard(
+                        builder: (context, controller) => SingleChildScrollView(
+                          controller: controller,
+                          physics: const ClampingScrollPhysics(),
+                          child: text,
+                        ),
                       ),
                     )
                   : text;

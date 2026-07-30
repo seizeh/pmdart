@@ -290,6 +290,76 @@ class CollapseProgress extends InheritedWidget {
       progress != oldWidget.progress;
 }
 
+/// 축소 시작 거부(veto) 판정 — 포인터 다운의 전역 좌표를 받아 true 면 축소 금지.
+typedef CollapseVeto = bool Function(Offset globalPosition);
+
+/// 하위 스크롤러의 축소 거부 등록부 — [CollapsibleView] 가 제공한다.
+///
+/// CollapsibleView 는 제스처 아레나 밖의 raw [Listener] 로 당김을 보므로, 화면
+/// 안에 자체 스크롤러(펼친 본문 패널 등)가 있으면 내부 스크롤과 축소가 **동시에**
+/// 반응한다(본문이 움직이면서 화면도 닫힘). 그런 스크롤러는 [CollapseScrollGuard]
+/// 로 감싸 "이 지점에서 시작한 당김은 최상단 전까지 내가 스크롤로 소비한다"를
+/// 알린다. 등록부 자체는 동일 인스턴스를 유지하므로 의존 리빌드가 없다.
+class CollapseVetoes extends InheritedWidget {
+  final Set<CollapseVeto> vetoes;
+  const CollapseVetoes({super.key, required this.vetoes, required super.child});
+
+  static Set<CollapseVeto>? of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<CollapseVetoes>()?.vetoes;
+
+  @override
+  bool updateShouldNotify(CollapseVetoes oldWidget) => false;
+}
+
+/// 자체 스크롤러(펼친 본문 등)에 **스크롤 우선** 규칙을 적용하는 래퍼.
+///
+/// [builder] 가 받은 컨트롤러를 스크롤러에 물리면, 스크롤에 쓰인 제스처는
+/// 끝까지 스크롤 전용이 된다 — 본문이 최상단에 닿아도 그 손가락으론 축소가
+/// 시작되지 않고, **떼었다 다시 당겨야** 축소된다(도착과 동시에 닫히는 과민함
+/// 방지). 진입 문턱은 CollapsibleView 의 기존 판정을 그대로 탄다.
+/// CollapsibleView 밖이면 무동작.
+class CollapseScrollGuard extends StatefulWidget {
+  final Widget Function(BuildContext context, ScrollController controller)
+      builder;
+  const CollapseScrollGuard({super.key, required this.builder});
+
+  @override
+  State<CollapseScrollGuard> createState() => _CollapseScrollGuardState();
+}
+
+class _CollapseScrollGuardState extends State<CollapseScrollGuard> {
+  final _controller = ScrollController();
+  Set<CollapseVeto>? _registry;
+
+  bool _veto(Offset globalPosition) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached) return false;
+    final local = box.globalToLocal(globalPosition);
+    if (!(Offset.zero & box.size).contains(local)) return false;
+    return _controller.hasClients && _controller.position.pixels > 0;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final r = CollapseVetoes.of(context);
+    if (!identical(r, _registry)) {
+      _registry?.remove(_veto);
+      _registry = r?..add(_veto);
+    }
+  }
+
+  @override
+  void dispose() {
+    _registry?.remove(_veto);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _controller);
+}
+
 /// 확장 전환이 안착(진행도 1)했을 때만 나타나는 래퍼 — 카드에 없는 요소(앱바
 /// 오버레이 아이콘 등)가 카드 크로스페이드 중간에 불쑥 나타나 모프가 2단계로
 /// 끊겨 보이는 것을 막는다. 전환 중·축소 중에는 페이드아웃(카드 미러 우선).
@@ -417,6 +487,8 @@ class _CollapsibleViewState extends State<CollapsibleView>
 
   bool _dragging = false; // 축소 드래그 중(이 동안 스크롤 잠금)
   bool _settling = false; // 손 뗌→축소 완주 중(추가 입력 무시, 곧 pop)
+  final Set<CollapseVeto> _vetoes = {}; // 하위 스크롤러의 축소 거부(CollapseVetoes)
+  bool _vetoLatched = false; // 이번 제스처가 하위 스크롤에 쓰였음(끝까지 축소 금지)
   Offset _dragStart = Offset.zero;
   Offset _drag = Offset.zero; // 축소 UI 이동량(손가락 따라)
 
@@ -466,6 +538,7 @@ class _CollapsibleViewState extends State<CollapsibleView>
   void _onPointerDown(PointerDownEvent e) {
     if (_settling) return;
     _dragStart = e.position;
+    _vetoLatched = false; // 거부는 제스처 단위 — 새 포인터에서 재판정
     _velocity = VelocityTracker.withKind(e.kind)
       ..addPosition(e.timeStamp, e.position);
   }
@@ -477,9 +550,15 @@ class _CollapsibleViewState extends State<CollapsibleView>
       final d = e.position - _dragStart;
       // 축소 진입 조건: 핸들 영역이 지정됐으면 그 안에서 시작한 드래그만,
       // 아니면 기존처럼 스크롤 최상단에서. 이후 아래로(세로 우세) 끌기 시작.
-      final canStart = widget.dragHandleTest != null
-          ? widget.dragHandleTest!(_dragStart)
-          : _atTop;
+      // 하위 스크롤러가 거부(veto)하면 시작하지 않는다 — 본문 스크롤 우선.
+      // 거부는 **래치**다: 이번 제스처에서 한 번이라도 하위 스크롤이 움직였으면
+      // 본문이 최상단에 닿아도 그 손가락으론 축소하지 않는다(한 제스처 한 동작 —
+      // 도착과 동시에 화면이 닫히는 과민함 방지). 떼었다 다시 당기면 축소.
+      _vetoLatched = _vetoLatched || _vetoes.any((v) => v(_dragStart));
+      final canStart = !_vetoLatched &&
+          (widget.dragHandleTest != null
+              ? widget.dragHandleTest!(_dragStart)
+              : _atTop);
       // 진입 문턱 36px — 최상단에서의 미세한 손떨림/관성으로 축소가 걸리지 않게.
       if (canStart && d.dy > 36 && d.dy > d.dx.abs()) {
         _dragStart = e.position;
@@ -530,9 +609,12 @@ class _CollapsibleViewState extends State<CollapsibleView>
 
   @override
   Widget build(BuildContext context) {
-    final content = CollapseProgress(
-      progress: _cc,
-      child: widget.builder(context, _physics),
+    final content = CollapseVetoes(
+      vetoes: _vetoes,
+      child: CollapseProgress(
+        progress: _cc,
+        child: widget.builder(context, _physics),
+      ),
     );
     if (!_collapsible) return content;
 

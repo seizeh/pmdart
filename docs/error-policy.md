@@ -66,72 +66,89 @@
 
 ## 어디로 가나
 
-| 등급 | 링 버퍼(`recent`) | Sentry |
+| 등급 | 링 버퍼(`recent`) | 서버(`app.client_errors`) |
 |---|---|---|
-| 무시 | ✅ | 브레드크럼(info) — 이벤트 아님 |
-| 사용자 알림 | ✅ | 브레드크럼(warning) — 이벤트 아님 |
-| 리포팅 | ✅ | `captureException` — **이벤트** |
+| 무시 | ✅ | ❌ |
+| 사용자 알림 | ✅ | ❌ |
+| 리포팅 | ✅ | ✅ |
 
-등급을 나눈 이유는 비용이다. 전부 이벤트로 올리면 **지하철에 있는 사용자 한 명이
-무료 쿼터를 다 쓴다.** 무시·사용자알림은 리포트에 **맥락으로** 붙을 때 의미가 있지,
-그 자체가 알림이 될 이유는 없다.
+**리포팅만 서버로 보낸다.** 셋 다 보내면 게스트 한 명이 테이블을 채운다. 무시·사용자알림은
+링 버퍼(최근 50건)에만 남아 앱 안에서 진단할 때 쓴다.
 
-`recent` 링 버퍼(최근 50건)는 전송 여부와 무관하게 항상 쌓인다 — DSN 이 없어도
-앱 안에서 진단할 수 있다.
+### 왜 외부 서비스가 아니라 우리 DB 인가
+
+Sentry 를 붙였다가 되돌렸다. 판단 근거:
+
+- **개인정보처리방침** — Supabase 는 **이미 처리위탁 수탁자**다. 외부 리포팅 서비스를
+  쓰면 수탁자를 추가하고 국외이전을 고지해야 한다(`pmlegal`). 베타 전에 치러야 할 비용이었다.
+- **CSP** — `sentry_flutter` 는 웹에서 `browser.sentry-cdn.com` 의 JS SDK 를 `<script>` 로
+  끼워 넣는다. `script-src` 를 열어야 했다. 우리 DB 는 `connect-src` 에 이미 있다.
+- **관리자 화면** — 이미 있는 관리자 대시보드에 그대로 붙는다.
+
+**잃은 것은 그룹핑·중복제거·릴리스 비교다.** 같은 오류 1,000건이 1,000행이 된다.
+베타 규모(5~10명)에서는 값이 작다고 봤고, 대신 **발생 지점별 집계**로 "어디가 자주
+터지나" 를 본다(`admin_client_error_summary`). 사용자가 늘어 그룹핑이 필요해지면
+`ErrorReporter.sink` 만 갈아끼우면 된다 — 앱 코드는 한 줄도 안 바뀐다.
+
+### 수집 경로
+
+```
+ErrorReporter.report(...)
+  → SupabaseErrorSink
+  → public.record_client_error RPC   (SECURITY DEFINER)
+  → app.client_errors                (30일 보존, cleanup_retention 이 파기)
+```
+
+RPC 는 **`anon` 에게도 열려 있다** — 웹은 비로그인 방문자가 주 진입로라 그들의 오류를
+못 받으면 목적의 절반이 사라진다. 공개 쓰기 엔드포인트가 되므로 넷을 전제로 깔았다.
+
+1. **레이트리밋** — 로그인 30/분, 익명은 식별자가 없어 **전체 합산 300/분**
+2. **서버측 길이 절단** — `message` 500자 · `stack` 8,000자 · 과대 `extra` 는 버림
+3. **예외 삼킴** — 서버도 클라이언트도. 오류 보고가 또 오류를 만들면 안 된다
+4. **등급 제한** — `reported` 만
+
+전송 실패는 **조용히 버린다.** 여기서 `ErrorReporter` 를 부르면 무한 재귀다
+(디버그 빌드에서만 콘솔로 알린다).
+
+### 보는 곳
+
+관리자 앱 → **클라이언트 오류**. 상단에 최근 24시간 발생 지점 집계가 뜨고, 칩을 누르면
+그 지점만 걸러 본다. 항목을 누르면 스택을 편다.
+
+SQL 로 직접 볼 수도 있다:
+
+```sql
+select * from public.admin_client_error_summary(24);   -- 발생 지점별
+select * from public.admin_client_errors(null, 100, 0); -- 최근 100건
+```
 
 ## `where` 짓는 법
 
 `'session.refresh'` 처럼 **점으로 구분한 기능 경로**를 쓴다. 파일 경로가 아니다 —
 리팩터로 파일이 옮겨져도 같은 지점을 가리켜야 대시보드의 추이가 이어진다.
 
-## 켜는 법
+## 켜는 법 — 이미 켜져 있다
 
-DSN 은 **기본값이 없다.** 개발·테스트 실행이 운영 프로젝트로 이벤트를 흘리면 신호가
-잡음에 묻히기 때문이다(`jusoApiKey` 와 같은 관용구).
+시크릿도 DSN 도 필요 없다. `SupabaseErrorSink` 가 기본 sink 라 앱을 띄우면 그때부터
+`reported` 등급이 서버로 올라간다.
 
-비어 있으면 [`Observability.bootstrap`](../lib/services/observability.dart) 이
-Sentry 초기화를 통째로 건너뛴다 — 동작은 종전과 완전히 같다.
-
-### 웹 — 시크릿만 넣으면 켜진다
-
-`deploy-web.yml` 에 주입 배선이 **이미 되어 있다.** 저장소 시크릿에 `SENTRY_DSN` 을
-추가하고 재배포하면 그때부터 전송된다. 워크플로는 손댈 필요 없다.
-
-```
-Settings → Secrets and variables → Actions → SENTRY_DSN
-```
-
-`SENTRY_ENVIRONMENT=production` 과 `APP_RELEASE=pawmate@<pubspec version>` 은
-워크플로가 자동으로 넣는다.
-
-> ⚠️ **CSP** — `web/_headers` 의 `connect-src` 에 `https://*.sentry.io` 가 있어야 한다.
-> 없으면 브라우저가 요청을 차단하는데 **앱 쪽에는 아무 증상이 없어서** 이벤트가 조용히
-> 사라진다. 이미 추가해 뒀다.
->
-> 켠 뒤 확인하는 법: 웹앱을 열고 개발자 도구 콘솔에 `Refused to connect` 류의 CSP 위반이
-> 없는지, Network 탭에 `ingest.sentry.io` 요청이 200 인지 본다.
-
-### 앱(iOS·Android) — 빌드 명령에 직접
+`APP_RELEASE` 만 빌드에서 주입하면 "어느 배포부터 생긴 오류인지" 를 볼 수 있다.
+웹은 `deploy-web.yml` 이 `pubspec.yaml` 버전에서 뽑아 자동으로 넣는다. 앱은 수동이다:
 
 ```bash
-flutter build ipa --release \
-  --dart-define=SENTRY_DSN=https://…@o….ingest.us.sentry.io/… \
-  --dart-define=SENTRY_ENVIRONMENT=production \
-  --dart-define=APP_RELEASE=pawmate@2.0.0+10
+flutter build ipa --release --dart-define=APP_RELEASE=pawmate@2.0.0+10
 ```
 
 ### 전역 훅
 
-Sentry 가 꺼져 있을 때만 `ErrorReporter.installGlobalHandlers()` 가
-`FlutterError.onError` 와 `PlatformDispatcher.onError` 를 잡는다. Sentry 를 켜면
-그쪽 통합이 같은 훅을 쓰므로, 둘 다 걸면 **한 오류가 두 번 보고된다.**
+`FlutterError.onError` 와 `PlatformDispatcher.onError` 를 `report` 로 흘려보낸다.
+이 훅이 없으면 위젯 빌드 예외와 처리되지 않은 비동기 예외가 **어디에도 남지 않는다**.
 
 ### 보내지 않는 것
 
-- `sendDefaultPii = false` — 이 앱의 식별자는 **전화번호**라 특히 위험하다
-  (개인정보처리방침 — `pmlegal`). 사용자 식별이 필요하면 `users.id` 만 태그로 붙인다.
-- `SocketException` · `ClientException` · `TimeoutException` 은 `beforeSend` 에서
-  버린다 — 오프라인은 장애가 아니다.
+- 개인정보를 payload 에 담지 않는다. 이 앱의 식별자는 **전화번호**라 특히 위험하다.
+  사용자 식별은 서버가 `app.uid()` 로 붙이는 `user_id` 하나뿐이다.
+- `ignored`·`userFacing` 등급 — 링 버퍼에만.
 
 ## 래칫 — 남은 것을 어떻게 줄이나
 

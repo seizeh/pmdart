@@ -1,131 +1,87 @@
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../env.dart';
+import '../utils/platform_info.dart' as platform;
 import 'error_reporter.dart';
 
 /// 오류 보고 부트스트랩 — `main()` 이 `runApp` 대신 [bootstrap] 을 부른다.
 ///
-/// `Env.sentryDsn` 이 비어 있으면 **Sentry 를 통째로 건너뛴다**. 그때 동작은
-/// 종전과 완전히 같고([ErrorReporter] 기본 sink 만 동작), DSN 을 주입한 빌드에서만
-/// 원격 전송이 켜진다 — `webPushVapidKey`·`jusoApiKey` 와 같은 관용구다.
+/// 리포팅은 **우리 DB 로** 받는다(`app.client_errors`). 외부 서비스를 쓰지 않는
+/// 이유는 Supabase 가 이미 처리위탁 수탁자라 개인정보처리방침을 고칠 필요가 없고,
+/// 관리자 화면에 그대로 붙기 때문이다. 대신 그룹핑·중복제거는 없다 —
+/// 발생 지점별 집계(`admin_client_error_summary`)로 대신한다.
 abstract final class Observability {
   static Future<void> bootstrap(Widget app) async {
-    if (Env.sentryDsn.isEmpty) {
-      // Sentry 가 없을 때만 우리가 전역 훅을 건다. Sentry 를 켜면 그쪽 통합이
-      // 같은 훅을 잡으므로, 둘 다 걸면 한 오류가 두 번 보고된다.
-      ErrorReporter.installGlobalHandlers();
-      runApp(app);
-      return;
-    }
-
     ErrorReporter.sink = kDebugMode
-        ? const FanOutErrorSink([DebugErrorSink(), SentryErrorSink()])
-        : const SentryErrorSink();
+        ? const FanOutErrorSink([DebugErrorSink(), SupabaseErrorSink()])
+        : const SupabaseErrorSink();
 
-    await SentryFlutter.init((options) {
-      options.dsn = Env.sentryDsn;
+    // 프레임워크가 잡는 오류(위젯 빌드·비동기 누수)를 report 로 흘려보낸다.
+    // 이 훅이 없으면 릴리스에서는 어디에도 남지 않는다.
+    ErrorReporter.installGlobalHandlers();
 
-      // 웹에서는 Sentry 의 JS SDK 를 불러오지 않는다.
-      //
-      // sentry_flutter 는 웹에서 browser.sentry-cdn.com 의 번들을 <script> 로 끼워
-      // 넣는데, 우리 CSP 의 script-src 에 그 도메인이 없어 매번 차단된다(브라우저에
-      // 확인함). 로드 실패는 SDK 가 catch 해서 초기화를 막지는 않지만, 실패 요청과
-      // fatal 로그가 매 페이지 로드마다 쌓인다.
-      //
-      // CSP 를 여는 대신 끄는 쪽을 택한 이유: JS SDK 가 더해 주는 건 'JS 레이어에서
-      // 난 오류' 인데 이 앱은 canvaskit 렌더러라 앱 JS 가 사실상 없다. 오류는 전부
-      // Dart 쪽에서 ErrorReporter 로 모이고, 그 전송은 Dart SDK 가 직접
-      // o<조직>.ingest.*.sentry.io 로 보낸다(CSP connect-src 에 이미 열려 있다).
-      // 서드파티 스크립트를 script-src 에 들이는 값이 그만큼 크지 않다고 봤다.
-      //
-      // 이 플래그는 네이티브 SDK 초기화도 함께 끄므로 **웹에서만** 끈다 —
-      // iOS·Android 는 네이티브 크래시(ANR·시그널) 수집을 그대로 유지한다.
-      if (kIsWeb) options.autoInitializeNativeSdk = false;
-      options.environment = Env.sentryEnvironment;
-      options.release = Env.appRelease.isEmpty ? null : Env.appRelease;
-
-      // 성능 추적은 켜지 않는다 — 지금 필요한 건 '장애가 났는지' 이지 지연 분포가
-      // 아니고, 무료 쿼터를 오류 이벤트에 쓰는 편이 낫다. 필요해지면 켠다.
-      options.tracesSampleRate = 0.0;
-
-      // 개인정보는 보내지 않는다. 이 앱의 식별자는 전화번호라 특히 위험하다
-      // (개인정보처리방침 — pmlegal). 사용자 식별이 필요하면 users.id 만 태그로.
-      options.sendDefaultPii = false;
-
-      options.beforeSend = (event, hint) {
-        // 오프라인·일시 네트워크 오류는 리포팅 가치가 없고 쿼터만 먹는다.
-        final type = event.throwable?.runtimeType.toString() ?? '';
-        if (type.contains('SocketException') ||
-            type.contains('ClientException') ||
-            type.contains('TimeoutException')) {
-          return null;
-        }
-        return event;
-      };
-    }, appRunner: () => runApp(app));
+    runApp(app);
   }
 }
 
-/// [ErrorReporter] 등급을 Sentry 개념으로 옮긴다.
+/// [ErrorTier.reported] 만 서버로 보낸다.
 ///
-/// 등급별로 보내는 방식이 다르다 — 전부 이벤트로 올리면 오프라인 사용자 한 명이
-/// 쿼터를 다 쓴다.
+/// 무시·사용자알림까지 보내면 게스트 한 명이 테이블을 채운다. 그 둘은
+/// [ErrorReporter.recent] 링 버퍼에만 남아 앱 안에서 진단할 때 쓴다.
 ///
-/// | 등급 | Sentry |
-/// |---|---|
-/// | 무시 | 브레드크럼(info) — 이벤트 아님 |
-/// | 사용자 알림 | 브레드크럼(warning) — 이벤트 아님. 리포트에 맥락으로 붙는다 |
-/// | 리포팅 | `captureException` — 이벤트 |
-class SentryErrorSink implements ErrorSink {
-  const SentryErrorSink();
+/// 전송은 **실패해도 되는 일**이다 — 실패를 알리려다 또 실패하면 안 되므로
+/// 여기서는 [ErrorReporter] 를 부르지 않는다(무한 재귀).
+class SupabaseErrorSink implements ErrorSink {
+  const SupabaseErrorSink();
 
   @override
   void add(ErrorRecord record) {
-    switch (record.tier) {
-      case ErrorTier.ignored:
-        Sentry.addBreadcrumb(
-          Breadcrumb(
-            message: '${record.where}: ${record.error}',
-            category: 'ignored',
-            level: SentryLevel.info,
-            data: {'why': record.why ?? ''},
+    if (record.tier != ErrorTier.reported) return;
+    unawaited(_send(record));
+  }
+
+  static Future<void> _send(ErrorRecord r) async {
+    try {
+      await Supabase.instance.client.rpc(
+        'record_client_error',
+        params: {
+          'p_where': r.where,
+          'p_message': r.error.toString(),
+          // 서버가 8,000자로 자르지만 그 전에 네트워크로 나가는 양을 줄인다.
+          'p_stack': r.stackTrace?.toString().substring(
+            0,
+            _min(r.stackTrace.toString().length, 8000),
           ),
-        );
-      case ErrorTier.userFacing:
-        Sentry.addBreadcrumb(
-          Breadcrumb(
-            message: '${record.where}: ${record.error}',
-            category: 'user-facing',
-            level: SentryLevel.warning,
-          ),
-        );
-      case ErrorTier.reported:
-        Sentry.captureException(
-          record.error,
-          stackTrace: record.stackTrace,
-          withScope: (scope) {
-            scope.setTag('where', record.where);
-            final extra = record.extra;
-            if (extra != null) {
-              for (final e in extra.entries) {
-                scope.setContexts(e.key, e.value);
-              }
-            }
-          },
-        );
+          'p_platform': _platform,
+          'p_release': Env.appRelease.isEmpty ? null : Env.appRelease,
+          'p_extra': r.extra,
+        },
+      );
+    } catch (e) {
+      // ErrorReporter 를 부르면 무한 재귀다. 디버그에서만 콘솔로 알린다.
+      if (kDebugMode) debugPrint('오류 보고 전송 실패(무시): $e');
     }
   }
 
+  static int _min(int a, int b) => a < b ? a : b;
+
+  /// `dart:io` 를 쓰지 않는다 — 웹에서 런타임에 죽는다(platform_info 주석 참고).
+  static String get _platform {
+    if (kIsWeb) return 'web';
+    if (platform.isIOS) return 'ios';
+    if (platform.isAndroid) return 'android';
+    return 'other';
+  }
+
+  /// 브레드크럼은 서버로 보내지 않는다 — 링 버퍼가 그 역할을 한다.
   @override
   void breadcrumb(
     String message, {
     String? category,
     Map<String, Object?>? data,
-  }) {
-    Sentry.addBreadcrumb(
-      Breadcrumb(message: message, category: category ?? 'app', data: data),
-    );
-  }
+  }) {}
 }

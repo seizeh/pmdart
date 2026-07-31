@@ -76,7 +76,7 @@ GPS 동네 인증을 기반으로 이웃과 반려동물 산책 메이트를 찾
 
 | 부채 | 현황 |
 |---|---|
-| **관측성** | 3등급 정책과 리포팅 경로를 세웠다([error-policy.md](docs/error-policy.md)). 등급화가 남은 `catch (_)` 122곳(162→122)은 CI 래칫으로 줄이는 중 ([#157](https://github.com/seizeh/pmdart/issues/157)) |
+| **관측성** | 3등급 정책 + 자체 수집(`app.client_errors`)·관리자 화면까지 붙였다([error-policy.md](docs/error-policy.md)). 등급화가 남은 `catch (_)` 122곳(162→122)은 CI 래칫으로 줄이는 중 ([#157](https://github.com/seizeh/pmdart/issues/157)) |
 | **God Widget** | 1,000줄 넘는 화면 8개(최대 2,065줄) ([#155](https://github.com/seizeh/pmdart/issues/155)) |
 | **상태관리·DI** | 프레임워크 없이 `ChangeNotifier` 홀더로 점진 전환 중(59개 중 6개) ([#156](https://github.com/seizeh/pmdart/issues/156) · [ADR-0008](docs/adr/0008-state-holders-without-framework.md)) |
 | 커버리지 17% | 위 구조의 결과. 래칫으로 하한만 지키는 중 ([#158](https://github.com/seizeh/pmdart/issues/158)) |

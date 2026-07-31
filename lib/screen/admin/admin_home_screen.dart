@@ -327,47 +327,61 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
+    // ListTile 을 쓰지 않는다 — 배경색을 가진 Container 안에 넣으면 잉크 스플래시가
+    // 그 배경에 가려 안 보이고, 프레임워크가 매 빌드마다 그 경고를 낸다(타일 하나당
+    // 한 번씩 → 관리자 홈 한 번 여는 데 수십 건). 탭 피드백은 앱 전체와 같은
+    // Pressable(스프링 + 틸트) 로 준다.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Pressable(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.colors.border, width: 0.5),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: context.colors.primaryDark),
-        title: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: context.colors.textPrimary,
+        child: Container(
+          decoration: BoxDecoration(
+            color: context.colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.colors.border, width: 0.5),
           ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (badge > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: context.colors.danger,
-                  borderRadius: BorderRadius.circular(100),
-                ),
+          // ListTile 기본값(높이 56·좌우 16·leading 폭 40)에 맞춘 값.
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Icon(icon, color: context.colors.primaryDark),
+              const SizedBox(width: 16),
+              Expanded(
                 child: Text(
-                  '$badge',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textPrimary,
                   ),
                 ),
               ),
-            const SizedBox(width: 6),
-            Icon(Icons.chevron_right, color: context.colors.textTertiary),
-          ],
+              if (badge > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: context.colors.danger,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    '$badge',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, color: context.colors.textTertiary),
+            ],
+          ),
         ),
-        onTap: onTap,
       ),
     );
   }

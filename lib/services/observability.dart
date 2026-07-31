@@ -15,10 +15,28 @@ import 'error_reporter.dart';
 /// 관리자 화면에 그대로 붙기 때문이다. 대신 그룹핑·중복제거는 없다 —
 /// 발생 지점별 집계(`admin_client_error_summary`)로 대신한다.
 abstract final class Observability {
-  static Future<void> bootstrap(Widget app) async {
-    ErrorReporter.sink = kDebugMode
+  /// 이 빌드가 쓸 sink. 어느 갈래를 타는지가 "운영 오류 테이블에 개발 노이즈가
+  /// 섞이느냐" 를 가르므로 [bootstrap] 에서 떼어내 테스트로 고정한다.
+  ///
+  /// 디버그에서는 기본적으로 콘솔로만 흘린다 — 개발 중 오류는 리빌드마다 다시
+  /// 보고돼(위젯 어서션 하나가 수십 건이 된다) 실사용자 오류를 묻어 버린다.
+  /// 전송 경로 자체를 확인할 때만 `REPORT_ERRORS_IN_DEBUG=true` 로 켠다.
+  @visibleForTesting
+  static ErrorSink resolveSink({
+    required bool debugMode,
+    required bool reportInDebug,
+  }) {
+    if (!debugMode) return const SupabaseErrorSink();
+    return reportInDebug
         ? const FanOutErrorSink([DebugErrorSink(), SupabaseErrorSink()])
-        : const SupabaseErrorSink();
+        : const DebugErrorSink();
+  }
+
+  static Future<void> bootstrap(Widget app) async {
+    ErrorReporter.sink = resolveSink(
+      debugMode: kDebugMode,
+      reportInDebug: Env.reportErrorsInDebug,
+    );
 
     // 프레임워크가 잡는 오류(위젯 빌드·비동기 누수)를 report 로 흘려보낸다.
     // 이 훅이 없으면 릴리스에서는 어디에도 남지 않는다.

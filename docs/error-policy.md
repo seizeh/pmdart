@@ -89,15 +89,36 @@
 DSN 은 **기본값이 없다.** 개발·테스트 실행이 운영 프로젝트로 이벤트를 흘리면 신호가
 잡음에 묻히기 때문이다(`jusoApiKey` 와 같은 관용구).
 
-```bash
-flutter build web --release \
-  --dart-define=SENTRY_DSN=https://…@…ingest.sentry.io/… \
-  --dart-define=SENTRY_ENVIRONMENT=production \
-  --dart-define=APP_RELEASE=pawmate@2.0.0+6
-```
-
 비어 있으면 [`Observability.bootstrap`](../lib/services/observability.dart) 이
 Sentry 초기화를 통째로 건너뛴다 — 동작은 종전과 완전히 같다.
+
+### 웹 — 시크릿만 넣으면 켜진다
+
+`deploy-web.yml` 에 주입 배선이 **이미 되어 있다.** 저장소 시크릿에 `SENTRY_DSN` 을
+추가하고 재배포하면 그때부터 전송된다. 워크플로는 손댈 필요 없다.
+
+```
+Settings → Secrets and variables → Actions → SENTRY_DSN
+```
+
+`SENTRY_ENVIRONMENT=production` 과 `APP_RELEASE=pawmate@<pubspec version>` 은
+워크플로가 자동으로 넣는다.
+
+> ⚠️ **CSP** — `web/_headers` 의 `connect-src` 에 `https://*.sentry.io` 가 있어야 한다.
+> 없으면 브라우저가 요청을 차단하는데 **앱 쪽에는 아무 증상이 없어서** 이벤트가 조용히
+> 사라진다. 이미 추가해 뒀다.
+>
+> 켠 뒤 확인하는 법: 웹앱을 열고 개발자 도구 콘솔에 `Refused to connect` 류의 CSP 위반이
+> 없는지, Network 탭에 `ingest.sentry.io` 요청이 200 인지 본다.
+
+### 앱(iOS·Android) — 빌드 명령에 직접
+
+```bash
+flutter build ipa --release \
+  --dart-define=SENTRY_DSN=https://…@o….ingest.us.sentry.io/… \
+  --dart-define=SENTRY_ENVIRONMENT=production \
+  --dart-define=APP_RELEASE=pawmate@2.0.0+10
+```
 
 ### 전역 훅
 

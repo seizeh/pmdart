@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'error_reporter.dart';
 import 'session.dart';
 
 /// 케어 리포트(0028 P1 — 미용 전후 사진) 데이터 접근.
@@ -48,7 +49,8 @@ class CareReportRepository {
         if (e.message.contains(c)) return (token: null, error: c);
       }
       return (token: null, error: 'network');
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(e, where: 'careReport.create', stackTrace: st);
       return (token: null, error: 'network');
     }
   }
@@ -60,7 +62,9 @@ class CareReportRepository {
       return (rows as List)
           .map((r) => IssuedCareReport.fromJson(r as Map<String, dynamic>))
           .toList();
-    } catch (_) {
+    } catch (e, st) {
+      // 빈 목록은 '보낸 리포트 없음' 으로 보인다 — 발행 기록이 통째로 사라진다.
+      ErrorReporter.report(e, where: 'careReport.fetchMine', stackTrace: st);
       return const [];
     }
   }
@@ -75,7 +79,13 @@ class CareReportRepository {
       return (rows as List)
           .map((r) => ReceivedCareReport.fromJson(r as Map<String, dynamic>))
           .toList();
-    } catch (_) {
+    } catch (e, st) {
+      // 빈 목록은 '받은 기록 없음' 으로 보인다 — 업체가 보낸 알림장이 안 보인다.
+      ErrorReporter.report(
+        e,
+        where: 'careReport.fetchReceived',
+        stackTrace: st,
+      );
       return const [];
     }
   }
@@ -104,7 +114,12 @@ class CareReportRepository {
         if (e.message.contains(c)) return (id: null, error: c);
       }
       return (id: null, error: 'network');
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'careReport.createThread',
+        stackTrace: st,
+      );
       return (id: null, error: 'network');
     }
   }
@@ -142,7 +157,12 @@ class CareReportRepository {
         if (e.message.contains(c)) return (token: null, error: c);
       }
       return (token: null, error: 'network');
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'careReport.createBoardingReport',
+        stackTrace: st,
+      );
       return (token: null, error: 'network');
     }
   }
@@ -154,7 +174,9 @@ class CareReportRepository {
       return (rows as List)
           .map((r) => CareThread.fromJson(r as Map<String, dynamic>))
           .toList();
-    } catch (_) {
+    } catch (e, st) {
+      // 빈 목록은 '진행 중 돌봄 없음' 으로 보인다.
+      ErrorReporter.report(e, where: 'careReport.fetchThreads', stackTrace: st);
       return const [];
     }
   }
@@ -169,7 +191,13 @@ class CareReportRepository {
       return (rows as List)
           .map((r) => ThreadReport.fromJson(r as Map<String, dynamic>))
           .toList();
-    } catch (_) {
+    } catch (e, st) {
+      // 빈 목록은 '알림장 없음' 으로 보인다.
+      ErrorReporter.report(
+        e,
+        where: 'careReport.fetchThreadReports',
+        stackTrace: st,
+      );
       return const [];
     }
   }

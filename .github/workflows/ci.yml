@@ -35,25 +35,25 @@ jobs:
       - run: flutter test --coverage
 
       # 커버리지 요약 + 하한 게이트(래칫 — 커버리지가 오르는 만큼 하한을 따라 올린다).
-      - name: 커버리지 요약·게이트(≥12%)
+      - name: 커버리지 요약·게이트(≥17%)
         shell: bash
         run: |
           awk -F'[:,]' '/^DA:/{t++; if($3>0) h++}
             END{pct=h*100/t; printf "라인 커버리지 %.1f%% (%d/%d)\n", pct, h, t;
-                exit (pct>=12)?0:1}' \
+                exit (pct>=17)?0:1}' \
             coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
 
       # `catch (_)` 래칫 — 커버리지 래칫과 같은 방식(docs/error-policy.md).
       # 예외를 삼키는 것 자체가 문제가 아니라 **판단이 런타임에 흔적을 안 남기는 것**이
       # 문제였다. 남은 곳을 한 번에 못 고치니 늘어나지 않게 못 박고 줄여 간다.
       # 새 코드는 ErrorReporter.ignored/userFacing/report 셋 중 하나를 쓴다.
-      - name: catch (_) 래칫(≤144)
+      - name: catch (_) 래칫(≤122)
         shell: bash
         run: |
           n=$(git ls-files 'lib/**.dart' | xargs grep -o 'catch (_)' | wc -l | tr -d ' ')
-          echo "catch (_) $n곳 (상한 144)" | tee -a "$GITHUB_STEP_SUMMARY"
-          if [ "$n" -gt 144 ]; then
-            echo "::error::catch (_) 가 늘었습니다($n > 144). docs/error-policy.md 의 세 등급 중 하나를 쓰세요."
+          echo "catch (_) $n곳 (상한 122)" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$n" -gt 122 ]; then
+            echo "::error::catch (_) 가 늘었습니다($n > 122). docs/error-policy.md 의 세 등급 중 하나를 쓰세요."
             git ls-files 'lib/**.dart' | xargs grep -n 'catch (_)' | head -20
             exit 1
           fi

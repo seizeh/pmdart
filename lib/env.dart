@@ -58,4 +58,16 @@ abstract final class Env {
   /// '어느 배포부터 생긴 오류인지' 를 본다(app.client_errors.app_release).
   /// 웹은 deploy-web.yml 이 pubspec 버전에서 뽑아 주입한다.
   static const appRelease = String.fromEnvironment('APP_RELEASE');
+
+  /// 디버그 빌드에서도 오류를 서버(`app.client_errors`)로 보낼지.
+  ///
+  /// 기본값이 false 인 이유: 디버그 빌드는 개발 중 오류를 대량으로 뿜는다(위젯
+  /// 어서션 하나가 리빌드마다 반복 보고된다). 그게 운영 테이블에 섞이면 실사용자
+  /// 오류가 노이즈에 묻힌다. 평소 디버그에서는 콘솔(DebugErrorSink)로 충분하다.
+  ///
+  /// 전송 경로 자체를 검증할 때만 켠다:
+  /// `flutter run --dart-define=REPORT_ERRORS_IN_DEBUG=true`
+  static const reportErrorsInDebug = bool.fromEnvironment(
+    'REPORT_ERRORS_IN_DEBUG',
+  );
 }

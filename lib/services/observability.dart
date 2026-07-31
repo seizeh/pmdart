@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
@@ -26,6 +26,23 @@ abstract final class Observability {
 
     await SentryFlutter.init((options) {
       options.dsn = Env.sentryDsn;
+
+      // 웹에서는 Sentry 의 JS SDK 를 불러오지 않는다.
+      //
+      // sentry_flutter 는 웹에서 browser.sentry-cdn.com 의 번들을 <script> 로 끼워
+      // 넣는데, 우리 CSP 의 script-src 에 그 도메인이 없어 매번 차단된다(브라우저에
+      // 확인함). 로드 실패는 SDK 가 catch 해서 초기화를 막지는 않지만, 실패 요청과
+      // fatal 로그가 매 페이지 로드마다 쌓인다.
+      //
+      // CSP 를 여는 대신 끄는 쪽을 택한 이유: JS SDK 가 더해 주는 건 'JS 레이어에서
+      // 난 오류' 인데 이 앱은 canvaskit 렌더러라 앱 JS 가 사실상 없다. 오류는 전부
+      // Dart 쪽에서 ErrorReporter 로 모이고, 그 전송은 Dart SDK 가 직접
+      // o<조직>.ingest.*.sentry.io 로 보낸다(CSP connect-src 에 이미 열려 있다).
+      // 서드파티 스크립트를 script-src 에 들이는 값이 그만큼 크지 않다고 봤다.
+      //
+      // 이 플래그는 네이티브 SDK 초기화도 함께 끄므로 **웹에서만** 끈다 —
+      // iOS·Android 는 네이티브 크래시(ANR·시그널) 수집을 그대로 유지한다.
+      if (kIsWeb) options.autoInitializeNativeSdk = false;
       options.environment = Env.sentryEnvironment;
       options.release = Env.appRelease.isEmpty ? null : Env.appRelease;
 

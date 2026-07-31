@@ -330,10 +330,9 @@ class CommunityRepository {
   /// 서버가 게시글당 유효 링크를 재사용한다(30일, visible 게시글만).
   Future<String> createPostShareLink(String postId) async {
     _requireUid();
-    final rows = await _c.rpc(
-      'create_post_share_link',
-      params: {'p_post': postId},
-    ) as List;
+    final rows =
+        await _c.rpc('create_post_share_link', params: {'p_post': postId})
+            as List;
     return (rows.first as Map<String, dynamic>)['token'] as String;
   }
 

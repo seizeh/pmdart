@@ -312,9 +312,11 @@ class SessionManager extends ChangeNotifier {
     try {
       final parts = jwt.split('.');
       if (parts.length != 3) return null;
-      final payload = jsonDecode(
-        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
-      ) as Map;
+      final payload =
+          jsonDecode(
+                utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+              )
+              as Map;
       final exp = payload['exp'];
       return exp is int ? exp : null;
     } catch (e) {

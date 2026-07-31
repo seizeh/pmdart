@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/community.dart';
+import 'error_reporter.dart';
 import 'session.dart';
 import 'storage_service.dart' show UploadedImage;
 
@@ -88,7 +89,14 @@ class CommunityRepository {
       if (res != null) {
         codes = [for (final c in (res as List)) c as String];
       }
-    } catch (_) {
+    } catch (e, st) {
+      // codes=null 은 '지역 필터 없음' 이라 전 지역 글이 섞여 나온다 —
+      // 하이퍼로컬 전제가 조용히 깨지는 자리다.
+      ErrorReporter.report(
+        e,
+        where: 'community.feedRegionCodes',
+        stackTrace: st,
+      );
       codes = null;
     }
     if (codes != null && codes.isEmpty) return const [];
@@ -179,8 +187,12 @@ class CommunityRepository {
   Future<void> syncDongCentroids() async {
     try {
       await _c.functions.invoke('sync-dong-centroids', body: {});
-    } catch (_) {
-      /* 비어있으면 posts_by_region 이 사용자 평균으로 폴백 */
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'community.syncDongCentroids',
+        why: '비어있으면 posts_by_region 이 사용자 평균으로 폴백한다',
+      );
     }
   }
 
@@ -376,7 +388,13 @@ class CommunityRepository {
         params: {'p_post': postId},
       );
       return res == true;
-    } catch (_) {
+    } catch (e, st) {
+      // false 는 '권한 없음' 으로 읽혀 작성자에게 지원자 관리 버튼이 사라진다.
+      ErrorReporter.report(
+        e,
+        where: 'community.canManageApplicants',
+        stackTrace: st,
+      );
       return false;
     }
   }
@@ -406,7 +424,12 @@ class CommunityRepository {
       // 23505 = 같은 버킷 내 중복 조회 → 정상(집계 안 됨)
       if (e.code == '23505') return false;
       return false;
-    } catch (_) {
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'community.recordView',
+        why: '조회수 집계 실패 — 화면 표시와 무관하다',
+      );
       return false;
     }
   }

@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/facility_review.dart' show ReviewVideo, reviewVideosFromJson;
+import 'error_reporter.dart';
 import 'session.dart';
 
 /// 업체(사업자) 인증 — 국세청 확인·신청·상태 조회·계정 전환 (0025).
@@ -33,7 +34,12 @@ class BusinessRepository {
         statusLabel: data['status_label'] as String?,
         error: (data['error'] as String?) ?? 'nts_unavailable',
       );
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'business.checkBusinessNo',
+        stackTrace: st,
+      );
       return const BizNoCheck(ok: false, error: 'network');
     }
   }
@@ -91,7 +97,8 @@ class BusinessRepository {
         errorCode: (data['error'] as String?) ?? 'internal_error',
         statusLabel: data['status_label'] as String?,
       );
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(e, where: 'business.apply', stackTrace: st);
       return const BizApplyResult(ok: false, errorCode: 'network');
     }
   }
@@ -107,7 +114,9 @@ class BusinessRepository {
           .eq('user_id', uid)
           .maybeSingle();
       return row == null ? null : BusinessProfile.fromMap(row);
-    } catch (_) {
+    } catch (e, st) {
+      // null 은 '업체 아님' 으로 읽힌다 — 승인된 업체가 개인 계정처럼 보인다.
+      ErrorReporter.report(e, where: 'business.fetchMine', stackTrace: st);
       return null;
     }
   }
@@ -123,7 +132,13 @@ class BusinessRepository {
           .eq('id', uid)
           .maybeSingle();
       return (row?['active_mode'] as String?) ?? 'personal';
-    } catch (_) {
+    } catch (e, st) {
+      // 업체 모드로 쓰던 사람이 개인 얼굴로 돌아간다(두 얼굴 전제가 깨짐).
+      ErrorReporter.report(
+        e,
+        where: 'business.fetchActiveMode',
+        stackTrace: st,
+      );
       return 'personal';
     }
   }
@@ -137,7 +152,8 @@ class BusinessRepository {
         params: {'p_url': url, 'p_align_y': alignY},
       );
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(e, where: 'business.setPhoto', stackTrace: st);
       return false;
     }
   }
@@ -149,7 +165,13 @@ class BusinessRepository {
       return (rows as List)
           .map((r) => BizLicense.fromJson(r as Map<String, dynamic>))
           .toList();
-    } catch (_) {
+    } catch (e, st) {
+      // 빈 목록은 '등록한 증빙 없음' 으로 보인다 — 심사 대기 중인 서류가 사라진다.
+      ErrorReporter.report(
+        e,
+        where: 'business.fetchMyLicenses',
+        stackTrace: st,
+      );
       return const [];
     }
   }
@@ -184,7 +206,12 @@ class BusinessRepository {
         if (e.message.contains(c)) return c;
       }
       return 'network';
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'business.applyLicense',
+        stackTrace: st,
+      );
       return 'network';
     }
   }
@@ -228,7 +255,13 @@ class BusinessRepository {
             hasIncentive: r['has_incentive'] == true,
           ),
       ];
-    } catch (_) {
+    } catch (e, st) {
+      // 빈 목록은 '후기 없음' 으로 보인다 — 업체가 받은 후기가 통째로 안 보인다.
+      ErrorReporter.report(
+        e,
+        where: 'business.fetchFacilityReviews',
+        stackTrace: st,
+      );
       return const [];
     }
   }
@@ -253,7 +286,12 @@ class BusinessRepository {
         },
       );
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'business.updateMyInfo',
+        stackTrace: st,
+      );
       return false;
     }
   }
@@ -267,7 +305,12 @@ class BusinessRepository {
         params: {'p_review': reviewId},
       );
       return res == true;
-    } catch (_) {
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'business.shouldSuggestBusinessSwitch',
+        why: '전환 제안 힌트일 뿐 — 안 뜨면 사용자가 직접 전환하면 된다',
+      );
       return false;
     }
   }
@@ -277,7 +320,8 @@ class BusinessRepository {
     try {
       final res = await _c.rpc('switch_account_mode', params: {'p_mode': mode});
       return res as String?;
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.userFacing(e, where: 'business.switchMode', stackTrace: st);
       return null;
     }
   }

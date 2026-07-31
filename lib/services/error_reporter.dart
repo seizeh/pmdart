@@ -250,6 +250,21 @@ abstract final class ErrorReporter {
     };
   }
 
+  /// 부팅 중 쌓인 리포팅 등급을 지금 sink 로 흘려보낸다.
+  ///
+  /// `main()` 은 `Supabase.initialize` 보다 **먼저** 세션을 복원한다. 그때 나는
+  /// 오류(`session.restoreUser` 등)는 sink 가 붙기 전이라 서버로 갈 수 없다 —
+  /// 정작 '반드시 알아야 하는' 축에 드는 것들인데 조용히 사라진다.
+  ///
+  /// 링 버퍼에는 남아 있으므로 sink 를 붙인 직후 한 번 다시 흘린다.
+  /// 그 전에는 아무것도 전송되지 않았으므로 중복이 생기지 않는다
+  /// (부팅당 한 번만 부를 것 — [Observability.bootstrap]).
+  static void flushPending() {
+    for (final r in _recent.where((r) => r.tier == ErrorTier.reported)) {
+      sink.add(r);
+    }
+  }
+
   /// 테스트 전용 — 링 버퍼를 비운다.
   @visibleForTesting
   static void resetForTest() {

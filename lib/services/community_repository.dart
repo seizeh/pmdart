@@ -84,20 +84,26 @@ class CommunityRepository {
   Future<List<Post>> fetchFeed({String? category, String? query}) async {
     // 활동범위 내 동 코드들. null = 필터 없음(미인증/미설정), [] = 반경 내 게시글 없음.
     List<String>? codes;
-    try {
-      final res = await _c.rpc('feed_region_codes');
-      if (res != null) {
-        codes = [for (final c in (res as List)) c as String];
+    // 비로그인(게스트)은 인증 동네가 없어 조회할 것이 없다. 그런데도 부르면
+    // feed_region_codes 가 anon EXECUTE 를 안 줘서 **매번 401 이 찍힌다**
+    // (PostgREST 는 권한 거부를 42501 과 함께 401 로 돌려준다 — 인증 문제처럼 보인다).
+    // 결과는 어차피 null 이라 동작은 같고, 왕복 한 번과 콘솔 오류만 사라진다.
+    if (SessionManager.instance.isLoggedIn) {
+      try {
+        final res = await _c.rpc('feed_region_codes');
+        if (res != null) {
+          codes = [for (final c in (res as List)) c as String];
+        }
+      } catch (e, st) {
+        // codes=null 은 '지역 필터 없음' 이라 전 지역 글이 섞여 나온다 —
+        // 하이퍼로컬 전제가 조용히 깨지는 자리다.
+        ErrorReporter.report(
+          e,
+          where: 'community.feedRegionCodes',
+          stackTrace: st,
+        );
+        codes = null;
       }
-    } catch (e, st) {
-      // codes=null 은 '지역 필터 없음' 이라 전 지역 글이 섞여 나온다 —
-      // 하이퍼로컬 전제가 조용히 깨지는 자리다.
-      ErrorReporter.report(
-        e,
-        where: 'community.feedRegionCodes',
-        stackTrace: st,
-      );
-      codes = null;
     }
     if (codes != null && codes.isEmpty) return const [];
 

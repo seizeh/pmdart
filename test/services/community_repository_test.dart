@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pawmate/services/community_repository.dart';
+import 'package:pawmate/services/session.dart';
 
+import '../helpers/fake_session.dart';
 import '../helpers/fake_supabase.dart';
 
 Map<String, dynamic> postRow(String id) => {
@@ -13,10 +15,56 @@ Map<String, dynamic> postRow(String id) => {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    installFakeSecureStorage();
     await FakeSupabase.init();
   });
 
-  setUp(FakeSupabase.reset);
+  setUp(() async {
+    FakeSupabase.reset();
+    // 활동범위 게이트는 로그인 사용자에게만 도는 경로다(게스트는 아래 그룹 참고).
+    await SessionManager.instance.setSession(
+      'fake-access',
+      const AuthUser(
+        id: 'u1',
+        username: 'u1',
+        nickname: 'U1',
+        userType: 'pet_owner',
+      ),
+    );
+  });
+
+  tearDown(() async => SessionManager.instance.clear());
+
+  group('CommunityRepository.fetchFeed — 게스트', () {
+    test('비로그인이면 feed_region_codes 를 아예 호출하지 않는다', () async {
+      // 회귀: anon 에는 이 함수의 EXECUTE 가 없어 부르면 매번 401 이 찍혔다.
+      // (PostgREST 가 권한 거부를 42501 과 함께 401 로 돌려줘 인증 문제처럼 보인다.)
+      await SessionManager.instance.clear();
+      FakeSupabase.on('v_post_feed', (_) => [postRow('p1')]);
+
+      final posts = await CommunityRepository.instance.fetchFeed();
+
+      expect(posts.single.id, 'p1');
+      expect(
+        FakeSupabase.requests.any(
+          (r) => r.url.path.endsWith('feed_region_codes'),
+        ),
+        isFalse,
+        reason: '게스트는 인증 동네가 없어 조회할 것이 없다',
+      );
+    });
+
+    test('비로그인이어도 지역 필터 없이 피드는 그대로 온다', () async {
+      await SessionManager.instance.clear();
+      FakeSupabase.on('v_post_feed', (_) => [postRow('p1'), postRow('p2')]);
+
+      final posts = await CommunityRepository.instance.fetchFeed();
+
+      expect(posts, hasLength(2));
+      final feedReq = FakeSupabase.requests.last;
+      expect(feedReq.url.queryParameters.containsKey('region_code'), isFalse);
+    });
+  });
 
   group('CommunityRepository.fetchFeed — 활동범위 게이트', () {
     test('활동범위 미설정(null)이면 지역 필터 없이 최신 100건을 요청한다', () async {

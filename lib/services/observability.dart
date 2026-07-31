@@ -24,6 +24,10 @@ abstract final class Observability {
     // 이 훅이 없으면 릴리스에서는 어디에도 남지 않는다.
     ErrorReporter.installGlobalHandlers();
 
+    // main() 은 Supabase.initialize 보다 먼저 세션을 복원한다 — 그때 난 오류는
+    // sink 가 붙기 전이라 서버로 못 갔다. 링 버퍼에 남은 것을 지금 흘려보낸다.
+    ErrorReporter.flushPending();
+
     runApp(app);
   }
 }

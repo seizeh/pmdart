@@ -28,12 +28,10 @@ class ChatRepository {
     String otherUserId, {
     String context = 'personal',
   }) async {
-    final roomId =
-        await _c.rpc(
-              'start_direct_chat',
-              params: {'p_other': otherUserId, 'p_context': context},
-            )
-            as String;
+    final roomId = await _c.rpc(
+      'start_direct_chat',
+      params: {'p_other': otherUserId, 'p_context': context},
+    ) as String;
     final row = await _c
         .from('v_chat_rooms')
         .select()

@@ -248,6 +248,70 @@ class ReportTarget {
 }
 
 /// 감사 로그 1건.
+/// 클라이언트 오류 한 건 (`app.client_errors`, reported 등급만).
+class AdminClientError {
+  final int id;
+  final String? userId;
+  final String nickname; // 비로그인이면 '(비로그인)'
+  final String where;
+  final String message;
+  final String? stack;
+  final String? platform;
+  final String? release;
+  final Map<String, dynamic>? extra;
+  final DateTime createdAt;
+
+  const AdminClientError({
+    required this.id,
+    required this.userId,
+    required this.nickname,
+    required this.where,
+    required this.message,
+    required this.stack,
+    required this.platform,
+    required this.release,
+    required this.extra,
+    required this.createdAt,
+  });
+
+  factory AdminClientError.fromJson(Map<dynamic, dynamic> j) =>
+      AdminClientError(
+        id: (j['id'] as num).toInt(),
+        userId: j['user_id'] as String?,
+        nickname: (j['nickname'] ?? '') as String,
+        where: (j['where_key'] ?? '') as String,
+        message: (j['message'] ?? '') as String,
+        stack: j['stack'] as String?,
+        platform: j['platform'] as String?,
+        release: j['app_release'] as String?,
+        extra: (j['extra'] as Map?)?.cast<String, dynamic>(),
+        createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
+      );
+}
+
+/// 발생 지점별 집계 — 그룹핑이 없는 대신 '어디가 자주 터지나' 를 본다.
+class AdminClientErrorStat {
+  final String where;
+  final int hits;
+  final int users;
+  final DateTime lastAt;
+
+  const AdminClientErrorStat({
+    required this.where,
+    required this.hits,
+    required this.users,
+    required this.lastAt,
+  });
+
+  factory AdminClientErrorStat.fromJson(Map<dynamic, dynamic> j) =>
+      AdminClientErrorStat(
+        where: (j['where_key'] ?? '') as String,
+        hits: (j['hits'] as num).toInt(),
+        users: (j['users'] as num).toInt(),
+        lastAt: DateTime.parse(j['last_at'] as String).toLocal(),
+      );
+}
+
 class AdminLog {
   final String id;
   final String adminNickname;
@@ -790,6 +854,33 @@ class AdminRepository {
       params: {'p_limit': 100, 'p_offset': 0},
     );
     return (res as List).map((r) => AdminLog.fromJson(r as Map)).toList();
+  }
+
+  /// 클라이언트 오류 목록 (reported 등급만, 30일 보존).
+  Future<List<AdminClientError>> listClientErrors({
+    String? where,
+    int limit = 100,
+  }) async {
+    final res = await _c.rpc(
+      'admin_client_errors',
+      params: {'p_where': where, 'p_limit': limit, 'p_offset': 0},
+    );
+    return (res as List)
+        .map((r) => AdminClientError.fromJson(r as Map))
+        .toList();
+  }
+
+  /// 최근 [hours] 시간의 발생 지점별 집계.
+  Future<List<AdminClientErrorStat>> clientErrorSummary({
+    int hours = 24,
+  }) async {
+    final res = await _c.rpc(
+      'admin_client_error_summary',
+      params: {'p_hours': hours},
+    );
+    return (res as List)
+        .map((r) => AdminClientErrorStat.fromJson(r as Map))
+        .toList();
   }
 
   /// 운영 지표·비용 (AI 사진인증 / Solapi 문자 / DAU).

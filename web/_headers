@@ -58,15 +58,9 @@
 # frame-ancestors 'none' — 이 앱을 iframe 에 넣는 곳은 없다. go.pawmate.kr 의
 # 공유 링크는 302 리다이렉트지 임베드가 아니다.
 #
-# connect-src 의 https://*.sentry.io — 오류 리포팅(docs/error-policy.md) 전송지다.
-# 이게 없으면 DSN 을 주입해도 웹에서는 **이벤트가 전부 CSP 에 막혀 조용히 사라진다**
-# (요청이 실패하는 게 아니라 브라우저가 차단하므로 앱 쪽엔 아무 증상이 없다).
-# Sentry 는 프로젝트마다 o<조직>.ingest[.<리전>].sentry.io 로 호스트가 달라지므로
-# 와일드카드로 둔다. CSP 의 *. 는 다단계 서브도메인에도 매칭된다.
-#
 # ⚠️ 되돌리기: 이 줄 하나만 지우고 재배포하면 CSP 가 사라진다.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://vyatppuxmpulqtxevfpk.supabase.co; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' blob: data: https://vyatppuxmpulqtxevfpk.supabase.co wss://vyatppuxmpulqtxevfpk.supabase.co https://fonts.gstatic.com https://www.gstatic.com https://fcmregistrations.googleapis.com https://firebaseinstallations.googleapis.com https://*.sentry.io; media-src 'self' blob: https://vyatppuxmpulqtxevfpk.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://vyatppuxmpulqtxevfpk.supabase.co; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' blob: data: https://vyatppuxmpulqtxevfpk.supabase.co wss://vyatppuxmpulqtxevfpk.supabase.co https://fonts.gstatic.com https://www.gstatic.com https://fcmregistrations.googleapis.com https://firebaseinstallations.googleapis.com; media-src 'self' blob: https://vyatppuxmpulqtxevfpk.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 # 엔진 — canvaskit.js 와 canvaskit.wasm 은 **같은 빌드끼리만** 링크된다.
 /canvaskit/*

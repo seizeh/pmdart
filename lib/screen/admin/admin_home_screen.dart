@@ -9,6 +9,7 @@ import '../change_password_screen.dart';
 import '../welcome_screen.dart';
 import 'admin_broadcast_screen.dart';
 import 'admin_business_screen.dart';
+import 'admin_client_errors_screen.dart';
 import 'admin_inquiries_screen.dart';
 import 'admin_licenses_screen.dart';
 import 'admin_logs_screen.dart';
@@ -180,6 +181,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 icon: Icons.receipt_long_outlined,
                 label: '감사 로그',
                 onTap: () => _open(const AdminLogsScreen()),
+              ),
+              _MenuTile(
+                icon: Icons.bug_report_outlined,
+                label: '클라이언트 오류',
+                onTap: () => _open(const AdminClientErrorsScreen()),
               ),
             ],
           ),

@@ -35,6 +35,13 @@ jobs:
       - run: flutter test --coverage
 
       # 커버리지 요약 + 하한 게이트(래칫 — 커버리지가 오르는 만큼 하한을 따라 올린다).
+      #
+      # 걸렸을 때 하한을 내리지 않는다. 래칫의 값은 숫자가 아니라 "내려갈 수 없다" 는
+      # 성질에서 나오고, 급할 때 한 번 내리면 그 성질이 사라져 다음부터는 그냥 주석이다.
+      # 실제로 커버 줄은 늘어도 전체가 더 빨리 늘어 비율이 밀리는 국면이 있다
+      # (17.8% → 17.7%). 그때 할 일은 하한 조정이 아니라 새 코드에 테스트를 쓰는 것이다.
+      # 정말 못 지키겠으면 하한을 고치지 말고 왜 예외인지를 PR 에 적고 리뷰를 받는다.
+      # ADR 0007 참고.
       - name: 커버리지 요약·게이트(≥17%)
         shell: bash
         run: |
@@ -47,13 +54,13 @@ jobs:
       # 예외를 삼키는 것 자체가 문제가 아니라 **판단이 런타임에 흔적을 안 남기는 것**이
       # 문제였다. 남은 곳을 한 번에 못 고치니 늘어나지 않게 못 박고 줄여 간다.
       # 새 코드는 ErrorReporter.ignored/userFacing/report 셋 중 하나를 쓴다.
-      - name: catch (_) 래칫(≤122)
+      - name: catch (_) 래칫(≤110)
         shell: bash
         run: |
           n=$(git ls-files 'lib/**.dart' | xargs grep -o 'catch (_)' | wc -l | tr -d ' ')
-          echo "catch (_) $n곳 (상한 122)" | tee -a "$GITHUB_STEP_SUMMARY"
-          if [ "$n" -gt 122 ]; then
-            echo "::error::catch (_) 가 늘었습니다($n > 122). docs/error-policy.md 의 세 등급 중 하나를 쓰세요."
+          echo "catch (_) $n곳 (상한 110)" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$n" -gt 110 ]; then
+            echo "::error::catch (_) 가 늘었습니다($n > 110). docs/error-policy.md 의 세 등급 중 하나를 쓰세요."
             git ls-files 'lib/**.dart' | xargs grep -n 'catch (_)' | head -20
             exit 1
           fi

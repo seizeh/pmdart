@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 
 import '../../motion/motion.dart';
 import '../../services/community_repository.dart';
+import '../../services/error_reporter.dart';
 import '../../services/facility_repository.dart';
 import '../../services/location_service.dart';
 import '../../theme/app_palette.dart';
@@ -348,12 +349,20 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       if (sr != null) markers.add(await _buildSearchMarker(sr));
       if (markers.isNotEmpty) await c.addOverlayAll(markers);
       _loadedCenter = center;
-    } catch (_) {
+    } catch (e, st) {
+      // 지도가 비는 경로다. 베타에서 "지도가 안 떠요" 로 들어오는 신고는 대부분
+      // 여기로 수렴하는데, 원인이 네이버 SDK·위치권한·네트워크 어디인지는
+      // 스택 없이는 못 가른다. 사용자에게도 알리지만 서버 기록이 본체다.
+      ErrorReporter.report(e, where: 'map.loadFacilities', stackTrace: st);
       // 오류가 나도 이전 마커는 제거(선택 해제한 카테고리 마커가 남지 않도록).
       try {
         await c.clearOverlays(type: NOverlayType.marker);
-      } catch (_) {
-        /* 무시 */
+      } catch (e2) {
+        ErrorReporter.ignored(
+          e2,
+          where: 'map.clearOverlays',
+          why: '마커 정리 실패 — 다음 로드가 어차피 전량 다시 그린다',
+        );
       }
       _byMarkerId.clear();
       _clusterByMarkerId.clear();
@@ -380,7 +389,11 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         maxLng: b.northEast.longitude,
         maxLat: b.northEast.latitude,
       );
-    } catch (_) {
+    } catch (e, st) {
+      // 빈 목록을 돌려주면 호출부(_loadFacilities)는 성공으로 본다 — 게시글
+      // 클러스터가 조용히 사라지고 사용자에게도 아무 표시가 없다. 그 침묵이
+      // 문제라서 여기서 끊어 기록한다.
+      ErrorReporter.report(e, where: 'map.loadClusters', stackTrace: st);
       return const [];
     }
   }
@@ -424,7 +437,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           ),
         ),
       );
-    } catch (_) {
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'map.clusterBadge',
+        why: '배지 렌더 실패 — 호출부가 null 을 받아 기본 마커로 그린다',
+      );
       return null;
     }
   }
@@ -562,7 +580,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         dark: dark,
         rating: rating,
       );
-    } catch (_) {
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'map.categoryIcon',
+        why: '카테고리 아이콘 렌더 실패 — 마커는 SDK 기본 아이콘으로 뜬다',
+      );
       out = null;
     }
     _catIcons[key] = out;
@@ -734,7 +757,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       } else {
         out = await _iconFor(f.category, verified: true, rating: rating);
       }
-    } catch (_) {
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'map.bizPhotoIcon',
+        why: '업체 사진 마커 실패 — 카테고리 아이콘으로 폴백한다',
+      );
       out = null;
     }
     _bizIcons[key] = out;
@@ -924,7 +952,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           bytes.buffer.asUint8List(),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'map.searchIcon',
+        why: '검색 강조 아이콘 렌더 실패 — 기본 마커로 뜨고 위치 이동은 그대로',
+      );
       _searchIcon = null;
     }
     return _searchIcon;
@@ -1026,8 +1059,10 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         ..addAll(lists[0])
         ..addAll(lists[1])
         ..sort((a, b) => a.distanceM.compareTo(b.distanceM));
-    } catch (_) {
-      /* 빈 결과 처리 */
+    } catch (e, st) {
+      // 삼키면 아래에서 '검색 결과가 없어요' 가 뜬다 — 실패를 없음으로 바꿔
+      // 보여주는 셈이라 사용자도 우리도 오해한다.
+      ErrorReporter.report(e, where: 'map.search', stackTrace: st);
     }
     if (!mounted) return;
     if (results.isEmpty) {
@@ -1072,8 +1107,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           ..addAll(lists[0])
           ..addAll(lists[1])
           ..sort((a, b) => a.distanceM.compareTo(b.distanceM));
-      } catch (_) {
-        /* 빈 결과 */
+      } catch (e) {
+        ErrorReporter.ignored(
+          e,
+          where: 'map.searchSuggest',
+          why: '자동완성은 다음 타자에 다시 조회한다(디바운스마다 재시도)',
+        );
       }
       if (!mounted || _searchController.text.trim() != q) return;
       // 카테고리 필터를 걸어도 후보가 남도록 넉넉히 유지(목록은 스크롤).
@@ -1091,8 +1130,12 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       await c.deleteOverlay(
         const NOverlayInfo(type: NOverlayType.marker, id: 'search'),
       );
-    } catch (_) {
-      /* 이미 없으면 무시 */
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'map.clearSearchHighlight',
+        why: '지울 강조 마커가 애초에 없으면 SDK 가 던진다 — 목표 상태는 이미 달성',
+      );
     }
   }
 
@@ -1126,13 +1169,19 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       await c.deleteOverlay(
         const NOverlayInfo(type: NOverlayType.marker, id: 'search'),
       );
-    } catch (_) {
-      /* 직전 강조 마커 없음 */
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'map.replaceSearchMarker',
+        why: '직전 강조 마커가 없을 때 SDK 가 던진다 — 바로 아래에서 새로 올린다',
+      );
     }
     try {
       await c.addOverlay(await _buildSearchMarker(f));
-    } catch (_) {
-      /* 마커 추가 실패는 무시 */
+    } catch (e, st) {
+      // 검색해서 고른 곳에 마커가 안 뜬다 = 사용자가 기대한 결과가 안 나온 것.
+      // 카메라만 이동해 "찾긴 찾았는데 표시가 없는" 상태가 되므로 기록한다.
+      ErrorReporter.report(e, where: 'map.addSearchMarker', stackTrace: st);
     }
     await c.updateCamera(
       NCameraUpdate.scrollAndZoomTo(target: NLatLng(f.lat, f.lng), zoom: 16)

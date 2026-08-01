@@ -258,7 +258,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     );
   }
 
-  /// 상단 메뉴 — 사용자 신고 / 채팅방 나가기.
+  /// 상단 메뉴 — 사용자 신고 / 사용자 차단 / 채팅방 나가기.
   void _openRoomMenu() {
     final otherId = widget.room.otherUserId;
     showModalBottomSheet(
@@ -288,6 +288,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   );
                 },
               ),
+            // 차단 — 채팅으로 만난 상대는 게시글을 안 썼을 수도 있어, 신고 시트의
+            // 체크박스만으로는 닿지 않는 경로가 생긴다. 메뉴에 따로 둔다.
+            if (otherId != null)
+              ListTile(
+                leading: Icon(
+                  Icons.block_outlined,
+                  color: context.colors.danger,
+                ),
+                title: const Text('사용자 차단'),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _block(otherId, widget.room.otherNickname);
+                },
+              ),
             ListTile(
               leading: Icon(
                 Icons.logout_outlined,
@@ -307,21 +321,67 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
 
   /// 상대 메시지 길게 누르기 — 해당 메시지 신고.
   void _reportMessage(ChatMessage msg) {
-    _report(ReportRepository.targetChatMessage, msg.id, '메시지', msg.content);
+    _report(
+      ReportRepository.targetChatMessage,
+      msg.id,
+      '메시지',
+      msg.content,
+      authorId: msg.senderId,
+    );
+  }
+
+  /// 사용자 차단 — 확인 후 즉시 적용하고 채팅방을 벗어난다.
+  /// 차단한 상대의 대화창에 그대로 머무르면 '차단했는데 그대로네'가 된다.
+  Future<void> _block(String userId, String nickname) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('이 사용자 차단'),
+        content: Text(
+          '$nickname 님을 차단할까요?\n\n'
+          '· 이 사용자의 게시글이 목록에서 바로 사라져요\n'
+          '· 신고도 함께 접수되어 검토해요\n'
+          '· 차단은 내정보 > 차단 사용자 관리에서 해제할 수 있어요',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('차단'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ReportRepository.instance.block(userId);
+      if (!mounted) return;
+      _toast('$nickname 님을 차단했어요');
+      Navigator.of(context).maybePop();
+    } catch (e) {
+      if (mounted) _toast('차단하지 못했어요. 잠시 후 다시 시도해주세요');
+      debugPrint('block failed: $e');
+    }
   }
 
   Future<void> _report(
     String type,
     String id,
     String label,
-    String title,
-  ) async {
+    String title, {
+    // 메시지는 targetId 가 콘텐츠라 보낸 사람을 따로 넘겨야 '차단도 함께'가 뜬다.
+    String? authorId,
+  }) async {
     final ok = await showReportSheet(
       context,
       targetType: type,
       targetId: id,
       targetLabel: label,
       targetTitle: title,
+      authorId: authorId,
     );
     if (ok && mounted) _toast('신고가 접수되었어요. 검토 후 조치할게요');
   }

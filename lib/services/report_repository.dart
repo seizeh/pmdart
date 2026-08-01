@@ -76,4 +76,19 @@ class ReportRepository {
       rethrow;
     }
   }
+
+  /// 사용자 차단 — `block_user` RPC 가 차단과 **신고를 함께** 남긴다.
+  ///
+  /// 신고를 함께 남기는 것은 App Store 1.2 요구사항이다("차단은 개발자에게
+  /// 통보되어야 한다"). 차단당한 사람의 글은 서버 뷰(`v_post_feed`)가 즉시
+  /// 걸러내므로 클라이언트는 목록만 새로 받으면 된다.
+  ///
+  /// 같은 사람을 다시 차단해도 안전하다(중복 차단·중복 신고 모두 무시).
+  Future<void> block(String userId, {String? reason}) async {
+    if (_uid == null) throw StateError('로그인이 필요합니다');
+    await _c.rpc(
+      'block_user',
+      params: {'p_blocked': userId, 'p_reason': reason},
+    );
+  }
 }

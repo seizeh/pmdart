@@ -28,7 +28,10 @@ import 'user_profile_screen.dart';
 class _ReportAction {
   final String label;
   final VoidCallback onTap;
-  const _ReportAction(this.label, this.onTap);
+
+  /// 차단은 신고와 성격이 달라(즉시 효력·되돌릴 수 있음) 아이콘으로 구분한다.
+  final bool isBlock;
+  const _ReportAction(this.label, this.onTap, {this.isBlock = false});
 }
 
 /// 게시글 상세 — 전 카테고리 쇼츠형: 전체화면 미디어(영상/사진/블롭) 위에
@@ -382,6 +385,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           post.authorNickname,
         ),
       ),
+      _ReportAction(
+        '이 사용자 차단',
+        () => _block(post.userId, post.authorNickname),
+        isBlock: true,
+      ),
     ]);
   }
 
@@ -419,7 +427,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             for (final a in actions)
               ListTile(
                 leading: Icon(
-                  Icons.flag_outlined,
+                  a.isBlock ? Icons.block_outlined : Icons.flag_outlined,
                   color: context.colors.danger,
                 ),
                 title: Text(a.label),
@@ -448,6 +456,46 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       targetTitle: title,
     );
     if (ok && mounted) _toast('신고가 접수되었어요. 검토 후 조치할게요');
+  }
+
+  /// 사용자 차단 — 확인 후 즉시 적용하고 **이 화면을 벗어난다**.
+  ///
+  /// 차단한 사람의 글을 계속 보고 있으면 "차단했는데 그대로네"가 된다(App Store
+  /// 1.2 의 '즉시 제거' 요건). 목록 쪽은 서버 뷰가 이미 걸러내므로 돌아가서
+  /// 새로 받으면 사라져 있다.
+  Future<void> _block(String userId, String nickname) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('이 사용자 차단'),
+        content: Text(
+          '$nickname 님을 차단할까요?\n\n'
+          '· 이 사용자의 게시글이 목록에서 바로 사라져요\n'
+          '· 신고도 함께 접수되어 검토해요\n'
+          '· 차단은 내정보 > 차단 사용자 관리에서 해제할 수 있어요',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('차단'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ReportRepository.instance.block(userId);
+      if (!mounted) return;
+      _toast('$nickname 님을 차단했어요');
+      Navigator.of(context).maybePop(); // 차단한 사람의 글에 머물지 않는다
+    } catch (e) {
+      if (mounted) _toast('차단하지 못했어요. 잠시 후 다시 시도해주세요');
+      debugPrint('block failed: $e');
+    }
   }
 
   @override

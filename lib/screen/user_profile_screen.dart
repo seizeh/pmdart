@@ -12,6 +12,8 @@ import '../motion/motion.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
 import '../services/facility_repository.dart' show Facility;
+import '../services/facility_review_repository.dart';
+import '../services/report_repository.dart';
 import '../state/user_profile_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
@@ -805,6 +807,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _actions(PublicProfileData p) {
     return Row(
       children: [
+        // 차단 — 신고와 함께 App Store 1.2 가 요구하는 수단. 프로필에 두는 이유는
+        // 게시글을 거치지 않고도(채팅·검색으로 만난 상대) 차단할 수 있어야 해서다.
+        _blockButton(p),
+        const SizedBox(width: 10),
         Expanded(
           child: Pressable(
             onTap: _toggleFollow,
@@ -957,6 +963,62 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   /// 이 업체 프로필에서 후기를 쓸 수 있는가 — 본인(업주 계정, 모드 무관)은 제외.
   /// 서버(add_facility_review)도 own_facility 로 차단하는 불변식의 UX 버전.
+  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
+  );
+
+  /// 차단 버튼 — 아이콘만. 확인 후 즉시 적용하고 이 화면을 벗어난다.
+  Widget _blockButton(PublicProfileData p) {
+    return OutlinedButton(
+      onPressed: () => _block(p.userId, p.nickname),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(48, 44),
+        padding: EdgeInsets.zero,
+        foregroundColor: context.colors.danger,
+        side: BorderSide(color: context.colors.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+      ),
+      child: const Icon(Icons.block_outlined, size: 18),
+    );
+  }
+
+  /// 사용자 차단 — `block_user` RPC 가 차단과 신고를 함께 남긴다(App Store 1.2).
+  /// 차단한 사람의 프로필에 머물지 않도록 즉시 뒤로 나간다.
+  Future<void> _block(String userId, String nickname) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('이 사용자 차단'),
+        content: Text(
+          '$nickname 님을 차단할까요?\n\n'
+          '· 이 사용자의 게시글이 목록에서 바로 사라져요\n'
+          '· 신고도 함께 접수되어 검토해요\n'
+          '· 차단은 내정보 > 차단 사용자 관리에서 해제할 수 있어요',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('차단'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ReportRepository.instance.block(userId);
+      if (!mounted) return;
+      _toast('$nickname 님을 차단했어요');
+      Navigator.of(context).maybePop();
+    } catch (e) {
+      if (mounted) _toast('차단하지 못했어요. 잠시 후 다시 시도해주세요');
+      debugPrint('block failed: $e');
+    }
+  }
+
   bool get _canWriteBizReview => !_isMe && _profile?.businessFacilityId != null;
 
   /// 업체 프로필에서 바로 후기 작성 — 지도 상세와 동일한 작성 화면으로.
@@ -1020,6 +1082,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  /// 내 후기 1건 소프트 삭제(상세 화면 우상단 버튼) 후 목록·평점 갱신.
+  /// 지도 상세(facility_sheet._deleteReview)와 같은 경로 — 서버가 작성자 본인만
+  /// 지울 수 있게 재검증한다(delete_facility_review).
+  Future<bool> _deleteBizReview(String reviewId) async {
+    final fid = _profile?.businessFacilityId;
+    if (fid == null) return false;
+    try {
+      await FacilityReviewRepository.instance.deleteMine(
+        fid,
+        reviewId: reviewId,
+      );
+      await _load(silent: true);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Widget _bizReviewGrid() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
@@ -1038,6 +1118,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               seed: r.id,
               reviewId: r.id,
               authorUserId: r.authorUserId,
+              // 내 후기면 상세 우상단에 삭제 버튼이 붙는다. 둘 다 넘겨야 뜬다 —
+              // isMine 만 넘기면 버튼 자리가 비고, onDelete 만 넘기면 조건이 false 다.
+              isMine: r.isMine,
+              onDelete: r.isMine ? () => _deleteBizReview(r.id) : null,
             ),
         ],
       ),

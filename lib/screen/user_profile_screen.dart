@@ -12,7 +12,6 @@ import '../motion/motion.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
 import '../services/facility_repository.dart' show Facility;
-import '../services/facility_review_repository.dart';
 import '../services/report_repository.dart';
 import '../state/user_profile_state.dart';
 import '../theme/app_palette.dart';
@@ -1082,24 +1081,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  /// 내 후기 1건 소프트 삭제(상세 화면 우상단 버튼) 후 목록·평점 갱신.
-  /// 지도 상세(facility_sheet._deleteReview)와 같은 경로 — 서버가 작성자 본인만
-  /// 지울 수 있게 재검증한다(delete_facility_review).
-  Future<bool> _deleteBizReview(String reviewId) async {
-    final fid = _profile?.businessFacilityId;
-    if (fid == null) return false;
-    try {
-      await FacilityReviewRepository.instance.deleteMine(
-        fid,
-        reviewId: reviewId,
-      );
-      await _load(silent: true);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Widget _bizReviewGrid() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
@@ -1118,10 +1099,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               seed: r.id,
               reviewId: r.id,
               authorUserId: r.authorUserId,
-              // 내 후기면 상세 우상단에 삭제 버튼이 붙는다. 둘 다 넘겨야 뜬다 —
-              // isMine 만 넘기면 버튼 자리가 비고, onDelete 만 넘기면 조건이 false 다.
-              isMine: r.isMine,
-              onDelete: r.isMine ? () => _deleteBizReview(r.id) : null,
             ),
         ],
       ),

@@ -374,7 +374,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _showReportActions([
       _ReportAction(
         '게시글 신고',
-        () => _report(ReportRepository.targetPost, post.id, '게시글', post.title),
+        () => _report(
+          ReportRepository.targetPost,
+          post.id,
+          '게시글',
+          post.title,
+          authorId: post.userId,
+        ),
       ),
       _ReportAction(
         '작성자 신고',
@@ -399,7 +405,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _showReportActions([
       _ReportAction(
         '댓글 신고',
-        () => _report(ReportRepository.targetComment, c.id, '댓글', c.content),
+        () => _report(
+          ReportRepository.targetComment,
+          c.id,
+          '댓글',
+          c.content,
+          authorId: c.userId,
+        ),
       ),
       _ReportAction(
         '작성자 신고',
@@ -446,14 +458,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     String type,
     String id,
     String label,
-    String title,
-  ) async {
+    String title, {
+    // 게시글·댓글은 targetId 가 콘텐츠라 작성자를 따로 넘겨야 '차단도 함께'가 뜬다.
+    String? authorId,
+  }) async {
     final ok = await showReportSheet(
       context,
       targetType: type,
       targetId: id,
       targetLabel: label,
       targetTitle: title,
+      authorId: authorId,
     );
     if (ok && mounted) _toast('신고가 접수되었어요. 검토 후 조치할게요');
   }

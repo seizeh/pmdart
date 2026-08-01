@@ -42,12 +42,12 @@ jobs:
       # (17.8% → 17.7%). 그때 할 일은 하한 조정이 아니라 새 코드에 테스트를 쓰는 것이다.
       # 정말 못 지키겠으면 하한을 고치지 말고 왜 예외인지를 PR 에 적고 리뷰를 받는다.
       # ADR 0007 참고.
-      - name: 커버리지 요약·게이트(≥17%)
+      - name: 커버리지 요약·게이트(≥18%)
         shell: bash
         run: |
           awk -F'[:,]' '/^DA:/{t++; if($3>0) h++}
             END{pct=h*100/t; printf "라인 커버리지 %.1f%% (%d/%d)\n", pct, h, t;
-                exit (pct>=17)?0:1}' \
+                exit (pct>=18)?0:1}' \
             coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
 
       # `catch (_)` 래칫 — 커버리지 래칫과 같은 방식(docs/error-policy.md).

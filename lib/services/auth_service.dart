@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
+import '../utils/password_rule.dart';
 import 'error_reporter.dart';
 import 'push_service.dart';
 import 'realtime_service.dart';
@@ -118,7 +119,7 @@ class AuthResult {
     'server_misconfigured' => '서버 설정 오류로 로그인할 수 없어요',
     'network_error' => '네트워크 연결을 확인해주세요',
     'invalid_current' => '현재 비밀번호가 올바르지 않아요',
-    'weak_password' => '새 비밀번호는 6자 이상이어야 해요',
+    'weak_password' => kPasswordRuleMessage,
     'not_authenticated' || 'unauthorized' => '다시 로그인해주세요',
     'rate_limited' => '요청이 많아요. 잠시 후 다시 시도해주세요',
     'change_failed' => '비밀번호를 변경하지 못했어요',

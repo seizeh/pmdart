@@ -17,7 +17,7 @@
 | [0008](0008-state-holders-without-framework.md) | 프레임워크 없이 `ChangeNotifier` 홀더 | 부채를 인정한 문서다 — **다시 만든다면 처음부터 DI 를 넣는다** |
 | [0009](0009-post-location-from-verified-region.md) | 게시글 위치는 작성 GPS 가 아닌 인증 동네 | 산책 글에 집 좌표가 박히는 문제. 재인증 주기는 **약관과 같은 숫자**여야 한다 |
 | [0010](0010-business-two-faces.md) | 업체는 `user_type` 이 아니라 1:1 분리 | 얼굴 분리는 한 번 만들면 끝이 아니라 **계속 지켜야 하는 불변식**이다 |
-| [0011](0011-self-hosted-error-collection.md) | 오류 수집은 외부 SaaS 가 아니라 우리 DB (Sentry 도입 → 철회) | 외부 SaaS 는 **국외 수탁자 추가라 개인정보처리방침 개정**이 필요했다. 익명 레이트리밋은 자기 텔레메트리를 가릴 뻔했다 |
+| [0011](0011-self-hosted-error-collection.md) | 오류 수집은 외부 SaaS 가 아니라 우리 DB (Sentry 도입 → 철회) | 외부 SaaS 는 **국외 수탁자 추가라 개인정보처리방침 개정**이 필요했다. 그 대신 만든 익명 레이트리밋에 **"클라이언트가 못 속인다" 는 검증 안 한 단정**을 적었다가 실측으로 뒤집혔다 |
 
 ## 이 기록을 남기는 이유
 

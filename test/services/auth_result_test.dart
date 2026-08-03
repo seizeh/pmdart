@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pawmate/services/auth_service.dart';
+import 'package:pawmate/services/phone_auth_service.dart';
 import 'package:pawmate/services/session.dart';
 
 void main() {
@@ -44,6 +45,31 @@ void main() {
       expect(u.username, '');
       expect(u.nickname, '');
       expect(u.userType, '');
+    });
+  });
+
+  group('PhoneVerifyResult.message — 전화 인증 에러코드 매핑', () {
+    String msg(String? code) =>
+        PhoneVerifyResult(verified: false, errorCode: code).message;
+
+    // 서버가 대입 횟수를 제한하면서 새로 나오게 된 코드(pmdb: verify-phone-code).
+    // 기본값으로 떨어지면 '인증에 실패했어요' 가 되는데, 그건 "틀렸다" 로 읽혀
+    // 사용자를 같은 자리에서 계속 재시도하게 만든다 — 이미 막힌 구간이라
+    // 무엇을 넣어도 실패한다.
+    test('rate_limited 는 기다리라고 안내한다(실패로 뭉뚱그리지 않는다)', () {
+      expect(msg('rate_limited'), '시도가 너무 많아요. 잠시 후 다시 시도해주세요');
+      expect(msg('rate_limited'), isNot(msg('what_is_this')));
+    });
+
+    test('기존 코드 매핑은 그대로', () {
+      expect(msg('code_mismatch_or_expired'), '인증번호가 일치하지 않거나 만료됐어요');
+      expect(msg('invalid_code'), '6자리 인증번호를 입력해주세요');
+      expect(msg('network_error'), '네트워크 연결을 확인해주세요');
+    });
+
+    test('에러코드 없음(성공)과 미지의 코드는 각각 완료/실패 기본 문구', () {
+      expect(const PhoneVerifyResult(verified: true).message, '인증되었어요');
+      expect(msg('what_is_this'), '인증에 실패했어요');
     });
   });
 }

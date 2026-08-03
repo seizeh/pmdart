@@ -300,6 +300,11 @@ class PhoneVerifyResult {
   String get message => switch (errorCode) {
     'code_mismatch_or_expired' => '인증번호가 일치하지 않거나 만료됐어요',
     'invalid_code' => '6자리 인증번호를 입력해주세요',
+    // 서버가 대입 횟수를 제한한다(pmdb: verify-phone-code). 이 분기가 없으면
+    // 아래 기본값 '인증에 실패했어요' 로 떨어지는데, 그건 **틀렸다는 뜻으로
+    // 읽혀** 사용자가 같은 자리에서 계속 다시 넣게 만든다. 이미 막힌 구간이라
+    // 무엇을 넣어도 실패하므로, 기다려야 한다는 것을 말해 줘야 한다.
+    'rate_limited' => '시도가 너무 많아요. 잠시 후 다시 시도해주세요',
     'network_error' => '네트워크 연결을 확인해주세요',
     null => '인증되었어요',
     _ => '인증에 실패했어요',

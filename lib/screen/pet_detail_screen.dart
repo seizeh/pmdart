@@ -406,7 +406,7 @@ class _Header extends StatelessWidget {
     final meta = [
       pet.species,
       if (age.isNotEmpty) age,
-      if (pet.gender == 'male') '수컷' else if (pet.gender == 'female') '암컷',
+      if (pet.gender == 'male') '남아' else if (pet.gender == 'female') '여아',
     ].join('  ·  ');
 
     return Padding(

@@ -253,6 +253,7 @@ class BusinessRepository {
             videos: reviewVideosFromJson(r['videos']),
             visitNo: (r['visit_no'] as num?)?.toInt(),
             hasIncentive: r['has_incentive'] == true,
+            isMine: r['is_mine'] == true,
           ),
       ];
     } catch (e, st) {
@@ -437,6 +438,12 @@ class BizFacilityReview {
   final List<ReviewVideo> videos; // 첨부 영상(최대 2개)
   final int? visitNo; // 같은 사용자의 몇 번째 방문 후기인지
   final bool hasIncentive; // 업체 혜택 받고 작성(표시광고법 표시, 0028 §6)
+
+  /// 내가 쓴 후기인가 — 상세 화면 우상단 삭제 버튼 노출 조건.
+  /// 서버(`facility_reviews_of.is_mine`)가 정본이다. 이 필드를 안 채우면 작성자가
+  /// 자기 후기를 지울 수 없다(지도 상세에서는 되는데 업체 프로필에서만 안 되던 버그).
+  final bool isMine;
+
   const BizFacilityReview({
     this.id = '',
     this.authorUserId = '',
@@ -448,6 +455,7 @@ class BizFacilityReview {
     this.videos = const [],
     this.visitNo,
     this.hasIncentive = false,
+    this.isMine = false,
   });
 }
 

@@ -21,12 +21,11 @@ jobs:
 
       - run: flutter pub get
 
-      # 포맷 게이트. post_create_screen.dart 만 일시 제외 — 진행 중 작업(WIP·PR #143)과
-      # 겹쳐 있어 해당 작업 머지 후 포맷하고 제외를 풀 것.
+      # 포맷 게이트. 예외 없음 — post_create_screen.dart 임시 제외는 해당 WIP 가
+      # 머지되면서 해제했다(#160).
       - name: 포맷 검사
         run: |
           git ls-files | grep -E '^(lib|test)/.*\.dart$' \
-            | grep -v '^lib/screen/post_create_screen\.dart$' \
             | xargs dart format --output=none --set-exit-if-changed
 
       # info 수준 린트는 실패로 치지 않는다(warning/error 만 게이트).

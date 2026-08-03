@@ -11,7 +11,9 @@ import '../models/profile.dart';
 import '../motion/motion.dart';
 import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
+import '../services/error_reporter.dart';
 import '../services/facility_repository.dart' show Facility;
+import '../services/facility_review_repository.dart';
 import '../services/report_repository.dart';
 import '../state/user_profile_state.dart';
 import '../theme/app_palette.dart';
@@ -1099,10 +1101,37 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               seed: r.id,
               reviewId: r.id,
               authorUserId: r.authorUserId,
+              // 내 후기면 상세 우상단에 삭제 버튼이 붙는다. 둘 다 넘겨야 뜬다 —
+              // isMine 만 넘기면 버튼 자리가 비고, onDelete 만 넘기면 조건이 false 다.
+              // (지도 상세 facility_sheet 는 넘기고 있어 거기서만 되던 버그였다.)
+              isMine: r.isMine,
+              onDelete: r.isMine ? () => _deleteBizReview(r.id) : null,
             ),
         ],
       ),
     );
+  }
+
+  /// 내 후기 1건 소프트 삭제(상세 화면 우상단 버튼) 후 목록·평점 갱신.
+  /// 서버가 작성자 본인만 지울 수 있게 재검증한다(delete_facility_review).
+  Future<bool> _deleteBizReview(String reviewId) async {
+    final fid = _profile?.businessFacilityId;
+    if (fid == null) return false;
+    try {
+      await FacilityReviewRepository.instance.deleteMine(
+        fid,
+        reviewId: reviewId,
+      );
+      await _load(silent: true);
+      return true;
+    } catch (e, st) {
+      ErrorReporter.userFacing(
+        e,
+        where: 'profile.deleteBizReview',
+        stackTrace: st,
+      );
+      return false;
+    }
   }
 
   // ── 받은 후기: 카테고리 태그 집계 ──

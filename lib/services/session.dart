@@ -283,23 +283,97 @@ class SessionManager extends ChangeNotifier {
 
   /// 로그인 상태면 서버에 세션 유효성 확인(session_alive). 무효면 강제 로그아웃 후 true 반환.
   /// 앱 시작/포그라운드 복귀 시 호출 → 타 기기 비번변경·정지로 무효화된 세션 감지.
+  ///
+  /// 토큰이 만료되면 RPC 가 실행되기 전에 401(PGRST301)로 거절돼 res == false
+  /// 경로에 못 닿는다 — 이를 일시 오류로 삼키면 만료 세션이 영영 로그아웃되지
+  /// 않는 좀비가 된다(#231). 토큰 거절은 갱신 가능하면 살려서 재확인하고,
+  /// 아니면 무효화한다.
   Future<bool> checkAliveAndClearIfDead() async {
     if (!isLoggedIn) return false;
-    try {
-      final res = await Supabase.instance.client.rpc('session_alive');
-      if (res == false) {
+    final (probe, err) = await _probeAlive();
+    switch (probe) {
+      case _Alive.ok:
+      case _Alive.unknown:
+        return false;
+      case _Alive.dead:
         await _invalidate();
         return true;
-      }
+      case _Alive.authRejected:
+        // 갱신 수단이 있으면 한 번 살려 재확인 — 클럭 스큐로 선제 갱신(임박 판정)을
+        // 놓친 경우를 오탐 로그아웃 없이 회복한다.
+        if (_store.persistsRefresh && _refresh != null) {
+          await refreshOnce();
+          if (!isLoggedIn) return true; // refresh 거절이 이미 무효화했다
+          final (second, err2) = await _probeAlive();
+          if (second == _Alive.ok || second == _Alive.unknown) return false;
+          if (second == _Alive.authRejected) {
+            ErrorReporter.userFacing(
+              err2!,
+              where: 'session.aliveCheck.rejected',
+            );
+          }
+          await _invalidate();
+          return true;
+        }
+        // 갱신 불가(웹 결정 7·레거시) — 만료 토큰으로는 어떤 요청도 통하지
+        // 않으므로 여기서 무효화해야 재로그인 경로가 생긴다.
+        ErrorReporter.userFacing(err!, where: 'session.aliveCheck.rejected');
+        await _invalidate();
+        return true;
+    }
+  }
+
+  /// session_alive 1회 호출 결과 분류. 토큰 거절(401 계열)은 예외 객체와 함께
+  /// 돌려줘 호출부가 보고에 쓴다.
+  Future<(_Alive, Object?)> _probeAlive() async {
+    try {
+      final res = await Supabase.instance.client.rpc('session_alive');
+      return res == false ? (_Alive.dead, null) : (_Alive.ok, null);
     } catch (e) {
+      if (isAuthRejection(e)) return (_Alive.authRejected, e);
       // 네트워크/일시 오류: 무효로 단정하지 않음(오탐 로그아웃 방지).
       ErrorReporter.ignored(
         e,
         where: 'session.aliveCheck',
         why: '일시 오류를 세션 무효로 단정하면 오탐 로그아웃이 난다',
       );
+      return (_Alive.unknown, null);
     }
+  }
+
+  /// 서버가 토큰 자체를 거절했는가(만료·서명 불일치 등 401 계열) — 네트워크
+  /// 등 일시 오류와 구분해 세션 무효화 판단에 쓴다. PostgREST 는 만료 JWT 에
+  /// PGRST301(401)을 준다.
+  static bool isAuthRejection(Object e) {
+    if (e is PostgrestException) {
+      return e.code == 'PGRST301' ||
+          e.code == '401' ||
+          e.message.contains('JWT expired') ||
+          e.message.contains('JWSError');
+    }
+    if (e is FunctionException) return e.status == 401;
     return false;
+  }
+
+  bool _expiredInvalidating = false;
+
+  /// 갱신 수단이 없는 세션(웹 결정 7·레거시)의 access 가 이미 만료됐으면 즉시
+  /// 무효화한다 — accessToken 콜백(매 요청 전)이 호출하는 전역 만료 감지 지점.
+  /// 만료 토큰을 계속 첨부하면 모든 요청이 401 을 받는데 재로그인 경로는 없는
+  /// 좀비 세션이 된다(#231). 클라이언트 시계 오차 오탐을 피해 5분 여유를 둔다.
+  void invalidateIfExpired() {
+    if (!isLoggedIn || _expiredInvalidating) return;
+    if (_store.persistsRefresh && _refresh != null) return; // 갱신 경로가 담당
+    final exp = _jwtExp(_access!);
+    if (exp == null) return;
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (nowSec - exp < 300) return;
+    _expiredInvalidating = true;
+    ErrorReporter.userFacing(
+      StateError('access 만료(갱신 불가 세션) — 강제 로그아웃'),
+      where: 'session.expired',
+    );
+    unawaited(_invalidate().whenComplete(() => _expiredInvalidating = false));
   }
 
   /// 세션 무효화 → 저장소 clear + onInvalidated(앱 라우팅) 호출.
@@ -330,3 +404,7 @@ class SessionManager extends ChangeNotifier {
     }
   }
 }
+
+/// session_alive 확인 결과 — ok/dead 는 서버 판정, authRejected 는 토큰 자체
+/// 거절(401 계열), unknown 은 일시 오류(판단 보류).
+enum _Alive { ok, dead, authRejected, unknown }

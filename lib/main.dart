@@ -104,6 +104,9 @@ Future<void> main() async {
       if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
         await s.refreshOnce();
       }
+      // 갱신 수단이 없는 세션(웹·레거시)이 만료됐으면 여기서 무효화 —
+      // 만료 토큰을 계속 첨부하는 좀비 세션 차단(#231).
+      s.invalidateIfExpired();
       // 간이 회원(후기 전용) 토큰은 정식 세션이 없을 때만 쓰인다 — 갱신 대상도
       // 아니고 저장되지도 않는다(SessionManager.beginLiteSession 참고).
       return s.token ?? s.liteToken;

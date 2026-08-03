@@ -170,5 +170,110 @@ void main() {
       expect(await SessionManager.instance.checkAliveAndClearIfDead(), isFalse);
       expect(SessionManager.instance.isLoggedIn, isTrue);
     });
+
+    test('토큰 거절(PGRST301)·refresh 미보유(레거시/웹)면 강제 로그아웃한다(#231)', () async {
+      await SessionManager.instance.setSession(jwtWithExp(nowSec() - 10), _me);
+      FakeSupabase.on(
+        'session_alive',
+        (_) => FakeSupabase.error(401, {
+          'code': 'PGRST301',
+          'message': 'JWT expired',
+        }),
+      );
+      var invalidated = false;
+      SessionManager.instance.onInvalidated = () => invalidated = true;
+
+      expect(await SessionManager.instance.checkAliveAndClearIfDead(), isTrue);
+      expect(invalidated, isTrue, reason: '만료 토큰을 일시 오류로 삼키면 좀비 세션');
+      expect(SessionManager.instance.isLoggedIn, isFalse);
+    });
+
+    test('토큰 거절이라도 refresh 로 살아나면 세션을 유지한다(오탐 로그아웃 방지)', () async {
+      var aliveCalls = 0;
+      FakeSupabase.on('session_alive', (_) {
+        aliveCalls++;
+        return aliveCalls == 1
+            ? FakeSupabase.error(401, {
+                'code': 'PGRST301',
+                'message': 'JWT expired',
+              })
+            : true;
+      });
+      FakeSupabase.on(
+        'refresh',
+        (_) => {
+          'ok': true,
+          'token': jwtWithExp(nowSec() + 7200),
+          'refresh_token': 'r2',
+        },
+      );
+
+      expect(await SessionManager.instance.checkAliveAndClearIfDead(), isFalse);
+      expect(SessionManager.instance.isLoggedIn, isTrue);
+      expect(aliveCalls, 2, reason: '갱신 후 재확인');
+    });
+
+    test('refresh 후에도 토큰이 거절되면 강제 로그아웃한다', () async {
+      FakeSupabase.on(
+        'session_alive',
+        (_) => FakeSupabase.error(401, {
+          'code': 'PGRST301',
+          'message': 'JWT expired',
+        }),
+      );
+      FakeSupabase.on(
+        'refresh',
+        (_) => {
+          'ok': true,
+          'token': jwtWithExp(nowSec() + 7200),
+          'refresh_token': 'r2',
+        },
+      );
+      var invalidated = false;
+      SessionManager.instance.onInvalidated = () => invalidated = true;
+
+      expect(await SessionManager.instance.checkAliveAndClearIfDead(), isTrue);
+      expect(invalidated, isTrue);
+      expect(SessionManager.instance.isLoggedIn, isFalse);
+    });
+  });
+
+  group('SessionManager.invalidateIfExpired — 갱신 불가 세션 만료(#231)', () {
+    test('refresh 없는 세션의 만료 access 는 즉시 무효화한다', () async {
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() - 3600),
+        _me,
+      );
+      var invalidated = false;
+      SessionManager.instance.onInvalidated = () => invalidated = true;
+
+      SessionManager.instance.invalidateIfExpired();
+      await pumpEventQueue();
+
+      expect(invalidated, isTrue);
+      expect(SessionManager.instance.isLoggedIn, isFalse);
+    });
+
+    test('refresh 보유 세션은 만료돼도 건드리지 않는다(갱신 경로가 담당)', () async {
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() - 3600),
+        _me,
+        refresh: 'r1',
+      );
+
+      SessionManager.instance.invalidateIfExpired();
+      await pumpEventQueue();
+
+      expect(SessionManager.instance.isLoggedIn, isTrue);
+    });
+
+    test('만료 후 5분(클럭 스큐 여유) 이내면 유지한다', () async {
+      await SessionManager.instance.setSession(jwtWithExp(nowSec() - 60), _me);
+
+      SessionManager.instance.invalidateIfExpired();
+      await pumpEventQueue();
+
+      expect(SessionManager.instance.isLoggedIn, isTrue);
+    });
   });
 }

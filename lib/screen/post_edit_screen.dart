@@ -230,7 +230,9 @@ class _PostEditScreenState extends State<PostEditScreen> {
         builder: (_) => ImageCropScreen(bytes: raw),
       ),
     );
-    if (cropped == null) return;
+    // 크롭 화면 대기 중 강제 라우팅으로 라우트가 걷힐 수 있다 — _pickVideo 와
+    // 동일한 가드(#238, 이 비대칭이 원 발견 지점이었다).
+    if (cropped == null || !mounted) return;
     setState(() => _uploading = true);
     try {
       final up = await StorageService.instance.uploadBytes(

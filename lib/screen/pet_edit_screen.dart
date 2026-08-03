@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 
 import '../models/pet.dart';
@@ -119,15 +121,21 @@ class _PetEditScreenState extends State<PetEditScreen> {
 
   Future<void> _pickImage() async {
     final file = await StorageService.instance.pickImage();
-    if (file == null) return;
+    if (file == null || !mounted) return;
     setState(() => _uploading = true);
     try {
+      final prev = _imageUrl;
       final up = await StorageService.instance.upload(file, category: 'pets');
       if (!mounted) return;
       setState(() {
         _imageUrl = up.url;
         _uploading = false;
       });
+      // 같은 세션에서 다시 고른 경우 — 직전 업로드는 어디에도 저장되지 않은
+      // 고아가 되므로 정리한다(#233). 기존 저장본(widget.pet)은 저장 성공 시 정리.
+      if (prev != null && prev != widget.pet?.imageUrl && prev != up.url) {
+        unawaited(StorageService.instance.discardByUrl(prev));
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _uploading = false);
@@ -150,6 +158,11 @@ class _PetEditScreenState extends State<PetEditScreen> {
           bio: _bioCtrl.text.trim(),
           imageUrl: _imageUrl,
         );
+        // 사진 교체 저장 성공 — 이전 사진 파일은 더 이상 참조되지 않는다(#233).
+        final old = widget.pet!.imageUrl;
+        if (old != null && old != _imageUrl) {
+          unawaited(StorageService.instance.discardByUrl(old));
+        }
       } else {
         final id = await repo.createPet(
           name: _nameCtrl.text.trim(),
@@ -170,6 +183,9 @@ class _PetEditScreenState extends State<PetEditScreen> {
           } catch (e) {
             debugPrint('펫 등록 취소(삭제) 실패 — 미인증 펫이 남을 수 있음: $e');
           }
+          // 올려둔 사진은 지우지 않는다 — 사용자가 폼에 남아 재시도하는 흐름이라
+          // 파일을 지우면 재시도 저장이 죽은 URL 을 참조한다(#233 은 이탈 고아를
+          // 서버측 청소 몫으로 남긴다).
           if (!mounted) return;
           setState(() => _saving = false);
           _toast('AI 신원 인증을 완료해야 등록돼요. 다시 시도해주세요');

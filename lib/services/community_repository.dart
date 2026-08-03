@@ -294,6 +294,26 @@ class CommunityRepository {
     return postId as String;
   }
 
+  /// 이 게시글이 **수정 잠김**인가 — 약속이 한 건이라도 완료됐으면 true.
+  ///
+  /// 성사된 거래의 조건(제목·내용·일정)을 사후에 갈아끼우면 그걸 근거로 남은
+  /// 후기·신뢰도가 흔들린다. 서버(`update_my_post`)가 정본으로 막고, 이 조회는
+  /// 잠긴 이유를 **미리** 알려주기 위한 것이다(저장 눌러서 실패하지 않게).
+  /// 실패 시 false — 안내를 못 띄울 뿐이고 저장은 서버가 막는다.
+  Future<bool> postEditLocked(String postId) async {
+    try {
+      final r = await _c.rpc('post_edit_locked', params: {'p_post': postId});
+      return r == true;
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'community.postEditLocked',
+        why: '잠금 안내를 못 띄울 뿐 — 실제 차단은 update_my_post 가 한다',
+      );
+      return false;
+    }
+  }
+
   /// 내 게시글 제목·내용·약속일정·(자유/입양 한정)사진 수정 — update_my_post RPC.
   /// 일정이 실제로 바뀌면 진행 중 지원자에게 알림/푸시가 서버에서 발송된다.
   /// 카메라 인증 게시글의 검증 사진·카테고리·펫은 편집 대상이 아니다(서버가 무시).

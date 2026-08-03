@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../models/community.dart';
 import '../motion/motion.dart';
@@ -6,7 +10,11 @@ import '../services/community_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel;
+import '../widgets/blob_background.dart';
 import '../widgets/media_widgets.dart' show VideoPlayBadge;
+import '../widgets/post_editor_parts.dart';
+import '../widgets/post_media_hero.dart' show MediaOverlayPanel;
+import '../widgets/role_badge.dart' show categoryColor;
 import 'image_crop_screen.dart';
 
 /// 내 게시글 수정 — 제목·내용, 일정 게시글이면 약속 일정, 자유/입양이면 사진까지 편집.
@@ -32,6 +40,15 @@ class _PostEditScreenState extends State<PostEditScreen> {
   bool _saving = false;
   bool _deleting = false;
 
+  /// 약속이 완료된 게시글은 수정할 수 없다 — 성사된 거래의 조건을 사후에 바꾸면
+  /// 그걸 근거로 남은 후기·신뢰도가 흔들린다. 서버(`update_my_post`)가 정본이고
+  /// 여기서는 이유를 미리 알려주고 저장 버튼을 잠근다.
+  ///
+  /// **삭제는 막지 않는다** — 자기 글을 내리는 건 별개 권리이고, 이 화면이 삭제의
+  /// 유일한 진입점이라 함께 잠그면 내릴 방법이 사라진다.
+  bool _editLocked = false;
+  bool _lockChecked = false;
+
   // 미디어 편집(자유/입양/소식만). null=미디어 없음. 변경 시 _imageEdited=true.
   // 영상 게시글이면 표시용 URL 은 포스터(썸네일)다.
   late String? _imageUrl = widget.post.isVideo
@@ -56,9 +73,64 @@ class _PostEditScreenState extends State<PostEditScreen> {
 
   bool get _canSave =>
       !_uploading &&
+      !_editLocked &&
       _titleCtrl.text.trim().isNotEmpty &&
       _contentCtrl.text.trim().isNotEmpty &&
       (!_hasSchedule || _scheduledAt != null);
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_checkEditLock());
+  }
+
+  /// 저장하지 않은 변경이 있는가 — 닫기 전 확인 여부 판단용.
+  bool get _dirty =>
+      _titleCtrl.text != widget.post.title ||
+      _contentCtrl.text != widget.post.content ||
+      _scheduledAt != widget.post.scheduledAt ||
+      _imageEdited;
+
+  /// 닫기 — 고친 게 있으면 버릴지 먼저 묻는다(잠긴 글은 고칠 수 없어 바로 닫힌다).
+  Future<void> _close() async {
+    if (_saving || _deleting) return;
+    if (!_dirty) {
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('수정을 취소할까요?'),
+        content: const Text('저장하지 않은 변경 내용은 사라져요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('계속 수정'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('취소', style: TextStyle(color: ctx.colors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) Navigator.pop(context);
+  }
+
+  /// 자유·입양은 애초에 약속이 생기지 않으므로 조회를 건너뛴다(0012).
+  Future<void> _checkEditLock() async {
+    if (_canEditImage && !_hasSchedule) {
+      setState(() => _lockChecked = true);
+      return;
+    }
+    final locked = await _repo.postEditLocked(widget.post.id);
+    if (!mounted) return;
+    setState(() {
+      _editLocked = locked;
+      _lockChecked = true;
+    });
+  }
 
   /// 미디어 추가/교체 진입 — 자유/소식은 사진/동영상 선택, 입양은 사진만.
   Future<void> _pickMedia() async {
@@ -319,290 +391,302 @@ class _PostEditScreenState extends State<PostEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.colors.background,
-      appBar: AppBar(
-        title: const Text('게시글 수정'),
-        actions: [
-          // 삭제 — 저장 왼쪽. 진행 중엔 서로 비활성화.
-          TextButton(
-            onPressed: (_saving || _deleting) ? null : _confirmDelete,
-            style: TextButton.styleFrom(foregroundColor: context.colors.danger),
-            child: _deleting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text(
-                    '삭제',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
+    // 작성 화면(post_create_screen)과 같은 히어로 에디터 — 대표 미디어가 배경이
+    // 되고, 하단 오버레이 패널 안에서 제목·본문·일정을 그 자리에서 고친다.
+    // 조각은 widgets/post_editor_parts.dart 공용(둘이 갈라지지 않게).
+    //
+    // 작성 화면과 다른 점은 '무엇을 못 고치는가'뿐이다: 카테고리·연결 펫은 고정,
+    // 미디어는 자유/입양/소식만, 일정은 원래 있던 글만, 그리고 약속이 완료됐으면
+    // 전부 잠긴다(_editLocked).
+    final overlay = Theme.of(context).brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlay,
+      // 시스템 뒤로가기(안드로이드 버튼·iOS 스와이프)도 닫기 버튼과 같은 확인을
+      // 거치게 한다 — 한쪽만 막으면 다른 쪽으로 변경이 조용히 사라진다.
+      child: PopScope(
+        canPop: !_dirty,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) unawaited(_close());
+        },
+        child: Scaffold(
+          backgroundColor: context.colors.background,
+          body: LayoutBuilder(
+            builder: (context, box) => SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: SizedBox(
+                height: math.max(box.maxHeight, 420),
+                child: _editorHero(),
+              ),
+            ),
           ),
-          TextButton(
-            onPressed: (_canSave && !_saving && !_deleting) ? _save : null,
-            child: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text(
-                    '저장',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  Widget _editorHero() {
+    final color = categoryColor(context, widget.post.category);
+    final photoUrl = _imageUrl;
+    final hasPhoto = photoUrl != null;
+    final topPad = MediaQuery.paddingOf(context).top;
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth;
+        final h = box.maxHeight;
+        return Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.hardEdge,
+          children: [
+            if (photoUrl != null)
+              Image.network(
+                photoUrl,
+                fit: BoxFit.cover,
+                cacheWidth: 1200,
+                errorBuilder: (_, _, _) => _isVideo
+                    ? const ColoredBox(color: Color(0xFF2B2B2B))
+                    : BlobBackground(
+                        seed: 'preview/${widget.post.category}',
+                        color: color,
+                      ),
+              )
+            else
+              BlobBackground(
+                seed: 'preview/${widget.post.category}',
+                color: color,
+              ),
+            // 사진 없는 글 — 본문이 곧 히어로다(작성 화면과 같은 자리).
+            if (!hasPhoto)
+              Positioned(
+                top: topPad + 56,
+                left: 22,
+                right: 22,
+                bottom: h * 0.42,
+                child: Center(
+                  child: EditorContentField(
+                    controller: _contentCtrl,
+                    hero: true,
+                    onChanged: _editLocked ? null : (_) => setState(() {}),
                   ),
+                ),
+              ),
+            if (_isVideo) const Center(child: VideoPlayBadge(size: 56)),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: MediaOverlayPanel(
+                blurSource: photoUrl == null
+                    ? null
+                    : Image.network(
+                        photoUrl,
+                        fit: BoxFit.cover,
+                        cacheWidth: 400,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                blurSourceSize: Size(w, h),
+                bottomClearance: MediaQuery.paddingOf(context).bottom + 10,
+                clearanceDuration: const Duration(milliseconds: 200),
+                child: _overlayEditor(hasPhoto: hasPhoto, color: color),
+              ),
+            ),
+            // 좌상단 — 닫기 + (편집 가능하면) 미디어 교체/제거.
+            //
+            // ⚠️ 닫기는 **조건 없이 항상** 있어야 한다. 작성 화면은 CollapseRoute 로
+            // 열려 아래로 쓸어내리면 닫히지만, 이 화면은 일반 push 라 그 제스처가
+            // 없다. 앱바를 없애면서 닫기까지 사라져, 수정이 잠긴 게시글에 들어가면
+            // 웹에서 빠져나올 방법이 없었다(실사용 신고).
+            Positioned(
+              top: topPad + 8,
+              left: 12,
+              child: Row(
+                children: [
+                  EditorCardIconButton(
+                    icon: Icons.arrow_back,
+                    tooltip: '닫기',
+                    onTap: _close,
+                  ),
+                  if (_canEditImage && !_editLocked) ...[
+                    const SizedBox(width: 8),
+                    EditorCardIconButton(
+                      icon: hasPhoto
+                          ? Icons.photo_camera_outlined
+                          : Icons.add_a_photo_outlined,
+                      tooltip: _canEditVideo ? '사진·동영상 교체' : '사진 교체',
+                      busy: _uploading,
+                      onTap: _pickMedia,
+                    ),
+                    if (hasPhoto && !_uploading) ...[
+                      const SizedBox(width: 8),
+                      EditorCardIconButton(
+                        icon: Icons.close,
+                        tooltip: '사진 제거',
+                        onTap: _removeImage,
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+            // 우상단 — 삭제 + 저장. 삭제는 잠겨도 남는다(이 화면이 유일한 진입점).
+            Positioned(
+              top: topPad + 8,
+              right: 12,
+              child: CollapseSettledFade(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    EditorCardIconButton(
+                      icon: Icons.delete_outline,
+                      tooltip: '게시글 삭제',
+                      busy: _deleting,
+                      onTap: (_saving || _deleting) ? () {} : _confirmDelete,
+                    ),
+                    const SizedBox(width: 8),
+                    EditorSubmitPill(
+                      label: '저장',
+                      enabled: _canSave && !_saving && !_deleting,
+                      busy: _saving,
+                      onTap: _save,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 하단 오버레이의 입력 묶음 — 작성 화면의 배치를 그대로 따르되 고정 필드는
+  /// 편집 힌트(▾) 없이 표시만 한다.
+  Widget _overlayEditor({required bool hasPhoto, required Color color}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 약속 완료 → 수정 잠김. 저장이 왜 안 되는지 여기서 먼저 말한다.
+          if (_lockChecked && _editLocked) ...[
+            _LockedNotice(),
+            const SizedBox(height: 10),
+          ],
+          // 카테고리 — 수정 불가라 ▾ 없이 표시만.
+          EditorCategoryPill(
+            text: categoryLabel(widget.post.category),
+            textColor: color,
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _titleCtrl,
+            maxLines: 1,
+            enabled: !_editLocked,
+            onChanged: (_) => setState(() {}),
+            cursorColor: Colors.white,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              isCollapsed: true,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              filled: false,
+              hintText: '제목을 입력하세요',
+              hintStyle: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: Color(0x99FFFFFF),
+              ),
+            ),
+          ),
+          if (hasPhoto) ...[
+            const SizedBox(height: 4),
+            EditorContentField(
+              controller: _contentCtrl,
+              hero: false,
+              onChanged: _editLocked ? null : (_) => setState(() {}),
+            ),
+          ],
+          if (_hasSchedule) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: _editLocked ? null : _pickDateTime,
+              child: EditorMetaPill(
+                icon: Icons.event_outlined,
+                label: _scheduledAt == null
+                    ? '약속 일정 선택 (필수)'
+                    : '${_scheduledAt!.month}/${_scheduledAt!.day} ${_scheduledAt!.hour}시',
+                editable: !_editLocked,
+              ),
+            ),
+            if (!_editLocked) ...[
+              const SizedBox(height: 6),
+              const Text(
+                '일정을 바꾸면 지원한 사용자에게 변경 알림이 전송돼요',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.4,
+                  color: Color(0xCCFFFFFF),
+                ),
+              ),
+            ],
+          ],
+          const SizedBox(height: 10),
+          Text(
+            _canEditImage
+                ? '카테고리·연결한 반려동물은 수정할 수 없어요'
+                : '사진·카테고리·연결한 반려동물은 수정할 수 없어요',
+            style: const TextStyle(
+              fontSize: 11.5,
+              height: 1.4,
+              color: Color(0xCCFFFFFF),
+            ),
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 카테고리는 편집 불가 — 현재 값만 표시.
-              const _SectionLabel('카테고리'),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: context.colors.surfaceMuted,
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: context.colors.border, width: 0.5),
-                ),
-                child: Text(
-                  categoryLabel(widget.post.category),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.textSecondary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const _SectionLabel('제목'),
-              TextField(
-                controller: _titleCtrl,
-                decoration: const InputDecoration(hintText: '제목을 입력하세요'),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 20),
-              const _SectionLabel('내용'),
-              TextField(
-                controller: _contentCtrl,
-                maxLines: 8,
-                decoration: const InputDecoration(hintText: '내용을 입력하세요'),
-                onChanged: (_) => setState(() {}),
-              ),
-              if (_canEditImage) ...[
-                const SizedBox(height: 20),
-                _SectionLabel(_canEditVideo ? '사진·동영상 (선택)' : '사진 (선택)'),
-                _PhotoEditor(
-                  url: _imageUrl,
-                  isVideo: _isVideo,
-                  uploading: _uploading,
-                  onPick: _pickMedia,
-                  onRemove: _removeImage,
-                ),
-              ],
-              if (_hasSchedule) ...[
-                const SizedBox(height: 20),
-                const _SectionLabel('약속 일정'),
-                InkWell(
-                  onTap: _pickDateTime,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: context.colors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: context.colors.border,
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.event,
-                          color: context.colors.primaryDark,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          _scheduledAt == null
-                              ? '일정을 선택하세요'
-                              : '${_scheduledAt!.year}년 ${_scheduledAt!.month}월 ${_scheduledAt!.day}일 ${_scheduledAt!.hour}시',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: _scheduledAt == null
-                                ? context.colors.textTertiary
-                                : context.colors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '일정을 바꾸면 이 게시글에 지원한 사용자에게 변경 알림이 전송돼요.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: context.colors.textTertiary,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              Text(
-                _canEditImage
-                    ? '카테고리·연결한 반려동물은 수정할 수 없어요. '
-                          '변경하려면 삭제 후 다시 작성해주세요.'
-                    : '사진·카테고리·연결한 반려동물은 수정할 수 없어요. '
-                          '변경하려면 삭제 후 다시 작성해주세요.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: context.colors.textTertiary,
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
+    );
+  }
+}
+
+/// 약속 완료로 수정이 잠겼을 때의 안내 — 저장만 막고 삭제는 남는다는 것까지 말한다.
+class _LockedNotice extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: c.surfaceMuted,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.border, width: 0.5),
       ),
-    );
-  }
-}
-
-/// 자유/입양/소식 게시글 미디어 편집기 — 갤러리 선택/미리보기/삭제(촬영 검증 없음).
-/// [isVideo] 면 포스터 위에 ▶ 배지(포스터 없으면 어두운 타일 + ▶).
-class _PhotoEditor extends StatelessWidget {
-  final String? url;
-  final bool isVideo;
-  final bool uploading;
-  final VoidCallback onPick;
-  final VoidCallback onRemove;
-  const _PhotoEditor({
-    required this.url,
-    required this.isVideo,
-    required this.uploading,
-    required this.onPick,
-    required this.onRemove,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (uploading) {
-      return Container(
-        height: 180,
-        decoration: BoxDecoration(
-          color: context.colors.surfaceMuted,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: context.colors.border, width: 0.5),
-        ),
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (url == null && !isVideo) {
-      return InkWell(
-        onTap: onPick,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: 100,
-          decoration: BoxDecoration(
-            color: context.colors.surfaceMuted,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: context.colors.border, width: 0.5),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.add_a_photo_outlined,
-                color: context.colors.primaryDark,
-                size: 26,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_outline, size: 18, color: c.textSecondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '약속이 완료된 게시글이라 내용을 수정할 수 없어요.\n'
+              '삭제는 계속 할 수 있어요.',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: c.textSecondary,
               ),
-              SizedBox(height: 6),
-              Text(
-                '사진 추가',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: context.colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    return Stack(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: AspectRatio(
-            aspectRatio: kPostImageAspectRatio,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (url != null)
-                  Image.network(
-                    url!,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      color: context.colors.surfaceMuted,
-                      child: const Center(child: Icon(Icons.image, size: 40)),
-                    ),
-                  )
-                else
-                  // 포스터 없는 영상 — 어두운 타일 + ▶ 폴백.
-                  const ColoredBox(color: Color(0xFF2B2B2B)),
-                if (isVideo) const Center(child: VideoPlayBadge()),
-              ],
             ),
           ),
-        ),
-        Positioned(
-          top: 8,
-          right: 8,
-          child: GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.close, color: Colors.white, size: 18),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: context.colors.textPrimary,
-        ),
+        ],
       ),
     );
   }

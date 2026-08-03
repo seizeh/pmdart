@@ -323,9 +323,9 @@ class _PetEditScreenState extends State<PetEditScreen> {
               const _Label('성별'),
               Row(
                 children: [
-                  _genderChip('male', '수컷'),
+                  _genderChip('male', '남아'),
                   const SizedBox(width: 8),
-                  _genderChip('female', '암컷'),
+                  _genderChip('female', '여아'),
                 ],
               ),
               const SizedBox(height: 16),

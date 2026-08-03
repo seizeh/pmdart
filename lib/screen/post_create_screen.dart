@@ -19,6 +19,7 @@ import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/media_widgets.dart' show VideoPlayBadge;
+import '../widgets/post_editor_parts.dart';
 import '../widgets/post_media_hero.dart' show MediaOverlayPanel;
 import '../widgets/role_badge.dart';
 import 'image_crop_screen.dart';
@@ -473,49 +474,13 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
 
   /// 본문 입력 — 사진 없는 글은 화면 중앙 히어로(피드 카드의 본문 자리),
   /// 사진 글은 제목 아래 두 줄 미리보기 자리에서 그대로 입력한다.
-  Widget _contentField({required bool hero}) {
-    return TextField(
-      controller: _contentCtrl,
-      onChanged: (_) => setState(() {}),
-      minLines: 1,
-      maxLines: hero ? 9 : 3,
-      textAlign: hero ? TextAlign.center : TextAlign.start,
-      cursorColor: hero ? context.colors.textPrimary : Colors.white,
-      style: hero
-          ? TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: context.colors.textPrimary,
-              height: 1.6,
-            )
-          : const TextStyle(
-              fontSize: 13,
-              color: Color(0xE0FFFFFF),
-              height: 1.5,
-            ),
-      decoration: InputDecoration(
-        isDense: true,
-        isCollapsed: true,
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        filled: false,
-        hintText: hero ? '내용을 입력하세요' : '내용을 입력하세요',
-        hintStyle: hero
-            ? TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: context.colors.textTertiary,
-                height: 1.6,
-              )
-            : const TextStyle(
-                fontSize: 13,
-                color: Color(0x99FFFFFF),
-                height: 1.5,
-              ),
-      ),
-    );
-  }
+  // 아래 다섯 조각은 수정 화면(post_edit_screen)과 공용이다 —
+  // widgets/post_editor_parts.dart 가 구현이고 여기서는 이 화면의 상태만 엮는다.
+  Widget _contentField({required bool hero}) => EditorContentField(
+    controller: _contentCtrl,
+    hero: hero,
+    onChanged: (_) => setState(() {}),
+  );
 
   /// 연결할 반려동물 선택 — 하단 정보 줄에서 가로로 훑어 고른다.
   /// 분양(give_away)은 본인이 소유자인 펫 1마리만.
@@ -640,31 +605,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     required String tooltip,
     required VoidCallback onTap,
     bool busy = false,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: busy ? null : onTap,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            color: Color(0x66000000),
-            shape: BoxShape.circle,
-          ),
-          child: busy
-              ? const Padding(
-                  padding: EdgeInsets.all(10),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Icon(icon, size: 20, color: Colors.white),
-        ),
-      ),
-    );
-  }
+  }) => EditorCardIconButton(
+    icon: icon,
+    tooltip: tooltip,
+    onTap: onTap,
+    busy: busy,
+  );
 
   /// 카테고리 태그(흰 필름 알약) — 피드 카드와 동일 + 편집 힌트(▾).
   /// [selected] 는 인라인 확장 목록에서 현재 카테고리 강조(색 채움 + 흰 글자).
@@ -673,70 +619,19 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     required Color textColor,
     IconData? trailing,
     bool selected = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: selected ? textColor : Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : textColor,
-            ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: 2),
-            Icon(trailing, size: 13, color: textColor),
-          ],
-        ],
-      ),
-    );
-  }
+  }) => EditorCategoryPill(
+    text: text,
+    textColor: textColor,
+    trailing: trailing,
+    selected: selected,
+  );
 
   /// 일정 알약 — 피드 카드의 메타 알약과 동일 + 편집 힌트(▾).
   Widget _previewMetaPill({
     required IconData icon,
     required String label,
     bool editable = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: context.colors.textSecondary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: context.colors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          if (editable) ...[
-            const SizedBox(width: 2),
-            Icon(
-              Icons.expand_more,
-              size: 13,
-              color: context.colors.textSecondary,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  }) => EditorMetaPill(icon: icon, label: label, editable: editable);
 
   @override
   void initState() {
@@ -1133,38 +1028,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
 
   /// 등록 — 앱바 자리(우상단)의 알약 버튼. 뒤로가기·제목이 없으므로 화면에서
   /// 유일한 상단 크롬이다.
-  Widget _submitPill() {
-    final enabled = _canSubmit && !_submitting;
-    return Pressable(
-      scaleTo: 0.92,
-      borderRadius: BorderRadius.circular(100),
-      onTap: enabled ? _submit : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          color: enabled ? context.colors.primaryDark : const Color(0x59000000),
-          borderRadius: BorderRadius.circular(100),
-        ),
-        child: _submitting
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Text(
-                '등록',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: enabled ? Colors.white : const Color(0x99FFFFFF),
-                ),
-              ),
-      ),
-    );
-  }
+  Widget _submitPill() => EditorSubmitPill(
+    label: '등록',
+    enabled: _canSubmit && !_submitting,
+    busy: _submitting,
+    onTap: _submit,
+  );
 
   @override
   Widget build(BuildContext context) {

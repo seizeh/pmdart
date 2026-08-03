@@ -72,4 +72,34 @@ void main() {
       expect(msg('what_is_this'), '인증에 실패했어요');
     });
   });
+
+  group('PhoneCodeResult.message — 대기 시간 자릿수에 따라 문장이 바뀐다', () {
+    String msg(int? sec) => PhoneCodeResult(
+      ok: false,
+      errorCode: 'rate_limited',
+      retryAfterSec: sec,
+    ).message;
+
+    // 서버 버킷의 창이 제각각이다 — 번호별 재발송 쿨다운 60초 vs 출처별·전역
+    // 상한 3600초. 초 단위로만 찍으면 1시간 막힌 사용자에게 "3600초 후" 가 뜬다.
+    test('1시간 창은 시간 단위로 안내하고 "잠시 후" 라고 하지 않는다', () {
+      expect(msg(3600), '요청이 너무 많아요. 최대 1시간 뒤 다시 시도할 수 있어요');
+      expect(msg(3600), isNot(contains('3600')));
+      // "잠시 후" 는 곧 될 것처럼 읽혀 같은 자리에서 계속 누르게 만든다.
+      expect(msg(3600), isNot(contains('잠시 후')));
+    });
+
+    test('분 단위는 올림해서 분으로', () {
+      expect(msg(600), '요청이 너무 많아요. 최대 10분 뒤 다시 시도할 수 있어요');
+      expect(msg(90), contains('최대 2분'));
+    });
+
+    test('60초 미만은 종전 문구 유지(재발송 쿨다운)', () {
+      expect(msg(30), '잠시 후 다시 시도해주세요 (30초 후 재발송 가능)');
+    });
+
+    test('서버가 값을 안 주면 60초로 가정한다(종전 동작)', () {
+      expect(msg(null), contains('최대 1분'));
+    });
+  });
 }

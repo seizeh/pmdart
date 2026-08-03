@@ -222,12 +222,30 @@ class PhoneCodeResult {
     );
   }
 
+  /// `rate_limited` 안내 — 대기 시간의 **자릿수**에 따라 문장을 바꾼다.
+  ///
+  /// 서버 버킷의 창이 제각각이다: 번호별 재발송 쿨다운은 60초지만, 출처별(IP)
+  /// 상한과 전역 상한은 **1시간**이다. 종전처럼 초 단위로만 찍으면 1시간 막힌
+  /// 사용자에게 "3600초 후 재발송 가능" 이 뜨고, 그 앞의 "잠시 후" 와도 어긋난다.
+  ///
+  /// 분 이상이면 "잠시 후" 를 쓰지 않는 게 중요하다 — 곧 될 것처럼 읽히면 사용자가
+  /// 같은 자리에서 계속 누르는데, 그 구간에서는 무엇을 눌러도 실패한다.
+  /// 창은 고정창이라 실제 대기는 이보다 짧을 수 있어 '최대' 로 적는다.
+  String get _retryText {
+    final s = retryAfterSec ?? 60;
+    if (s < 60) return '$s초 후 재발송 가능';
+    if (s < 3600) return '최대 ${(s / 60).ceil()}분 뒤 다시 시도할 수 있어요';
+    return '최대 ${(s / 3600).ceil()}시간 뒤 다시 시도할 수 있어요';
+  }
+
   /// 사용자에게 보여줄 한글 메시지.
   String get message => switch (errorCode) {
     'invalid_phone' => '전화번호 형식이 올바르지 않아요',
     'phone_taken' => '이미 가입된 전화번호예요. 로그인하거나 비밀번호 찾기를 이용해주세요',
     'user_not_found' => '가입되지 않은 전화번호예요',
-    'rate_limited' => '잠시 후 다시 시도해주세요 (${retryAfterSec ?? 60}초 후 재발송 가능)',
+    'rate_limited' when (retryAfterSec ?? 60) < 60 =>
+      '잠시 후 다시 시도해주세요 ($_retryText)',
+    'rate_limited' => '요청이 너무 많아요. $_retryText',
     'sms_send_failed' => '문자 발송에 실패했어요. 잠시 후 다시 시도해주세요',
     'server_misconfigured' => '서버 설정 오류로 발송할 수 없어요',
     'network_error' => '네트워크 연결을 확인해주세요',

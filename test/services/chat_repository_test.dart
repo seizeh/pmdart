@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pawmate/services/app_events.dart';
 import 'package:pawmate/services/chat_repository.dart';
+import 'package:pawmate/services/session.dart';
 
+import '../helpers/fake_session.dart';
 import '../helpers/fake_supabase.dart';
 
 Map<String, dynamic> room(String id, String nickname, {String? at}) => {
@@ -15,10 +17,30 @@ Map<String, dynamic> room(String id, String nickname, {String? at}) => {
   'unread_count': 0,
 };
 
+Map<String, dynamic> msgRow(String id, String at) => {
+  'id': id,
+  'room_id': 'r1',
+  'sender_id': 'u2',
+  'content': '메시지 $id',
+  'created_at': at,
+};
+
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    installFakeSecureStorage();
     await FakeSupabase.init();
+    // fetchMessages 는 로그인 사용자(_uid)를 요구한다.
+    await SessionManager.instance.setSession(
+      jwtWithExp(nowSec() + 3600),
+      const AuthUser(
+        id: 'u1',
+        username: 'me',
+        nickname: '나',
+        userType: 'no_pet',
+      ),
+      refresh: 'r1',
+    );
   });
 
   setUp(FakeSupabase.reset);
@@ -51,6 +73,38 @@ void main() {
         req.url.queryParameters['order'],
         'last_message_at.desc.nullslast',
       );
+    });
+  });
+
+  group('ChatRepository.fetchMessages', () {
+    test('최신순 한 페이지를 요청해 오래된→최신으로 뒤집어 반환한다(#230)', () async {
+      FakeSupabase.on(
+        'chat_messages',
+        (_) => [
+          msgRow('m2', '2026-07-01T00:00:02Z'),
+          msgRow('m1', '2026-07-01T00:00:01Z'),
+        ],
+      );
+
+      final msgs = await ChatRepository.instance.fetchMessages('r1');
+
+      expect(msgs.map((m) => m.id).toList(), ['m1', 'm2']);
+      final q = FakeSupabase.requests.single.url.queryParameters;
+      expect(q['order'], startsWith('created_at.desc'), reason: '최신부터');
+      expect(q['limit'], '${ChatRepository.messagePageSize}');
+      expect(q['room_id'], 'eq.r1');
+      expect(q['is_deleted'], 'eq.false');
+      expect(q.containsKey('created_at'), isFalse, reason: '첫 페이지는 커서 없음');
+    });
+
+    test('before 커서는 created_at lt 필터(UTC)로 나간다', () async {
+      FakeSupabase.on('chat_messages', (_) => []);
+      final before = DateTime.parse('2026-07-01T00:00:01Z').toLocal();
+
+      await ChatRepository.instance.fetchMessages('r1', before: before);
+
+      final q = FakeSupabase.requests.single.url.queryParameters;
+      expect(q['created_at'], 'lt.2026-07-01T00:00:01.000Z');
     });
   });
 

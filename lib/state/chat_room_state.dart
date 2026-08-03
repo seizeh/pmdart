@@ -24,12 +24,20 @@ class ChatRoomState extends ChangeNotifier {
   List<ChatMessage> _messages = [];
   bool _loading = true;
   bool _sending = false;
+  bool _hasMore = false;
+  bool _loadingOlder = false;
   RealtimeChannel? _channel;
   String? _otherImageUrl;
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   bool get loading => _loading;
   bool get sending => _sending;
+
+  /// 위로 스크롤하면 불러올 이전 메시지가 남아 있는지.
+  bool get hasMore => _hasMore;
+
+  /// 이전 페이지 로드 중 — 화면이 목록 상단에 스피너를 띄운다.
+  bool get loadingOlder => _loadingOlder;
 
   /// 상대 프로필 사진(히어로 헤더용) — 없으면 닉네임 중앙 표시.
   String? get otherImageUrl => _otherImageUrl;
@@ -56,6 +64,7 @@ class ChatRoomState extends ChangeNotifier {
   Future<void> _load() async {
     try {
       _messages = await _repo.fetchMessages(room.id);
+      _hasMore = _messages.length >= ChatRepository.messagePageSize;
       _loading = false;
       notifyListeners();
       _markRead();
@@ -75,6 +84,29 @@ class ChatRoomState extends ChangeNotifier {
       );
     } catch (e) {
       debugPrint('채팅방: 실시간 구독 실패(전송/로드는 정상): $e');
+    }
+  }
+
+  /// 위로 스크롤 시 이전 페이지 로드 — 오래된 메시지를 목록 앞에 붙인다.
+  /// 읽음 커서는 건드리지 않는다(항상 최신 메시지 기준). 실패는 조용히 넘기고
+  /// 다음 스크롤에서 재시도한다.
+  Future<void> loadOlder() async {
+    if (_loadingOlder || !_hasMore || _messages.isEmpty) return;
+    _loadingOlder = true;
+    notifyListeners();
+    try {
+      final older = await _repo.fetchMessages(
+        room.id,
+        before: _messages.first.createdAt,
+      );
+      _hasMore = older.length >= ChatRepository.messagePageSize;
+      final ids = _messages.map((m) => m.id).toSet();
+      _messages.insertAll(0, older.where((m) => !ids.contains(m.id)));
+    } catch (e) {
+      debugPrint('채팅방: 이전 메시지 로드 실패(스크롤 시 재시도): $e');
+    } finally {
+      _loadingOlder = false;
+      notifyListeners();
     }
   }
 
@@ -111,6 +143,8 @@ class ChatRoomState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // _messages.last 가 항상 최신이라는 전제(초기 로드=최신 페이지, 이전 페이지는
+  // 앞에 붙음)로 읽음 커서를 올린다 — 오래된 메시지로 커서를 되돌리면 안 된다(#230).
   void _markRead() {
     if (_messages.isEmpty) return;
     _repo.markRead(room.id, _messages.last.id).catchError((Object e) {

@@ -116,6 +116,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   void initState() {
     super.initState();
     _state.init();
+    _scroll.addListener(_onScroll);
+  }
+
+  /// reverse:true 리스트라 위(과거)로 스크롤하면 maxScrollExtent 쪽으로 간다 —
+  /// 과거 끝에 가까워지면 이전 페이지를 미리 불러온다(중복 호출은 홀더가 방어).
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    if (_scroll.position.extentAfter < 300) _state.loadOlder();
   }
 
   @override
@@ -512,12 +520,27 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
         16,
         bottomInset + 90, // 입력창(≈78) + 간격
       ),
-      itemCount: messages.length,
-      itemBuilder: (_, i) => _MessageBubble(
-        message: messages[messages.length - 1 - i],
-        onReport: _reportMessage,
-        onDeleteMine: _deleteMyMessage,
-      ),
+      // 이전 페이지 로드 중이면 목록 맨 위(과거 끝)에 스피너 한 칸.
+      itemCount: messages.length + (_state.loadingOlder ? 1 : 0),
+      itemBuilder: (_, i) {
+        if (i >= messages.length) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+        return _MessageBubble(
+          message: messages[messages.length - 1 - i],
+          onReport: _reportMessage,
+          onDeleteMine: _deleteMyMessage,
+        );
+      },
     );
   }
 }

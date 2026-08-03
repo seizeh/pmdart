@@ -115,14 +115,38 @@ void main() {
       expect(q['is_read'], 'eq.false');
     });
 
-    test('deleteAll 은 내 알림 전체를 지운다', () async {
+    test(
+      'delete 는 읽음 처리(UPDATE) 후 삭제한다 — 카운터 트리거 DELETE 분기 부재(#232)',
+      () async {
+        FakeSupabase.on('notifications', (_) => []);
+
+        await NotificationRepository.instance.delete('n1');
+
+        expect(FakeSupabase.requests, hasLength(2));
+        final read = FakeSupabase.requests[0];
+        expect(read.method, 'PATCH', reason: '안읽음 행을 바로 지우면 배지 카운터가 영구 드리프트');
+        expect(jsonDecode(read.body), {'is_read': true});
+        expect(read.url.queryParameters['id'], 'eq.n1');
+        expect(read.url.queryParameters['is_read'], 'eq.false');
+        final del = FakeSupabase.requests[1];
+        expect(del.method, 'DELETE');
+        expect(del.url.queryParameters['id'], 'eq.n1');
+      },
+    );
+
+    test('deleteAll 도 읽음 처리 선행 후 내 알림 전체를 지운다(#232)', () async {
       FakeSupabase.on('notifications', (_) => []);
 
       await NotificationRepository.instance.deleteAll();
 
-      final req = FakeSupabase.requests.single;
-      expect(req.method, 'DELETE');
-      expect(req.url.queryParameters['user_id'], 'eq.u1');
+      expect(FakeSupabase.requests, hasLength(2));
+      final read = FakeSupabase.requests[0];
+      expect(read.method, 'PATCH');
+      expect(read.url.queryParameters['user_id'], 'eq.u1');
+      expect(read.url.queryParameters['is_read'], 'eq.false');
+      final del = FakeSupabase.requests[1];
+      expect(del.method, 'DELETE');
+      expect(del.url.queryParameters['user_id'], 'eq.u1');
     });
   });
 }

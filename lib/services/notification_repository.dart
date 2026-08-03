@@ -51,15 +51,31 @@ class NotificationRepository {
   }
 
   /// 단건 삭제 — 확인한 알림은 목록에서 제거.
+  ///
+  /// 삭제 전에 반드시 읽음 처리(UPDATE)를 선행한다 — 서버 unread 카운터
+  /// 트리거에 DELETE 분기가 없어, 안읽음 행을 바로 지우면 카운터(푸시 배지)가
+  /// 영구히 감소하지 않는다(#232). 읽음 후 삭제가 실패해도 카운터는 정확하고
+  /// 알림만 남는다(다음 삭제 시도로 수렴).
   Future<void> delete(String id) async {
+    await _c
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('id', id)
+        .eq('is_read', false);
     await _c.from('notifications').delete().eq('id', id);
     AppEvents.instance.notifyNotification();
   }
 
   /// 내 알림 전체 삭제 — '모두 읽음'(확인) 시.
+  /// 단건 삭제와 동일하게 읽음 처리 선행(#232 — 트리거 DELETE 분기 부재).
   Future<void> deleteAll() async {
     final uid = _uid;
     if (uid == null) return;
+    await _c
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('user_id', uid)
+        .eq('is_read', false);
     await _c.from('notifications').delete().eq('user_id', uid);
     AppEvents.instance.notifyNotification();
   }

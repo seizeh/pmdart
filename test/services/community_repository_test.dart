@@ -90,6 +90,26 @@ void main() {
       expect(FakeSupabase.requests, hasLength(1), reason: 'RPC 한 번뿐이어야 한다');
     });
 
+    test('feed_region_codes 실패는 전국 피드 폴백이 아니라 피드 실패로 승격한다(#234)', () async {
+      // 조용히 필터 없이 진행하면 멀쩡해 보이는 전국 피드가 나간다 —
+      // 오류가 데이터처럼 보이는 실패 모드. 던져서 화면의 재시도 UI 에 태운다.
+      FakeSupabase.on(
+        'feed_region_codes',
+        (_) => FakeSupabase.error(500, {'message': 'boom'}),
+      );
+      FakeSupabase.on('v_post_feed', (_) => [postRow('p1')]);
+
+      await expectLater(
+        CommunityRepository.instance.fetchFeed(),
+        throwsA(anything),
+      );
+      expect(
+        FakeSupabase.requests.any((r) => r.url.path.contains('v_post_feed')),
+        isFalse,
+        reason: '필터 미확정 상태로 피드를 요청하면 안 된다',
+      );
+    });
+
     test('활동범위 동 코드들이 오면 region_code in 필터로 좁힌다', () async {
       FakeSupabase.on('feed_region_codes', (_) => ['1111010100', '1111010200']);
       FakeSupabase.on('v_post_feed', (_) => []);

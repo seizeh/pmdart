@@ -95,14 +95,16 @@ class CommunityRepository {
           codes = [for (final c in (res as List)) c as String];
         }
       } catch (e, st) {
-        // codes=null 은 '지역 필터 없음' 이라 전 지역 글이 섞여 나온다 —
-        // 하이퍼로컬 전제가 조용히 깨지는 자리다.
-        ErrorReporter.report(
+        // 조용히 codes=null(필터 없음)로 폴백하면 하이퍼로컬 전제가 깨진 채
+        // **멀쩡해 보이는 전국 피드**가 나간다 — 오류가 데이터처럼 보이는
+        // 최악의 실패 모드다(#234). 피드 실패로 승격해 화면의 오류 상태
+        // (재시도 UI)에 태운다. silent 갱신이면 기존 목록이 유지된다.
+        ErrorReporter.userFacing(
           e,
           where: 'community.feedRegionCodes',
           stackTrace: st,
         );
-        codes = null;
+        rethrow;
       }
     }
     if (codes != null && codes.isEmpty) return const [];

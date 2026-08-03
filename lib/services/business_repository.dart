@@ -410,11 +410,13 @@ class BusinessProfile {
     reviewTrack: m['review_track'] as String,
     autoApproved: m['auto_approved'] == true,
     rejectedReason: m['rejected_reason'] as String?,
+    // .toLocal() — 다른 모델들과 표기 일관(#239 메모, 현재 표시 UI 는 없음).
     reviewedAt: m['reviewed_at'] == null
         ? null
-        : DateTime.tryParse(m['reviewed_at'] as String),
+        : DateTime.tryParse(m['reviewed_at'] as String)?.toLocal(),
     createdAt:
-        DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
+        (DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now())
+            .toLocal(),
     matchedFacilityId: m['matched_facility_id'] as String?,
     photoUrl: m['photo_url'] as String?,
     businessHours: m['business_hours'] as String?,

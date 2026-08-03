@@ -63,6 +63,15 @@ class LocalNoticeService {
             AndroidFlutterLocalNotificationsPlugin
           >()
           ?.createNotificationChannel(_channel);
+      // 종료 상태에서 이 플러그인의 알림을 탭해 콜드스타트한 경우 —
+      // onDidReceiveNotificationResponse 는 실행 중 탭만 받으므로 런치 상세를
+      // 따로 확인해 같은 라우팅에 태운다(#239, 안 하면 payload 유실 → 홈 착지).
+      // onTap 연결(main.dart)이 init 호출보다 먼저라 순서는 보장된다.
+      final launch = await _plugin.getNotificationAppLaunchDetails();
+      final resp = launch?.notificationResponse;
+      if (launch?.didNotificationLaunchApp == true && resp != null) {
+        _handleTap(resp);
+      }
     } catch (e) {
       debugPrint('localNotice: 초기화 실패 — $e');
     }

@@ -118,7 +118,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return; // 다이얼로그 대기 중 라우트 제거 가능(#239)
 
     setState(() => _deleting = true);
     try {

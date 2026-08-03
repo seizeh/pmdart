@@ -45,7 +45,8 @@ class ActivityRepository {
         .select('id, nickname')
         .inFilter('id', ids);
     return {
-      for (final p in rows as List) p['id'] as String: p['nickname'] as String,
+      for (final p in rows as List)
+        p['id'] as String: (p['nickname'] as String?) ?? '알 수 없음',
     };
   }
 
@@ -110,7 +111,8 @@ class ActivityRepository {
         .select('id, nickname')
         .inFilter('id', ids);
     final nameById = {
-      for (final p in profs as List) p['id'] as String: p['nickname'] as String,
+      for (final p in profs as List)
+        p['id'] as String: (p['nickname'] as String?) ?? '알 수 없음',
     };
     return [
       for (final r in list)

@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import '../models/pet.dart';
 import '../models/profile.dart';
 import 'app_events.dart';
+import 'error_reporter.dart';
 import 'session.dart';
 
 /// 내정보(프로필 헤더 / 활동·관심 통계 / 내 반려동물) 데이터 접근.
@@ -36,8 +36,10 @@ class ProfileRepository {
           .eq('id', uid)
           .maybeSingle();
       activeMode = (row?['active_mode'] as String?) ?? 'personal';
-    } catch (e) {
-      debugPrint('활성 모드 조회 실패 — personal 폴백: $e');
+    } catch (e, st) {
+      // 업체 모드로 쓰던 사람이 개인 얼굴로 렌더된다(두 얼굴 전제 붕괴) —
+      // 같은 경로인 business.fetchActiveMode 와 동일 등급으로 기록(#239).
+      ErrorReporter.report(e, where: 'profile.activeMode', stackTrace: st);
     }
 
     // 통계 — 병렬 카운트. Pawmate 는 현재 모드 얼굴의 팔로워만(얼굴 분리).
@@ -205,7 +207,9 @@ class ProfileRepository {
             count: (r['count'] ?? 0) as int,
           ),
       ];
-    } catch (_) {
+    } catch (e, st) {
+      // '태그 없음'과 구분 불가한 채 사라지던 실패 — 흔적을 남긴다(#157/#239).
+      ErrorReporter.report(e, where: 'profile.reviewTags', stackTrace: st);
       return const [];
     }
   }
@@ -235,7 +239,9 @@ class ProfileRepository {
             matchCount: (p['pet_match_count'] as num?)?.toInt() ?? 0,
           ),
       ];
-    } catch (_) {
+    } catch (e, st) {
+      // '펫 없음'과 구분 불가한 채 사라지던 실패 — 흔적을 남긴다(#157/#239).
+      ErrorReporter.report(e, where: 'profile.publicPets', stackTrace: st);
       return const [];
     }
   }

@@ -244,6 +244,10 @@ class CommunityRepository {
   }
 
   /// 하트 토글. 반환값은 토글 후 hearted 상태.
+  ///
+  /// [currentlyHearted] 는 UI 스냅샷이라 연타·다른 기기 조작으로 서버와 어긋날
+  /// 수 있다 — 어긋나도 목표 상태로 수렴하게 관용 처리한다(#239): 이미 있는데
+  /// INSERT(23505) 는 하트 성공으로, 없는 행 DELETE 는 원래 0행 성공이다.
   Future<bool> toggleHeart(String postId, bool currentlyHearted) async {
     final uid = _requireUid();
     if (currentlyHearted) {
@@ -254,7 +258,14 @@ class CommunityRepository {
           .eq('user_id', uid);
       return false;
     } else {
-      await _c.from('post_hearts').insert({'post_id': postId, 'user_id': uid});
+      try {
+        await _c.from('post_hearts').insert({
+          'post_id': postId,
+          'user_id': uid,
+        });
+      } on PostgrestException catch (e) {
+        if (e.code != '23505') rethrow; // 중복 = 이미 하트 상태(목표와 동일)
+      }
       return true;
     }
   }
@@ -366,12 +377,24 @@ class CommunityRepository {
     await _c.rpc('delete_my_post', params: {'p_post': postId});
   }
 
-  /// 여러 게시글 일괄 삭제(소프트).
+  /// 여러 게시글 일괄 삭제(소프트). 중간 실패가 나머지를 막지 않도록 끝까지
+  /// 진행하고, 하나라도 실패하면 개수를 담아 던진다(#239 — 부분 실패 가시화).
   Future<void> deletePosts(Iterable<String> postIds) async {
     _requireUid();
+    var failed = 0;
     for (final id in postIds) {
-      await deletePost(id);
+      try {
+        await deletePost(id);
+      } catch (e, st) {
+        failed++;
+        ErrorReporter.userFacing(
+          e,
+          where: 'community.deletePosts',
+          stackTrace: st,
+        );
+      }
     }
+    if (failed > 0) throw StateError('게시글 $failed개를 삭제하지 못했어요');
   }
 
   /// 댓글 목록.

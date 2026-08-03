@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pet.dart';
 import '../models/pet_search.dart';
 import 'app_events.dart';
+import 'error_reporter.dart';
 import 'session.dart';
 
 /// 펫 보호자 1명.
@@ -217,7 +218,9 @@ class PetRepository {
             role: (r['role'] ?? 'co_guardian') as String,
           ),
       ];
-    } catch (_) {
+    } catch (e, st) {
+      // '보호자 없음'과 구분 불가한 채 사라지던 실패 — 흔적을 남긴다(#157/#239).
+      ErrorReporter.report(e, where: 'pet.publicGuardians', stackTrace: st);
       return const [];
     }
   }
@@ -244,8 +247,12 @@ class PetRepository {
       for (final p in (profs as List).cast<Map<String, dynamic>>()) {
         nickById[p['id'] as String] = (p['nickname'] ?? '알 수 없음') as String;
       }
-    } catch (_) {
-      /* 닉네임 조회 실패해도 보호자 목록은 반환 */
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'pet.guardianNicknames',
+        why: "닉네임 보강 실패 — '알 수 없음' 표기로 보호자 목록은 그대로 반환",
+      );
     }
 
     return list.map((r) {

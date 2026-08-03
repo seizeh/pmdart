@@ -390,6 +390,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           ],
         ),
       ),
+      // 시트가 닫히면(전환 마무리 뒤) 컨트롤러 해제(#239 — 반복 열기 누수).
+    ).whenComplete(
+      () => Future.delayed(const Duration(seconds: 1), phoneCtrl.dispose),
     );
   }
 }

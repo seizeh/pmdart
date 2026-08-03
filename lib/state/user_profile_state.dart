@@ -22,6 +22,19 @@ class UserProfileState extends ChangeNotifier {
   final String userId;
   final bool forcePersonalFace;
 
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  /// dispose 뒤 도착한 비동기 완료가 assert 를 밟지 않게 하는 안전 notify(#239).
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
   PublicProfileData? _profile;
   List<Post> _posts = [];
 
@@ -53,7 +66,7 @@ class UserProfileState extends ChangeNotifier {
     if (!silent) {
       _loading = true;
       _error = false;
-      notifyListeners();
+      _notify();
     }
     try {
       // 프로필 먼저 — 업체 모드 여부에 따라 게시글 필터·방문 후기 로드가 갈린다(0025 분리).
@@ -75,13 +88,13 @@ class UserProfileState extends ChangeNotifier {
       _posts = posts;
       _bizReviews = bizReviews;
       _loading = false;
-      notifyListeners();
+      _notify();
       if (!isMe) unawaited(_loadFollowing());
     } catch (e) {
       debugPrint('프로필: 로드 실패: $e');
       _loading = false;
       if (!silent) _error = true;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -91,7 +104,7 @@ class UserProfileState extends ChangeNotifier {
         userId,
         business: bizFace,
       );
-      notifyListeners();
+      _notify();
     } catch (e) {
       debugPrint('프로필: 팔로우 상태 조회 실패(미표시): $e');
     }
@@ -114,7 +127,7 @@ class UserProfileState extends ChangeNotifier {
     final was = _following;
     _followBusy = true;
     _following = !was;
-    notifyListeners();
+    _notify();
     try {
       // 팔로우/해제 모두 지금 보고 있는 얼굴 단위 — 다른 얼굴 팔로우엔 영향 없음.
       if (was) {
@@ -127,7 +140,7 @@ class UserProfileState extends ChangeNotifier {
       _following = was;
     } finally {
       _followBusy = false;
-      notifyListeners();
+      _notify();
     }
   }
 }

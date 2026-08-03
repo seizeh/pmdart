@@ -44,11 +44,19 @@ class MyInfoState extends ChangeNotifier {
     AppEvents.instance.profile.addListener(_onChanged);
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     AppEvents.instance.social.removeListener(_onChanged);
     AppEvents.instance.profile.removeListener(_onChanged);
     super.dispose();
+  }
+
+  /// dispose 뒤 도착한 비동기 완료가 assert 를 밟지 않게 하는 안전 notify(#239).
+  void _notify() {
+    if (!_disposed) notifyListeners();
   }
 
   void _onChanged() => load(silent: true);
@@ -59,7 +67,7 @@ class MyInfoState extends ChangeNotifier {
     if (!silent) {
       _loading = true;
       _error = null;
-      notifyListeners();
+      _notify();
     }
     try {
       final p = await ProfileRepository.instance.fetchProfile();
@@ -111,6 +119,6 @@ class MyInfoState extends ChangeNotifier {
       // 조용한 새로고침 실패 시 기존 데이터 유지
       if (_profile == null) _error = '프로필을 불러오지 못했어요';
     }
-    notifyListeners();
+    _notify();
   }
 }

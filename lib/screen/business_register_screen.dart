@@ -1863,18 +1863,26 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
         ),
       ),
     );
-    if (saved != true || !mounted) return;
+    // 시트가 닫혔으니 값만 남기고 컨트롤러는 전환 마무리 뒤 해제(#239 — 누수,
+    // 취소(saved != true) 경로도 포함).
+    final storefront = nameCtrl.text.trim();
+    final phone = phoneCtrl.text;
     final email = emailCtrl.text.trim();
+    final hours = hoursCtrl.text;
+    for (final c in [nameCtrl, phoneCtrl, emailCtrl, hoursCtrl]) {
+      Future.delayed(const Duration(seconds: 1), c.dispose);
+    }
+    if (saved != true || !mounted) return;
     if (email.isNotEmpty && !_emailRe.hasMatch(email)) {
       _toast('이메일 형식을 확인해주세요');
       return;
     }
     // 영업시간은 비워서 저장하면 삭제(서버: 빈 문자열 → null).
     final ok = await BusinessRepository.instance.updateMyInfo(
-      storefrontName: nameCtrl.text.trim(),
-      phone: phoneCtrl.text,
+      storefrontName: storefront,
+      phone: phone,
       email: email,
-      hours: hoursCtrl.text,
+      hours: hours,
     );
     if (!mounted) return;
     _toast(ok ? '저장했어요 — 지도 정보에도 반영됐어요' : '저장에 실패했어요. 잠시 후 다시 시도해주세요');

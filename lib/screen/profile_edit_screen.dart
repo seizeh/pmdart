@@ -66,6 +66,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     initialMode: widget.profile?.activeMode ?? 'personal',
     initialAddress: widget.initialAddress,
     initialVerified: widget.initialVerified,
+    initialImageUrl: widget.profile?.profileImageUrl,
   );
   late final TextEditingController _nickCtrl = TextEditingController(
     text: widget.initialNickname,

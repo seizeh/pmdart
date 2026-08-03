@@ -254,6 +254,35 @@ class StorageService {
     );
   }
 
+  /// 공개 URL 에서 media 버킷 내 경로 추출. media 공개 URL 형식이 아니면 null.
+  static String? mediaPathFromUrl(String url) {
+    const marker = '/object/public/media/';
+    final i = url.indexOf(marker);
+    if (i < 0) return null;
+    final path = url.substring(i + marker.length);
+    final q = path.indexOf('?');
+    return q < 0 ? path : path.substring(0, q);
+  }
+
+  /// 더 이상 참조되지 않을 업로드 파일을 최선 노력으로 삭제(#233).
+  ///
+  /// DB 쓰기 실패 보상·교체된 구 사진 정리용. 실패해도 기능엔 영향이 없다 —
+  /// 남으면 공개 URL 고아 파일이고, 최후 안전망은 서버측 청소 몫이다.
+  Future<void> discardByUrl(String? url) async {
+    if (url == null || url.isEmpty) return;
+    final path = mediaPathFromUrl(url);
+    if (path == null) return;
+    try {
+      await _c.storage.from('media').remove([path]);
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'storage.discard',
+        why: '고아 파일 정리 실패 — 남아도 기능 무해, 서버측 청소가 안전망',
+      );
+    }
+  }
+
   // ── 업체 서류(0025 §3.3) — 비공개 business-docs 버킷. 공개 URL 없음, 경로만 저장하고
   //    열람은 signed URL 로만(본인·관리자 RLS SELECT).
 

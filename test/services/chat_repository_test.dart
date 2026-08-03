@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:pawmate/services/app_events.dart';
 import 'package:pawmate/services/chat_repository.dart';
 import 'package:pawmate/services/session.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../helpers/fake_session.dart';
 import '../helpers/fake_supabase.dart';
@@ -105,6 +108,63 @@ void main() {
 
       final q = FakeSupabase.requests.single.url.queryParameters;
       expect(q['created_at'], 'lt.2026-07-01T00:00:01.000Z');
+    });
+  });
+
+  group('ChatRepository.sendImageMessage — 업로드 후 INSERT 실패 보상(#233)', () {
+    test('INSERT 가 거절되면 방금 올린 파일을 삭제하고 예외를 다시 던진다', () async {
+      FakeSupabase.on(
+        'object/media',
+        (req) => req.method == 'DELETE'
+            ? <Object>[] // remove() 응답은 삭제된 객체 목록
+            : {'Key': 'media/u1/chat/1.jpg'},
+      );
+      FakeSupabase.on(
+        'chat_messages',
+        (_) => FakeSupabase.error(400, {
+          'message': '상대방이 나간 방이에요',
+          'code': 'P0001',
+        }),
+      );
+      final file = XFile.fromData(
+        Uint8List.fromList([1, 2, 3]),
+        name: 'a.jpg',
+        mimeType: 'image/jpeg',
+      );
+
+      await expectLater(
+        ChatRepository.instance.sendImageMessage('r1', file),
+        throwsA(isA<PostgrestException>()),
+      );
+      await pumpEventQueue(); // unawaited discard 완료 대기
+
+      final removes = FakeSupabase.requests.where(
+        (r) => r.method == 'DELETE' && r.url.path.contains('object/media'),
+      );
+      expect(removes, hasLength(1), reason: '고아 파일 보상 삭제(#233)');
+    });
+
+    test('INSERT 성공이면 삭제 요청이 나가지 않는다', () async {
+      FakeSupabase.on(
+        'object/media',
+        (req) => req.method == 'DELETE'
+            ? <Object>[] // remove() 응답은 삭제된 객체 목록
+            : {'Key': 'media/u1/chat/1.jpg'},
+      );
+      FakeSupabase.on(
+        'chat_messages',
+        (_) => msgRow('m1', '2026-07-01T00:00:01Z'),
+      );
+      final file = XFile.fromData(
+        Uint8List.fromList([1, 2, 3]),
+        name: 'a.jpg',
+        mimeType: 'image/jpeg',
+      );
+
+      await ChatRepository.instance.sendImageMessage('r1', file);
+      await pumpEventQueue();
+
+      expect(FakeSupabase.requests.where((r) => r.method == 'DELETE'), isEmpty);
     });
   });
 

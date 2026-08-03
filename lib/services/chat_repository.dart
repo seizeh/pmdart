@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/chat.dart';
@@ -122,19 +124,25 @@ class ChatRepository {
   Future<ChatMessage> sendImageMessage(String roomId, XFile file) async {
     final myId = _uid;
     final img = await StorageService.instance.upload(file, category: 'chat');
-    final row = await _c
-        .from('chat_messages')
-        .insert({
-          'room_id': roomId,
-          'sender_id': myId,
-          'image_url': img.url,
-          'image_mime_type': img.mime,
-          'image_file_size': img.size,
-        })
-        .select(_messageCols)
-        .single();
-    AppEvents.instance.notifyChat();
-    return ChatMessage.fromJson(row, myId);
+    try {
+      final row = await _c
+          .from('chat_messages')
+          .insert({
+            'room_id': roomId,
+            'sender_id': myId,
+            'image_url': img.url,
+            'image_mime_type': img.mime,
+            'image_file_size': img.size,
+          })
+          .select(_messageCols)
+          .single();
+      AppEvents.instance.notifyChat();
+      return ChatMessage.fromJson(row, myId);
+    } catch (e) {
+      // INSERT 실패(나간 방 P0001 등) — 방금 올린 파일이 공개 고아로 남는다(#233).
+      unawaited(StorageService.instance.discardByUrl(img.url));
+      rethrow;
+    }
   }
 
   /// 동영상 메시지 전송 — media 버킷(chat)에 영상+포스터를 올린 뒤 삽입.
@@ -146,20 +154,27 @@ class ChatRepository {
       file,
       category: 'chat',
     );
-    final row = await _c
-        .from('chat_messages')
-        .insert({
-          'room_id': roomId,
-          'sender_id': myId,
-          'image_url': video.url,
-          'image_mime_type': video.mime,
-          'image_file_size': video.size,
-          'image_thumbnail_url': video.thumbUrl,
-        })
-        .select(_messageCols)
-        .single();
-    AppEvents.instance.notifyChat();
-    return ChatMessage.fromJson(row, myId);
+    try {
+      final row = await _c
+          .from('chat_messages')
+          .insert({
+            'room_id': roomId,
+            'sender_id': myId,
+            'image_url': video.url,
+            'image_mime_type': video.mime,
+            'image_file_size': video.size,
+            'image_thumbnail_url': video.thumbUrl,
+          })
+          .select(_messageCols)
+          .single();
+      AppEvents.instance.notifyChat();
+      return ChatMessage.fromJson(row, myId);
+    } catch (e) {
+      // INSERT 실패 — 영상·포스터 둘 다 고아로 남으므로 정리한다(#233).
+      unawaited(StorageService.instance.discardByUrl(video.url));
+      unawaited(StorageService.instance.discardByUrl(video.thumbUrl));
+      rethrow;
+    }
   }
 
   /// 채팅방 나가기 — 내 목록에서 숨긴다(이력 유지). 상대가 새 메시지를 보내면

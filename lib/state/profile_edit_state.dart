@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
@@ -15,9 +17,15 @@ class ProfileEditState extends ChangeNotifier {
     required String initialMode,
     required String? initialAddress,
     required bool initialVerified,
+    String? initialImageUrl,
   }) : _mode = initialMode,
        _address = initialAddress,
-       _verified = initialVerified;
+       _verified = initialVerified,
+       _originalImageUrl = initialImageUrl;
+
+  /// 진입 시점의 프로필 사진 — 교체 저장 성공 시 구 파일 정리에 쓴다(#233).
+  /// null 이면(집계 미전달) 정리를 건너뛴다.
+  final String? _originalImageUrl;
 
   // 현재 모드 — 화면 안에서 계정 전환하면 즉시 반영되도록 로컬 상태로 든다
   // (진입 시점 스냅샷이 전환 후 낡은 값이 되는 문제 방지).
@@ -61,11 +69,16 @@ class ProfileEditState extends ChangeNotifier {
     _uploading = true;
     notifyListeners();
     try {
+      final prev = _imageUrl;
       final up = await StorageService.instance.upload(
         file,
         category: 'profile',
       );
       _imageUrl = up.url;
+      // 같은 세션에서 다시 고른 경우 — 직전 업로드는 저장 전이라 고아가 된다(#233).
+      if (prev != null && prev != up.url) {
+        unawaited(StorageService.instance.discardByUrl(prev));
+      }
       return true;
     } catch (e) {
       debugPrint('내정보 수정: 사진 업로드 실패: $e');
@@ -112,6 +125,12 @@ class ProfileEditState extends ChangeNotifier {
         nickname: nickname,
         profileImageUrl: _imageUrl,
       );
+      // 사진 교체 저장 성공 — 이전 사진 파일은 더 이상 참조되지 않는다(#233).
+      if (_imageUrl != null &&
+          _originalImageUrl != null &&
+          _originalImageUrl != _imageUrl) {
+        unawaited(StorageService.instance.discardByUrl(_originalImageUrl));
+      }
       return true;
     } on PostgrestException catch (e) {
       if (e.code == '23505') {

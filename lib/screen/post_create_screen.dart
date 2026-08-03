@@ -831,7 +831,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       _toast('동영상을 불러오지 못했어요');
       return;
     }
-    if (file == null) return;
+    // OS 픽커가 떠 있는 동안 강제 라우팅(정지 게이트·푸시)으로 라우트가 걷힐 수
+    // 있다 — 그러면 아래 setState 가 defunct State 를 건드린다(#238).
+    if (file == null || !mounted) return;
     setState(() {
       _uploadedImage = null;
       _uploadedVideo = null;
@@ -891,7 +893,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       _toast('카메라를 열지 못했어요: $e');
       return;
     }
-    if (shot == null) return;
+    if (shot == null || !mounted) return; // 카메라 대기 중 라우트 제거 가능(#238)
     setState(() {
       _uploadedImage = null;
       _photoToken = null;
@@ -974,7 +976,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         builder: (_) => ImageCropScreen(bytes: raw),
       ),
     );
-    if (cropped == null) return;
+    if (cropped == null || !mounted) return; // 크롭 화면 대기 중 라우트 제거 가능(#238)
     setState(() {
       _uploadedImage = null;
       _uploadedVideo = null;

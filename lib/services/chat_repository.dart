@@ -92,7 +92,12 @@ class ChatRepository {
     if (before != null) {
       query = query.lt('created_at', before.toUtc().toIso8601String());
     }
-    final rows = await query.order('created_at', ascending: false).limit(limit);
+    final rows = await query
+        .order('created_at', ascending: false)
+        // 동률(같은 마이크로초) 시 순서를 결정적으로 — pmdb reconcile 의
+        // (created_at, id) 튜플 비교와 일관되게 id 를 2차 키로 둔다.
+        .order('id', ascending: false)
+        .limit(limit);
     return (rows as List)
         .map((r) => ChatMessage.fromJson(r as Map<String, dynamic>, myId))
         .toList()

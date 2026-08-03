@@ -144,6 +144,33 @@ void main() {
       gate.complete();
       await pumpEventQueue(); // 가드가 없으면 여기서 disposed notify assert
     });
+
+    test('fetch 완료 전 dispose 하면 읽음 처리를 서버로 보내지 않는다', () async {
+      FakeSupabase.on('chat_messages', (_) => [msg('m2'), msg('m1')]);
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final s = newState();
+
+      s.init();
+      s.dispose(); // fetch 가 아직 진행 중
+      await pumpEventQueue();
+
+      expect(
+        FakeSupabase.requests.map((r) => r.url.path),
+        everyElement(isNot(contains('chat_room_members'))),
+        reason: '떠난 방에 읽음 커서를 쓰면 안 된다',
+      );
+    });
+
+    test('로드 실패가 dispose 뒤에 도착해도 예외가 나지 않는다', () async {
+      // 성공 경로만 막으면 catch 쪽 재개 지점이 그대로 남는다.
+      FakeSupabase.on('chat_messages', (_) => FakeSupabase.error(500, {}));
+      final s = newState();
+
+      s.init();
+      s.dispose();
+
+      await expectLater(pumpEventQueue(), completes);
+    });
   });
 
   group('ChatRoomState.loadOlder — 이전 페이지', () {
@@ -178,6 +205,23 @@ void main() {
         hasLength(1),
         reason: '읽음 갱신은 초기 로드의 최신 메시지 1회뿐 — 커서 후퇴 금지(#230)',
       );
+      s.dispose();
+    });
+
+    test('이전 페이지가 전부 중복이면 hasMore 를 내려 무한 재요청을 막는다', () async {
+      // 커서가 전진하지 못하는 병리적 응답 — lt 의미상 정상 경로에선 없지만,
+      // 생기면 스크롤마다 같은 쿼리가 반복되므로 멈추는 게 안전하다.
+      FakeSupabase.on('chat_messages', (_) => descPage(100, 50));
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final s = newState();
+      s.init();
+      await pumpEventQueue();
+      expect(s.hasMore, isTrue);
+
+      await s.loadOlder(); // 커서 요청에도 같은 50건이 돌아온다(전부 중복)
+
+      expect(s.messages, hasLength(50));
+      expect(s.hasMore, isFalse, reason: '커서가 안 움직였으면 멈춘다');
       s.dispose();
     });
 

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat.dart';
 import '../services/chat_repository.dart';
+import '../services/error_reporter.dart';
 
 /// 채팅방 화면 상태 홀더 — 메시지 목록/전송과 실시간 구독 수명 관리.
 /// (#155 세 번째 전환 — 실시간 구독을 갖는 홀더의 선례, docs/architecture-state.md)
@@ -82,7 +83,8 @@ class ChatRoomState extends ChangeNotifier {
       _markRead();
       // reverse:true 리스트라 첫 프레임부터 맨 아래(최신)에 고정 — 스크롤 점프 불필요.
     } catch (e) {
-      debugPrint('채팅방: 메시지 로드 실패: $e');
+      if (_disposed) return; // 실패 재개 지점도 성공 경로와 같은 가드(#235)
+      ErrorReporter.userFacing(e, where: 'chat.loadMessages');
       _loading = false;
       _notify();
     }
@@ -96,7 +98,11 @@ class ChatRoomState extends ChangeNotifier {
         onDeleted: onMessageDeleted,
       );
     } catch (e) {
-      debugPrint('채팅방: 실시간 구독 실패(전송/로드는 정상): $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'chat.subscribeMessages',
+        why: '구독 실패해도 전송·로드는 정상 — 실시간 수신만 빠진다',
+      );
     }
   }
 
@@ -112,11 +118,20 @@ class ChatRoomState extends ChangeNotifier {
         room.id,
         before: _messages.first.createdAt,
       );
+      if (_disposed) return;
       _hasMore = older.length >= ChatRepository.messagePageSize;
       final ids = _messages.map((m) => m.id).toSet();
-      _messages.insertAll(0, older.where((m) => !ids.contains(m.id)));
+      final added = older.where((m) => !ids.contains(m.id)).toList();
+      // 전부 중복이면 커서(_messages.first)가 전진하지 못해 다음 스크롤에
+      // 같은 쿼리가 무한 반복된다 — 멈추는 게 안전하다.
+      if (added.isEmpty) _hasMore = false;
+      _messages.insertAll(0, added);
     } catch (e) {
-      debugPrint('채팅방: 이전 메시지 로드 실패(스크롤 시 재시도): $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'chat.loadOlder',
+        why: '다음 스크롤에서 재시도한다 — 현재 목록은 그대로 유효',
+      );
     } finally {
       _loadingOlder = false;
       _notify();
@@ -132,10 +147,15 @@ class ChatRoomState extends ChangeNotifier {
           .select('profile_image_url')
           .eq('id', uid)
           .maybeSingle();
+      if (_disposed) return;
       _otherImageUrl = row?['profile_image_url'] as String?;
       _notify();
     } catch (e) {
-      debugPrint('채팅방: 상대 프로필 조회 실패(무사진 헤더 유지): $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'chat.otherProfile',
+        why: '상대 사진 조회 실패 — 닉네임 중앙 표시 헤더로 폴백한다',
+      );
     }
   }
 
@@ -161,7 +181,11 @@ class ChatRoomState extends ChangeNotifier {
   void _markRead() {
     if (_messages.isEmpty) return;
     _repo.markRead(room.id, _messages.last.id).catchError((Object e) {
-      debugPrint('채팅방: 읽음 처리 실패(다음 갱신에 수렴): $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'chat.markRead',
+        why: '읽음 커서는 다음 진입·수신 때 다시 올린다(수렴)',
+      );
     });
   }
 
@@ -242,7 +266,7 @@ class ChatRoomState extends ChangeNotifier {
       _notify();
       return true;
     } catch (e) {
-      debugPrint('채팅방: 메시지 삭제 실패: $e');
+      ErrorReporter.userFacing(e, where: 'chat.deleteMessage');
       return false;
     }
   }
@@ -253,7 +277,7 @@ class ChatRoomState extends ChangeNotifier {
       await _repo.leaveRoom(room.id);
       return true;
     } catch (e) {
-      debugPrint('채팅방: 나가기 실패: $e');
+      ErrorReporter.userFacing(e, where: 'chat.leaveRoom');
       return false;
     }
   }

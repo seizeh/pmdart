@@ -6,6 +6,39 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'error_reporter.dart';
 import 'session_store.dart';
 
+/// 이 예외가 **토큰 만료** 때문인가(#231).
+///
+/// 좁게 잡는 게 요점이다. 넓게 잡으면 오탐 로그아웃이 나고, 그건 이 코드베이스가
+/// 원래 걱정하던 바로 그 문제다(`session.aliveCheck` 주석).
+///
+/// **`42501` 은 일부러 제외한다.** PostgREST 는 권한 거부도 401 로 돌려주는데
+/// (403 이 아니다), 이 앱에서 42501 은 *정지·차단된 계정*이 RLS 에 막힌 신호다
+/// — 토큰은 멀쩡하다. 그건 `session_alive` 가 false 로 판정할 몫이고, 여기서
+/// 만료로 뭉뚱그리면 정지 사유를 안내할 기회를 잃는다.
+bool isAuthExpiredError(Object e) {
+  if (e is PostgrestException) {
+    // PGRST301 = JWT 검증 실패(만료 포함). PostgREST 가 만료에 쓰는 코드다.
+    if (e.code == 'PGRST301') return true;
+    return _mentionsExpiredJwt(e.message);
+  }
+  if (e is FunctionException) {
+    // Edge Function 게이트웨이가 verify_jwt 로 거절한 경우.
+    //
+    // **이 분기는 실제로 거의 발화하지 않는다** — 게이트웨이의 401 본문이 보통
+    // `{"msg":"Invalid JWT"}` 라 아래 문자열 검사에 안 걸린다. 알면서 남겨 둔다:
+    // 'Invalid JWT' 까지 만료로 넓히면 토큰 변조·키 설정 오류 같은 것도 전부
+    // 강제 로그아웃이 되기 때문이다. 진짜 커버리지는 PostgREST(PGRST301) 쪽이
+    // 맡고, 여기는 게이트웨이가 사유를 명시해 줄 때만 걸리는 보조 경로다.
+    return e.status == 401 && _mentionsExpiredJwt(e.details?.toString() ?? '');
+  }
+  return false;
+}
+
+bool _mentionsExpiredJwt(String s) {
+  final t = s.toLowerCase();
+  return t.contains('jwt expired') || t.contains('token is expired');
+}
+
 /// 로그인된 사용자 정보(JWT 의 sub 에 해당하는 user_id 포함).
 class AuthUser {
   final String id;
@@ -190,6 +223,27 @@ class SessionManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 갱신으로 되살릴 수 있는 세션인가. 웹(`persistsRefresh=false`)과 레거시
+  /// 세션(refresh 토큰 없음)은 false — 만료되면 되살릴 방법이 없다.
+  bool get canRefresh => _store.persistsRefresh && _refresh != null;
+
+  /// access 가 **이미** 만료됐는지. [isAccessExpiringSoon] 과 목적이 다르다.
+  ///
+  /// 저쪽은 "지금 갱신할까?" 를 묻는 함수라 갱신할 수 없는 환경(웹·레거시)에서는
+  /// 항상 false 다. 그 때문에 **"이 세션은 이미 죽었나?" 를 물을 방법이 없었고**,
+  /// 만료된 토큰을 영원히 첨부하며 모든 요청이 401 이 되는 좀비 상태가 났다(#231).
+  /// 이 판정은 서버를 타지 않는다 — exp 는 우리가 발급한 JWT 안에 있다.
+  bool get isAccessExpired {
+    final a = _access;
+    if (a == null) return false;
+    final exp = _jwtExp(a);
+    if (exp == null) return false; // 파싱 실패 시 만료로 단정하지 않는다
+    return exp <= DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  }
+
+  /// 되살릴 수 없는 만료 세션인가 — 이게 참이면 로그인 화면으로 보내야 한다.
+  bool get isDeadSession => isLoggedIn && isAccessExpired && !canRefresh;
+
   /// access exp 가 [skew] 초 내로 임박하면 true. refresh 없으면(레거시) 항상 false.
   /// 웹은 refresh 를 갱신에 쓰지 않으므로(결정 7) 항상 false — 세션 상한이
   /// access 수명(8시간)으로 고정된다.
@@ -285,6 +339,18 @@ class SessionManager extends ChangeNotifier {
   /// 앱 시작/포그라운드 복귀 시 호출 → 타 기기 비번변경·정지로 무효화된 세션 감지.
   Future<bool> checkAliveAndClearIfDead() async {
     if (!isLoggedIn) return false;
+
+    // ① 서버에 묻기 전에 로컬로 판정한다.
+    //
+    // 토큰이 만료되면 session_alive 는 **실행되기도 전에** PostgREST 가 401 로
+    // 끊는다. 그러면 아래 catch 가 "일시 오류" 로 삼켜 `res == false` 판정에
+    // 영영 도달하지 못했다 — 유일한 무효화 경로가 만료 앞에서 무력했다(#231).
+    // 갱신할 수단까지 없으면 이건 일시 오류가 아니라 확정 사망이다.
+    if (isDeadSession) {
+      await _invalidate();
+      return true;
+    }
+
     try {
       final res = await Supabase.instance.client.rpc('session_alive');
       if (res == false) {
@@ -292,6 +358,23 @@ class SessionManager extends ChangeNotifier {
         return true;
       }
     } catch (e) {
+      if (isAuthExpiredError(e)) {
+        if (!canRefresh) {
+          await _invalidate();
+          return true;
+        }
+        // 서버는 만료라는데 우리 로컬 판정은 아직 살아 있다고 본 상황이다.
+        // **기기 시계가 서버보다 느리면 실제로 이렇게 된다.** 그러면
+        // isAccessExpiringSoon 도 로컬 시계 기준이라 안 걸려서, 다음 요청도
+        // 같은 만료 토큰으로 나간다 — 시계 차이만큼(N분) 모든 요청이 401 인
+        // 창이 생기고 스스로 못 빠져나온다.
+        //
+        // 그래서 로컬 시계보다 **서버 판정을 믿고** 즉시 갱신한다. 단일비행이라
+        // 이미 갱신 중이면 그 결과를 기다릴 뿐 추가 비용이 없고, refresh 마저
+        // 거절되면 _doRefresh 가 _invalidate 로 끝낸다.
+        await refreshOnce();
+        return !isLoggedIn; // 갱신도 거절돼 로그아웃됐으면 true
+      }
       // 네트워크/일시 오류: 무효로 단정하지 않음(오탐 로그아웃 방지).
       ErrorReporter.ignored(
         e,
@@ -301,6 +384,17 @@ class SessionManager extends ChangeNotifier {
     }
     return false;
   }
+
+  /// 되살릴 수 없는 만료 세션을 정리한다. **여러 번 불러도 안전하다** —
+  /// 요청마다 지나가는 `accessToken` 콜백에서 부르므로 재진입이 흔하다.
+  Future<void> invalidateIfDead() {
+    if (!isDeadSession) return Future.value();
+    return _invalidating ??= _invalidate().whenComplete(
+      () => _invalidating = null,
+    );
+  }
+
+  Future<void>? _invalidating;
 
   /// 세션 무효화 → 저장소 clear + onInvalidated(앱 라우팅) 호출.
   Future<void> _invalidate() async {

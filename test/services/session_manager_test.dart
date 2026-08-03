@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pawmate/services/session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
+
+import '../helpers/fake_supabase.dart';
 
 /// exp 를 지정한 가짜 HS256 JWT (서명은 검증 대상 아님 — 클라는 exp 만 읽는다).
 String jwtWithExp(int expEpochSec) {
@@ -23,6 +26,10 @@ const _user = AuthUser(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    await FakeSupabase.init();
+  });
 
   // flutter_secure_storage 플랫폼 채널을 인메모리 맵으로 대체.
   final secureStore = <String, String>{};
@@ -54,6 +61,7 @@ void main() {
         });
     secureStore.clear();
     SharedPreferences.setMockInitialValues({});
+    FakeSupabase.reset();
     await SessionManager.instance.clear();
   });
 
@@ -97,6 +105,227 @@ void main() {
         refresh: 'r1',
       );
       expect(SessionManager.instance.isAccessExpiringSoon(), isFalse);
+    });
+  });
+
+  group('만료 세션 판정 — 좀비 세션 방지(#231)', () {
+    // 이 결함은 "테스터는 항상 신선한 토큰이라 재현되지 않는" 유형이었다.
+    // 만료 상태를 직접 만들어 성질로 고정한다.
+
+    test('만료 + 갱신 불가 = 죽은 세션', () async {
+      // 레거시 세션(refresh 없음)이 정확히 이 경우다. 웹도 persistsRefresh=false
+      // 라 8시간 뒤 확정적으로 여기 온다.
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() - 10),
+        _user,
+      );
+      expect(SessionManager.instance.isAccessExpired, isTrue);
+      expect(SessionManager.instance.canRefresh, isFalse);
+      expect(SessionManager.instance.isDeadSession, isTrue);
+    });
+
+    test('만료됐어도 갱신 가능하면 죽은 세션이 아니다', () async {
+      // 여기서 죽었다고 판정하면 갱신으로 살아날 세션을 끊는 오탐 로그아웃이 된다.
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() - 10),
+        _user,
+        refresh: 'r1',
+      );
+      expect(SessionManager.instance.isAccessExpired, isTrue);
+      expect(SessionManager.instance.isDeadSession, isFalse);
+    });
+
+    test('아직 안 만료됐으면 죽은 세션이 아니다', () async {
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 3600),
+        _user,
+      );
+      expect(SessionManager.instance.isAccessExpired, isFalse);
+      expect(SessionManager.instance.isDeadSession, isFalse);
+    });
+
+    test('exp 를 못 읽는 토큰은 만료로 단정하지 않는다', () async {
+      // 파싱 실패를 만료로 보면 형식이 조금만 바뀌어도 전원 로그아웃이 난다.
+      await SessionManager.instance.setSession('not-a-jwt', _user);
+      expect(SessionManager.instance.isAccessExpired, isFalse);
+      expect(SessionManager.instance.isDeadSession, isFalse);
+    });
+
+    test('비로그인 상태는 죽은 세션이 아니다', () async {
+      expect(SessionManager.instance.isDeadSession, isFalse);
+    });
+
+    test('invalidateIfDead 는 죽은 세션만 정리하고 onInvalidated 를 부른다', () async {
+      var routed = 0;
+      SessionManager.instance.onInvalidated = () => routed++;
+      addTearDown(() => SessionManager.instance.onInvalidated = null);
+
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() - 10),
+        _user,
+      );
+      await SessionManager.instance.invalidateIfDead();
+      expect(SessionManager.instance.isLoggedIn, isFalse);
+      expect(routed, 1);
+    });
+
+    test('invalidateIfDead 는 살아 있는 세션을 건드리지 않는다', () async {
+      var routed = 0;
+      SessionManager.instance.onInvalidated = () => routed++;
+      addTearDown(() => SessionManager.instance.onInvalidated = null);
+
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 3600),
+        _user,
+      );
+      await SessionManager.instance.invalidateIfDead();
+      expect(SessionManager.instance.isLoggedIn, isTrue);
+      expect(routed, 0);
+    });
+
+    test('여러 번 불러도 onInvalidated 는 한 번만 — 요청마다 지나가는 경로다', () async {
+      var routed = 0;
+      SessionManager.instance.onInvalidated = () => routed++;
+      addTearDown(() => SessionManager.instance.onInvalidated = null);
+
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() - 10),
+        _user,
+      );
+      await Future.wait([
+        SessionManager.instance.invalidateIfDead(),
+        SessionManager.instance.invalidateIfDead(),
+        SessionManager.instance.invalidateIfDead(),
+      ]);
+      expect(routed, 1);
+    });
+  });
+
+  group('기기 시계가 서버보다 느릴 때 — 자가 회복(#231)', () {
+    // 로컬 exp 판정은 기기 시계를 믿는다. 시계가 N분 느리면 서버는 이미 만료로
+    // 401 을 주는데 isAccessExpired 도 isAccessExpiringSoon 도 false 라,
+    // 갱신이 안 일어난 채 N분 동안 모든 요청이 401 인 창이 생긴다.
+    // 그 창을 서버 판정으로 닫는지 확인한다.
+
+    test('서버가 만료를 알리면 로컬 판정과 무관하게 즉시 갱신한다', () async {
+      // 로컬 시계로는 1시간 남았다 = 두 로컬 판정 모두 "살아 있음".
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 3600),
+        _user,
+        refresh: 'r1',
+      );
+      expect(SessionManager.instance.isAccessExpired, isFalse);
+      expect(SessionManager.instance.isAccessExpiringSoon(), isFalse);
+
+      FakeSupabase.on(
+        'rpc/session_alive',
+        (_) => FakeSupabase.error(401, {
+          'code': 'PGRST301',
+          'message': 'JWT expired',
+        }),
+      );
+      FakeSupabase.on(
+        'functions/v1/refresh',
+        (_) => {
+          'ok': true,
+          'token': jwtWithExp(nowSec() + 3600),
+          'refresh_token': 'r2',
+        },
+      );
+
+      final dead = await SessionManager.instance.checkAliveAndClearIfDead();
+
+      expect(dead, isFalse, reason: '갱신에 성공했으므로 로그아웃이 아니다');
+      expect(
+        FakeSupabase.requests.any((r) => r.url.path.contains('refresh')),
+        isTrue,
+        reason: '서버가 만료라 했으면 로컬 시계를 믿지 말고 갱신해야 한다',
+      );
+      expect(SessionManager.instance.isLoggedIn, isTrue);
+    });
+
+    test('갱신마저 거절되면 로그아웃한다', () async {
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 3600),
+        _user,
+        refresh: 'r1',
+      );
+      FakeSupabase.on(
+        'rpc/session_alive',
+        (_) => FakeSupabase.error(401, {
+          'code': 'PGRST301',
+          'message': 'JWT expired',
+        }),
+      );
+      FakeSupabase.on(
+        'functions/v1/refresh',
+        (_) => FakeSupabase.error(401, {'error': 'invalid_refresh'}),
+      );
+
+      final dead = await SessionManager.instance.checkAliveAndClearIfDead();
+
+      expect(dead, isTrue);
+      expect(SessionManager.instance.isLoggedIn, isFalse);
+    });
+
+    test('만료가 아닌 오류는 갱신을 부르지 않는다', () async {
+      // 오탐 로그아웃·불필요한 갱신을 막는 쪽 회귀 방지.
+      await SessionManager.instance.setSession(
+        jwtWithExp(nowSec() + 3600),
+        _user,
+        refresh: 'r1',
+      );
+      FakeSupabase.on(
+        'rpc/session_alive',
+        (_) => FakeSupabase.error(500, {'message': 'boom'}),
+      );
+
+      final dead = await SessionManager.instance.checkAliveAndClearIfDead();
+
+      expect(dead, isFalse);
+      expect(
+        FakeSupabase.requests.any((r) => r.url.path.contains('refresh')),
+        isFalse,
+      );
+      expect(SessionManager.instance.isLoggedIn, isTrue);
+    });
+  });
+
+  group('isAuthExpiredError — 만료만 좁게 잡는다(#231)', () {
+    test('PGRST301 은 만료로 본다', () {
+      expect(
+        isAuthExpiredError(
+          const PostgrestException(message: 'JWT expired', code: 'PGRST301'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('메시지에 jwt expired 가 있으면 만료로 본다', () {
+      expect(
+        isAuthExpiredError(
+          const PostgrestException(message: 'JWT expired', code: '401'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('42501 은 만료가 아니다 — 정지·차단 계정의 RLS 거부다', () {
+      // PostgREST 는 권한 거부도 401 로 준다. 이걸 만료로 뭉뚱그리면
+      // 정지 사유를 안내할 기회를 잃고, 정지 사용자가 로그인 화면만 반복해서 본다.
+      expect(
+        isAuthExpiredError(
+          const PostgrestException(
+            message: 'permission denied for table posts',
+            code: '42501',
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('평범한 네트워크 오류는 만료가 아니다', () {
+      expect(isAuthExpiredError(Exception('SocketException')), isFalse);
     });
   });
 

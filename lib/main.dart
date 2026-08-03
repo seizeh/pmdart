@@ -24,6 +24,7 @@ import 'screen/review_detail_screen.dart';
 import 'screen/user_profile_screen.dart';
 import 'screen/vaccination_schedule_screen.dart';
 import 'screen/welcome_screen.dart';
+import 'services/app_events.dart';
 import 'services/chat_repository.dart';
 import 'services/community_repository.dart';
 import 'services/facility_repository.dart';
@@ -103,6 +104,21 @@ Future<void> main() async {
       final s = SessionManager.instance;
       if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
         await s.refreshOnce();
+      }
+      // 갱신할 수단이 없는데 이미 만료됐다면 여기서 끊는다(#231).
+      //
+      // 이 콜백은 **모든 요청이 지나가는 유일한 관문**이라, 앱에 없던 "전역 401
+      // 핸들러" 자리가 사실 여기였다. 예전엔 만료된 토큰을 그대로 첨부했고,
+      // 그러면 모든 요청이 401 → 화면마다 "불러오지 못했어요" 만 무한 반복되는데
+      // 앱은 로그인된 UI 를 그린 채 굳는다. 웹은 refresh 를 저장하지 않으므로
+      // (결정 7) 8시간 뒤 **확정적으로** 이 상태가 됐다.
+      //
+      // 라우팅은 onInvalidated 가 맡는다. 이 호출을 await 하지 않는 이유는
+      // 요청을 붙잡아 두지 않기 위해서다 — 아래에서 null 을 돌려주면 그 요청은
+      // anon 으로 나가 어차피 거절된다.
+      if (s.isDeadSession) {
+        unawaited(s.invalidateIfDead());
+        return null;
       }
       // 간이 회원(후기 전용) 토큰은 정식 세션이 없을 때만 쓰인다 — 갱신 대상도
       // 아니고 저장되지도 않는다(SessionManager.beginLiteSession 참고).
@@ -523,14 +539,41 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // 포그라운드 복귀 시 세션 유효성 재확인 → 무효면 즉시 로그아웃.
-      SessionManager.instance.checkAliveAndClearIfDead();
-      // 실시간 소켓 재개(백그라운드 알림은 FCM 이 담당하므로 손실 없음).
-      if (SessionManager.instance.isLoggedIn) RealtimeService.instance.start();
+      unawaited(_onResumed());
     } else if (state == AppLifecycleState.paused) {
       // 백그라운드에선 실시간 소켓을 끊는다 → 배터리 절약 + OEM 강제종료 회피.
       RealtimeService.instance.stop();
     }
+  }
+
+  /// 포그라운드 복귀 처리(#236).
+  ///
+  /// 예전엔 세 줄이 순서 없이 나란히 있었고 둘 다 어긋났다.
+  ///
+  /// ① **만료 토큰으로 realtime 재인증** — `checkAlive` 를 await 하지 않은 채
+  ///    `RealtimeService.start()` 가 저장된(=갱신 안 된) 토큰으로 `setAuth` 를 했다.
+  ///    8시간 넘게 백그라운드에 있었다면 그 토큰은 만료다. 알림 채널이 만료 JWT 로
+  ///    구독돼 아무것도 못 받고, 회복은 다음 REST 호출의 refresh 부수효과에 의존했다.
+  ///    → 세션 확인(필요하면 갱신까지)을 **await 한 뒤** realtime 을 켠다.
+  ///
+  /// ② **복귀 시 재동기화 부재** — 벨 배지와 채팅 목록은 각각 `AppEvents` 에만
+  ///    반응하는데, 백그라운드 중 도착한 것들은 그 이벤트를 못 봤다. 트레이에는
+  ///    푸시 5개가 쌓였는데 앱을 열면 배지가 이전 값 그대로였다.
+  ///    → 복귀 시 두 이벤트를 한 번 쏴서 강제 재조회.
+  Future<void> _onResumed() async {
+    final s = SessionManager.instance;
+    if (s.isLoggedIn) {
+      // 만료 임박이면 여기서 갱신된다(단일비행). 죽은 세션이면 checkAlive 가
+      // 정리하고 onInvalidated 로 로그인 화면으로 보낸다(#231).
+      final dead = await s.checkAliveAndClearIfDead();
+      if (dead) return; // 로그아웃됐으면 아래 재개·재동기화는 의미 없다
+      if (s.isAccessExpiringSoon(skew: 60)) await s.refreshOnce();
+      RealtimeService.instance.start();
+    }
+    // 백그라운드 동안 쌓인 것을 화면에 반영 — 로그인 여부와 무관하게 안전하다
+    // (구독자들이 각자 게스트 여부를 판단한다).
+    AppEvents.instance.notifyNotification();
+    AppEvents.instance.notifyChat();
   }
 
   void _handleInvalidated() {

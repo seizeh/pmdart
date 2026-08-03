@@ -92,6 +92,68 @@ void main() {
     });
   });
 
+  group('로딩 중 이탈 — 주인 없는 구독·쓰기 방지(#235)', () {
+    // 느린 망에서 채팅방에 들어가자마자 뒤로가기를 누르면, 초기 fetch 가
+    // 끝나기 전에 dispose() 가 돈다. 예전엔 재개된 _load 가 그 뒤에 구독을
+    // 만들어 앱 수명 내내 남는 채널이 됐고, 보고 있지도 않은 방에 읽음 커서를 썼다.
+
+    test('fetch 완료 전 dispose 하면 읽음 처리를 서버로 보내지 않는다', () async {
+      FakeSupabase.on('chat_messages', (_) => [msg('m1'), msg('m2')]);
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final s = newState();
+
+      s.init();
+      s.dispose(); // fetch 가 아직 진행 중
+      await pumpEventQueue();
+
+      expect(
+        FakeSupabase.requests.map((r) => r.url.path),
+        everyElement(isNot(contains('chat_room_members'))),
+        reason: '떠난 방에 읽음 커서를 쓰면 안 된다',
+      );
+    });
+
+    test('fetch 완료 전 dispose 해도 예외가 나지 않는다', () async {
+      // dispose 된 ChangeNotifier 에 notifyListeners 하면 디버그에서 assert 로 죽는다.
+      FakeSupabase.on('chat_messages', (_) => [msg('m1')]);
+      final s = newState();
+
+      s.init();
+      s.dispose();
+
+      await expectLater(pumpEventQueue(), completes);
+    });
+
+    test('로드 실패가 dispose 뒤에 도착해도 예외가 나지 않는다', () async {
+      // 성공 경로만 막으면 catch 쪽 재개 지점이 그대로 남는다.
+      FakeSupabase.on('chat_messages', (_) => FakeSupabase.error(500, {}));
+      final s = newState();
+
+      s.init();
+      s.dispose();
+
+      await expectLater(pumpEventQueue(), completes);
+    });
+
+    test('dispose 하지 않으면 평소대로 읽음 처리를 보낸다', () async {
+      // 위 가드가 정상 경로까지 막아버리지 않았는지 — 회귀 방지.
+      FakeSupabase.on('chat_messages', (_) => [msg('m1')]);
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final s = newState();
+
+      s.init();
+      await pumpEventQueue();
+
+      expect(
+        FakeSupabase.requests.any(
+          (r) => r.url.path.contains('chat_room_members'),
+        ),
+        isTrue,
+      );
+      s.dispose();
+    });
+  });
+
   group('ChatRoomState.onIncoming — 실시간 수신', () {
     test('중복 id 는 한 번만 붙고, 상대 메시지면 읽음 갱신 + 스크롤 콜백', () async {
       FakeSupabase.on('chat_messages', (_) => []);

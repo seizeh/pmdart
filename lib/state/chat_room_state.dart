@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat.dart';
 import '../services/chat_repository.dart';
+import '../services/error_reporter.dart';
 
 /// 채팅방 화면 상태 홀더 — 메시지 목록/전송과 실시간 구독 수명 관리.
 /// (#155 세 번째 전환 — 실시간 구독을 갖는 홀더의 선례, docs/architecture-state.md)
@@ -45,28 +46,53 @@ class ChatRoomState extends ChangeNotifier {
     _load();
   }
 
+  /// 이 홀더가 이미 폐기됐는지. **await 재개 지점마다 확인해야 한다**(#235).
+  ///
+  /// 이 화면은 진입 즉시 네트워크를 두 번 타고(메시지 목록·상대 프로필) 전송
+  /// 계열도 전부 async 라, 느린 망에서 뒤로가기를 누르면 재개 지점이 dispose
+  /// 이후가 된다. 그때 무엇을 하느냐가 문제였다.
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     // 다른 방을 위에 쌓은 경우가 아니면 활성 방 해제.
     if (_repo.activeRoomId == room.id) _repo.activeRoomId = null;
     if (_channel != null) _repo.unsubscribe(_channel!);
     super.dispose();
   }
 
+  /// dispose 뒤 알림을 삼킨다.
+  ///
+  /// 호출부마다 가드하지 않는 이유는 [notifyListeners] 호출이 15곳이 넘어
+  /// **하나씩 빠지기 때문**이다. 한 곳에서 막는다.
+  void _notify() {
+    if (_disposed) return;
+    notifyListeners();
+  }
+
   Future<void> _load() async {
     try {
-      _messages = await _repo.fetchMessages(room.id);
+      final msgs = await _repo.fetchMessages(room.id);
+      // 여기가 #235 의 핵심 지점이다. 예전엔 이 확인이 없어서:
+      //  · dispose() 가 먼저 돌며 **아직 null 인** _channel 을 해제하고,
+      //  · 재개된 이 코드가 그 뒤에 구독을 만들어 **주인 없는 채널**이 남았다.
+      // 그 채널은 앱 수명 내내 살아서 메시지가 올 때마다 폐기된 홀더에
+      // notify 하고(디버그 assert) 보고 있지도 않은 방에 _markRead 를 썼다.
+      if (_disposed) return;
+      _messages = msgs;
       _loading = false;
-      notifyListeners();
+      _notify();
       _markRead();
       // reverse:true 리스트라 첫 프레임부터 맨 아래(최신)에 고정 — 스크롤 점프 불필요.
     } catch (e) {
-      debugPrint('채팅방: 메시지 로드 실패: $e');
+      if (_disposed) return;
+      ErrorReporter.userFacing(e, where: 'chat.loadMessages');
       _loading = false;
-      notifyListeners();
+      _notify();
     }
     // 실시간 구독 (상대 메시지 수신 + 삭제 반영)
-    if (!subscribeRealtime) return;
+    if (!subscribeRealtime || _disposed) return;
     try {
       _channel = _repo.subscribeMessages(
         room.id,
@@ -74,7 +100,11 @@ class ChatRoomState extends ChangeNotifier {
         onDeleted: onMessageDeleted,
       );
     } catch (e) {
-      debugPrint('채팅방: 실시간 구독 실패(전송/로드는 정상): $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'chat.subscribeMessages',
+        why: '구독 실패해도 전송·로드는 정상 — 실시간 수신만 빠진다',
+      );
     }
   }
 
@@ -87,10 +117,15 @@ class ChatRoomState extends ChangeNotifier {
           .select('profile_image_url')
           .eq('id', uid)
           .maybeSingle();
+      if (_disposed) return;
       _otherImageUrl = row?['profile_image_url'] as String?;
-      notifyListeners();
+      _notify();
     } catch (e) {
-      debugPrint('채팅방: 상대 프로필 조회 실패(무사진 헤더 유지): $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'chat.otherProfile',
+        why: '상대 사진 조회 실패 — 닉네임 중앙 표시 헤더로 폴백한다',
+      );
     }
   }
 
@@ -99,7 +134,7 @@ class ChatRoomState extends ChangeNotifier {
   void onIncoming(ChatMessage msg) {
     if (_messages.any((m) => m.id == msg.id)) return;
     _messages.add(msg);
-    notifyListeners();
+    _notify();
     if (!msg.mine) _markRead();
     onNewMessage?.call();
   }
@@ -108,13 +143,17 @@ class ChatRoomState extends ChangeNotifier {
   @visibleForTesting
   void onMessageDeleted(String messageId) {
     _messages.removeWhere((m) => m.id == messageId);
-    notifyListeners();
+    _notify();
   }
 
   void _markRead() {
     if (_messages.isEmpty) return;
     _repo.markRead(room.id, _messages.last.id).catchError((Object e) {
-      debugPrint('채팅방: 읽음 처리 실패(다음 갱신에 수렴): $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'chat.markRead',
+        why: '읽음 커서는 다음 진입·수신 때 다시 올린다(수렴)',
+      );
     });
   }
 
@@ -122,7 +161,7 @@ class ChatRoomState extends ChangeNotifier {
   Future<String?> send(String text) async {
     if (text.isEmpty || _sending) return null;
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       final msg = await _repo.sendMessage(room.id, text);
       _appendMine(msg);
@@ -131,7 +170,7 @@ class ChatRoomState extends ChangeNotifier {
       return _sendErrorMessage(e, '메시지 전송에 실패했어요');
     } finally {
       _sending = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -139,7 +178,7 @@ class ChatRoomState extends ChangeNotifier {
   Future<String?> sendImage(XFile file) async {
     if (_sending) return null;
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       final msg = await _repo.sendImageMessage(room.id, file);
       _appendMine(msg);
@@ -148,7 +187,7 @@ class ChatRoomState extends ChangeNotifier {
       return _sendErrorMessage(e, '사진 전송에 실패했어요');
     } finally {
       _sending = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -157,7 +196,7 @@ class ChatRoomState extends ChangeNotifier {
   Future<String?> sendVideo(XFile file) async {
     if (_sending) return null;
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       final msg = await _repo.sendVideoMessage(room.id, file);
       _appendMine(msg);
@@ -168,13 +207,13 @@ class ChatRoomState extends ChangeNotifier {
       return _sendErrorMessage(e, '동영상 전송에 실패했어요');
     } finally {
       _sending = false;
-      notifyListeners();
+      _notify();
     }
   }
 
   void _appendMine(ChatMessage msg) {
     if (!_messages.any((m) => m.id == msg.id)) _messages.add(msg);
-    notifyListeners();
+    _notify();
     _markRead();
     onNewMessage?.call();
   }
@@ -192,10 +231,10 @@ class ChatRoomState extends ChangeNotifier {
     try {
       await _repo.deleteMessage(messageId);
       _messages.removeWhere((m) => m.id == messageId);
-      notifyListeners();
+      _notify();
       return true;
     } catch (e) {
-      debugPrint('채팅방: 메시지 삭제 실패: $e');
+      ErrorReporter.userFacing(e, where: 'chat.deleteMessage');
       return false;
     }
   }
@@ -206,7 +245,7 @@ class ChatRoomState extends ChangeNotifier {
       await _repo.leaveRoom(room.id);
       return true;
     } catch (e) {
-      debugPrint('채팅방: 나가기 실패: $e');
+      ErrorReporter.userFacing(e, where: 'chat.leaveRoom');
       return false;
     }
   }

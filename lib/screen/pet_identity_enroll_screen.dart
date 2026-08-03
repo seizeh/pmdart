@@ -46,6 +46,7 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
       return;
     }
     if (video == null) return; // 취소
+    if (!mounted) return; // 픽커 대기 중 라우트 제거 가능(#238)
     setState(() {
       _busy = true;
       _status = '프레임 추출 중…';
@@ -63,6 +64,9 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
         if (data != null) frames.add(data);
       }
       if (frames.length < 3) {
+        // 프레임 추출은 await 루프라 그 사이 라우트가 걷힐 수 있다. 바로 아래
+        // 75행은 이미 가드하고 있는데 이 분기만 빠져 있었다(#238).
+        if (!mounted) return;
         setState(() {
           _busy = false;
           _status = null;

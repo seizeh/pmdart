@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../env.dart';
 import '../utils/platform_info.dart';
+import 'error_reporter.dart';
 import 'session.dart';
 
 /// 백그라운드/종료 상태 수신 핸들러(반드시 top-level, vm:entry-point).
@@ -149,13 +150,72 @@ class PushService {
     }
   }
 
-  /// 로그아웃/세션 무효화 시 — FCM 토큰 삭제. 서버 토큰은 다음 발송 실패로 자동 비활성화된다.
+  /// 로그아웃/세션 무효화 시 — **서버 먼저, 기기 나중**(#237).
+  ///
+  /// 예전엔 기기측 `deleteToken()` 만 하고 서버는 "다음 발송 실패로 자동 비활성화"
+  /// 에 맡겼다. 그 기대가 틀렸다 — 토큰이 유효하면 발송이 **성공**하므로 실패가
+  /// 없고, 따라서 비활성화도 없다. 오프라인 로그아웃이면 `deleteToken()` 도 실패해
+  /// (로그아웃을 막지 않으려 삼킨다) FCM 토큰과 서버 행이 둘 다 살아남는다.
+  /// 결과: 그 기기가 이전 계정의 채팅 내용을 무기한 계속 받는다.
+  ///
+  /// 그래서 순서가 중요하다. 서버 해제를 **먼저** 시도한다 — 여기까지 성공하면
+  /// 기기측 삭제가 실패해도 발송 대상에서 빠진다. 반대 순서면 토큰을 지운 뒤
+  /// 무엇을 해제해야 할지 모르게 된다.
   Future<void> clearToken() async {
     if (!_enabled) return; // 로그아웃 경로가 여기서 죽으면 세션이 안 지워진다
+    // 서버 해제에 쓸 토큰을 먼저 확보(삭제 후엔 못 읽는다).
+    String? token;
+    try {
+      // 웹은 VAPID 키가 있어야 토큰을 돌려준다(registerToken 과 같은 조건).
+      token = kIsWeb
+          ? await _fm.getToken(vapidKey: Env.webPushVapidKey)
+          : await _fm.getToken();
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'push.clearToken.getToken',
+        why: '토큰을 못 읽으면 서버 해제를 건너뛴다 — 아래 기기측 삭제는 그대로 시도',
+      );
+    }
+    if (token != null && SessionManager.instance.isLoggedIn) {
+      try {
+        await Supabase.instance.client.rpc(
+          'release_device_token',
+          params: {'p_token': token},
+        );
+      } catch (e, st) {
+        // 오프라인 로그아웃이 정확히 이 경로다. 로그아웃 자체는 막지 않되,
+        // **얼마나 자주 새는지는 알아야 한다** — 이 실패가 곧 #237 의 재현이다.
+        ErrorReporter.report(e, where: 'push.releaseToken', stackTrace: st);
+      }
+    }
     try {
       await _fm.deleteToken();
     } catch (e) {
-      debugPrint('push: FCM 토큰 삭제 실패(서버측 자동 비활성화에 위임): $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'push.clearToken.deleteToken',
+        why: '기기측 삭제 실패 — 위 서버 해제가 됐다면 발송 대상에선 이미 빠졌다',
+      );
+    }
+  }
+
+  /// 로그인 성공 직후 — 서버 안읽음 카운터를 원본에서 재계산(#232).
+  ///
+  /// 카운터는 트리거로 증감하는 캐시라 원본과 어긋날 수 있고, 실제로 어긋나 있었다
+  /// (운영에서 80 vs 2). 앱 안의 목록 카운트는 매번 재계산이라 멀쩡해 보이고
+  /// **푸시 배지만 조용히 틀린다** — 사용자가 신고하기 어려운 종류다.
+  /// 로그인은 하루 몇 번뿐이라 비용이 무시할 만하고, 드리프트 수명을 그만큼 줄인다.
+  Future<void> reconcileUnreadCounts() async {
+    if (!SessionManager.instance.isLoggedIn) return;
+    try {
+      await Supabase.instance.client.rpc('reconcile_my_unread_counts');
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'push.reconcileUnread',
+        why: '보정 실패해도 기능은 정상 — 다음 로그인에 다시 시도한다',
+      );
     }
   }
 

@@ -169,6 +169,9 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     if (_photoCount >= _maxPhotos || _uploading) return;
     final files = await StorageService.instance.pickImages();
     if (files.isEmpty) return;
+    // OS 픽커가 떠 있는 동안 정지/차단 게이트나 푸시 라우팅이 라우트를 걷어낼 수
+    // 있다 — 그러면 아래 setState 가 defunct State 를 건드린다(#238).
+    if (!mounted) return;
 
     // 비로그인은 아직 uid 가 없어 Storage 에 못 쓴다 — 게시 직전 인증 후 올린다.
     if (_isGuest) {
@@ -210,6 +213,7 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
     if (_videos.length >= _maxVideos || _uploadingVideo) return;
     final file = await StorageService.instance.pickVideo();
     if (file == null) return;
+    if (!mounted) return; // 픽커 대기 중 라우트 제거 가능(#238)
     setState(() => _uploadingVideo = true);
     try {
       final up = await StorageService.instance.uploadVideo(

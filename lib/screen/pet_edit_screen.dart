@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/pet.dart';
 import '../motion/motion.dart';
+import '../services/error_reporter.dart';
 import '../services/pet_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
@@ -136,7 +137,10 @@ class _PetEditScreenState extends State<PetEditScreen> {
       if (prev != null && prev != widget.pet?.imageUrl && prev != up.url) {
         unawaited(StorageService.instance.discardByUrl(prev));
       }
-    } catch (_) {
+    } catch (e, st) {
+      // 사용자가 다시 고르면 되는 실패지만, 빈도는 봐야 한다 — 업로드는
+      // 네트워크·용량·권한 어디서든 깨지고 여기서 막히면 펫 등록 자체가 멈춘다.
+      ErrorReporter.userFacing(e, where: 'pet.uploadPhoto', stackTrace: st);
       if (!mounted) return;
       setState(() => _uploading = false);
       _toast('사진 업로드에 실패했어요');

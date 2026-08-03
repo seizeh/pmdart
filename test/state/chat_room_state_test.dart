@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -112,6 +113,66 @@ void main() {
     });
   });
 
+  group('ChatRoomState — dispose 경합(#235)', () {
+    test('첫 로딩이 끝나기 전에 dispose 되면 실시간 구독을 만들지 않는다', () async {
+      final gate = Completer<void>();
+      FakeSupabase.on(
+        'chat_messages',
+        (_) => gate.future.then((_) => <Map<String, dynamic>>[]),
+      );
+      // 실제 구독 경로(subscribeRealtime 기본 true)로 가드를 검증한다.
+      final s = ChatRoomState(room: _room);
+
+      s.init();
+      s.dispose(); // 느린 네트워크에서 진입 직후 뒤로가기
+      gate.complete();
+      await pumpEventQueue();
+
+      expect(s.hasRealtimeChannel, isFalse, reason: '주인 없는 채널 누수 방지');
+    });
+
+    test('dispose 이후 완료된 로드가 notifyListeners assert 를 밟지 않는다', () async {
+      final gate = Completer<void>();
+      FakeSupabase.on(
+        'chat_messages',
+        (_) => gate.future.then((_) => [msg('m1')]),
+      );
+      final s = newState();
+
+      s.init();
+      s.dispose();
+      gate.complete();
+      await pumpEventQueue(); // 가드가 없으면 여기서 disposed notify assert
+    });
+
+    test('fetch 완료 전 dispose 하면 읽음 처리를 서버로 보내지 않는다', () async {
+      FakeSupabase.on('chat_messages', (_) => [msg('m2'), msg('m1')]);
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final s = newState();
+
+      s.init();
+      s.dispose(); // fetch 가 아직 진행 중
+      await pumpEventQueue();
+
+      expect(
+        FakeSupabase.requests.map((r) => r.url.path),
+        everyElement(isNot(contains('chat_room_members'))),
+        reason: '떠난 방에 읽음 커서를 쓰면 안 된다',
+      );
+    });
+
+    test('로드 실패가 dispose 뒤에 도착해도 예외가 나지 않는다', () async {
+      // 성공 경로만 막으면 catch 쪽 재개 지점이 그대로 남는다.
+      FakeSupabase.on('chat_messages', (_) => FakeSupabase.error(500, {}));
+      final s = newState();
+
+      s.init();
+      s.dispose();
+
+      await expectLater(pumpEventQueue(), completes);
+    });
+  });
+
   group('ChatRoomState.loadOlder — 이전 페이지', () {
     test('가득 찬 첫 페이지 → hasMore, loadOlder 는 앞에 붙이고 읽음 커서는 안 건드린다', () async {
       // 첫 요청(커서 없음)엔 최신 50건, 커서(lt) 요청엔 그 이전 20건.
@@ -144,6 +205,23 @@ void main() {
         hasLength(1),
         reason: '읽음 갱신은 초기 로드의 최신 메시지 1회뿐 — 커서 후퇴 금지(#230)',
       );
+      s.dispose();
+    });
+
+    test('이전 페이지가 전부 중복이면 hasMore 를 내려 무한 재요청을 막는다', () async {
+      // 커서가 전진하지 못하는 병리적 응답 — lt 의미상 정상 경로에선 없지만,
+      // 생기면 스크롤마다 같은 쿼리가 반복되므로 멈추는 게 안전하다.
+      FakeSupabase.on('chat_messages', (_) => descPage(100, 50));
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final s = newState();
+      s.init();
+      await pumpEventQueue();
+      expect(s.hasMore, isTrue);
+
+      await s.loadOlder(); // 커서 요청에도 같은 50건이 돌아온다(전부 중복)
+
+      expect(s.messages, hasLength(50));
+      expect(s.hasMore, isFalse, reason: '커서가 안 움직였으면 멈춘다');
       s.dispose();
     });
 

@@ -39,7 +39,8 @@ class FakeSupabase {
   /// [pathContains] 가 요청 경로에 부분일치하면 [respond] 의 반환값을
   /// JSON 으로 응답한다. 나중에 등록한 라우트가 우선.
   /// [respond] 가 `http.Response` 를 반환하면 상태코드·헤더 그대로 응답하고
-  /// (에러 응답 테스트용), 예외를 던지면 네트워크 오류를 흉내낸다.
+  /// (에러 응답 테스트용), 예외를 던지면 네트워크 오류를 흉내내며,
+  /// `Future` 를 반환하면 완료를 기다린다(지연 응답으로 경합 재현용).
   static void on(
     String pathContains,
     Object? Function(http.Request req) respond,
@@ -63,7 +64,8 @@ class FakeSupabase {
     requests.add(req);
     for (final e in _routes.entries.toList().reversed) {
       if (req.url.path.contains(e.key)) {
-        final result = e.value(req);
+        var result = e.value(req);
+        if (result is Future) result = await result;
         if (result is http.Response) {
           return http.Response(
             result.body,

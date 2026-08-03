@@ -1,6 +1,8 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'error_reporter.dart';
+
 /// 반려동물 시설(공공데이터) 1건. facilities_within RPC 결과 매핑 (0021).
 class Facility {
   final String id;
@@ -307,8 +309,15 @@ class FacilityRepository {
       }
       out.sort((a, b) => a.distanceM.compareTo(b.distanceM));
       return out;
-    } catch (_) {
-      return const []; // 실시간 검색 실패는 다른 마커에 영향 없이 빈 결과
+    } catch (e) {
+      // 지도 이동마다 도는 실시간 검색이라 일시 실패가 잦다 — 다음 이동에서
+      // 자연 회복되므로 기록만 남기고 빈 결과로 폴백(#239).
+      ErrorReporter.ignored(
+        e,
+        where: 'facility.searchPetCafes',
+        why: '실시간 검색 실패 — 다른 마커에 영향 없고 다음 지도 이동에서 재시도',
+      );
+      return const [];
     }
   }
 }

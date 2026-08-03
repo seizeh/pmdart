@@ -115,15 +115,20 @@ class _BoardingThreadListScreenState extends State<BoardingThreadListScreen> {
         ),
       ),
     );
-    if (ok != true) return;
+    // 시트가 닫혔으니 값만 남기고 컨트롤러는 해제(#239 — 반복 열기 누수).
+    // 닫힘 전환·IME 마무리가 끝난 뒤 해제되도록 지연한다.
     final petLabel = petCtrl.text.trim();
+    final phone = phoneCtrl.text;
+    Future.delayed(const Duration(seconds: 1), petCtrl.dispose);
+    Future.delayed(const Duration(seconds: 1), phoneCtrl.dispose);
+    if (ok != true) return;
     if (petLabel.isEmpty) {
       _toast('아이 이름을 입력해 주세요');
       return;
     }
     final res = await CareReportRepository.instance.createThread(
       petLabel: petLabel,
-      recipientPhone: phoneCtrl.text,
+      recipientPhone: phone,
     );
     if (!mounted) return;
     final id = res.id;

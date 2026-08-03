@@ -30,7 +30,9 @@ class AuthService {
           AuthUser.fromJson(data['user'] as Map),
           refresh: data['refresh_token'] as String?,
         );
-        await PushService.instance.registerToken(); // FCM 토큰 등록
+        // FCM 토큰 등록 — await 하지 않는다: iOS APNs 재시도 루프(10×500ms)에
+        // 로그인 완료가 최대 ~5초 붙잡히던 자리(#239). 실패는 내부에서 삼킨다.
+        unawaited(PushService.instance.registerToken());
         // 서버 안읽음 카운터 보정(#232) — 트리거 캐시가 원본과 어긋난 채 남아
         // 푸시 배지만 틀리는 일이 실제로 있었다(운영 80 vs 2). 로그인 때 한 번만.
         unawaited(PushService.instance.reconcileUnreadCounts());
@@ -53,6 +55,11 @@ class AuthService {
   Future<void> logout() async {
     RealtimeService.instance.stop(); // 알림 realtime 구독 해제
     await PushService.instance.clearToken(); // FCM 토큰 삭제(타 사용자 푸시 방지)
+    // 진행 중인 회전이 있으면 끝나길 기다린 뒤 **최신** refresh 로 회수한다 —
+    // 회전 전 토큰으로 revoke 하면 조용히 실패해 family 가 살아남는다(#239).
+    if (SessionManager.instance.isRefreshing) {
+      await SessionManager.instance.refreshOnce();
+    }
     final r = SessionManager.instance.refresh;
     if (r != null) {
       try {

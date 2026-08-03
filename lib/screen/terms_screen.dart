@@ -54,6 +54,10 @@ class _TermsScreenState extends State<TermsScreen> {
   final _scroll = ScrollController();
   bool _readToEnd = false;
 
+  // build 안에서 만들면 리빌드(읽음 처리 setState 등)마다 FutureBuilder 가
+  // 대기 상태로 돌아가 스피너가 깜빡인다(#239) — 1회 생성으로 고정.
+  late final Future<String> _body = rootBundle.loadString(widget.assetPath);
+
   @override
   void initState() {
     super.initState();
@@ -82,7 +86,7 @@ class _TermsScreenState extends State<TermsScreen> {
       backgroundColor: context.colors.background,
       appBar: AppBar(title: Text(widget.title)),
       body: FutureBuilder<String>(
-        future: rootBundle.loadString(widget.assetPath),
+        future: _body,
         builder: (context, snap) {
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());

@@ -148,6 +148,51 @@ void main() {
     });
   });
 
+  group('CommunityRepository.toggleHeart — 경합 관용(#239)', () {
+    test('중복 INSERT(23505)는 하트 성공으로 수렴한다(연타·낡은 스냅샷)', () async {
+      FakeSupabase.on(
+        'post_hearts',
+        (_) => FakeSupabase.error(409, {
+          'code': '23505',
+          'message': 'duplicate key value',
+        }),
+      );
+
+      expect(
+        await CommunityRepository.instance.toggleHeart('p1', false),
+        isTrue,
+      );
+    });
+
+    test('중복이 아닌 오류는 그대로 던진다', () async {
+      FakeSupabase.on(
+        'post_hearts',
+        (_) => FakeSupabase.error(500, {'code': 'XX000', 'message': 'boom'}),
+      );
+
+      await expectLater(
+        CommunityRepository.instance.toggleHeart('p1', false),
+        throwsA(anything),
+      );
+    });
+  });
+
+  group('CommunityRepository.deletePosts — 부분 실패 가시화(#239)', () {
+    test('중간 실패도 끝까지 진행하고 실패 개수를 담아 던진다', () async {
+      var calls = 0;
+      FakeSupabase.on('delete_my_post', (_) {
+        calls++;
+        return calls == 2 ? FakeSupabase.error(500, {'message': 'boom'}) : null;
+      });
+
+      await expectLater(
+        CommunityRepository.instance.deletePosts(['p1', 'p2', 'p3']),
+        throwsA(isA<StateError>()),
+      );
+      expect(calls, 3, reason: '한 건 실패가 나머지 삭제를 막지 않는다');
+    });
+  });
+
   group('CommunityRepository.fetchUserPosts — 얼굴(authoredAs) 필터', () {
     test('authoredAs 지정 시 posts 의 모드 맵과 병합해 해당 얼굴 글만 남긴다', () async {
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1'), postRow('p2')]);

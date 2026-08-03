@@ -379,6 +379,7 @@ class _DetailSheetState extends State<_DetailSheet> {
       );
       if (reason == null || reason.trim().isEmpty) return;
     }
+    if (!mounted) return; // 다이얼로그 대기 중 라우트 제거 가능(#239)
     setState(() => _busy = true);
     try {
       await AdminRepository.instance.setBusinessStatus(
@@ -395,9 +396,9 @@ class _DetailSheetState extends State<_DetailSheet> {
     }
   }
 
-  Future<String?> _askReason(String title) {
+  Future<String?> _askReason(String title) async {
     final ctrl = TextEditingController();
-    return showDialog<String>(
+    final reason = await showDialog<String>(
       context: context,
       builder: (dCtx) => AlertDialog(
         title: Text(title),
@@ -419,6 +420,9 @@ class _DetailSheetState extends State<_DetailSheet> {
         ],
       ),
     );
+    // 다이얼로그 전환이 끝난 뒤 컨트롤러 해제(#239 — 반복 열기 누수).
+    Future.delayed(const Duration(seconds: 1), ctrl.dispose);
+    return reason;
   }
 
   void _toast(String msg) {

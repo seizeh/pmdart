@@ -21,6 +21,19 @@ class PostDetailState extends ChangeNotifier {
   final bool isGuest;
   final CommunityRepository _repo = CommunityRepository.instance;
 
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  /// dispose 뒤 도착한 비동기 완료가 assert 를 밟지 않게 하는 안전 notify(#239).
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
   Post _post;
   List<Comment> _comments = const [];
   bool _loadingComments = true;
@@ -73,7 +86,7 @@ class PostDetailState extends ChangeNotifier {
       debugPrint('게시글 상세: 댓글 조회 실패(기존 목록 유지): $e');
       _loadingComments = false;
     }
-    notifyListeners();
+    _notify();
   }
 
   /// 조회수 기록 (같은 시간대 재조회는 집계 안 됨). 집계됐으면 화면 수치도 +1.
@@ -81,7 +94,7 @@ class PostDetailState extends ChangeNotifier {
     final counted = await _repo.recordView(_post.id);
     if (counted) {
       _post = _post.copyWith(viewCount: _post.viewCount + 1);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -92,7 +105,7 @@ class PostDetailState extends ChangeNotifier {
       debugPrint('게시글 상세: 지원자 관리 권한 확인 실패(숨김 유지): $e');
     }
     _managerChecked = true;
-    notifyListeners();
+    _notify();
   }
 
   Future<void> _loadFollowing() async {
@@ -102,7 +115,7 @@ class PostDetailState extends ChangeNotifier {
         _post.userId,
         business: _post.authoredAs == 'business',
       );
-      notifyListeners();
+      _notify();
     } catch (e) {
       debugPrint('게시글 상세: 팔로우 상태 조회 실패(미표시): $e');
     }
@@ -112,7 +125,7 @@ class PostDetailState extends ChangeNotifier {
     try {
       final mode = await BusinessRepository.instance.fetchActiveMode();
       _businessMode = mode == 'business';
-      notifyListeners();
+      _notify();
     } catch (e) {
       debugPrint('게시글 상세: 활성 모드 조회 실패(개인 모드로 표시): $e');
     }
@@ -132,7 +145,7 @@ class PostDetailState extends ChangeNotifier {
     _lastFollowToggle = now;
     final was = _following;
     _following = !was;
-    notifyListeners();
+    _notify();
     try {
       // 팔로우/해제 모두 글의 얼굴 단위 — 업체 글(소식)은 업체 팔로우로.
       final biz = _post.authoredAs == 'business';
@@ -144,7 +157,7 @@ class PostDetailState extends ChangeNotifier {
     } catch (e) {
       debugPrint('게시글 상세: 팔로우 토글 실패(롤백): $e');
       _following = was;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -155,7 +168,7 @@ class PostDetailState extends ChangeNotifier {
       hearted: !wasHearted,
       heartCount: _post.heartCount + (wasHearted ? -1 : 1),
     );
-    notifyListeners();
+    _notify();
     try {
       await _repo.toggleHeart(_post.id, wasHearted);
       return true;
@@ -165,7 +178,7 @@ class PostDetailState extends ChangeNotifier {
         hearted: wasHearted,
         heartCount: _post.heartCount + (wasHearted ? 1 : -1),
       );
-      notifyListeners();
+      _notify();
       return false;
     }
   }
@@ -173,7 +186,7 @@ class PostDetailState extends ChangeNotifier {
   /// 댓글 등록만 수행(성공 여부 반환) — 입력창 정리·재조회 순서는 화면이 제어.
   Future<bool> submitComment(String text) async {
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       await _repo.addComment(_post.id, text);
       return true;
@@ -182,14 +195,14 @@ class PostDetailState extends ChangeNotifier {
       return false;
     } finally {
       _sending = false;
-      notifyListeners();
+      _notify();
     }
   }
 
   /// 지원 제출(성공 여부 반환) — 업체 모드 확인·전환 다이얼로그는 화면이 선행.
   Future<bool> submitApply() async {
     _applying = true;
-    notifyListeners();
+    _notify();
     try {
       await _repo.apply(_post.id);
       return true;
@@ -198,7 +211,7 @@ class PostDetailState extends ChangeNotifier {
       return false;
     } finally {
       _applying = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -207,7 +220,7 @@ class PostDetailState extends ChangeNotifier {
     final fresh = await _repo.fetchPost(_post.id);
     if (fresh == null) return false;
     _post = fresh;
-    notifyListeners();
+    _notify();
     return true;
   }
 }

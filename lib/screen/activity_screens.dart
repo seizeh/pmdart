@@ -324,7 +324,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return; // 다이얼로그 대기 중 라우트 제거 가능(#239)
     setState(() => _busy = a['id'] as String);
     try {
       await _repo.completeAppointment(a['id'] as String);

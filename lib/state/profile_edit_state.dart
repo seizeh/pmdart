@@ -27,6 +27,19 @@ class ProfileEditState extends ChangeNotifier {
   /// null 이면(집계 미전달) 정리를 건너뛴다.
   final String? _originalImageUrl;
 
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  /// dispose 뒤 도착한 비동기 완료가 assert 를 밟지 않게 하는 안전 notify(#239).
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
   // 현재 모드 — 화면 안에서 계정 전환하면 즉시 반영되도록 로컬 상태로 든다
   // (진입 시점 스냅샷이 전환 후 낡은 값이 되는 문제 방지).
   String _mode;
@@ -61,13 +74,13 @@ class ProfileEditState extends ChangeNotifier {
   /// 계정 전환 패널이 모드를 바꿨을 때(화면 전체가 개인 편집 ↔ 업체 관리로 전환).
   void setMode(String mode) {
     _mode = mode;
-    notifyListeners();
+    _notify();
   }
 
   /// 선택된 사진 업로드(선택은 화면의 피커가 선행). 실패 시 false.
   Future<bool> uploadImage(XFile file) async {
     _uploading = true;
-    notifyListeners();
+    _notify();
     try {
       final prev = _imageUrl;
       final up = await StorageService.instance.upload(
@@ -85,7 +98,7 @@ class ProfileEditState extends ChangeNotifier {
       return false;
     } finally {
       _uploading = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -99,7 +112,7 @@ class ProfileEditState extends ChangeNotifier {
     final seq = ++_nickCheckSeq;
     if (nick.isEmpty || nick == original.trim()) {
       _nickAvailable = null;
-      notifyListeners();
+      _notify();
       return;
     }
     try {
@@ -111,7 +124,7 @@ class ProfileEditState extends ChangeNotifier {
       _nickAvailable = null; // 확인 실패로 저장을 막지 않는다 — 최종 판정은 제약
       debugPrint('내정보 수정: 닉네임 확인 실패: $e');
     }
-    notifyListeners();
+    _notify();
   }
 
   /// 프로필 저장(성공 시 화면이 pop). 실패 시 false — 닉네임 중복(23505)이면
@@ -119,7 +132,7 @@ class ProfileEditState extends ChangeNotifier {
   Future<bool> save(String nickname) async {
     _saving = true;
     _saveError = null;
-    notifyListeners();
+    _notify();
     try {
       await ProfileRepository.instance.updateProfile(
         nickname: nickname,
@@ -144,7 +157,7 @@ class ProfileEditState extends ChangeNotifier {
       return false;
     } finally {
       _saving = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -155,7 +168,7 @@ class ProfileEditState extends ChangeNotifier {
       final r = await ProfileRepository.instance.fetchRegion();
       _address = r.address;
       _verified = r.verified;
-      notifyListeners();
+      _notify();
     } catch (e) {
       debugPrint('내정보 수정: 활동 지역 재조회 실패(인증은 반영됨): $e');
     }

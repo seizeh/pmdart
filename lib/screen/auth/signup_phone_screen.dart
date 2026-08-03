@@ -88,7 +88,10 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     _codeCtrl.dispose();
     _idCtrl.dispose();
     _pwCtrl.dispose();
+    _pw2Ctrl.dispose();
     _nickCtrl.dispose();
+    _petNameCtrl.dispose();
+    _petBreedCtrl.dispose();
     for (final c in _coGuardianCtrls) {
       c.dispose();
     }

@@ -176,9 +176,14 @@ class SessionManager extends ChangeNotifier {
       }
     }
     if (_access == null || _user == null) {
+      // 반쪽 세션(예: user JSON 손상)은 저장소까지 정리한다 — 메모리만 비우면
+      // secure storage 의 access/refresh 가족이 기기에 잔존한다(#239).
       _access = null;
       _refresh = null;
       _user = null;
+      await _store.deleteSecure(_kAccess);
+      await _store.deleteSecure(_kRefresh);
+      await _store.deletePlain(_kUser);
     }
   }
 
@@ -270,6 +275,9 @@ class SessionManager extends ChangeNotifier {
     if (r == null) return;
     try {
       final res = await _invokeRefreshWithRetry(r);
+      // 갱신 도중 로그아웃됐다면 여기서 멈춘다 — 계속 진행하면 clear() 가 지운
+      // 토큰을 다시 영속화해 회수된 세션이 디스크에 부활한다(#239).
+      if (_access == null || _refresh == null) return;
       final data = (res.data as Map?) ?? const {};
       if (data['ok'] == true && data['token'] is String) {
         // 새 refresh 를 access 보다 먼저 영속화 — 이 사이에 프로세스가 죽어도

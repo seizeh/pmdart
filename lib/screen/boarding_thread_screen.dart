@@ -273,6 +273,7 @@ class _ComposeSheetState extends State<_ComposeSheet> {
     if (_photos.length >= 4 || _uploading) return;
     final files = await StorageService.instance.pickImages();
     if (files.isEmpty) return;
+    if (!mounted) return; // 픽커 대기 중 라우트 제거 가능(#238)
     setState(() => _uploading = true);
     try {
       for (final f in files) {

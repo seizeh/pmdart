@@ -52,6 +52,7 @@ class _CareReportSendScreenState extends State<CareReportSendScreen> {
     if (_photos.length >= _maxPhotos || _uploading) return;
     final files = await StorageService.instance.pickImages();
     if (files.isEmpty) return;
+    if (!mounted) return; // 픽커 대기 중 라우트 제거 가능(#238)
     setState(() => _uploading = true);
     try {
       for (final f in files) {

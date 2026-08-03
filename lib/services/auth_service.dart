@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
 import 'error_reporter.dart';
@@ -29,6 +31,9 @@ class AuthService {
           refresh: data['refresh_token'] as String?,
         );
         await PushService.instance.registerToken(); // FCM 토큰 등록
+        // 서버 안읽음 카운터 보정(#232) — 트리거 캐시가 원본과 어긋난 채 남아
+        // 푸시 배지만 틀리는 일이 실제로 있었다(운영 80 vs 2). 로그인 때 한 번만.
+        unawaited(PushService.instance.reconcileUnreadCounts());
         RealtimeService.instance.start(); // realtime 재인증 + 알림 구독
         return const AuthResult(ok: true);
       }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../main.dart' show openFromPush;
 import '../models/notification.dart';
 import '../motion/motion.dart' show SpringCurve;
+import '../services/error_reporter.dart';
 import '../services/notification_repository.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show timeAgo;
@@ -213,8 +214,21 @@ class _NotificationPanelState extends State<_NotificationPanel> {
   Future<void> _markAll() async {
     try {
       await _repo.deleteAll();
-    } catch (e) {
-      debugPrint('알림 전체 삭제 실패(서버 미반영 가능): $e');
+    } catch (e, st) {
+      // 예전엔 실패해도 목록을 비웠다 — 화면은 "정리됨", 서버엔 그대로.
+      // 다음 진입에 알림이 되살아나 사용자가 "지웠는데 왜 또 있냐" 를 겪는다.
+      // 실패했으면 비우지 않는 게 맞다(#232).
+      ErrorReporter.userFacing(
+        e,
+        where: 'notification.deleteAll',
+        stackTrace: st,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('알림을 정리하지 못했어요. 잠시 후 다시 시도해 주세요')),
+        );
+      }
+      return;
     }
     if (mounted) {
       setState(() {
@@ -224,7 +238,13 @@ class _NotificationPanelState extends State<_NotificationPanel> {
   }
 
   void _onTap(AppNotification n) {
-    _repo.delete(n.id); // 확인한 알림은 삭제
+    // 패널을 바로 닫으므로 await 해도 보여줄 UI 가 없다. 다만 **조용히 삼키지는
+    // 않는다** — 실패하면 알림이 되살아나는데, 그게 왜인지 알 방법이 없었다(#232).
+    unawaited(
+      _repo.delete(n.id).catchError((Object e, StackTrace st) {
+        ErrorReporter.report(e, where: 'notification.delete', stackTrace: st);
+      }),
+    ); // 확인한 알림은 삭제
     Navigator.of(context).pop(); // 패널 닫기
     // 푸시 탭과 동일한 딥링크 라우팅 — 관련 탭으로 전환한 뒤 상세를 rise 로
     // 열어, 닫으면(쓸어내리기/뒤로가기) 채팅 목록 등 관련 탭이 나온다.

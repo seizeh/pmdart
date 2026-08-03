@@ -72,18 +72,31 @@ class ChatRepository {
       'id, room_id, sender_id, content, image_url, image_mime_type, '
       'image_thumbnail_url, created_at';
 
-  /// 방의 메시지 (오래된→최신).
-  Future<List<ChatMessage>> fetchMessages(String roomId) async {
+  /// 메시지 페이지 크기 — 첫 로드는 최신 한 페이지, 위로 스크롤 시 한 페이지씩.
+  static const messagePageSize = 50;
+
+  /// 방의 메시지 한 페이지 (오래된→최신). 서버에서 최신순으로 [limit]개를
+  /// 받아 뒤집는다 — 오름차순 고정 조회는 방이 커지면 오래된 쪽만 보였다(#230).
+  /// [before] 가 있으면 그 시각 이전(이전 페이지)을 조회한다.
+  Future<List<ChatMessage>> fetchMessages(
+    String roomId, {
+    DateTime? before,
+    int limit = messagePageSize,
+  }) async {
     final myId = _uid;
-    final rows = await _c
+    var query = _c
         .from('chat_messages')
         .select(_messageCols)
         .eq('room_id', roomId)
-        .eq('is_deleted', false)
-        .order('created_at', ascending: true)
-        .limit(300);
+        .eq('is_deleted', false);
+    if (before != null) {
+      query = query.lt('created_at', before.toUtc().toIso8601String());
+    }
+    final rows = await query.order('created_at', ascending: false).limit(limit);
     return (rows as List)
         .map((r) => ChatMessage.fromJson(r as Map<String, dynamic>, myId))
+        .toList()
+        .reversed
         .toList();
   }
 

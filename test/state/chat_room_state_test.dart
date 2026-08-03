@@ -26,13 +26,31 @@ const _room = ChatRoomSummary(
   unreadCount: 0,
 );
 
-Map<String, dynamic> msg(String id, {String sender = 'u2'}) => {
+Map<String, dynamic> msg(
+  String id, {
+  String sender = 'u2',
+  String at = '2026-07-01T00:00:00Z',
+}) => {
   'id': id,
   'room_id': 'r1',
   'sender_id': sender,
   'content': '메시지 $id',
-  'created_at': '2026-07-01T00:00:00Z',
+  'created_at': at,
 };
+
+/// 서버 응답 흉내 — [from]번부터 [count]건을 최신순(내림차순)으로.
+/// id 는 m<번호>, 번호가 클수록 최신이며 created_at 도 번호에 비례한다.
+List<Map<String, dynamic>> descPage(int from, int count) => [
+  for (var i = from; i > from - count; i--)
+    msg(
+      'm$i',
+      at:
+          '2026-07-01T'
+          '${(i ~/ 3600).toString().padLeft(2, '0')}:'
+          '${((i ~/ 60) % 60).toString().padLeft(2, '0')}:'
+          '${(i % 60).toString().padLeft(2, '0')}Z',
+    ),
+];
 
 ChatRoomState newState() =>
     ChatRoomState(room: _room, subscribeRealtime: false);
@@ -56,8 +74,9 @@ void main() {
   });
 
   group('ChatRoomState.init', () {
-    test('메시지를 로드하고 마지막 메시지로 읽음 처리, 활성 방 등록', () async {
-      FakeSupabase.on('chat_messages', (_) => [msg('m1'), msg('m2')]);
+    test('메시지를 로드하고(서버 최신순 → 화면 오래된순) 최신 메시지로 읽음 처리, 활성 방 등록', () async {
+      // 서버는 최신순으로 응답한다(#230 방향 수정) — 화면 목록은 오래된→최신.
+      FakeSupabase.on('chat_messages', (_) => [msg('m2'), msg('m1')]);
       FakeSupabase.on('chat_room_members', (_) => []);
       final s = newState();
 
@@ -67,6 +86,7 @@ void main() {
       expect(ChatRepository.instance.activeRoomId, 'r1', reason: '푸시 배너 억제');
       expect(s.loading, isFalse);
       expect(s.messages.map((m) => m.id), ['m1', 'm2']);
+      expect(s.hasMore, isFalse, reason: '페이지 크기 미만 = 이전 기록 없음');
       final read = FakeSupabase.requests.singleWhere(
         (r) => r.url.path.contains('chat_room_members'),
       );
@@ -88,6 +108,56 @@ void main() {
         FakeSupabase.requests.map((r) => r.url.path),
         everyElement(isNot(contains('chat_room_members'))),
       );
+      s.dispose();
+    });
+  });
+
+  group('ChatRoomState.loadOlder — 이전 페이지', () {
+    test('가득 찬 첫 페이지 → hasMore, loadOlder 는 앞에 붙이고 읽음 커서는 안 건드린다', () async {
+      // 첫 요청(커서 없음)엔 최신 50건, 커서(lt) 요청엔 그 이전 20건.
+      FakeSupabase.on(
+        'chat_messages',
+        (req) =>
+            req.url.queryParameters['created_at']?.startsWith('lt.') == true
+            ? descPage(50, 20)
+            : descPage(100, 50),
+      );
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final s = newState();
+
+      s.init();
+      await pumpEventQueue();
+      expect(s.hasMore, isTrue, reason: '가득 찬 페이지 = 이전 기록 있을 수 있음');
+      expect(s.messages.first.id, 'm51');
+      expect(s.messages.last.id, 'm100', reason: '최신이 마지막');
+
+      await s.loadOlder();
+
+      expect(s.messages, hasLength(70));
+      expect(s.messages.first.id, 'm31', reason: '이전 페이지가 앞에 붙는다');
+      expect(s.messages.last.id, 'm100', reason: '최신은 그대로');
+      expect(s.hasMore, isFalse, reason: '모자란 페이지 = 끝');
+      expect(
+        FakeSupabase.requests.where(
+          (r) => r.url.path.contains('chat_room_members'),
+        ),
+        hasLength(1),
+        reason: '읽음 갱신은 초기 로드의 최신 메시지 1회뿐 — 커서 후퇴 금지(#230)',
+      );
+      s.dispose();
+    });
+
+    test('이전 기록이 없으면(짧은 첫 페이지) loadOlder 는 아무 요청도 안 한다', () async {
+      FakeSupabase.on('chat_messages', (_) => descPage(3, 3));
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final s = newState();
+      s.init();
+      await pumpEventQueue();
+      final requestsBefore = FakeSupabase.requests.length;
+
+      await s.loadOlder();
+
+      expect(FakeSupabase.requests.length, requestsBefore);
       s.dispose();
     });
   });

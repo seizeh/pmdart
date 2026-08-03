@@ -23,6 +23,12 @@ bool isAuthExpiredError(Object e) {
   }
   if (e is FunctionException) {
     // Edge Function 게이트웨이가 verify_jwt 로 거절한 경우.
+    //
+    // **이 분기는 실제로 거의 발화하지 않는다** — 게이트웨이의 401 본문이 보통
+    // `{"msg":"Invalid JWT"}` 라 아래 문자열 검사에 안 걸린다. 알면서 남겨 둔다:
+    // 'Invalid JWT' 까지 만료로 넓히면 토큰 변조·키 설정 오류 같은 것도 전부
+    // 강제 로그아웃이 되기 때문이다. 진짜 커버리지는 PostgREST(PGRST301) 쪽이
+    // 맡고, 여기는 게이트웨이가 사유를 명시해 줄 때만 걸리는 보조 경로다.
     return e.status == 401 && _mentionsExpiredJwt(e.details?.toString() ?? '');
   }
   return false;
@@ -352,11 +358,22 @@ class SessionManager extends ChangeNotifier {
         return true;
       }
     } catch (e) {
-      // 만료가 원인이면 일시 오류가 아니다. 갱신 가능한 세션이면 다음 요청의
-      // accessToken 콜백이 refresh 하므로 여기서 끊지 않는다.
-      if (isAuthExpiredError(e) && !canRefresh) {
-        await _invalidate();
-        return true;
+      if (isAuthExpiredError(e)) {
+        if (!canRefresh) {
+          await _invalidate();
+          return true;
+        }
+        // 서버는 만료라는데 우리 로컬 판정은 아직 살아 있다고 본 상황이다.
+        // **기기 시계가 서버보다 느리면 실제로 이렇게 된다.** 그러면
+        // isAccessExpiringSoon 도 로컬 시계 기준이라 안 걸려서, 다음 요청도
+        // 같은 만료 토큰으로 나간다 — 시계 차이만큼(N분) 모든 요청이 401 인
+        // 창이 생기고 스스로 못 빠져나온다.
+        //
+        // 그래서 로컬 시계보다 **서버 판정을 믿고** 즉시 갱신한다. 단일비행이라
+        // 이미 갱신 중이면 그 결과를 기다릴 뿐 추가 비용이 없고, refresh 마저
+        // 거절되면 _doRefresh 가 _invalidate 로 끝낸다.
+        await refreshOnce();
+        return !isLoggedIn; // 갱신도 거절돼 로그아웃됐으면 true
       }
       // 네트워크/일시 오류: 무효로 단정하지 않음(오탐 로그아웃 방지).
       ErrorReporter.ignored(

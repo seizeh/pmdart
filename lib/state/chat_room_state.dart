@@ -26,6 +26,7 @@ class ChatRoomState extends ChangeNotifier {
   bool _sending = false;
   bool _hasMore = false;
   bool _loadingOlder = false;
+  bool _disposed = false;
   RealtimeChannel? _channel;
   String? _otherImageUrl;
 
@@ -53,29 +54,41 @@ class ChatRoomState extends ChangeNotifier {
     _load();
   }
 
+  /// 실시간 채널 보유 여부 — dispose 경합 테스트용(#235).
+  @visibleForTesting
+  bool get hasRealtimeChannel => _channel != null;
+
   @override
   void dispose() {
+    _disposed = true;
     // 다른 방을 위에 쌓은 경우가 아니면 활성 방 해제.
     if (_repo.activeRoomId == room.id) _repo.activeRoomId = null;
     if (_channel != null) _repo.unsubscribe(_channel!);
     super.dispose();
   }
 
+  /// dispose 이후 도착한 비동기 완료가 assert 를 밟지 않게 하는 안전 notify.
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> _load() async {
     try {
       _messages = await _repo.fetchMessages(room.id);
+      if (_disposed) return; // 로딩 중 화면 이탈 — 아래 구독 생성도 막는다(#235)
       _hasMore = _messages.length >= ChatRepository.messagePageSize;
       _loading = false;
-      notifyListeners();
+      _notify();
       _markRead();
       // reverse:true 리스트라 첫 프레임부터 맨 아래(최신)에 고정 — 스크롤 점프 불필요.
     } catch (e) {
       debugPrint('채팅방: 메시지 로드 실패: $e');
       _loading = false;
-      notifyListeners();
+      _notify();
     }
-    // 실시간 구독 (상대 메시지 수신 + 삭제 반영)
-    if (!subscribeRealtime) return;
+    // 실시간 구독 (상대 메시지 수신 + 삭제 반영) — dispose 이후 재개된 경우
+    // 구독을 만들면 주인 없는 채널이 앱 수명 내내 남는다(#235).
+    if (_disposed || !subscribeRealtime) return;
     try {
       _channel = _repo.subscribeMessages(
         room.id,
@@ -93,7 +106,7 @@ class ChatRoomState extends ChangeNotifier {
   Future<void> loadOlder() async {
     if (_loadingOlder || !_hasMore || _messages.isEmpty) return;
     _loadingOlder = true;
-    notifyListeners();
+    _notify();
     try {
       final older = await _repo.fetchMessages(
         room.id,
@@ -106,7 +119,7 @@ class ChatRoomState extends ChangeNotifier {
       debugPrint('채팅방: 이전 메시지 로드 실패(스크롤 시 재시도): $e');
     } finally {
       _loadingOlder = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -120,7 +133,7 @@ class ChatRoomState extends ChangeNotifier {
           .eq('id', uid)
           .maybeSingle();
       _otherImageUrl = row?['profile_image_url'] as String?;
-      notifyListeners();
+      _notify();
     } catch (e) {
       debugPrint('채팅방: 상대 프로필 조회 실패(무사진 헤더 유지): $e');
     }
@@ -131,7 +144,7 @@ class ChatRoomState extends ChangeNotifier {
   void onIncoming(ChatMessage msg) {
     if (_messages.any((m) => m.id == msg.id)) return;
     _messages.add(msg);
-    notifyListeners();
+    _notify();
     if (!msg.mine) _markRead();
     onNewMessage?.call();
   }
@@ -140,7 +153,7 @@ class ChatRoomState extends ChangeNotifier {
   @visibleForTesting
   void onMessageDeleted(String messageId) {
     _messages.removeWhere((m) => m.id == messageId);
-    notifyListeners();
+    _notify();
   }
 
   // _messages.last 가 항상 최신이라는 전제(초기 로드=최신 페이지, 이전 페이지는
@@ -156,7 +169,7 @@ class ChatRoomState extends ChangeNotifier {
   Future<String?> send(String text) async {
     if (text.isEmpty || _sending) return null;
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       final msg = await _repo.sendMessage(room.id, text);
       _appendMine(msg);
@@ -165,7 +178,7 @@ class ChatRoomState extends ChangeNotifier {
       return _sendErrorMessage(e, '메시지 전송에 실패했어요');
     } finally {
       _sending = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -173,7 +186,7 @@ class ChatRoomState extends ChangeNotifier {
   Future<String?> sendImage(XFile file) async {
     if (_sending) return null;
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       final msg = await _repo.sendImageMessage(room.id, file);
       _appendMine(msg);
@@ -182,7 +195,7 @@ class ChatRoomState extends ChangeNotifier {
       return _sendErrorMessage(e, '사진 전송에 실패했어요');
     } finally {
       _sending = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -191,7 +204,7 @@ class ChatRoomState extends ChangeNotifier {
   Future<String?> sendVideo(XFile file) async {
     if (_sending) return null;
     _sending = true;
-    notifyListeners();
+    _notify();
     try {
       final msg = await _repo.sendVideoMessage(room.id, file);
       _appendMine(msg);
@@ -202,13 +215,13 @@ class ChatRoomState extends ChangeNotifier {
       return _sendErrorMessage(e, '동영상 전송에 실패했어요');
     } finally {
       _sending = false;
-      notifyListeners();
+      _notify();
     }
   }
 
   void _appendMine(ChatMessage msg) {
     if (!_messages.any((m) => m.id == msg.id)) _messages.add(msg);
-    notifyListeners();
+    _notify();
     _markRead();
     onNewMessage?.call();
   }
@@ -226,7 +239,7 @@ class ChatRoomState extends ChangeNotifier {
     try {
       await _repo.deleteMessage(messageId);
       _messages.removeWhere((m) => m.id == messageId);
-      notifyListeners();
+      _notify();
       return true;
     } catch (e) {
       debugPrint('채팅방: 메시지 삭제 실패: $e');

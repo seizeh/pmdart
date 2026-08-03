@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -109,6 +110,39 @@ void main() {
         everyElement(isNot(contains('chat_room_members'))),
       );
       s.dispose();
+    });
+  });
+
+  group('ChatRoomState — dispose 경합(#235)', () {
+    test('첫 로딩이 끝나기 전에 dispose 되면 실시간 구독을 만들지 않는다', () async {
+      final gate = Completer<void>();
+      FakeSupabase.on(
+        'chat_messages',
+        (_) => gate.future.then((_) => <Map<String, dynamic>>[]),
+      );
+      // 실제 구독 경로(subscribeRealtime 기본 true)로 가드를 검증한다.
+      final s = ChatRoomState(room: _room);
+
+      s.init();
+      s.dispose(); // 느린 네트워크에서 진입 직후 뒤로가기
+      gate.complete();
+      await pumpEventQueue();
+
+      expect(s.hasRealtimeChannel, isFalse, reason: '주인 없는 채널 누수 방지');
+    });
+
+    test('dispose 이후 완료된 로드가 notifyListeners assert 를 밟지 않는다', () async {
+      final gate = Completer<void>();
+      FakeSupabase.on(
+        'chat_messages',
+        (_) => gate.future.then((_) => [msg('m1')]),
+      );
+      final s = newState();
+
+      s.init();
+      s.dispose();
+      gate.complete();
+      await pumpEventQueue(); // 가드가 없으면 여기서 disposed notify assert
     });
   });
 

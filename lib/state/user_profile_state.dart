@@ -17,7 +17,25 @@ import '../services/social_repository.dart';
 /// 모드여도 개인 얼굴만 보여준다 — 게시글 필터·후기 종류·팔로우 대상이
 /// 전부 얼굴 단위로 갈리므로 판별(bizFace)을 여기서 한 번만 한다.
 class UserProfileState extends ChangeNotifier {
-  UserProfileState({required this.userId, required this.forcePersonalFace});
+  UserProfileState({
+    required this.userId,
+    required this.forcePersonalFace,
+    ProfileRepository? profiles,
+    CommunityRepository? community,
+    SocialRepository? social,
+    BusinessRepository? business,
+  }) : _profiles = profiles ?? ProfileRepository.instance,
+       _community = community ?? CommunityRepository.instance,
+       _social = social ?? SocialRepository.instance,
+       _business = business ?? BusinessRepository.instance;
+
+  /// 의존은 **선택적 생성자 주입** — 인자를 안 주면 종전대로 싱글턴을 쓴다.
+  /// 기존 호출부는 그대로 두고 테스트만 대역을 넣을 수 있게 하는 점진적 전환이며,
+  /// NotificationsState 가 먼저 쓰던 방식을 넓힌 것이다.
+  final ProfileRepository _profiles;
+  final CommunityRepository _community;
+  final SocialRepository _social;
+  final BusinessRepository _business;
 
   final String userId;
   final bool forcePersonalFace;
@@ -70,19 +88,17 @@ class UserProfileState extends ChangeNotifier {
     }
     try {
       // 프로필 먼저 — 업체 모드 여부에 따라 게시글 필터·방문 후기 로드가 갈린다(0025 분리).
-      final p = await ProfileRepository.instance.fetchPublicProfile(
+      final p = await _profiles.fetchPublicProfile(
         userId,
         // 업체 맥락 진입이면 Pawmate 카운트도 업체 얼굴 팔로워 기준(얼굴 분리).
         businessFace: !forcePersonalFace,
       );
       final biz = p.isBusinessMode && !forcePersonalFace;
-      final posts = await CommunityRepository.instance
+      final posts = await _community
           .fetchUserPosts(userId, authoredAs: biz ? 'business' : 'personal')
           .catchError((_) => const <Post>[]);
       final bizReviews = (biz && p.businessFacilityId != null)
-          ? await BusinessRepository.instance.fetchFacilityReviews(
-              p.businessFacilityId!,
-            )
+          ? await _business.fetchFacilityReviews(p.businessFacilityId!)
           : const <BizFacilityReview>[];
       _profile = p;
       _posts = posts;
@@ -100,10 +116,7 @@ class UserProfileState extends ChangeNotifier {
 
   Future<void> _loadFollowing() async {
     try {
-      _following = await SocialRepository.instance.isFollowing(
-        userId,
-        business: bizFace,
-      );
+      _following = await _social.isFollowing(userId, business: bizFace);
       _notify();
     } catch (e) {
       debugPrint('프로필: 팔로우 상태 조회 실패(미표시): $e');
@@ -131,9 +144,9 @@ class UserProfileState extends ChangeNotifier {
     try {
       // 팔로우/해제 모두 지금 보고 있는 얼굴 단위 — 다른 얼굴 팔로우엔 영향 없음.
       if (was) {
-        await SocialRepository.instance.unfollow(userId, business: bizFace);
+        await _social.unfollow(userId, business: bizFace);
       } else {
-        await SocialRepository.instance.follow(userId, business: bizFace);
+        await _social.follow(userId, business: bizFace);
       }
     } catch (e) {
       debugPrint('프로필: 팔로우 토글 실패(롤백): $e');

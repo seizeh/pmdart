@@ -11,6 +11,42 @@ import 'session.dart';
 
 /// 이미지 선택 + Supabase Storage(media 버킷) 업로드.
 /// 경로 규약: `<uid>/<category>/<timestamp>.<ext>` (RLS: 첫 폴더 = 내 uid).
+/// media 버킷이 받아 주는 MIME — **서버 설정과 같은 목록**이다
+/// (pmdb `20260804200000_media_bucket_limits.sql` 의 `allowed_mime_types`).
+///
+/// 공개 버킷이라 저장된 content-type 이 그대로 서빙된다. 그래서 진짜 관문은 서버(버킷)고,
+/// 여기서 먼저 보는 이유는 **거절 이유를 사람 말로 알려 주기 위해서**다 — 검사가 없으면
+/// 스토리지가 415/413 을 던지고 화면에는 "업로드 실패" 만 남는다.
+///
+/// ⚠️ 서버 목록이 바뀌면 여기도 같이 고칠 것. 넓히는 방향으로 어긋나면 무의미해진다
+/// (통과시켜 놓고 서버에서 튕긴다).
+const Set<String> kMediaAllowedMimes = {
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/3gpp',
+};
+
+/// media 버킷 객체 하나의 상한(서버 `file_size_limit` 과 같은 값).
+const int kMediaMaxObjectBytes = 100 * 1024 * 1024;
+
+/// 업로드가 거절될 이유를 미리 알려 준다. 문제없으면 null.
+String? mediaUploadRejection(String mime, int bytes) {
+  if (!kMediaAllowedMimes.contains(mime.trim().toLowerCase())) {
+    return '이 형식($mime)은 올릴 수 없어요';
+  }
+  if (bytes > kMediaMaxObjectBytes) {
+    return '파일이 너무 커요 — 100MB 이하만 올릴 수 있어요';
+  }
+  return null;
+}
+
 class StorageService {
   StorageService._();
   static final StorageService instance = StorageService._();
@@ -149,6 +185,8 @@ class StorageService {
         ? file.name.split('.').last.toLowerCase()
         : 'jpg';
     final mime = file.mimeType ?? 'image/${ext == 'jpg' ? 'jpeg' : ext}';
+    final reject = mediaUploadRejection(mime, bytes.length);
+    if (reject != null) throw StateError(reject);
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     await _c.storage
@@ -171,6 +209,8 @@ class StorageService {
   }) async {
     final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
+    final reject = mediaUploadRejection(mime, bytes.length);
+    if (reject != null) throw StateError(reject);
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
     await _c.storage
         .from('media')
@@ -205,6 +245,8 @@ class StorageService {
     final mime =
         file.mimeType ?? (ext == 'mov' ? 'video/quicktime' : 'video/$ext');
     final bytes = await file.readAsBytes();
+    final reject = mediaUploadRejection(mime, bytes.length);
+    if (reject != null) throw StateError(reject);
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
     await _c.storage
         .from('media')

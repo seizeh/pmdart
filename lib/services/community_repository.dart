@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/community.dart';
 import 'error_reporter.dart';
+import 'query_limits.dart';
 import 'session.dart';
 import 'storage_service.dart' show UploadedImage;
 
@@ -135,7 +136,10 @@ class CommunityRepository {
         .select()
         .eq('user_id', userId)
         .order('created_at', ascending: false);
-    var posts = await _postsFromRows(rows as List);
+    var posts = guardTruncation(
+      await _postsFromRows(rows as List),
+      where: 'community.fetchUserPosts',
+    );
     if (authoredAs != null && posts.isNotEmpty) {
       try {
         final modes = await _c
@@ -163,10 +167,10 @@ class CommunityRepository {
         .from('post_pets')
         .select('post_id')
         .eq('pet_id', petId);
-    final ids = [
+    final ids = guardTruncation([
       for (final l in (links as List).cast<Map<String, dynamic>>())
         l['post_id'] as String,
-    ];
+    ], where: 'community.fetchPetPosts.ids');
     return fetchPostsByIds(ids);
   }
 
@@ -233,7 +237,11 @@ class CommunityRepository {
         .from('post_hearts')
         .select('post_id')
         .eq('user_id', uid);
-    final ids = [for (final h in hearts as List) h['post_id'] as String];
+    // 오래 쓴 계정의 하트 이력이 서버 상한에 닿을 수 있다 — 닿으면 그 위 글들이
+    // '하트 안 함' 으로 보인다(0031 §5.2).
+    final ids = guardTruncation([
+      for (final h in hearts as List) h['post_id'] as String,
+    ], where: 'community.fetchHeartedPosts.ids');
     if (ids.isEmpty) return const [];
     final rows = await _c
         .from('v_post_feed')
@@ -404,9 +412,13 @@ class CommunityRepository {
         .select()
         .eq('post_id', postId)
         .order('created_at', ascending: true);
-    return (rows as List)
-        .map((r) => Comment.fromJson(r as Map<String, dynamic>))
-        .toList();
+    // 인기 글의 댓글이 서버 상한에 **가장 먼저 닿는다**(0031 §5.2).
+    return guardTruncation(
+      (rows as List)
+          .map((r) => Comment.fromJson(r as Map<String, dynamic>))
+          .toList(),
+      where: 'community.fetchComments',
+    );
   }
 
   /// 댓글 작성.

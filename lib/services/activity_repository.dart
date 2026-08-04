@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_events.dart';
+import 'query_limits.dart';
 import 'session.dart';
 
 /// 내 활동/관심/설정 데이터 (지원·약속·평가·알림설정·차단).
@@ -21,7 +22,10 @@ class ActivityRepository {
         .select('id, status, message, created_at, posts(id, title, category)')
         .eq('applicant_id', _uid)
         .order('created_at', ascending: false);
-    return (rows as List).cast<Map<String, dynamic>>();
+    return guardTruncation(
+      (rows as List).cast<Map<String, dynamic>>(),
+      where: 'activity.fetchMyApplications',
+    );
   }
 
   /// 내 약속 (글주인/지원자 모두). 평가 상대 판별용으로 양측 id 포함.
@@ -34,7 +38,10 @@ class ActivityRepository {
         )
         .or('applicant_id.eq.$uid,post_owner_id.eq.$uid')
         .order('created_at', ascending: false);
-    return (rows as List).cast<Map<String, dynamic>>();
+    return guardTruncation(
+      (rows as List).cast<Map<String, dynamic>>(),
+      where: 'activity.fetchMyAppointments',
+    );
   }
 
   /// id → 닉네임 맵 (public_profiles).
@@ -103,7 +110,10 @@ class ActivityRepository {
         .select('id, applicant_id, message, status, created_at')
         .eq('post_id', postId)
         .order('created_at', ascending: true);
-    final list = (rows as List).cast<Map<String, dynamic>>();
+    final list = guardTruncation(
+      (rows as List).cast<Map<String, dynamic>>(),
+      where: 'activity.fetchApplicants',
+    );
     if (list.isEmpty) return list;
     final ids = [for (final r in list) r['applicant_id'] as String];
     final profs = await _c
@@ -165,7 +175,10 @@ class ActivityRepository {
         .select('blocked_id, created_at')
         .eq('blocker_id', _uid)
         .order('created_at', ascending: false);
-    final list = (rows as List).cast<Map<String, dynamic>>();
+    final list = guardTruncation(
+      (rows as List).cast<Map<String, dynamic>>(),
+      where: 'activity.fetchBlockedUsers',
+    );
     if (list.isEmpty) return list;
     final ids = [for (final r in list) r['blocked_id'] as String];
     final profs = await _c

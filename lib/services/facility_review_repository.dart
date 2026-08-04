@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/facility_review.dart';
+import 'query_limits.dart';
 import 'session.dart';
 
 /// 시설 후기 (0022) — 모든 쓰기는 SECURITY DEFINER RPC 경유.
@@ -102,14 +103,17 @@ class FacilityReviewRepository {
         .select()
         .eq('review_id', reviewId)
         .order('created_at', ascending: true);
-    return (rows as List)
-        .map(
-          (r) => FacilityReviewComment.fromJson(
-            r as Map<String, dynamic>,
-            myUserId: _uid,
-          ),
-        )
-        .toList();
+    return guardTruncation(
+      (rows as List)
+          .map(
+            (r) => FacilityReviewComment.fromJson(
+              r as Map<String, dynamic>,
+              myUserId: _uid,
+            ),
+          )
+          .toList(),
+      where: 'facilityReview.fetchComments',
+    );
   }
 
   /// 후기 댓글 작성 — 후기 작성자에게 알림은 서버 트리거가 발송.

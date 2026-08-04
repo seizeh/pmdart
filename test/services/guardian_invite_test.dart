@@ -52,9 +52,7 @@ void main() {
       );
       await expectLater(
         repo.invite('pet-1', '01012345678'),
-        throwsA(
-          isA<StateError>().having((e) => e.message, 'message', want),
-        ),
+        throwsA(isA<StateError>().having((e) => e.message, 'message', want)),
       );
     }
 

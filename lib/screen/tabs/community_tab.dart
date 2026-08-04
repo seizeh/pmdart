@@ -7,7 +7,7 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../../models/community.dart';
 import '../../motion/motion.dart';
 import '../../services/app_events.dart';
-import '../../services/business_repository.dart';
+import '../../services/business/mode_repository.dart';
 import '../../services/community_repository.dart';
 import '../../services/keyboard_barrier.dart';
 import '../../services/notification_repository.dart';
@@ -451,7 +451,7 @@ class _CommunityTabState extends State<CommunityTab>
     // 업체 모드는 면제 — 소식(news) 글은 사업장 주소 기준이라 동네 인증 불필요.
     bool regionOk;
     try {
-      final mode = await BusinessRepository.instance.fetchActiveMode();
+      final mode = await AccountModeRepository.instance.fetchActiveMode();
       regionOk =
           mode == 'business' ||
           await ProfileRepository.instance.isRegionVerificationFresh();

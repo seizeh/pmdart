@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/business.dart';
 import '../motion/motion.dart' show AppPageRoute;
-import '../services/business_repository.dart';
+import '../services/business/profile_repository.dart';
+import '../services/business/registration_repository.dart';
 import '../services/juso_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
@@ -96,7 +98,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
   }
 
   Future<void> _loadMine() async {
-    final mine = await BusinessRepository.instance.fetchMine();
+    final mine = await BusinessProfileRepository.instance.fetchMine();
     if (!mounted) return;
     setState(() {
       _mine = mine;
@@ -566,7 +568,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
       _checkingBno = true;
       _bnoMsg = null;
     });
-    final r = await BusinessRepository.instance.checkBusinessNo(no);
+    final r = await BusinessRegistrationRepository.instance.checkBusinessNo(no);
     if (!mounted || _bNoCtrl.text != no) return;
     setState(() {
       _checkingBno = false;
@@ -717,7 +719,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
         _licDoc!,
         kind: 'license-$_licType',
       );
-      final err = await BusinessRepository.instance.applyLicense(
+      final err = await BusinessRegistrationRepository.instance.applyLicense(
         type: _licType!,
         licenseNo: _licNoCtrl.text.trim(),
         documentPath: path,
@@ -757,7 +759,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
       return;
     }
 
-    final r = await BusinessRepository.instance.apply(
+    final r = await BusinessRegistrationRepository.instance.apply(
       bNo: _bNoCtrl.text,
       category: _category!,
       businessName: _nameCtrl.text.trim(),
@@ -1261,10 +1263,10 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
   }
 
   Future<void> _loadMine() async {
-    final mine = await BusinessRepository.instance.fetchMine();
+    final mine = await BusinessProfileRepository.instance.fetchMine();
     // 업종 인증은 승인 업체만 신청 가능 — 미승인이면 조회 생략.
     final licenses = (mine?.isApproved ?? false)
-        ? await BusinessRepository.instance.fetchMyLicenses()
+        ? await BusinessRegistrationRepository.instance.fetchMyLicenses()
         : const <BizLicense>[];
     if (!mounted) return;
     setState(() {
@@ -1722,7 +1724,7 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
         file,
         category: 'business',
       );
-      final ok = await BusinessRepository.instance.setPhoto(
+      final ok = await BusinessProfileRepository.instance.setPhoto(
         url: up.url,
         alignY: align,
       );
@@ -1744,7 +1746,7 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
       name: mine.storefrontName ?? mine.businessName,
     );
     if (align == null || !mounted) return;
-    final ok = await BusinessRepository.instance.setPhoto(
+    final ok = await BusinessProfileRepository.instance.setPhoto(
       url: mine.photoUrl,
       alignY: align,
     );
@@ -1754,7 +1756,7 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
   }
 
   Future<void> _removePhoto() async {
-    final ok = await BusinessRepository.instance.setPhoto(url: null);
+    final ok = await BusinessProfileRepository.instance.setPhoto(url: null);
     if (!mounted) return;
     _toast(ok ? '대표 사진을 제거했어요' : '제거에 실패했어요');
     if (ok) await _loadMine();
@@ -1878,7 +1880,7 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
       return;
     }
     // 영업시간은 비워서 저장하면 삭제(서버: 빈 문자열 → null).
-    final ok = await BusinessRepository.instance.updateMyInfo(
+    final ok = await BusinessProfileRepository.instance.updateMyInfo(
       storefrontName: storefront,
       phone: phone,
       email: email,
@@ -1940,7 +1942,7 @@ class _LicenseApplySheetState extends State<_LicenseApplySheet> {
         doc,
         kind: 'license-$_type',
       );
-      final err = await BusinessRepository.instance.applyLicense(
+      final err = await BusinessRegistrationRepository.instance.applyLicense(
         type: _type,
         licenseNo: _noCtrl.text.trim(),
         documentPath: path,

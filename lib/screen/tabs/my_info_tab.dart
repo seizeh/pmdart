@@ -4,11 +4,12 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 
+import '../../models/business.dart';
 import '../../models/community.dart';
 import '../../models/pet.dart';
 import '../../models/profile.dart';
 import '../../motion/motion.dart';
-import '../../services/business_repository.dart';
+import '../../services/business/reviews_repository.dart';
 import '../../services/session.dart';
 import '../../state/my_info_state.dart';
 import '../../theme/app_palette.dart';
@@ -424,7 +425,8 @@ class _BusinessReviewsSectionState extends State<_BusinessReviewsSection> {
   }
 
   Future<void> _load() async {
-    final reviews = await BusinessRepository.instance.fetchMyFacilityReviews();
+    final reviews = await BusinessReviewsRepository.instance
+        .fetchMyFacilityReviews();
     if (mounted) setState(() => _reviews = reviews);
   }
 

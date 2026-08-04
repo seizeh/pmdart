@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/business.dart';
 import '../models/community.dart';
 import '../models/pet.dart';
 import '../models/profile.dart';
 import '../motion/motion.dart';
-import '../services/business_repository.dart';
 import '../services/chat_launcher.dart';
 import '../services/error_reporter.dart';
 import '../services/facility_repository.dart' show Facility;

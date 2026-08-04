@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../models/business.dart';
 import '../models/community.dart';
 import '../models/profile.dart';
-import '../services/business_repository.dart';
+import '../services/business/reviews_repository.dart';
 import '../services/community_repository.dart';
 import '../services/profile_repository.dart';
 import '../services/session.dart';
@@ -23,11 +24,11 @@ class UserProfileState extends ChangeNotifier {
     ProfileRepository? profiles,
     CommunityRepository? community,
     SocialRepository? social,
-    BusinessRepository? business,
+    BusinessReviewsRepository? business,
   }) : _profiles = profiles ?? ProfileRepository.instance,
        _community = community ?? CommunityRepository.instance,
        _social = social ?? SocialRepository.instance,
-       _business = business ?? BusinessRepository.instance;
+       _business = business ?? BusinessReviewsRepository.instance;
 
   /// 의존은 **선택적 생성자 주입** — 인자를 안 주면 종전대로 싱글턴을 쓴다.
   /// 기존 호출부는 그대로 두고 테스트만 대역을 넣을 수 있게 하는 점진적 전환이며,
@@ -35,7 +36,7 @@ class UserProfileState extends ChangeNotifier {
   final ProfileRepository _profiles;
   final CommunityRepository _community;
   final SocialRepository _social;
-  final BusinessRepository _business;
+  final BusinessReviewsRepository _business;
 
   final String userId;
   final bool forcePersonalFace;

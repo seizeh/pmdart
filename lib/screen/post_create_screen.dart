@@ -9,7 +9,8 @@ import '../data/mock_data.dart' show categoryLabel;
 import '../models/community.dart';
 import '../models/profile.dart';
 import '../motion/motion.dart';
-import '../services/business_repository.dart';
+import '../services/business/mode_repository.dart';
+import '../services/business/profile_repository.dart';
 import '../services/community_repository.dart';
 import '../services/location_service.dart';
 import '../services/photo_verify_repository.dart';
@@ -645,12 +646,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   String? _bizName;
 
   Future<void> _loadMode() async {
-    final mode = await BusinessRepository.instance.fetchActiveMode();
+    final mode = await AccountModeRepository.instance.fetchActiveMode();
     if (!mounted) return;
     if (mode == 'business') {
       // 미리보기에 상호를 보여주기 위해 업체 프로필도 로드(실패해도 무해).
       unawaited(
-        BusinessRepository.instance
+        BusinessProfileRepository.instance
             .fetchMine()
             .then((biz) {
               if (mounted && biz != null) {

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/community.dart';
-import '../services/business_repository.dart';
+import '../services/business/mode_repository.dart';
 import '../services/community_repository.dart';
 import '../services/session.dart';
 import '../services/social_repository.dart';
@@ -17,12 +17,12 @@ class PostDetailState extends ChangeNotifier {
     required this.isGuest,
     CommunityRepository? community,
     SocialRepository? social,
-    BusinessRepository? business,
+    AccountModeRepository? business,
     // ignore: prefer_initializing_formals  (private 필드 + named 파라미터)
   }) : _post = post,
        _repo = community ?? CommunityRepository.instance,
        _social = social ?? SocialRepository.instance,
-       _business = business ?? BusinessRepository.instance {
+       _business = business ?? AccountModeRepository.instance {
     _canManage = isMyPost;
     _managerChecked = isMyPost || isGuest || isFreePost;
   }
@@ -34,7 +34,7 @@ class PostDetailState extends ChangeNotifier {
   /// NotificationsState 가 먼저 쓰던 방식을 넓힌 것이다.
   final CommunityRepository _repo;
   final SocialRepository _social;
-  final BusinessRepository _business;
+  final AccountModeRepository _business;
 
   bool _disposed = false;
 

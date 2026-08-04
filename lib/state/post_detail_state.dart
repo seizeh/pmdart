@@ -12,14 +12,29 @@ import '../services/social_repository.dart';
 /// 로그인 가드(AuthWall)·다이얼로그·토스트·내비게이션은 화면이 담당하고,
 /// 여기는 BuildContext 를 모른다. 실패는 반환값(bool)로 알려 화면이 표시한다.
 class PostDetailState extends ChangeNotifier {
-  // ignore: prefer_initializing_formals  (private 필드 + named 파라미터)
-  PostDetailState({required Post post, required this.isGuest}) : _post = post {
+  PostDetailState({
+    required Post post,
+    required this.isGuest,
+    CommunityRepository? community,
+    SocialRepository? social,
+    BusinessRepository? business,
+    // ignore: prefer_initializing_formals  (private 필드 + named 파라미터)
+  }) : _post = post,
+       _repo = community ?? CommunityRepository.instance,
+       _social = social ?? SocialRepository.instance,
+       _business = business ?? BusinessRepository.instance {
     _canManage = isMyPost;
     _managerChecked = isMyPost || isGuest || isFreePost;
   }
 
   final bool isGuest;
-  final CommunityRepository _repo = CommunityRepository.instance;
+
+  /// 의존은 **선택적 생성자 주입** — 인자를 안 주면 종전대로 싱글턴을 쓴다.
+  /// 기존 호출부는 그대로 두고 테스트만 대역을 넣을 수 있게 하는 점진적 전환이며,
+  /// NotificationsState 가 먼저 쓰던 방식을 넓힌 것이다.
+  final CommunityRepository _repo;
+  final SocialRepository _social;
+  final BusinessRepository _business;
 
   bool _disposed = false;
 
@@ -111,7 +126,7 @@ class PostDetailState extends ChangeNotifier {
   Future<void> _loadFollowing() async {
     try {
       // 글의 얼굴(개인/업체) 단위로 팔로우 상태 확인 — 업체 글은 업체 팔로우 여부.
-      _following = await SocialRepository.instance.isFollowing(
+      _following = await _social.isFollowing(
         _post.userId,
         business: _post.authoredAs == 'business',
       );
@@ -123,7 +138,7 @@ class PostDetailState extends ChangeNotifier {
 
   Future<void> _loadMode() async {
     try {
-      final mode = await BusinessRepository.instance.fetchActiveMode();
+      final mode = await _business.fetchActiveMode();
       _businessMode = mode == 'business';
       _notify();
     } catch (e) {
@@ -150,9 +165,9 @@ class PostDetailState extends ChangeNotifier {
       // 팔로우/해제 모두 글의 얼굴 단위 — 업체 글(소식)은 업체 팔로우로.
       final biz = _post.authoredAs == 'business';
       if (was) {
-        await SocialRepository.instance.unfollow(_post.userId, business: biz);
+        await _social.unfollow(_post.userId, business: biz);
       } else {
-        await SocialRepository.instance.follow(_post.userId, business: biz);
+        await _social.follow(_post.userId, business: biz);
       }
     } catch (e) {
       debugPrint('게시글 상세: 팔로우 토글 실패(롤백): $e');

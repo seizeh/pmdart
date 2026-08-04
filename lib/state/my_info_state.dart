@@ -15,7 +15,24 @@ import '../services/session.dart';
 /// 탭은 IndexedStack 으로 살아 있어 재진입만으로는 갱신되지 않으므로,
 /// 다른 화면의 변경 이벤트를 여기서 구독해 silent 새로고침한다.
 class MyInfoState extends ChangeNotifier {
-  MyInfoState({required this.isGuest});
+  MyInfoState({
+    required this.isGuest,
+    ProfileRepository? profiles,
+    PetRepository? pets,
+    CommunityRepository? community,
+    BusinessRepository? business,
+  }) : _profiles = profiles ?? ProfileRepository.instance,
+       _pets = pets ?? PetRepository.instance,
+       _community = community ?? CommunityRepository.instance,
+       _business = business ?? BusinessRepository.instance;
+
+  /// 의존은 **선택적 생성자 주입** — 인자를 안 주면 종전대로 싱글턴을 쓴다.
+  /// 기존 호출부는 그대로 두고 테스트만 대역을 넣을 수 있게 하는 점진적 전환이며,
+  /// NotificationsState 가 먼저 쓰던 방식을 넓힌 것이다.
+  final ProfileRepository _profiles;
+  final PetRepository _pets;
+  final CommunityRepository _community;
+  final BusinessRepository _business;
 
   final bool isGuest;
 
@@ -70,10 +87,10 @@ class MyInfoState extends ChangeNotifier {
       _notify();
     }
     try {
-      final p = await ProfileRepository.instance.fetchProfile();
+      final p = await _profiles.fetchProfile();
       var invites = 0;
       try {
-        invites = await PetRepository.instance.pendingInviteCount();
+        invites = await _pets.pendingInviteCount();
       } catch (e) {
         debugPrint('내정보: 초대 수 조회 실패(0으로 표시): $e');
       }
@@ -82,7 +99,7 @@ class MyInfoState extends ChangeNotifier {
         final uid = SessionManager.instance.user?.id;
         if (uid != null) {
           // 같은 계정이지만 분리된 프로필 — 현재 모드로 작성한 글만 (0025 후속)
-          posts = await CommunityRepository.instance.fetchUserPosts(
+          posts = await _community.fetchUserPosts(
             uid,
             authoredAs: p.activeMode,
           );
@@ -96,7 +113,7 @@ class MyInfoState extends ChangeNotifier {
       double? bizAvg;
       if (p.activeMode == 'business') {
         try {
-          final rs = await BusinessRepository.instance.fetchMyFacilityReviews();
+          final rs = await _business.fetchMyFacilityReviews();
           bizCount = rs.length;
           bizAvg = rs.isEmpty
               ? null

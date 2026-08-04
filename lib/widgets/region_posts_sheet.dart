@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models/community.dart';
+import '../models/post_cluster.dart';
 import '../motion/motion.dart';
 import '../screen/post_detail_screen.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_query_repository.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel, timeAgo;
 import '../widgets/role_badge.dart' show categoryColor;
@@ -35,7 +36,7 @@ class _RegionPostsContentState extends State<RegionPostsContent> {
 
   Future<void> _load() async {
     try {
-      final p = await CommunityRepository.instance.fetchPostsByIds(
+      final p = await PostQueryRepository.instance.fetchPostsByIds(
         widget.cluster.postIds,
       );
       if (mounted) setState(() => _posts = p);

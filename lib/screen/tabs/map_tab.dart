@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../models/post_cluster.dart';
 import '../../motion/motion.dart';
-import '../../services/community_repository.dart';
+import '../../services/community/post_query_repository.dart';
 import '../../services/error_reporter.dart';
 import '../../services/facility_repository.dart';
 import '../../services/location_service.dart';
@@ -229,7 +230,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       if (_selected.contains('posts')) {
         if (!_dongSynced) {
           _dongSynced = true;
-          await CommunityRepository.instance.syncDongCentroids();
+          await PostQueryRepository.instance.syncDongCentroids();
         }
         clusters = await _loadClusters(c);
       }
@@ -360,7 +361,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   Future<List<PostCluster>> _loadClusters(NaverMapController c) async {
     try {
       final b = await c.getContentBounds();
-      return await CommunityRepository.instance.postsByRegion(
+      return await PostQueryRepository.instance.postsByRegion(
         minLng: b.southWest.longitude,
         minLat: b.southWest.latitude,
         maxLng: b.northEast.longitude,

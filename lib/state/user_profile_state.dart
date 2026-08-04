@@ -6,7 +6,7 @@ import '../models/business.dart';
 import '../models/community.dart';
 import '../models/profile.dart';
 import '../services/business/reviews_repository.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_query_repository.dart';
 import '../services/profile_repository.dart';
 import '../services/session.dart';
 import '../services/social_repository.dart';
@@ -22,11 +22,11 @@ class UserProfileState extends ChangeNotifier {
     required this.userId,
     required this.forcePersonalFace,
     ProfileRepository? profiles,
-    CommunityRepository? community,
+    PostQueryRepository? posts,
     SocialRepository? social,
     BusinessReviewsRepository? business,
   }) : _profiles = profiles ?? ProfileRepository.instance,
-       _community = community ?? CommunityRepository.instance,
+       _postsRepo = posts ?? PostQueryRepository.instance,
        _social = social ?? SocialRepository.instance,
        _business = business ?? BusinessReviewsRepository.instance;
 
@@ -34,7 +34,7 @@ class UserProfileState extends ChangeNotifier {
   /// 기존 호출부는 그대로 두고 테스트만 대역을 넣을 수 있게 하는 점진적 전환이며,
   /// NotificationsState 가 먼저 쓰던 방식을 넓힌 것이다.
   final ProfileRepository _profiles;
-  final CommunityRepository _community;
+  final PostQueryRepository _postsRepo;
   final SocialRepository _social;
   final BusinessReviewsRepository _business;
 
@@ -95,7 +95,7 @@ class UserProfileState extends ChangeNotifier {
         businessFace: !forcePersonalFace,
       );
       final biz = p.isBusinessMode && !forcePersonalFace;
-      final posts = await _community
+      final posts = await _postsRepo
           .fetchUserPosts(userId, authoredAs: biz ? 'business' : 'personal')
           .catchError((_) => const <Post>[]);
       final bizReviews = (biz && p.businessFacilityId != null)

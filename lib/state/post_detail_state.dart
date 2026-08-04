@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 
 import '../models/community.dart';
 import '../services/business/mode_repository.dart';
-import '../services/community_repository.dart';
+import '../services/community/comment_repository.dart';
+import '../services/community/post_engagement_repository.dart';
+import '../services/community/post_query_repository.dart';
 import '../services/session.dart';
 import '../services/social_repository.dart';
 
@@ -15,12 +17,16 @@ class PostDetailState extends ChangeNotifier {
   PostDetailState({
     required Post post,
     required this.isGuest,
-    CommunityRepository? community,
+    PostQueryRepository? posts,
+    PostEngagementRepository? engagement,
+    CommentRepository? commentRepo,
     SocialRepository? social,
     AccountModeRepository? business,
     // ignore: prefer_initializing_formals  (private 필드 + named 파라미터)
   }) : _post = post,
-       _repo = community ?? CommunityRepository.instance,
+       _posts = posts ?? PostQueryRepository.instance,
+       _engage = engagement ?? PostEngagementRepository.instance,
+       _commentRepo = commentRepo ?? CommentRepository.instance,
        _social = social ?? SocialRepository.instance,
        _business = business ?? AccountModeRepository.instance {
     _canManage = isMyPost;
@@ -32,7 +38,9 @@ class PostDetailState extends ChangeNotifier {
   /// 의존은 **선택적 생성자 주입** — 인자를 안 주면 종전대로 싱글턴을 쓴다.
   /// 기존 호출부는 그대로 두고 테스트만 대역을 넣을 수 있게 하는 점진적 전환이며,
   /// NotificationsState 가 먼저 쓰던 방식을 넓힌 것이다.
-  final CommunityRepository _repo;
+  final PostQueryRepository _posts;
+  final PostEngagementRepository _engage;
+  final CommentRepository _commentRepo;
   final SocialRepository _social;
   final AccountModeRepository _business;
 
@@ -95,7 +103,7 @@ class PostDetailState extends ChangeNotifier {
 
   Future<void> loadComments() async {
     try {
-      _comments = await _repo.fetchComments(_post.id);
+      _comments = await _commentRepo.fetchComments(_post.id);
       _loadingComments = false;
     } catch (e) {
       debugPrint('게시글 상세: 댓글 조회 실패(기존 목록 유지): $e');
@@ -106,7 +114,7 @@ class PostDetailState extends ChangeNotifier {
 
   /// 조회수 기록 (같은 시간대 재조회는 집계 안 됨). 집계됐으면 화면 수치도 +1.
   Future<void> _recordView() async {
-    final counted = await _repo.recordView(_post.id);
+    final counted = await _engage.recordView(_post.id);
     if (counted) {
       _post = _post.copyWith(viewCount: _post.viewCount + 1);
       _notify();
@@ -115,7 +123,7 @@ class PostDetailState extends ChangeNotifier {
 
   Future<void> _loadManager() async {
     try {
-      _canManage = await _repo.canManageApplicants(_post.id);
+      _canManage = await _engage.canManageApplicants(_post.id);
     } catch (e) {
       debugPrint('게시글 상세: 지원자 관리 권한 확인 실패(숨김 유지): $e');
     }
@@ -185,7 +193,7 @@ class PostDetailState extends ChangeNotifier {
     );
     _notify();
     try {
-      await _repo.toggleHeart(_post.id, wasHearted);
+      await _engage.toggleHeart(_post.id, wasHearted);
       return true;
     } catch (e) {
       debugPrint('게시글 상세: 하트 토글 실패(롤백): $e');
@@ -203,7 +211,7 @@ class PostDetailState extends ChangeNotifier {
     _sending = true;
     _notify();
     try {
-      await _repo.addComment(_post.id, text);
+      await _commentRepo.addComment(_post.id, text);
       return true;
     } catch (e) {
       debugPrint('게시글 상세: 댓글 작성 실패: $e');
@@ -219,7 +227,7 @@ class PostDetailState extends ChangeNotifier {
     _applying = true;
     _notify();
     try {
-      await _repo.apply(_post.id);
+      await _engage.apply(_post.id);
       return true;
     } catch (e) {
       debugPrint('게시글 상세: 지원 실패(중복 등): $e');
@@ -232,7 +240,7 @@ class PostDetailState extends ChangeNotifier {
 
   /// 수정 후 최신 내용 재조회. 삭제됐으면 false(화면이 닫는다).
   Future<bool> reloadPost() async {
-    final fresh = await _repo.fetchPost(_post.id);
+    final fresh = await _posts.fetchPost(_post.id);
     if (fresh == null) return false;
     _post = fresh;
     _notify();

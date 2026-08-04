@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pawmate/services/community_repository.dart';
+import 'package:pawmate/services/community/post_engagement_repository.dart';
+import 'package:pawmate/services/community/post_query_repository.dart';
+import 'package:pawmate/services/community/post_write_repository.dart';
 import 'package:pawmate/services/session.dart';
 
 import '../helpers/fake_session.dart';
@@ -42,7 +44,7 @@ void main() {
       await SessionManager.instance.clear();
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1')]);
 
-      final posts = await CommunityRepository.instance.fetchFeed();
+      final posts = await PostQueryRepository.instance.fetchFeed();
 
       expect(posts.single.id, 'p1');
       expect(
@@ -58,7 +60,7 @@ void main() {
       await SessionManager.instance.clear();
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1'), postRow('p2')]);
 
-      final posts = await CommunityRepository.instance.fetchFeed();
+      final posts = await PostQueryRepository.instance.fetchFeed();
 
       expect(posts, hasLength(2));
       final feedReq = FakeSupabase.requests.last;
@@ -71,7 +73,7 @@ void main() {
       FakeSupabase.on('feed_region_codes', (_) => null);
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1')]);
 
-      final posts = await CommunityRepository.instance.fetchFeed();
+      final posts = await PostQueryRepository.instance.fetchFeed();
 
       expect(posts.single.id, 'p1');
       final feedReq = FakeSupabase.requests.last;
@@ -84,7 +86,7 @@ void main() {
     test('활동범위 안에 동이 하나도 없으면 피드 요청 없이 빈 목록', () async {
       FakeSupabase.on('feed_region_codes', (_) => <String>[]);
 
-      final posts = await CommunityRepository.instance.fetchFeed();
+      final posts = await PostQueryRepository.instance.fetchFeed();
 
       expect(posts, isEmpty);
       expect(FakeSupabase.requests, hasLength(1), reason: 'RPC 한 번뿐이어야 한다');
@@ -100,7 +102,7 @@ void main() {
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1')]);
 
       await expectLater(
-        CommunityRepository.instance.fetchFeed(),
+        PostQueryRepository.instance.fetchFeed(),
         throwsA(anything),
       );
       expect(
@@ -114,7 +116,7 @@ void main() {
       FakeSupabase.on('feed_region_codes', (_) => ['1111010100', '1111010200']);
       FakeSupabase.on('v_post_feed', (_) => []);
 
-      await CommunityRepository.instance.fetchFeed();
+      await PostQueryRepository.instance.fetchFeed();
 
       final regionParam =
           FakeSupabase.requests.last.url.queryParameters['region_code']!;
@@ -127,7 +129,7 @@ void main() {
       FakeSupabase.on('feed_region_codes', (_) => null);
       FakeSupabase.on('v_post_feed', (_) => []);
 
-      await CommunityRepository.instance.fetchFeed(category: 'walk_together');
+      await PostQueryRepository.instance.fetchFeed(category: 'walk_together');
 
       expect(
         FakeSupabase.requests.last.url.queryParameters['category'],
@@ -139,7 +141,7 @@ void main() {
       FakeSupabase.on('feed_region_codes', (_) => null);
       FakeSupabase.on('v_post_feed', (_) => []);
 
-      await CommunityRepository.instance.fetchFeed(query: '멍멍(1),2');
+      await PostQueryRepository.instance.fetchFeed(query: '멍멍(1),2');
 
       final or = FakeSupabase.requests.last.url.queryParameters['or']!;
       expect(or, contains('title.ilike.%멍멍 1  2%'));
@@ -159,7 +161,7 @@ void main() {
       );
 
       expect(
-        await CommunityRepository.instance.toggleHeart('p1', false),
+        await PostEngagementRepository.instance.toggleHeart('p1', false),
         isTrue,
       );
     });
@@ -171,7 +173,7 @@ void main() {
       );
 
       await expectLater(
-        CommunityRepository.instance.toggleHeart('p1', false),
+        PostEngagementRepository.instance.toggleHeart('p1', false),
         throwsA(anything),
       );
     });
@@ -186,7 +188,7 @@ void main() {
       });
 
       await expectLater(
-        CommunityRepository.instance.deletePosts(['p1', 'p2', 'p3']),
+        PostWriteRepository.instance.deletePosts(['p1', 'p2', 'p3']),
         throwsA(isA<StateError>()),
       );
       expect(calls, 3, reason: '한 건 실패가 나머지 삭제를 막지 않는다');
@@ -204,13 +206,13 @@ void main() {
         ],
       );
 
-      final business = await CommunityRepository.instance.fetchUserPosts(
+      final business = await PostQueryRepository.instance.fetchUserPosts(
         'u1',
         authoredAs: 'business',
       );
       expect(business.map((p) => p.id), ['p1']);
 
-      final personal = await CommunityRepository.instance.fetchUserPosts(
+      final personal = await PostQueryRepository.instance.fetchUserPosts(
         'u1',
         authoredAs: 'personal',
       );
@@ -221,7 +223,7 @@ void main() {
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1'), postRow('p2')]);
       FakeSupabase.on('/rest/v1/posts', (_) => '이상한 응답');
 
-      final posts = await CommunityRepository.instance.fetchUserPosts(
+      final posts = await PostQueryRepository.instance.fetchUserPosts(
         'u1',
         authoredAs: 'business',
       );
@@ -232,7 +234,7 @@ void main() {
     test('authoredAs 미지정이면 모드 조회 자체를 하지 않는다', () async {
       FakeSupabase.on('v_post_feed', (_) => [postRow('p1')]);
 
-      await CommunityRepository.instance.fetchUserPosts('u1');
+      await PostQueryRepository.instance.fetchUserPosts('u1');
 
       expect(FakeSupabase.requests, hasLength(1));
       expect(

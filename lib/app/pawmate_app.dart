@@ -12,7 +12,7 @@ import '../screen/post_detail_screen.dart';
 import '../screen/user_profile_screen.dart';
 import '../screen/welcome_screen.dart';
 import '../services/app_events.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_query_repository.dart';
 import '../services/facility_repository.dart';
 import '../services/keyboard_barrier.dart';
 import '../services/push_service.dart';
@@ -99,7 +99,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
     var failed = false;
     for (var i = 0; i < 3; i++) {
       try {
-        loaded = await CommunityRepository.instance.fetchPost(sharedPostId);
+        loaded = await PostQueryRepository.instance.fetchPost(sharedPostId);
         failed = false;
         break;
       } catch (e) {

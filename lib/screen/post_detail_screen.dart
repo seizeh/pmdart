@@ -8,7 +8,7 @@ import '../models/community.dart';
 import '../motion/motion.dart';
 import '../services/business/mode_repository.dart';
 import '../services/chat_launcher.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_write_repository.dart';
 import '../services/report_repository.dart';
 import '../services/session.dart';
 import '../state/post_detail_state.dart';
@@ -355,7 +355,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (_sharing) return;
     _sharing = true;
     try {
-      final token = await CommunityRepository.instance.createPostShareLink(
+      final token = await PostWriteRepository.instance.createPostShareLink(
         _state.post.id,
       );
       if (!mounted) return;

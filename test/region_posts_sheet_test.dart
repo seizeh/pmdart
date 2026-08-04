@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pawmate/services/community_repository.dart';
+import 'package:pawmate/models/post_cluster.dart';
 import 'package:pawmate/theme/app_theme.dart';
 import 'package:pawmate/widgets/region_posts_sheet.dart';
 

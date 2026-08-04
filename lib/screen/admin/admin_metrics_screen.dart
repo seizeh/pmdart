@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../services/admin_repository.dart';
+import '../../models/admin.dart';
+import '../../services/admin/admin_ops_repository.dart';
 import '../../theme/app_palette.dart';
 import 'admin_theme.dart';
 
@@ -34,8 +35,8 @@ class _AdminMetricsScreenState extends State<AdminMetricsScreen> {
     });
     try {
       final results = await Future.wait([
-        AdminRepository.instance.opsMetrics(),
-        AdminRepository.instance.photoVerificationFailures(limit: 50),
+        AdminOpsRepository.instance.opsMetrics(),
+        AdminOpsRepository.instance.photoVerificationFailures(limit: 50),
       ]);
       if (!mounted) return;
       setState(() {

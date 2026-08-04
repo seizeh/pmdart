@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../services/admin_repository.dart';
+import '../../models/admin.dart';
+import '../../services/admin/admin_ops_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/labels.dart' show timeAgo;
 import 'admin_theme.dart';
@@ -30,7 +31,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
       _error = null;
     });
     try {
-      final items = await AdminRepository.instance.listLogs();
+      final items = await AdminOpsRepository.instance.listLogs();
       if (!mounted) return;
       setState(() {
         _items = items;

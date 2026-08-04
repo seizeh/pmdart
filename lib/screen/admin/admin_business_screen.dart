@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../services/admin_repository.dart';
+import '../../models/admin.dart';
+import '../../services/admin/admin_business_repository.dart';
 import '../../services/business_repository.dart' show businessCategoryLabel;
 import '../../services/storage_service.dart';
 import '../../theme/app_palette.dart';
@@ -45,9 +46,8 @@ class _AdminBusinessScreenState extends State<AdminBusinessScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final items = await AdminRepository.instance.listBusinessApplications(
-        status: _status,
-      );
+      final items = await AdminBusinessRepository.instance
+          .listBusinessApplications(status: _status);
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -382,7 +382,7 @@ class _DetailSheetState extends State<_DetailSheet> {
     if (!mounted) return; // 다이얼로그 대기 중 라우트 제거 가능(#239)
     setState(() => _busy = true);
     try {
-      await AdminRepository.instance.setBusinessStatus(
+      await AdminBusinessRepository.instance.setBusinessStatus(
         a.userId,
         status,
         reason: reason,

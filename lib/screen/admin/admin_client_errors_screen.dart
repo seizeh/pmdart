@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../services/admin_repository.dart';
+import '../../models/admin.dart';
+import '../../services/admin/admin_ops_repository.dart';
 import '../../services/error_reporter.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/labels.dart' show timeAgo;
@@ -37,7 +38,7 @@ class _AdminClientErrorsScreenState extends State<AdminClientErrorsScreen> {
       _error = null;
     });
     try {
-      final repo = AdminRepository.instance;
+      final repo = AdminOpsRepository.instance;
       final stats = await repo.clientErrorSummary();
       final items = await repo.listClientErrors(where: _filter);
       if (!mounted) return;

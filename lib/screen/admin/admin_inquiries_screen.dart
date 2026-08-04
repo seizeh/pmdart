@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../models/admin.dart';
 import '../../motion/motion.dart';
-import '../../services/admin_repository.dart';
+import '../../services/admin/admin_inquiry_repository.dart';
 import '../../services/chat_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/labels.dart' show timeAgo;
@@ -36,7 +37,7 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
       _error = null;
     });
     try {
-      final items = await AdminRepository.instance.listInquiries();
+      final items = await AdminInquiryRepository.instance.listInquiries();
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -61,7 +62,7 @@ class _AdminInquiriesScreenState extends State<AdminInquiriesScreen> {
   Future<void> _open(AdminInquiry inq) async {
     setState(() => _opening = inq.roomId);
     try {
-      await AdminRepository.instance.joinInquiry(inq.roomId);
+      await AdminInquiryRepository.instance.joinInquiry(inq.roomId);
       final room = await ChatRepository.instance.fetchRoom(inq.roomId);
       if (!mounted) return;
       if (room == null) {

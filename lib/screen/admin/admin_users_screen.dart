@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../services/admin_repository.dart';
+import '../../models/admin.dart';
+import '../../services/admin/admin_users_repository.dart';
 import '../../services/session.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/labels.dart' show timeAgo;
@@ -51,7 +52,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       _error = null;
     });
     try {
-      final items = await AdminRepository.instance.listUsers(search: q);
+      final items = await AdminUsersRepository.instance.listUsers(search: q);
       if (!mounted || myReq != _reqId) return;
       setState(() {
         _items = items;
@@ -76,7 +77,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   Future<void> _setStatus(AdminUser u, String status) async {
     setState(() => _busy = u.id);
     try {
-      await AdminRepository.instance.setUserStatus(u.id, status);
+      await AdminUsersRepository.instance.setUserStatus(u.id, status);
       _toast('${u.nickname} · ${_statusLabel(status)} 처리했어요');
       await _load(_ctrl.text);
     } catch (_) {

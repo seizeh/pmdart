@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../models/admin.dart';
 import '../../motion/motion.dart';
-import '../../services/admin_repository.dart';
+import '../../services/admin/admin_ops_repository.dart';
 import '../../services/auth_service.dart';
 import '../../services/session.dart';
 import '../../theme/app_palette.dart';
@@ -46,7 +47,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       _error = null;
     });
     try {
-      final s = await AdminRepository.instance.dashboardStats();
+      final s = await AdminOpsRepository.instance.dashboardStats();
       if (!mounted) return;
       setState(() {
         _stats = s;

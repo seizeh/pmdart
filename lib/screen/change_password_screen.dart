@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../theme/app_palette.dart';
+import '../utils/password_rule.dart';
 
 /// 비밀번호 변경 — 현재 비밀번호 확인 후 새 비밀번호로 변경.
 class ChangePasswordScreen extends StatefulWidget {
@@ -42,8 +43,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       _toast('현재 비밀번호와 새 비밀번호를 입력해주세요');
       return;
     }
-    if (next.length < 6) {
-      _toast('새 비밀번호는 6자 이상이어야 해요');
+    // 가입·재설정과 같은 규칙(영문+숫자 8자 이상). 변경만 6자였던 것은 구
+    // app._set_password 정책이 남은 것으로, 가입 때 막은 단순 비밀번호가 변경으로
+    // 우회되고 있었다. 서버(change-password)도 같은 규칙으로 재검증한다.
+    if (!isStrongPassword(next)) {
+      _toast(kPasswordRuleMessage);
       return;
     }
     if (next != confirm) {
@@ -84,7 +88,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             ),
             const SizedBox(height: 16),
             _field(
-              label: '새 비밀번호 (6자 이상)',
+              label: '새 비밀번호 ($kPasswordRuleHint)',
               controller: _newCtrl,
               obscure: _obscureNew,
               onToggle: () => setState(() => _obscureNew = !_obscureNew),

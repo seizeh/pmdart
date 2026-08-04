@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../services/phone_auth_service.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/password_rule.dart';
 
 /// 비밀번호 재설정 — 전화 OTP 기반.
 /// 1) 전화번호 입력 → SMS 코드 발송 (phone_verifications.purpose='password_reset')
@@ -205,7 +206,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             obscureText: _obscure,
             decoration: InputDecoration(
               labelText: '새 비밀번호',
-              hintText: '영문 + 숫자 포함 8자 이상',
+              hintText: kPasswordRuleHint,
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscure ? Icons.visibility_off : Icons.visibility,
@@ -292,10 +293,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   Future<void> _submitReset() async {
     final pw = _pwCtrl.text;
-    if (pw.length < 8 ||
-        !RegExp(r'[A-Za-z]').hasMatch(pw) ||
-        !RegExp(r'\d').hasMatch(pw)) {
-      _toast('비밀번호는 영문과 숫자를 포함해 8자 이상이어야 해요');
+    if (!isStrongPassword(pw)) {
+      _toast(kPasswordRuleMessage);
       return;
     }
     if (pw != _pwConfirmCtrl.text) {

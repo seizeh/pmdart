@@ -6,6 +6,7 @@ import '../../motion/motion.dart';
 import '../../services/auth_service.dart';
 import '../../services/phone_auth_service.dart';
 import '../../theme/app_palette.dart';
+import '../../utils/password_rule.dart';
 import '../business_register_screen.dart';
 import '../main_screen.dart';
 import '../pet_edit_screen.dart';
@@ -576,7 +577,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
             obscureText: true,
             decoration: const InputDecoration(
               labelText: '비밀번호',
-              hintText: '영문 + 숫자 포함 8자 이상',
+              hintText: kPasswordRuleHint,
             ),
           ),
           const SizedBox(height: 12),
@@ -993,8 +994,10 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
       _toast('아이디 중복확인을 해주세요');
       return false;
     }
-    if (_pwCtrl.text.length < 8) {
-      _toast('비밀번호를 8자 이상 입력해주세요');
+    // 길이만 보던 것을 공통 규칙으로 — 화면 힌트는 '영문 + 숫자 포함'이라고
+    // 안내하면서 검사는 길이만 해서, 서버가 거절할 비밀번호를 통과시키고 있었다.
+    if (!isStrongPassword(_pwCtrl.text)) {
+      _toast(kPasswordRuleMessage);
       return false;
     }
     if (_pw2Ctrl.text != _pwCtrl.text) {

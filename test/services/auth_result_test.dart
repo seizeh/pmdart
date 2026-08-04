@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pawmate/services/auth_service.dart';
 import 'package:pawmate/services/phone_auth_service.dart';
 import 'package:pawmate/services/session.dart';
+import 'package:pawmate/utils/password_rule.dart';
 
 void main() {
   group('AuthResult.message — 서버 에러코드 → 사용자 문구 매핑', () {
@@ -13,7 +14,9 @@ void main() {
       expect(msg('server_misconfigured'), '서버 설정 오류로 로그인할 수 없어요');
       expect(msg('network_error'), '네트워크 연결을 확인해주세요');
       expect(msg('invalid_current'), '현재 비밀번호가 올바르지 않아요');
-      expect(msg('weak_password'), '새 비밀번호는 6자 이상이어야 해요');
+      // 가입·재설정과 같은 규칙을 안내한다(종전 '6자 이상'은 변경 화면만의
+      // 옛 정책이었다 — 그 때문에 단순 비밀번호가 변경으로 우회됐다).
+      expect(msg('weak_password'), kPasswordRuleMessage);
       expect(msg('rate_limited'), '요청이 많아요. 잠시 후 다시 시도해주세요');
       expect(msg('change_failed'), '비밀번호를 변경하지 못했어요');
     });

@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/community.dart';
 import '../motion/motion.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_query_repository.dart';
+import '../services/community/post_write_repository.dart';
 import '../services/session.dart';
 import '../theme/app_palette.dart';
 import '../widgets/post_card.dart';
@@ -26,7 +28,8 @@ class MyPostsScreen extends StatefulWidget {
 }
 
 class _MyPostsScreenState extends State<MyPostsScreen> {
-  final _repo = CommunityRepository.instance;
+  final _query = PostQueryRepository.instance;
+  final _write = PostWriteRepository.instance;
   List<Post> _posts = [];
   bool _loading = true;
   String? _error;
@@ -52,8 +55,8 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
     });
     try {
       final posts = _isMine
-          ? await _repo.fetchUserPosts(SessionManager.instance.user!.id)
-          : await _repo.fetchHeartedPosts();
+          ? await _query.fetchUserPosts(SessionManager.instance.user!.id)
+          : await _query.fetchHeartedPosts();
       if (!mounted) return;
       setState(() {
         _posts = posts;
@@ -123,7 +126,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
     setState(() => _deleting = true);
     try {
       final ids = _selectedIds.toList();
-      await _repo.deletePosts(ids);
+      await _write.deletePosts(ids);
       if (!mounted) return;
       setState(() {
         _posts.removeWhere((p) => ids.contains(p.id));

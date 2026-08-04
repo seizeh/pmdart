@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/community.dart';
 import '../models/pet_search.dart';
 import '../motion/motion.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_query_repository.dart';
 import '../services/pet_repository.dart';
 import '../theme/app_palette.dart';
 import '../widgets/pet_trust_badge.dart';
@@ -86,7 +86,7 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
       final results = await Future.wait([
         PetRepository.instance.fetchPublicPet(widget.petId),
         PetRepository.instance.fetchPublicGuardians(widget.petId),
-        CommunityRepository.instance
+        PostQueryRepository.instance
             .fetchPetPosts(widget.petId)
             .catchError((_) => const <Post>[]),
       ]);

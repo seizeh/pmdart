@@ -14,7 +14,7 @@ import '../screen/review_detail_screen.dart';
 import '../screen/user_profile_screen.dart';
 import '../screen/vaccination_schedule_screen.dart';
 import '../services/chat_repository.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_query_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/local_notice_service.dart';
 import '../services/pet_repository.dart';
@@ -113,7 +113,7 @@ Future<void> openFromPush(
       switch (resourceType) {
         case 'post':
           final post = await fetchRetry(
-            () => CommunityRepository.instance.fetchPost(resourceId),
+            () => PostQueryRepository.instance.fetchPost(resourceId),
           );
           if (post != null) {
             popToRoot();

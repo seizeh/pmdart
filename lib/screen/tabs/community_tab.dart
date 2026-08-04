@@ -7,8 +7,9 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../../models/community.dart';
 import '../../motion/motion.dart';
 import '../../services/app_events.dart';
-import '../../services/business_repository.dart';
-import '../../services/community_repository.dart';
+import '../../services/business/mode_repository.dart';
+import '../../services/community/post_engagement_repository.dart';
+import '../../services/community/post_query_repository.dart';
 import '../../services/keyboard_barrier.dart';
 import '../../services/notification_repository.dart';
 import '../../services/profile_repository.dart';
@@ -40,7 +41,8 @@ class CommunityTab extends StatefulWidget {
 
 class _CommunityTabState extends State<CommunityTab>
     with TickerProviderStateMixin {
-  final _repo = CommunityRepository.instance;
+  final _feedRepo = PostQueryRepository.instance;
+  final _engage = PostEngagementRepository.instance;
 
   // 글쓰기 FAB 표시 스프링(1=보임, 0=숨김). 아래로 스크롤 시 숨고 위로 올리면 다시 팝.
   late final AnimationController _fabCtrl = AnimationController.unbounded(
@@ -242,7 +244,7 @@ class _CommunityTabState extends State<CommunityTab>
       });
     }
     try {
-      final posts = await _repo.fetchFeed(
+      final posts = await _feedRepo.fetchFeed(
         category: _selectedCategory,
         query: _query,
       );
@@ -426,7 +428,7 @@ class _CommunityTabState extends State<CommunityTab>
       ),
     );
     try {
-      await _repo.toggleHeart(post.id, was);
+      await _engage.toggleHeart(post.id, was);
     } catch (_) {
       if (!mounted) return;
       setState(() => _posts[index] = post); // 롤백
@@ -451,7 +453,7 @@ class _CommunityTabState extends State<CommunityTab>
     // 업체 모드는 면제 — 소식(news) 글은 사업장 주소 기준이라 동네 인증 불필요.
     bool regionOk;
     try {
-      final mode = await BusinessRepository.instance.fetchActiveMode();
+      final mode = await AccountModeRepository.instance.fetchActiveMode();
       regionOk =
           mode == 'business' ||
           await ProfileRepository.instance.isRegionVerificationFresh();

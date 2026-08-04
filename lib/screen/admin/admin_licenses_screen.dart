@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/admin.dart';
+import '../../models/business.dart' show bizLicenseLabel;
 import '../../services/admin/admin_business_repository.dart';
-import '../../services/business_repository.dart' show bizLicenseLabel;
 import '../../services/storage_service.dart';
 import '../../theme/app_palette.dart';
 import 'admin_theme.dart';

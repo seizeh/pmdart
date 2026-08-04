@@ -6,9 +6,9 @@ import 'package:video_player/video_player.dart';
 
 import '../models/community.dart';
 import '../motion/motion.dart';
-import '../services/business_repository.dart';
+import '../services/business/mode_repository.dart';
 import '../services/chat_launcher.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_write_repository.dart';
 import '../services/report_repository.dart';
 import '../services/session.dart';
 import '../state/post_detail_state.dart';
@@ -209,7 +209,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (!_guard('지원은 로그인 후 할 수 있어요')) return;
     // 매칭(지원→약속→평가)은 실제 만남 전제의 개인 활동 — 업체 모드에선 차단하고
     // 일반 모드 전환을 유도한다(서버 트리거가 최종 방어선, 0026 §5-2).
-    final mode = await BusinessRepository.instance.fetchActiveMode();
+    final mode = await AccountModeRepository.instance.fetchActiveMode();
     if (!mounted) return;
     if (mode == 'business') {
       final switched = await showDialog<bool>(
@@ -232,7 +232,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ),
       );
       if (switched != true || !mounted) return;
-      final result = await BusinessRepository.instance.switchMode('personal');
+      final result = await AccountModeRepository.instance.switchMode(
+        'personal',
+      );
       if (!mounted) return;
       if (result != 'personal') {
         _toast('모드 전환에 실패했어요. 잠시 후 다시 시도해주세요');
@@ -353,7 +355,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (_sharing) return;
     _sharing = true;
     try {
-      final token = await CommunityRepository.instance.createPostShareLink(
+      final token = await PostWriteRepository.instance.createPostShareLink(
         _state.post.id,
       );
       if (!mounted) return;

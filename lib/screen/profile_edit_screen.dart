@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import '../models/business.dart';
 import '../models/profile.dart';
 import '../motion/motion.dart';
 import '../services/auth_service.dart';
-import '../services/business_repository.dart';
+import '../services/business/mode_repository.dart';
+import '../services/business/profile_repository.dart';
 import '../services/profile_repository.dart';
 import '../services/session.dart';
 import '../services/storage_service.dart';
@@ -770,8 +772,8 @@ class _BusinessSectionState extends State<_BusinessSection> {
   }
 
   Future<void> _load() async {
-    final biz = await BusinessRepository.instance.fetchMine();
-    final mode = await BusinessRepository.instance.fetchActiveMode();
+    final biz = await BusinessProfileRepository.instance.fetchMine();
+    final mode = await AccountModeRepository.instance.fetchActiveMode();
     if (!mounted) return;
     setState(() {
       _biz = biz;
@@ -793,7 +795,7 @@ class _BusinessSectionState extends State<_BusinessSection> {
     if (_switching) return;
     setState(() => _switching = true);
     final target = _mode == 'business' ? 'personal' : 'business';
-    final result = await BusinessRepository.instance.switchMode(target);
+    final result = await AccountModeRepository.instance.switchMode(target);
     if (!mounted) return;
     setState(() {
       _switching = false;

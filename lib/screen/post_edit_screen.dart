@@ -6,7 +6,7 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../models/community.dart';
 import '../motion/motion.dart';
-import '../services/community_repository.dart';
+import '../services/community/post_write_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel;
@@ -29,7 +29,7 @@ class PostEditScreen extends StatefulWidget {
 }
 
 class _PostEditScreenState extends State<PostEditScreen> {
-  final _repo = CommunityRepository.instance;
+  final _write = PostWriteRepository.instance;
   late final TextEditingController _titleCtrl = TextEditingController(
     text: widget.post.title,
   );
@@ -124,7 +124,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
       setState(() => _lockChecked = true);
       return;
     }
-    final locked = await _repo.postEditLocked(widget.post.id);
+    final locked = await _write.postEditLocked(widget.post.id);
     if (!mounted) return;
     setState(() {
       _editLocked = locked;
@@ -310,7 +310,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
     if (!_canSave || _saving) return;
     setState(() => _saving = true);
     try {
-      await _repo.updatePost(
+      await _write.updatePost(
         widget.post.id,
         title: _titleCtrl.text.trim(),
         content: _contentCtrl.text.trim(),
@@ -370,7 +370,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
     if (ok != true || !mounted) return;
     setState(() => _deleting = true);
     try {
-      await _repo.deletePost(widget.post.id);
+      await _write.deletePost(widget.post.id);
       if (!mounted) return;
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(

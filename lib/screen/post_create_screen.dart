@@ -9,8 +9,9 @@ import '../data/mock_data.dart' show categoryLabel;
 import '../models/community.dart';
 import '../models/profile.dart';
 import '../motion/motion.dart';
-import '../services/business_repository.dart';
-import '../services/community_repository.dart';
+import '../services/business/mode_repository.dart';
+import '../services/business/profile_repository.dart';
+import '../services/community/post_write_repository.dart';
 import '../services/location_service.dart';
 import '../services/photo_verify_repository.dart';
 import '../services/profile_repository.dart';
@@ -57,7 +58,7 @@ class PostCreateScreen extends StatefulWidget {
 }
 
 class _PostCreateScreenState extends State<PostCreateScreen> {
-  final _repo = CommunityRepository.instance;
+  final _write = PostWriteRepository.instance;
 
   String _category = 'walk_together';
 
@@ -645,12 +646,12 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   String? _bizName;
 
   Future<void> _loadMode() async {
-    final mode = await BusinessRepository.instance.fetchActiveMode();
+    final mode = await AccountModeRepository.instance.fetchActiveMode();
     if (!mounted) return;
     if (mode == 'business') {
       // 미리보기에 상호를 보여주기 위해 업체 프로필도 로드(실패해도 무해).
       unawaited(
-        BusinessRepository.instance
+        BusinessProfileRepository.instance
             .fetchMine()
             .then((biz) {
               if (mounted && biz != null) {
@@ -695,7 +696,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
 
   Future<void> _loadPets() async {
     try {
-      final pets = await _repo.fetchMyPets();
+      final pets = await _write.fetchMyPets();
       if (!mounted) return;
       setState(() {
         _pets = pets;
@@ -1124,7 +1125,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   Future<void> _submit() async {
     setState(() => _submitting = true);
     try {
-      await _repo.createPost(
+      await _write.createPost(
         category: _category,
         title: _titleCtrl.text.trim(),
         content: _contentCtrl.text.trim(),

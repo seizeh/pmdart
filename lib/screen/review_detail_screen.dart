@@ -5,7 +5,7 @@ import 'package:video_player/video_player.dart';
 
 import '../models/facility_review.dart';
 import '../motion/motion.dart';
-import '../services/business_repository.dart';
+import '../services/business/mode_repository.dart';
 import '../services/facility_review_repository.dart';
 import '../services/session.dart';
 import '../theme/app_palette.dart';
@@ -224,7 +224,7 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen>
 
   /// 딥링크 진입 후 내가 이 시설의 업주(개인 모드)면 업체 모드 전환을 제안한다.
   Future<void> _maybeSuggestSwitch() async {
-    final ok = await BusinessRepository.instance.shouldSuggestBusinessSwitch(
+    final ok = await AccountModeRepository.instance.shouldSuggestBusinessSwitch(
       _reviewId!,
     );
     if (!ok || !mounted) return;
@@ -249,7 +249,7 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen>
       ),
     );
     if (go != true || !mounted) return;
-    final res = await BusinessRepository.instance.switchMode('business');
+    final res = await AccountModeRepository.instance.switchMode('business');
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(res == 'business' ? '업체 모드로 전환했어요' : '전환에 실패했어요')),

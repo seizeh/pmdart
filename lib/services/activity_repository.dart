@@ -185,6 +185,9 @@ class ActivityRepository {
     ];
   }
 
+  /// 차단 해제. 이벤트는 차단과 대칭으로 쏜다(report_repository.block 참고) —
+  /// social 만 쏘면 차단 목록은 갱신되는데 **커뮤니티 피드는 그 사람 글이 다시
+  /// 보여야 하는데도 그대로**다. 커뮤니티 탭은 feed 만 구독한다.
   Future<void> unblock(String blockedId) async {
     await _c
         .from('user_blocks')
@@ -192,5 +195,7 @@ class ActivityRepository {
         .eq('blocker_id', _uid)
         .eq('blocked_id', blockedId);
     AppEvents.instance.notifySocial();
+    AppEvents.instance.notifyFeed();
+    AppEvents.instance.notifyChat();
   }
 }

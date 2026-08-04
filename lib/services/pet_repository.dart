@@ -268,20 +268,24 @@ class PetRepository {
 
   /// 공동보호자 초대 (전화번호). owner 만 — Edge Function 이 검증한다.
   /// 가입자면 인앱 알림, 미가입 번호면 서버가 초대 안내 SMS 를 보낸다.
-  /// 반환: 이미 가입된 번호였는지.
-  /// 중복 초대는 [StateError]('already_invited'), 본인 번호는 [StateError]('self_invite').
-  Future<bool> invite(String petId, String phone) async {
+  ///
+  /// **상대의 가입 여부는 돌려받지 않는다.** 예전에는 서버가 `registered` 를 실어
+  /// 보내 화면 문구를 갈랐는데, 번호만 바꿔 부르면 회원 명부를 훑을 수 있는
+  /// 오라클이었다(pmdb 0032 §9.2). 초대자에게 필요한 건 "초대됐다" 뿐이다.
+  ///
+  /// 중복 초대는 [StateError]('already_invited'), 본인 번호는 [StateError]('self_invite'),
+  /// 하루 상한 초과는 [StateError]('rate_limited').
+  Future<void> invite(String petId, String phone) async {
     try {
-      final res = await _c.functions.invoke(
+      await _c.functions.invoke(
         'invite-guardian',
         body: {'petId': petId, 'phone': phone},
       );
-      final data = (res.data as Map?) ?? const {};
-      return data['registered'] == true;
     } on FunctionException catch (e) {
       final err = (e.details is Map) ? (e.details as Map)['error'] : null;
       if (err == 'already_invited') throw StateError('already_invited');
       if (err == 'self_invite') throw StateError('self_invite');
+      if (err == 'rate_limited') throw StateError('rate_limited');
       rethrow;
     }
   }

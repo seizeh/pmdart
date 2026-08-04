@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12(API 31)+ 의 백업·기기간전송 규칙.
+
+  allowBackup="false" 만으로는 **기기 간 전송(D2D)** 이 안 막힌다 — 그쪽은 이 파일의
+  <device-transfer> 가 따로 본다. 둘 다 비워 두는 이유는 AndroidManifest 주석과 같다:
+  flutter_secure_storage 의 복호화 키(Keystore)가 따라가지 않으므로, 옮겨 간 암호문은
+  복호화에 실패하고 로그인이 조용히 풀린다.
+
+  <exclude domain="root" /> 하나면 그 도메인 전체가 빠진다.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

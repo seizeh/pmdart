@@ -19,9 +19,19 @@
         </intent>
     </queries>
 
+    <!-- 자동 백업(구글 드라이브)·기기 간 전송에서 제외한다.
+         켜 두면(기본값 true) flutter_secure_storage 의 EncryptedSharedPreferences 와
+         SharedPreferences 가 백업에 포함되는데, **복호화 키는 Keystore 에 있고
+         Keystore 는 백업되지 않는다.** 새 기기로 복원하면 앱은 깨진 암호문을 읽고
+         session.load() 가 실패해 로그인이 조용히 풀린다 — 사용자에겐 "가끔 로그아웃됨"
+         으로만 보인다. 겸사겸사 access/refresh 토큰이 백업 매체로 나가는 것도 막는다.
+         (fullBackupContent/dataExtractionRules 로 항목만 빼는 방법도 있으나, 백업해서
+         득이 되는 로컬 상태가 없어 통째로 끈다. 재설치 시 다시 로그인하면 된다.) -->
     <application
         android:label="pawmate"
         android:name="${applicationName}"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher">
 
         <activity

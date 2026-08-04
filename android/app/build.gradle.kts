@@ -9,10 +9,36 @@ plugins {
 }
 
 // 릴리즈 서명(Play 업로드 키) — android/key.properties 는 커밋 금지(.gitignore).
-// 파일이 없으면(다른 머신·CI) debug 서명으로 폴백해 release 빌드가 계속 돈다.
 val keystoreProperties = Properties().apply {
     val f = rootProject.file("key.properties")
     if (f.exists()) f.inputStream().use { load(it) }
+}
+
+// 키가 없는데 릴리스를 만들려 하면 **실패시킨다.**
+//
+// 종전에는 debug 키로 조용히 폴백했다. 그러면 키가 없는 머신에서도
+// `flutter build appbundle --release` 가 **성공**하고 debug 서명된 산출물이 나온다.
+// Play 업로드는 거절하지만 직접 배포용 APK 라면 설치까지 되고, 나중에 정식 키로
+// 서명한 버전으로 **업그레이드가 막힌다**(서명 불일치 — 재설치 외에 방법이 없다).
+// 잘못 서명된 산출물은 되돌릴 수 없고, 산출물만 봐서는 그 사실이 드러나지 않는다.
+//
+// ⚠️ 이 검사를 buildTypes.release 블록 안에 두면 안 된다 — 그 블록은 **설정 시점**에
+// 실행되므로 키가 없는 머신에서 debug 빌드·`flutter run` 까지 막아 버린다.
+// 릴리스 태스크가 실제로 실행 그래프에 있을 때만 본다.
+gradle.taskGraph.whenReady {
+    val releasing = allTasks.any {
+        (it.name.startsWith("assemble") || it.name.startsWith("bundle")) &&
+            it.name.contains("Release")
+    }
+    if (releasing && keystoreProperties.isEmpty()) {
+        throw GradleException(
+            "release 서명 키가 없습니다 — android/key.properties 를 만들어 주세요.\n" +
+                "  필요 항목: storeFile / storePassword / keyAlias / keyPassword\n" +
+                "  (debug 키 폴백은 제거했습니다: debug 서명 산출물은 Play 에 올릴 수 없고,\n" +
+                "   직접 설치되면 정식 키 버전으로 업그레이드가 막힙니다.)\n" +
+                "  릴리스가 목적이 아니라면 --debug 또는 --profile 로 빌드하세요."
+        )
+    }
 }
 
 android {
@@ -56,10 +82,13 @@ android {
 
     buildTypes {
         release {
+            // 키가 없으면 서명 설정을 비운다(= 미서명 산출물). debug 키로 폴백하지
+            // 않는 게 요점이다 — 위 taskGraph 검사가 릴리스 태스크를 먼저 막지만,
+            // 그걸 우회하더라도 debug 서명본이 나가는 일은 없어야 한다.
             signingConfig = if (keystoreProperties.isNotEmpty()) {
                 signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                null
             }
         }
     }

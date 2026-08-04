@@ -5,19 +5,28 @@
 #   · --no-web-resources-cdn 을 빼면 CanvasKit 이 gstatic 에서 오면서 한글이
 #     몇 초간 두부(□)로 보인다.
 #   · .symbols 를 안 지우면 런타임에 안 쓰는 8MB 를 매번 올린다.
+#
+# ── 왜 push 가 아니라 workflow_run 인가 ─────────────────────────────────────
+#
+# 종전에는 `on: push: branches:[main]` 이라 **ci.yml 과 병렬로** 돌았다. 그리고
+# 배포가 먼저 끝났다(실측: CI 3m22s vs 배포 2m18s). 즉 테스트가 빨간불이 되기
+# 1분 전에 이미 app.pawmate.kr 에 올라가 있었다.
+#
+# 룰셋(main-protection)이 analyze-and-test 를 요구하지만 그건 PR 머지 **전**
+# 커밋 기준이고, strict_required_status_checks_policy 가 꺼져 있어 브랜치
+# 최신화도 요구하지 않는다. 각자는 통과했는데 합쳐 놓으니 깨지는 조합
+# (시맨틱 충돌)이 그대로 배포된다는 뜻이다. 그 뒤 CI 가 실패해도 알림은 없고
+# 배포는 되돌아가지 않는다.
+#
+# 그래서 CI 가 성공했을 때만 이어서 돈다. 대가로 잃는 것 두 가지:
+#   · `paths:` 필터를 못 쓴다(workflow_run 에는 없다) → 아래에서 직접 본다.
+#   · 트리거가 한 단계 늘어 배포가 CI 만큼 늦어진다(~3분).
 name: 웹 배포
 
 on:
-  push:
-    branches: [main]
-    # 웹 산출물에 영향이 있는 것만 — 문서·pmdb 문서 변경으로는 배포하지 않는다.
-    paths:
-      - "lib/**"
-      - "web/**"
-      - "assets/**"
-      - "pubspec.yaml"
-      - "pubspec.lock"
-      - ".github/workflows/deploy-web.yml"
+  workflow_run:
+    workflows: ["CI"] # ci.yml 의 name 과 정확히 일치해야 한다
+    types: [completed]
   workflow_dispatch: # 코드 변경 없이 다시 배포하고 싶을 때
 
 # 연속 푸시 시 마지막 것만 배포 — 앞선 배포가 뒤엣것을 덮어쓰지 않게.
@@ -26,11 +35,72 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 배포할 이유가 있는지만 판정한다. 실패한/PR 발 CI 는 여기서 걸러지고,
+  # 웹 산출물과 무관한 변경(문서 등)도 여기서 걸러진다.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # workflow_run 은 성공·실패·취소 모두 발화한다. main 에 대한 push 가
+    # **성공**했을 때만 통과시킨다(PR 의 CI 로는 배포하지 않는다).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    outputs:
+      deploy: ${{ steps.check.outputs.deploy }}
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # CI 를 통과한 **바로 그 커밋**을 본다. 기본값(main 최신)으로 두면
+          # 그 사이 들어온 미검증 커밋을 배포하게 된다.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 2 # HEAD^ 와 비교해야 변경 파일을 알 수 있다
+
+      # 종전 `paths:` 필터의 대체물. workflow_run 에는 paths 가 없다.
+      #
+      # ⚠ 판정이 애매하면 **배포하는 쪽**으로 넘어간다(fail-open). 불필요한
+      #   배포는 2분을 버리는 게 전부지만, 필요한 배포를 건너뛰면 main 에 있는
+      #   코드가 웹에 없는 상태가 조용히 이어진다.
+      - name: 웹 산출물에 영향 있는 변경인지
+        id: check
+        shell: bash
+        run: |
+          sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "수동 실행 — 변경 여부와 무관하게 배포합니다." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if ! git rev-parse --verify -q HEAD^ >/dev/null; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"   # 부모가 없다 → 판정 불가
+            exit 0
+          fi
+          files=$(git diff --name-only HEAD^ HEAD || true)
+          if [ -z "$files" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"   # diff 실패/빈 결과 → 판정 불가
+            exit 0
+          fi
+          if echo "$files" | grep -qE '^(lib/|web/|assets/|pubspec\.(yaml|lock)$|\.github/workflows/deploy-web\.yml$)'; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "웹 산출물에 영향이 없어 배포를 건너뜁니다($sha)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   deploy:
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
 
       # 시크릿이 없으면 wrangler 가 알 수 없는 오류로 죽는다 — 먼저 명확히 알린다.
       - name: 시크릿 확인

@@ -379,6 +379,11 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     // 세션이 서버에서 무효화(타 기기 비번변경/정지·refresh 회수)되면 강제 로그아웃 라우팅.
     SessionManager.instance.onInvalidated = _handleInvalidated;
+    // 그 **직전**에 — 아직 토큰이 살아 있을 때 서버측 푸시 토큰을 해제한다.
+    // onInvalidated 안에서 하면 이미 clear 가 끝나 `isLoggedIn` 가드에 걸려
+    // 서버 해제가 통째로 스킵된다(#237 의 "서버 먼저, 기기 나중" 역전).
+    SessionManager.instance.onBeforeInvalidate =
+        PushService.instance.clearToken;
     // 시작 시 1회 세션 유효성 확인.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       SessionManager.instance.checkAliveAndClearIfDead();
@@ -578,7 +583,8 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
 
   void _handleInvalidated() {
     RealtimeService.instance.stop();
-    PushService.instance.clearToken(); // 무효화된 기기의 FCM 토큰도 삭제
+    // 푸시 토큰 해제는 onBeforeInvalidate 로 옮겼다 — 여기서 부르면 세션이 이미
+    // 지워져 있어 서버 해제가 스킵되고 기기측 삭제만 됐다(initState 주석 참고).
     navigatorKey.currentState?.pushAndRemoveUntil(
       AppPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,

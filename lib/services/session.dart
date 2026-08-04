@@ -114,6 +114,15 @@ class SessionManager extends ChangeNotifier {
   /// 타 기기 비번변경/정지·refresh 회수 감지 시. main.dart 가 세팅한다.
   void Function()? onInvalidated;
 
+  /// 무효화 처리 **전에** — 아직 세션이 살아 있어야 하는 뒷정리(서버 호출)를 여기서.
+  ///
+  /// [onInvalidated] 로는 이걸 할 수 없다. 그 시점엔 이미 [clear] 가 끝나 있어서
+  /// 토큰도 `isLoggedIn` 도 없다 — 실제로 푸시 토큰 서버 해제가 `isLoggedIn` 가드에
+  /// 걸려 **강제 로그아웃 경로에서만 통째로 스킵되고 있었다**(#237 이 정한
+  /// "서버 먼저, 기기 나중" 의 정확한 역전. 정상 로그아웃은 clear 전에 부르므로
+  /// 올바랐고, 그래서 눈에 띄지 않았다).
+  Future<void> Function()? onBeforeInvalidate;
+
   /// main.dart accessToken 콜백 호환(기존 이름 유지) = 현재 access.
   String? get token => _access;
   String? get access => _access;
@@ -404,8 +413,19 @@ class SessionManager extends ChangeNotifier {
 
   Future<void>? _invalidating;
 
-  /// 세션 무효화 → 저장소 clear + onInvalidated(앱 라우팅) 호출.
+  /// 세션 무효화 → (세션 살아 있는 동안 뒷정리) → 저장소 clear → onInvalidated(라우팅).
   Future<void> _invalidate() async {
+    // clear 전에 부른다. 여기서 무엇이 실패하든 로그아웃 자체는 진행해야 하므로
+    // 예외를 삼킨다 — 세션 정리가 뒷정리 실패에 인질로 잡히면 안 된다.
+    try {
+      await onBeforeInvalidate?.call();
+    } catch (e, st) {
+      ErrorReporter.report(
+        e,
+        where: 'session.beforeInvalidate',
+        stackTrace: st,
+      );
+    }
     await clear();
     onInvalidated?.call();
   }

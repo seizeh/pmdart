@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../services/admin_repository.dart';
+import '../../services/admin/admin_ops_repository.dart';
 import '../../theme/app_palette.dart';
 import 'admin_theme.dart';
 
@@ -57,7 +57,7 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
 
     setState(() => _sending = true);
     try {
-      final count = await AdminRepository.instance.broadcastSystemNotice(
+      final count = await AdminOpsRepository.instance.broadcastSystemNotice(
         title,
         body,
       );

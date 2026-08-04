@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../services/admin_repository.dart';
+import '../../models/admin.dart';
+import '../../services/admin/admin_moderation_repository.dart';
 import '../../theme/app_palette.dart';
 import 'admin_theme.dart';
 
@@ -39,7 +40,7 @@ class _AdminChatHistoryScreenState extends State<AdminChatHistoryScreen> {
       _error = null;
     });
     try {
-      final items = await AdminRepository.instance.fetchRoomMessages(
+      final items = await AdminModerationRepository.instance.fetchRoomMessages(
         widget.roomId,
       );
       if (!mounted) return;

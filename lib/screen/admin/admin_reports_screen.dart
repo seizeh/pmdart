@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../models/admin.dart';
 import '../../motion/motion.dart';
-import '../../services/admin_repository.dart';
+import '../../services/admin/admin_moderation_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/labels.dart' show timeAgo;
 import 'admin_report_detail_screen.dart';
@@ -36,7 +37,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       _error = null;
     });
     try {
-      final items = await AdminRepository.instance.listReports(
+      final items = await AdminModerationRepository.instance.listReports(
         status: _filter == 'open' ? 'open' : null,
       );
       if (!mounted) return;
@@ -63,7 +64,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   Future<void> _setStatus(AdminReport r, String status) async {
     setState(() => _busy = r.id);
     try {
-      await AdminRepository.instance.setReportStatus(r.id, status);
+      await AdminModerationRepository.instance.setReportStatus(r.id, status);
       _toast('처리했어요');
       await _load();
     } catch (_) {

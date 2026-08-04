@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../services/admin_repository.dart';
+import '../../models/admin.dart';
+import '../../services/admin/admin_business_repository.dart';
 import '../../services/business_repository.dart' show bizLicenseLabel;
 import '../../services/storage_service.dart';
 import '../../theme/app_palette.dart';
@@ -39,7 +40,7 @@ class _AdminLicensesScreenState extends State<AdminLicensesScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final items = await AdminRepository.instance.listBusinessLicenses(
+      final items = await AdminBusinessRepository.instance.listBusinessLicenses(
         status: _status,
       );
       if (!mounted) return;
@@ -306,7 +307,7 @@ class _LicenseDetailSheetState extends State<_LicenseDetailSheet> {
     if (!mounted) return; // 다이얼로그 대기 중 라우트 제거 가능(#239)
     setState(() => _busy = true);
     try {
-      await AdminRepository.instance.reviewBusinessLicense(
+      await AdminBusinessRepository.instance.reviewBusinessLicense(
         l.id,
         status,
         reason: reason,

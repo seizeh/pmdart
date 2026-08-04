@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../models/admin.dart';
 import '../../motion/motion.dart';
-import '../../services/admin_repository.dart';
+import '../../services/admin/admin_moderation_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/labels.dart' show timeAgo, categoryLabel;
 import 'admin_theme.dart';
@@ -51,7 +52,9 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
       _error = null;
     });
     try {
-      final items = await AdminRepository.instance.listPosts(search: q);
+      final items = await AdminModerationRepository.instance.listPosts(
+        search: q,
+      );
       if (!mounted || myReq != _reqId) return;
       setState(() {
         _items = items;
@@ -96,7 +99,7 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
     }
     setState(() => _busy = p.id);
     try {
-      await AdminRepository.instance.setPostVisibility(p.id, vis);
+      await AdminModerationRepository.instance.setPostVisibility(p.id, vis);
       await _load(_ctrl.text);
     } catch (_) {
       _toast('처리하지 못했어요');
@@ -401,7 +404,9 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
       _error = null;
     });
     try {
-      final items = await AdminRepository.instance.listComments(widget.postId);
+      final items = await AdminModerationRepository.instance.listComments(
+        widget.postId,
+      );
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -426,7 +431,10 @@ class _AdminPostCommentsScreenState extends State<AdminPostCommentsScreen> {
   Future<void> _toggle(AdminComment c) async {
     setState(() => _busy = c.id);
     try {
-      await AdminRepository.instance.setCommentDeleted(c.id, !c.isDeleted);
+      await AdminModerationRepository.instance.setCommentDeleted(
+        c.id,
+        !c.isDeleted,
+      );
       await _load();
     } catch (_) {
       _toast('처리하지 못했어요');

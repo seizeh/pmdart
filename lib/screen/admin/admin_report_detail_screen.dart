@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../services/admin_repository.dart';
+import '../../models/admin.dart';
+import '../../services/admin/admin_moderation_repository.dart';
+import '../../services/admin/admin_users_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/labels.dart' show timeAgo;
 import 'admin_chat_history_screen.dart';
@@ -17,7 +19,9 @@ class AdminReportDetailScreen extends StatefulWidget {
 }
 
 class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
-  final _repo = AdminRepository.instance;
+  // 신고 상세는 조치 대상이 글·댓글·채팅·사용자로 갈린다 — 두 역할을 함께 쓴다.
+  final _mod = AdminModerationRepository.instance;
+  final _users = AdminUsersRepository.instance;
   ReportTarget? _target;
   bool _loading = true;
   String? _error;
@@ -37,7 +41,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
       _error = null;
     });
     try {
-      final t = await _repo.getReportTarget(widget.report.id);
+      final t = await _mod.getReportTarget(widget.report.id);
       if (!mounted) return;
       setState(() {
         _target = t;
@@ -73,7 +77,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
   }
 
   Future<void> _setReportStatus(String s) async {
-    await _act(() => _repo.setReportStatus(widget.report.id, s), '신고를 처리했어요');
+    await _act(() => _mod.setReportStatus(widget.report.id, s), '신고를 처리했어요');
     if (mounted) setState(() => _status = s);
   }
 
@@ -299,7 +303,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
             _btn(
               '공개',
               () => _act(
-                () => _repo.setPostVisibility(d['id'] as String, 'visible'),
+                () => _mod.setPostVisibility(d['id'] as String, 'visible'),
                 '공개로 전환했어요',
               ),
             ),
@@ -307,7 +311,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
             _btn(
               '숨김',
               () => _act(
-                () => _repo.setPostVisibility(
+                () => _mod.setPostVisibility(
                   d['id'] as String,
                   'hidden_by_admin',
                 ),
@@ -318,10 +322,8 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
             '삭제',
             danger: true,
             () => _act(
-              () => _repo.setPostVisibility(
-                d['id'] as String,
-                'deleted_by_admin',
-              ),
+              () =>
+                  _mod.setPostVisibility(d['id'] as String, 'deleted_by_admin'),
               '삭제 처리했어요',
             ),
           ),
@@ -377,7 +379,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
             deleted ? '복원' : '숨김',
             danger: !deleted,
             () => _act(
-              () => _repo.setCommentDeleted(d['id'] as String, !deleted),
+              () => _mod.setCommentDeleted(d['id'] as String, !deleted),
               deleted ? '복원했어요' : '숨김 처리했어요',
             ),
           ),
@@ -442,7 +444,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
               '정지',
               danger: true,
               () => _act(
-                () => _repo.setUserStatus(d['id'] as String, 'suspended'),
+                () => _users.setUserStatus(d['id'] as String, 'suspended'),
                 '정지했어요',
               ),
             ),
@@ -450,7 +452,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
             _btn(
               '휴면',
               () => _act(
-                () => _repo.setUserStatus(d['id'] as String, 'inactive'),
+                () => _users.setUserStatus(d['id'] as String, 'inactive'),
                 '휴면 처리했어요',
               ),
             ),
@@ -458,7 +460,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
             _btn(
               '활성',
               () => _act(
-                () => _repo.setUserStatus(d['id'] as String, 'active'),
+                () => _users.setUserStatus(d['id'] as String, 'active'),
                 '활성으로 전환했어요',
               ),
             ),
@@ -519,7 +521,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
             deleted ? '복원' : '숨김',
             danger: !deleted,
             () => _act(
-              () => _repo.setChatMessageDeleted(d['id'] as String, !deleted),
+              () => _mod.setChatMessageDeleted(d['id'] as String, !deleted),
               deleted ? '복원했어요' : '숨김 처리했어요',
             ),
           ),

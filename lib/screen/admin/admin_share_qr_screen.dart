@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../services/admin_repository.dart';
+import '../../services/admin/admin_business_repository.dart';
 import '../../services/facility_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../utils/share_links.dart';
@@ -57,7 +57,8 @@ class _AdminShareQrScreenState extends State<AdminShareQrScreen> {
     if (_issuingId != null) return;
     setState(() => _issuingId = f.id);
     try {
-      final link = await AdminRepository.instance.createFacilityShareLink(f.id);
+      final link = await AdminBusinessRepository.instance
+          .createFacilityShareLink(f.id);
       if (!mounted) return;
       setState(() => _issuingId = null);
       await showModalBottomSheet<void>(
@@ -244,7 +245,9 @@ class _QrSheetState extends State<_QrSheet> {
     );
     if (ok != true || !mounted) return;
     setState(() => _busy = true);
-    final done = await AdminRepository.instance.revokeShareLink(widget.token);
+    final done = await AdminBusinessRepository.instance.revokeShareLink(
+      widget.token,
+    );
     if (!mounted) return;
     if (done) {
       Navigator.pop(context);

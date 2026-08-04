@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../main.dart' show navigatorKey;
+import '../../app/app_keys.dart' show navigatorKey;
 import '../../motion/motion.dart';
 import '../../services/auth_service.dart';
 import '../../services/phone_auth_service.dart';

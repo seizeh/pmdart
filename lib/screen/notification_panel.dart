@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../main.dart' show openFromPush;
+import '../app/push_routing.dart' show openFromPush;
 import '../models/notification.dart';
 import '../motion/motion.dart' show SpringCurve;
 import '../services/error_reporter.dart';

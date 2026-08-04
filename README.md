@@ -168,7 +168,7 @@ test/                # 위젯·상태 홀더 테스트 (34개 파일)
 | 저장소 | 내용 |
 |---|---|
 | [**pmdb**](https://github.com/seizeh/pmdb) | Supabase 백엔드 — 마이그레이션 175건 · Edge Functions 20개 · pgTAP 16종 · 리플레이 CI · DB 전체 레퍼런스 문서 |
-| [**pmlegal**](https://github.com/seizeh/pmlegal) | 서비스 이용약관 · 개인정보처리방침 · 위치기반서비스 약관 (정본) |
+| **pmlegal** (비공개) | 서비스 이용약관 · 개인정보처리방침 · 위치기반서비스 약관 · 간이 후기 이용조건 (정본). 이용자 대상 게시는 이 저장소의 `assets/terms/` 번들 — 두 곳은 항상 바이트 단위로 같아야 한다 |
 
 ## 실행
 

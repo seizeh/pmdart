@@ -371,16 +371,16 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 }
                 Navigator.pop(sheetCtx);
                 try {
-                  final registered = await _repo.invite(_pet.id, phone);
-                  _toast(
-                    registered ? '초대를 보냈어요' : '가입 전 번호예요 — 문자로 초대 안내를 보냈어요',
-                  );
+                  await _repo.invite(_pet.id, phone);
+                  // 가입 여부로 문구를 가르지 않는다 — 그 차이가 곧 "이 번호가
+                  // 회원인가" 를 알려 주는 통로였다(pet_repository.invite 주석).
+                  _toast('초대했어요 — 상대가 가입 전이면 문자로 안내가 가요');
                 } on StateError catch (e) {
-                  _toast(
-                    e.message == 'self_invite'
-                        ? '본인 번호로는 초대할 수 없어요'
-                        : '이미 초대 중인 번호예요',
-                  );
+                  _toast(switch (e.message) {
+                    'self_invite' => '본인 번호로는 초대할 수 없어요',
+                    'rate_limited' => '오늘 초대를 너무 많이 보냈어요 — 내일 다시 시도해 주세요',
+                    _ => '이미 초대 중인 번호예요',
+                  });
                 } catch (_) {
                   _toast('초대에 실패했어요');
                 }

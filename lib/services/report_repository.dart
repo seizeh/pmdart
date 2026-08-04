@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app_events.dart';
 import 'session.dart';
 
 /// 사용자 신고 생성 — reports 테이블에 직접 INSERT.
@@ -83,6 +84,16 @@ class ReportRepository {
   /// 통보되어야 한다"). 차단당한 사람의 글은 서버 뷰(`v_post_feed`)가 즉시
   /// 걸러내므로 클라이언트는 목록만 새로 받으면 된다.
   ///
+  /// **그 "새로 받는" 트리거가 없었다.** 각 화면은 차단 후 자기 자신만 pop 하고
+  /// 커뮤니티 탭은 상세에서 돌아와도 재조회하지 않아서, 사용자가 "차단했어요"
+  /// 토스트를 본 직후 **차단한 사람의 글이 그대로 보이는 피드**로 돌아왔다.
+  /// 서버는 이미 걸러내고 있으니 순전히 앱 캐시가 만든 모순이다.
+  ///
+  /// 세 가지를 함께 쏘는 이유 — 차단이 세 곳을 동시에 바꾸기 때문이다:
+  ///   feed   글·댓글이 사라진다
+  ///   chat   그 사람과의 방이 목록에서 빠진다
+  ///   social 서버가 팔로우를 양방향으로 끊으므로 Pawing 수·차단 목록이 바뀐다
+  ///
   /// 같은 사람을 다시 차단해도 안전하다(중복 차단·중복 신고 모두 무시).
   Future<void> block(String userId, {String? reason}) async {
     if (_uid == null) throw StateError('로그인이 필요합니다');
@@ -90,5 +101,8 @@ class ReportRepository {
       'block_user',
       params: {'p_blocked': userId, 'p_reason': reason},
     );
+    AppEvents.instance.notifyFeed();
+    AppEvents.instance.notifyChat();
+    AppEvents.instance.notifySocial();
   }
 }

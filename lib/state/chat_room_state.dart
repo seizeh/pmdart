@@ -12,15 +12,22 @@ import '../services/error_reporter.dart';
 /// 다이얼로그(삭제/나가기 확인)·토스트·스크롤·전환 모션은 화면이 담당한다.
 /// 전송 계열은 실패 시 사용자 문구(String)를 반환하고 성공이면 null.
 class ChatRoomState extends ChangeNotifier {
-  ChatRoomState({required this.room, this.subscribeRealtime = true})
-    : _otherImageUrl = room.otherProfileImageUrl;
+  ChatRoomState({
+    required this.room,
+    this.subscribeRealtime = true,
+    ChatRepository? chat,
+  }) : _otherImageUrl = room.otherProfileImageUrl,
+       _repo = chat ?? ChatRepository.instance;
+
+  /// 의존은 **선택적 생성자 주입**이다 — 인자를 안 주면 종전대로 싱글턴을 쓴다.
+  /// (기존 호출부는 그대로 두고, 테스트만 대역을 넣을 수 있게 하는 점진적 전환.
+  ///  NotificationsState 가 먼저 쓰던 방식을 넓혔다.)
+  final ChatRepository _repo;
 
   final ChatRoomSummary room;
 
   /// 테스트/미리보기에서 웹소켓 연결을 차단하기 위한 스위치.
   final bool subscribeRealtime;
-
-  final ChatRepository _repo = ChatRepository.instance;
 
   List<ChatMessage> _messages = [];
   bool _loading = true;

@@ -18,10 +18,20 @@ class ProfileEditState extends ChangeNotifier {
     required String? initialAddress,
     required bool initialVerified,
     String? initialImageUrl,
+    ProfileRepository? profiles,
+    StorageService? storage,
   }) : _mode = initialMode,
        _address = initialAddress,
        _verified = initialVerified,
-       _originalImageUrl = initialImageUrl;
+       _originalImageUrl = initialImageUrl,
+       _profiles = profiles ?? ProfileRepository.instance,
+       _storage = storage ?? StorageService.instance;
+
+  /// 의존은 **선택적 생성자 주입** — 인자를 안 주면 종전대로 싱글턴을 쓴다.
+  /// 기존 호출부는 그대로 두고 테스트만 대역을 넣을 수 있게 하는 점진적 전환이며,
+  /// NotificationsState 가 먼저 쓰던 방식을 넓힌 것이다.
+  final ProfileRepository _profiles;
+  final StorageService _storage;
 
   /// 진입 시점의 프로필 사진 — 교체 저장 성공 시 구 파일 정리에 쓴다(#233).
   /// null 이면(집계 미전달) 정리를 건너뛴다.
@@ -83,14 +93,11 @@ class ProfileEditState extends ChangeNotifier {
     _notify();
     try {
       final prev = _imageUrl;
-      final up = await StorageService.instance.upload(
-        file,
-        category: 'profile',
-      );
+      final up = await _storage.upload(file, category: 'profile');
       _imageUrl = up.url;
       // 같은 세션에서 다시 고른 경우 — 직전 업로드는 저장 전이라 고아가 된다(#233).
       if (prev != null && prev != up.url) {
-        unawaited(StorageService.instance.discardByUrl(prev));
+        unawaited(_storage.discardByUrl(prev));
       }
       return true;
     } catch (e) {
@@ -116,7 +123,7 @@ class ProfileEditState extends ChangeNotifier {
       return;
     }
     try {
-      final ok = await ProfileRepository.instance.checkNicknameAvailable(nick);
+      final ok = await _profiles.checkNicknameAvailable(nick);
       if (seq != _nickCheckSeq) return;
       _nickAvailable = ok;
     } catch (e) {
@@ -134,7 +141,7 @@ class ProfileEditState extends ChangeNotifier {
     _saveError = null;
     _notify();
     try {
-      await ProfileRepository.instance.updateProfile(
+      await _profiles.updateProfile(
         nickname: nickname,
         profileImageUrl: _imageUrl,
       );
@@ -142,7 +149,7 @@ class ProfileEditState extends ChangeNotifier {
       if (_imageUrl != null &&
           _originalImageUrl != null &&
           _originalImageUrl != _imageUrl) {
-        unawaited(StorageService.instance.discardByUrl(_originalImageUrl));
+        unawaited(_storage.discardByUrl(_originalImageUrl));
       }
       return true;
     } on PostgrestException catch (e) {
@@ -165,7 +172,7 @@ class ProfileEditState extends ChangeNotifier {
   /// 조회 실패해도 인증 자체는 반영됨(내정보 탭이 새로고침으로 따라잡는다).
   Future<void> refreshRegion() async {
     try {
-      final r = await ProfileRepository.instance.fetchRegion();
+      final r = await _profiles.fetchRegion();
       _address = r.address;
       _verified = r.verified;
       _notify();

@@ -2,7 +2,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:pawmate/main.dart';
+import 'package:pawmate/app/pawmate_app.dart';
 
 void main() {
   testWidgets('첫 화면(WelcomeScreen)이 렌더된다', (WidgetTester tester) async {

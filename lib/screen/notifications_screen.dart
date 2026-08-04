@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../main.dart' show openFromPush;
+import '../app/push_routing.dart' show openFromPush;
 import '../models/notification.dart';
 import '../state/notifications_state.dart';
 import '../theme/app_palette.dart';

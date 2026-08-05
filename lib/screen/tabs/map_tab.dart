@@ -456,6 +456,20 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
     final c = _controller;
     if (c == null || _locating) return;
     setState(() => _locating = true);
+    // follow 모드를 켜기 전에 위치 가능 여부를 우리 쪽에서 먼저 확인한다 —
+    // 플러그인 트래커는 위치를 못 얻으면 **내부 비동기에서**
+    // PlatformException(LocationError) 을 던져 여기 try/catch 로는 못 잡고
+    // 전역 핸들러로 샌다(client_errors Android 실사고). 권한/GPS 문제는
+    // 이 사전 확인이 안내로 바꿔 주고, 아래 follow 는 위치가 있을 때만 켠다.
+    final probe = await LocationService.instance.getCurrentPosition();
+    if (!mounted) return;
+    if (probe.status != LocationStatus.ok || probe.position == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('현재 위치를 가져올 수 없어요. 위치 권한을 확인해주세요.')),
+      );
+      setState(() => _locating = false);
+      return;
+    }
     c.setLocationTrackingMode(NLocationTrackingMode.follow);
     NLatLng? pos;
     for (var i = 0; i < 12; i++) {
@@ -471,20 +485,18 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
         debugPrint('지도: 현위치 오버레이 조회 실패(재시도): $e');
       }
     }
-    if (pos != null) {
-      await c.updateCamera(
-        NCameraUpdate.scrollAndZoomTo(target: pos, zoom: _defaultZoom)
-          ..setAnimation(
-            animation: NCameraAnimation.easing,
-            duration: const Duration(milliseconds: 350),
-          ),
-      );
-      await _loadFacilities(pos);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('현재 위치를 가져올 수 없어요. 위치 권한을 확인해주세요.')),
-      );
-    }
+    // 오버레이가 끝내 안 잡혀도 사전 확인에서 얻은 좌표로는 이동할 수 있다 —
+    // 종전의 "가져올 수 없어요" 분기는 사전 확인이 대신한다.
+    final target =
+        pos ?? NLatLng(probe.position!.latitude, probe.position!.longitude);
+    await c.updateCamera(
+      NCameraUpdate.scrollAndZoomTo(target: target, zoom: _defaultZoom)
+        ..setAnimation(
+          animation: NCameraAnimation.easing,
+          duration: const Duration(milliseconds: 350),
+        ),
+    );
+    await _loadFacilities(target);
     if (mounted) setState(() => _locating = false);
   }
 

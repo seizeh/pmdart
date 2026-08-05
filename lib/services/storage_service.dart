@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_compress/video_compress.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'error_reporter.dart';
 import 'session.dart';
@@ -156,11 +157,71 @@ class StorageService {
   /// 첨부 영상 상한(서버 CHECK 와 동일 — 100MB). 초과 시 업로드 전에 거른다.
   static const int maxVideoBytes = 100 * 1024 * 1024;
 
-  /// 갤러리에서 첨부용 동영상 1개 선택(최대 60초).
-  Future<XFile?> pickVideo() => _picker.pickVideo(
-    source: ImageSource.gallery,
-    maxDuration: const Duration(seconds: 60),
-  );
+  /// 첨부 영상을 다시 인코딩할 화질 — 720p.
+  ///
+  /// 피드·상세는 세로 전체화면 재생이라 720p 면 충분하고, 요즘 폰이 찍는 1080p·4K
+  /// 원본은 그대로 올리면 첨부 한 번에 수십 MB 다(실측 14.7MB / 2분).
+  static const VideoQuality _videoQuality = VideoQuality.Res1280x720Quality;
+
+  /// 이보다 작으면 재인코딩하지 않는다 — 인코딩에 드는 시간이 업로드 절감분보다
+  /// 커지는 구간이다. 이미 작은 영상을 굳이 다시 굽지 않는다.
+  static const int _videoCompressOverBytes = 6 * 1024 * 1024;
+
+  /// 갤러리에서 첨부용 동영상 1개 선택.
+  ///
+  /// ⚠️ `maxDuration` 은 **갤러리 선택에 적용되지 않는다.** iOS 는 PHPicker 경로가
+  /// 이 값을 쓰지 않고(FLTImagePickerPlugin.m), Android 도 촬영 인텐트에만 건다
+  /// (ImagePickerDelegate.java). 남겨 둔 것은 iOS 13 이하의 UIImagePicker 폴백
+  /// 때문이고, 실질 방어는 100MB 상한이다.
+  Future<XFile?> pickVideo() async {
+    final f = await _picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(seconds: 60),
+    );
+    return f == null ? null : _normalizeVideo(f);
+  }
+
+  /// 업로드 전 영상 재인코딩 — 사진의 [_normalizePhoto] 와 같은 자리다.
+  ///
+  /// 종전에는 영상만 아무 가공 없이 원본이 올라갔다. 사진은 긴 변 1600 으로 줄이고
+  /// 다시 굽는데 영상은 picker 가 준 파일을 그대로 넘겼다.
+  ///
+  /// 이득은 업로드 시간보다 **보는 쪽**에서 크다 — 피드를 스크롤하는 모든 사람이
+  /// 그 바이트를 내려받는다. iOS 구현은 `shouldOptimizeForNetworkUse` 로 내보내므로
+  /// 전부 받기 전에 재생이 시작되고, 출력이 mp4 라 .mov 보다 브라우저 호환도 낫다.
+  ///
+  /// 실패하거나 이득이 없으면 **원본을 그대로 반환**한다. 첨부 자체를 막지 않는다.
+  Future<XFile> _normalizeVideo(XFile file) async {
+    // 웹은 이 플러그인 구현이 없다(android/ios/macos 만). 원본으로 간다.
+    if (kIsWeb) return file;
+    try {
+      final length = await file.length();
+      if (length <= _videoCompressOverBytes) return file;
+
+      final info = await VideoCompress.compressVideo(
+        file.path,
+        quality: _videoQuality,
+        // picker 가 준 임시 복사본이지 사용자의 원본이 아니지만, 그래도 우리가
+        // 지울 파일은 아니다(같은 파일을 다시 고르면 picker 가 또 복사한다).
+        deleteOrigin: false,
+      );
+      final out = info?.path;
+      // 취소됐거나(isCancel) 실패하면 null·빈 경로가 온다.
+      if (out == null || out.isEmpty || info?.isCancel == true) return file;
+
+      final compressed = XFile(out, mimeType: 'video/mp4');
+      // 이미 잘 압축된 영상은 다시 구우면 오히려 커진다 — 그럴 땐 원본을 지킨다.
+      if (await compressed.length() >= length) return file;
+      return compressed;
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'storage.normalizeVideo',
+        why: '영상 재인코딩 실패 — 원본을 그대로 올린다(첨부는 계속된다)',
+      );
+      return file;
+    }
+  }
 
   /// 게시글 사진 실존 검증용: 카메라만(갤러리 진입 불가) 방금 찍은 1장.
   /// EXIF 위치는 신뢰하지 않으므로(위치는 geolocator 로 별도 취득) 메타데이터 요청 안 함.

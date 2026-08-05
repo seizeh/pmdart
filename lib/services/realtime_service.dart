@@ -138,10 +138,23 @@ class RealtimeService {
       );
     }
 
-    _retry = Timer(delay, () {
+    _retry = Timer(delay, () async {
       // 대기 중에 로그아웃했거나 다른 경로로 이미 붙었으면 그만둔다.
       if (!_wanted || _notif != null) return;
-      if (SessionManager.instance.user?.id != me) return; // 계정이 바뀌었다
+      final s = SessionManager.instance;
+      if (s.user?.id != me) return; // 계정이 바뀌었다
+      // 재시도 전에 소켓 인증을 현재 세션 기준으로 되돌린다 — 끊겨 있던 동안
+      // access 가 만료됐을 수 있다(iOS 장기 백그라운드 복귀 실사고: 2.3일 지난
+      // 토큰으로 재구독 → InvalidJWTToken). REST 는 관문(accessToken 콜백)이
+      // 갱신해 주지만 realtime 소켓 auth 는 setAuth 를 다시 불러야만 바뀐다.
+      if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
+        await s.refreshOnce();
+        if (!_wanted || _notif != null || s.user?.id != me) return;
+      }
+      final token = s.token;
+      if (token == null) return; // 갱신 실패로 세션이 정리됐다 — 재구독 무의미
+      await _c.realtime.setAuth(token);
+      if (!_wanted || _notif != null) return;
       _subscribe(me);
     });
   }

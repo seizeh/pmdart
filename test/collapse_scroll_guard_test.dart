@@ -152,6 +152,48 @@ void main() {
     expect(find.byType(CollapsibleView), findsNothing);
   });
 
+  testWidgets('컨트롤러가 스크롤뷰 2개에 동시에 붙어도 당김 판정이 던지지 않는다', (tester) async {
+    // 트리 교체 프레임에는 옛 스크롤뷰(dispose 지연)와 새 스크롤뷰가 같은
+    // 컨트롤러에 동시에 붙는다 — `.position`(single 강제)을 쓰면 _atTop 이
+    // 'Bad state: Too many elements' 로 던진다(프로필 화면 실사고와 같은 병).
+    final shared = ScrollController();
+    addTearDown(shared.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CollapsibleView(
+          originRect: const Rect.fromLTWH(150, 300, 100, 120),
+          card: null,
+          scrollController: shared,
+          builder: (context, physics) => Scaffold(
+            body: Column(
+              children: [
+                for (var v = 0; v < 2; v++)
+                  SizedBox(
+                    height: 200,
+                    child: ListView(
+                      controller: shared,
+                      physics: physics,
+                      children: const [SizedBox(height: 600)],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final g = await tester.startGesture(const Offset(400, 100));
+    for (var i = 0; i < 6; i++) {
+      await g.moveBy(const Offset(0, 20));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull); // 예외 없이 통과하는 것 자체가 단언
+  });
+
   testWidgets('본문이 처음부터 최상단이면 기존처럼 바로 축소된다(회귀 가드)', (tester) async {
     final progress = await openDetail(tester);
 

@@ -10,6 +10,7 @@
 /// 판단은 각 화면이 갖는다(작성은 카테고리·펫·촬영 인증, 수정은 잠금·고정 필드).
 library;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../motion/motion.dart';
@@ -84,12 +85,17 @@ class EditorCardIconButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool busy;
 
+  /// 첨부 진행률(0.0~1.0). 값이 `null` 이면 종전처럼 무한 회전한다 —
+  /// picker 가 떠 있는 동안처럼 아직 잴 게 없는 구간이 그렇다.
+  final ValueListenable<double?>? progress;
+
   const EditorCardIconButton({
     super.key,
     required this.icon,
     required this.tooltip,
     required this.onTap,
     this.busy = false,
+    this.progress,
   });
 
   @override
@@ -105,15 +111,36 @@ class EditorCardIconButton extends StatelessWidget {
             color: Color(0x66000000),
             shape: BoxShape.circle,
           ),
-          child: busy
-              ? const Padding(
-                  padding: EdgeInsets.all(10),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Icon(icon, size: 20, color: Colors.white),
+          child: busy ? _ring() : Icon(icon, size: 20, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  /// 진행률 고리. 결정 상태에서는 남은 몫을 옅게 깔아 두어 "얼마나 남았는지" 가
+  /// 한눈에 보이게 한다(무한 회전에는 트랙이 없다 — 끝을 모르니까).
+  Widget _ring() {
+    if (progress == null) {
+      return const Padding(
+        padding: EdgeInsets.all(10),
+        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+      );
+    }
+    return ValueListenableBuilder<double?>(
+      valueListenable: progress!,
+      builder: (_, value, _) => Padding(
+        padding: const EdgeInsets.all(10),
+        child: TweenAnimationBuilder<double>(
+          // 콜백이 띄엄띄엄 와도 고리가 끊겨 보이지 않게 값 사이를 잇는다.
+          tween: Tween(begin: 0, end: value ?? 0),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          builder: (_, shown, _) => CircularProgressIndicator(
+            value: value == null ? null : shown,
+            strokeWidth: 2,
+            color: Colors.white,
+            backgroundColor: value == null ? null : const Color(0x33FFFFFF),
+          ),
         ),
       ),
     );

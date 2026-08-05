@@ -28,6 +28,7 @@ import '../services/observability.dart';
 import '../services/push_service.dart';
 import '../services/realtime_service.dart';
 import '../services/session.dart';
+import '../services/storage_service.dart';
 import '../services/theme_controller.dart';
 import '../utils/firebase_web_sdk.dart';
 import 'pawmate_app.dart';
@@ -109,6 +110,9 @@ abstract final class AppBootstrap {
         // 아니고 저장되지도 않는다(SessionManager.beginLiteSession 참고).
         return s.token ?? s.liteToken;
       },
+      // 스토리지 업로드 진행률을 얻기 위한 얇은 래퍼. 감시 중인 경로가 없으면
+      // 원 클라이언트로 그대로 흘려보내므로 나머지 트래픽에는 영향이 없다.
+      httpClient: StorageService.uploadProgress,
     );
 
     // 포그라운드 알림 — 알림 실시간 구독(realtime) 기반. FCM 포그라운드 푸시가 아니라

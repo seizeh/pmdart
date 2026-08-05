@@ -4,9 +4,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
+import 'package:image_picker/image_picker.dart' show XFile;
+
 import '../models/community.dart';
 import '../motion/motion.dart';
 import '../services/community/post_write_repository.dart';
+import '../services/error_reporter.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel;
@@ -190,13 +193,37 @@ class _PostEditScreenState extends State<PostEditScreen> {
   Future<void> _pickVideo() async {
     // 재인코딩은 picker 가 닫힌 **뒤** 시작되므로 이 콜백이 오는 순간이 곧
     // 대기가 시작되는 순간이다 — 여기서 버튼을 진행 상태로 넘긴다.
-    final file = await StorageService.instance.pickVideo(
-      onCompress: (p) {
-        if (!mounted) return;
-        if (!_uploading) setState(() => _uploading = true);
-        _progress.compressing(p);
-      },
-    );
+    final XFile? file;
+    try {
+      file = await StorageService.instance.pickVideo(
+        onCompress: (p) {
+          if (!mounted) return;
+          if (!_uploading) setState(() => _uploading = true);
+          _progress.compressing(p);
+        },
+      );
+    } on StateError catch (e) {
+      // 길이 초과 등 — 왜 안 되는지 그대로 알려 준다.
+      if (!mounted) return;
+      setState(() => _uploading = false);
+      _progress.done();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    } catch (e, st) {
+      ErrorReporter.userFacing(e, where: 'postEdit.pickVideo', stackTrace: st);
+      if (!mounted) return;
+      setState(() => _uploading = false);
+      _progress.done();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('동영상을 불러오지 못했어요'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     if (file == null || !mounted) {
       if (mounted) setState(() => _uploading = false);
       _progress.done();

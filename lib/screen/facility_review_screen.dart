@@ -211,7 +211,13 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
   /// 동영상 선택 → 업로드(포스터 생성 포함). 100MB 초과는 업로드 전에 안내.
   Future<void> _addVideo() async {
     if (_videos.length >= _maxVideos || _uploadingVideo) return;
-    final file = await StorageService.instance.pickVideo();
+    final XFile? file;
+    try {
+      file = await StorageService.instance.pickVideo();
+    } on StateError catch (e) {
+      _toast(e.message); // 길이 초과 등 — 왜 안 되는지 그대로 알려 준다
+      return;
+    }
     if (file == null) return;
     if (!mounted) return; // 픽커 대기 중 라우트 제거 가능(#238)
     setState(() => _uploadingVideo = true);

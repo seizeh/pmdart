@@ -16,14 +16,23 @@ import '../chat_room_screen.dart';
 /// 채팅 탭 — 진행 중인 대화 목록(실데이터).
 class ChatTab extends StatefulWidget {
   final bool isGuest;
-  const ChatTab({super.key, this.isGuest = false});
+
+  /// 아래로 스크롤 시 함께 숨길 하단 크롬(네비 바) — 커뮤니티·내정보와 동일 신호.
+  final ValueNotifier<bool>? chromeVisible;
+  const ChatTab({super.key, this.isGuest = false, this.chromeVisible});
 
   @override
   State<ChatTab> createState() => _ChatTabState();
 }
 
-class _ChatTabState extends State<ChatTab> {
+class _ChatTabState extends State<ChatTab> with SingleTickerProviderStateMixin {
   final _repo = ChatRepository.instance;
+
+  // 상단 헤더 + 하단 네비 바 숨김/복귀 — 규칙은 lib/motion/scroll_chrome.dart.
+  late final _chrome = ScrollChrome(
+    vsync: this,
+    chromeVisible: widget.chromeVisible,
+  );
   List<ChatRoomSummary> _rooms = [];
 
   // 채팅 목록 분리(0026) — 업체 문의 방이 하나라도 있으면 개인/업체 탭 노출.
@@ -72,6 +81,7 @@ class _ChatTabState extends State<ChatTab> {
   @override
   void dispose() {
     AppEvents.instance.chat.removeListener(_onChatChanged);
+    _chrome.dispose();
     super.dispose();
   }
 
@@ -113,9 +123,21 @@ class _ChatTabState extends State<ChatTab> {
       backgroundColor: context.colors.background,
       body: Stack(
         children: [
-          Positioned.fill(child: _buildBody(topInset + 56)),
-          GradientHeader(
-            topInset: topInset,
+          Positioned.fill(
+            child: NotificationListener<UserScrollNotification>(
+              onNotification: _chrome.onUserScroll,
+              child: _buildBody(topInset + 56),
+            ),
+          ),
+          // 헤더 — 아래로 스크롤 시 위로 밀려 숨고, 위로 올리면 스프링 복귀
+          // (하단 네비 바와 같은 신호로 동기화).
+          AnimatedBuilder(
+            animation: _chrome,
+            builder: (context, child) => GradientHeader(
+              topInset: topInset,
+              shift: _chrome.hidden * (topInset + 72),
+              child: child!,
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Text(

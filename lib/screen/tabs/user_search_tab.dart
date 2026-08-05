@@ -19,14 +19,28 @@ import '../user_profile_screen.dart';
 /// 결과 타일을 누르면 그 자리에서 프로필이 펼쳐지고, 당기면 타일로 축소된다
 /// (커뮤니티 게시글 상세와 동일한 전환).
 class UserSearchTab extends StatefulWidget {
-  const UserSearchTab({super.key});
+  /// 아래로 스크롤 시 함께 숨길 하단 크롬(네비 바) — 커뮤니티·내정보와 동일 신호.
+  final ValueNotifier<bool>? chromeVisible;
+  const UserSearchTab({super.key, this.chromeVisible});
 
   @override
   State<UserSearchTab> createState() => _UserSearchTabState();
 }
 
-class _UserSearchTabState extends State<UserSearchTab> {
+class _UserSearchTabState extends State<UserSearchTab>
+    with SingleTickerProviderStateMixin {
   final _ctrl = TextEditingController();
+
+  // 상단 헤더 + 하단 네비 바 숨김/복귀 — 규칙은 lib/motion/scroll_chrome.dart.
+  //
+  // 여기 헤더는 제목 + 검색창이라 다른 탭보다 높다(topPad 134). 그래서 되돌아오는
+  // 기준선도 헤더 높이에 맞춰 넉넉히 잡는다 — 64 로 두면 검색창이 반쯤 걸친
+  // 어중간한 위치에서 숨었다 나타났다 한다.
+  late final _chrome = ScrollChrome(
+    vsync: this,
+    chromeVisible: widget.chromeVisible,
+    revealBelow: 100,
+  );
   Timer? _debounce;
   int _reqId = 0; // 응답 순서 꼬임 방지
 
@@ -125,6 +139,7 @@ class _UserSearchTabState extends State<UserSearchTab> {
   void dispose() {
     _debounce?.cancel();
     _ctrl.dispose();
+    _chrome.dispose();
     super.dispose();
   }
 
@@ -199,9 +214,21 @@ class _UserSearchTabState extends State<UserSearchTab> {
       body: Stack(
         children: [
           // 헤더가 상태바 아래로 8 떠 있으므로 그만큼 리스트 시작점도 내린다.
-          Positioned.fill(child: _buildBody(topInset + 134)),
-          GradientHeader(
-            topInset: topInset,
+          Positioned.fill(
+            child: NotificationListener<UserScrollNotification>(
+              onNotification: _chrome.onUserScroll,
+              child: _buildBody(topInset + 134),
+            ),
+          ),
+          // 헤더 — 아래로 스크롤 시 위로 밀려 숨고, 위로 올리면 스프링 복귀
+          // (하단 네비 바와 같은 신호로 동기화).
+          AnimatedBuilder(
+            animation: _chrome,
+            builder: (context, child) => GradientHeader(
+              topInset: topInset,
+              shift: _chrome.hidden * (topInset + 150),
+              child: child!,
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Column(

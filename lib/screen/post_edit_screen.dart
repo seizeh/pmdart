@@ -11,7 +11,7 @@ import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel;
 import '../widgets/blob_background.dart';
-import '../widgets/media_widgets.dart' show VideoPlayBadge;
+import '../widgets/media_widgets.dart' show VideoPlayBadge, openVideoPlayer;
 import '../widgets/post_editor_parts.dart';
 import '../widgets/post_media_hero.dart' show MediaOverlayPanel;
 import '../widgets/role_badge.dart' show categoryColor;
@@ -59,6 +59,11 @@ class _PostEditScreenState extends State<PostEditScreen> {
   UploadedVideo? _newVideo; // 새로 올린 동영상(사진과 상호 배타)
   bool _imageEdited = false; // 사용자가 미디어를 바꾸거나 지웠는지
   bool _uploading = false;
+
+  /// 미리보기로 재생할 영상 URL — 새로 올린 것이 있으면 그쪽, 없으면 원래 영상.
+  /// (`_imageUrl` 은 영상일 때 **포스터** 주소라 재생에 쓸 수 없다.)
+  String? get _videoUrl =>
+      _newVideo?.url ?? (widget.post.isVideo ? widget.post.imageUrl : null);
 
   // 원래 약속 일정이 있던 게시글만 일정 편집 노출(카테고리는 못 바꾸므로 유형 고정).
   bool get _hasSchedule => widget.post.scheduledAt != null;
@@ -474,7 +479,16 @@ class _PostEditScreenState extends State<PostEditScreen> {
                   ),
                 ),
               ),
-            if (_isVideo) const Center(child: VideoPlayBadge(size: 56)),
+            // 탭하면 미리보기. 새로 올린 영상이 있으면 그쪽, 없으면 원래 영상.
+            // ⚠️ VideoPlayBadge 는 장식일 뿐이라 감싸지 않으면 눌러도 무반응이다.
+            if (_isVideo && _videoUrl != null)
+              Center(
+                child: Pressable(
+                  borderRadius: BorderRadius.circular(28),
+                  onTap: () => openVideoPlayer(context, _videoUrl!),
+                  child: const VideoPlayBadge(size: 56),
+                ),
+              ),
             Positioned(
               left: 0,
               right: 0,

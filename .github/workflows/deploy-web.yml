@@ -127,10 +127,13 @@ jobs:
       # ⚠️ --no-web-resources-cdn 은 선택이 아니다(위 주석 참고).
       #
       # APP_RELEASE 는 오류 보고(app.client_errors.app_release)에 함께 저장돼
-      # '어느 배포부터 생긴 오류인지' 를 보게 한다. pubspec 의 version 을 그대로 쓴다.
+      # '어느 배포부터 생긴 오류인지' 를 보게 한다. pubspec version 만으로는
+      # 같은 버전의 여러 배포가 구분되지 않아 커밋 短해시를 덧붙인다
+      # (예: pawmate@2.0.0+9.4adfd64 — 오류가 어느 배포부터인지 정확히 찍힌다).
       - name: 웹 빌드
         run: |
-          release="pawmate@$(grep -E '^version:' pubspec.yaml | awk '{print $2}')"
+          sha7="$(git rev-parse --short=7 HEAD)"
+          release="pawmate@$(grep -E '^version:' pubspec.yaml | awk '{print $2}').${sha7}"
           echo "release: $release"
           flutter build web --release --no-web-resources-cdn \
             --dart-define=APP_RELEASE="$release"

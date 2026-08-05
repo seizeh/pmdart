@@ -18,6 +18,7 @@ import '../services/profile_repository.dart';
 import '../services/session.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../widgets/attachment_progress.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/media_widgets.dart' show VideoPlayBadge, openVideoPlayer;
 import '../widgets/post_editor_parts.dart';
@@ -81,6 +82,9 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   // 첨부 동영상(자유·소식만, 서버 CHECK 동일) — 사진과 상호 배타(단일 미디어 슬롯).
   UploadedVideo? _uploadedVideo;
   bool _uploadingImage = false;
+  // 첨부 진행률(고리). setState 대신 notifier 를 쓰는 이유는 성능이다 —
+  // 진행 콜백마다 setState 를 돌면 히어로 전체가 초당 수십 번 다시 그려진다.
+  final _progress = AttachmentProgress();
   // 사진 필수 카테고리(walk/care/give_away)에서 서버 검증 통과 시 받는 1회용 토큰.
   String? _photoToken;
   // 검증 사진이 묶인(촬영한) 펫 id — 이 펫이 선택 해제되면 사진을 무효화한다.
@@ -620,6 +624,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     tooltip: tooltip,
     onTap: onTap,
     busy: busy,
+    progress: busy ? _progress : null,
   );
 
   /// 카테고리 태그(흰 필름 알약) — 피드 카드와 동일 + 편집 힌트(▾).
@@ -836,14 +841,29 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
   Future<void> _pickAndUploadVideo() async {
     final XFile? file;
     try {
-      file = await StorageService.instance.pickVideo();
+      file = await StorageService.instance.pickVideo(
+        // 재인코딩은 picker 가 닫힌 **뒤** 시작되므로, 이 콜백이 오는 순간이
+        // 곧 대기가 시작되는 순간이다. 여기서 버튼을 진행 상태로 넘긴다.
+        onCompress: (p) {
+          if (!mounted) return;
+          if (!_uploadingImage) setState(() => _uploadingImage = true);
+          _progress.compressing(p);
+        },
+      );
     } catch (_) {
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      _progress.done();
       _toast('동영상을 불러오지 못했어요');
       return;
     }
     // OS 픽커가 떠 있는 동안 강제 라우팅(정지 게이트·푸시)으로 라우트가 걷힐 수
     // 있다 — 그러면 아래 setState 가 defunct State 를 건드린다(#238).
-    if (file == null || !mounted) return;
+    if (file == null || !mounted) {
+      if (mounted) setState(() => _uploadingImage = false);
+      _progress.done();
+      return;
+    }
     setState(() {
       _uploadedImage = null;
       _uploadedVideo = null;
@@ -855,19 +875,23 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
       final up = await StorageService.instance.uploadVideo(
         file,
         category: 'posts',
+        onProgress: _progress.uploading,
       );
       if (!mounted) return;
       setState(() {
         _uploadedVideo = up;
         _uploadingImage = false;
       });
+      _progress.done();
     } on StateError catch (e) {
       if (!mounted) return;
       setState(() => _uploadingImage = false);
+      _progress.done();
       _toast(e.message); // 100MB 초과 등 한국어 안내
     } catch (_) {
       if (!mounted) return;
       setState(() => _uploadingImage = false);
+      _progress.done();
       _toast('동영상 업로드에 실패했어요');
     }
   }
@@ -1000,17 +1024,20 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
         category: 'posts',
         ext: cropped.ext,
         mime: cropped.mime,
+        onProgress: _progress.uploading,
       );
       if (!mounted) return;
       setState(() {
         _uploadedImage = up;
         _uploadingImage = false;
       });
+      _progress.done();
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _uploadingImage = false;
       });
+      _progress.done();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('사진 업로드에 실패했어요'),
@@ -1035,6 +1062,7 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
     _titleCtrl.dispose();
     _contentCtrl.dispose();
     _scroll.dispose();
+    _progress.dispose();
     super.dispose();
   }
 

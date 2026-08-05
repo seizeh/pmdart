@@ -850,6 +850,13 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
           _progress.compressing(p);
         },
       );
+    } on StateError catch (e) {
+      // 길이 초과 등 — 왜 안 되는지 그대로 알려 준다.
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      _progress.done();
+      _toast(e.message);
+      return;
     } catch (_) {
       if (!mounted) return;
       setState(() => _uploadingImage = false);

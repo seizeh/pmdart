@@ -179,21 +179,54 @@ class StorageService {
   /// 커지는 구간이다. 이미 작은 영상을 굳이 다시 굽지 않는다.
   static const int _videoCompressOverBytes = 6 * 1024 * 1024;
 
-  /// 갤러리에서 첨부용 동영상 1개 선택.
+  /// 첨부 영상 길이 상한. UI 안내 문구("최대 60초")와 같은 값이다.
+  static const Duration maxVideoDuration = Duration(seconds: 60);
+
+  /// 갤러리에서 첨부용 동영상 1개 선택. 길이 초과면 [StateError].
   ///
-  /// ⚠️ `maxDuration` 은 **갤러리 선택에 적용되지 않는다.** iOS 는 PHPicker 경로가
-  /// 이 값을 쓰지 않고(FLTImagePickerPlugin.m), Android 도 촬영 인텐트에만 건다
-  /// (ImagePickerDelegate.java). 남겨 둔 것은 iOS 13 이하의 UIImagePicker 폴백
-  /// 때문이고, 실질 방어는 100MB 상한이다.
+  /// ⚠️ picker 의 `maxDuration` 은 **갤러리 선택에 적용되지 않는다.** iOS 는
+  /// PHPicker 경로가 이 값을 쓰지 않고(FLTImagePickerPlugin.m:269-277), Android 도
+  /// 촬영 인텐트에만 건다(ImagePickerDelegate.java:407). 그래서 안내만 "최대 60초"
+  /// 라고 해 두고 실제로는 5분짜리도 통과했다 — 아래에서 직접 잰다. picker 인자를
+  /// 남겨 둔 것은 iOS 13 이하의 UIImagePicker 폴백에서는 실제로 먹기 때문이다.
   ///
   /// [onCompress] 는 재인코딩이 **실제로 일어날 때만** 불린다 — 화면은 이 콜백이
   /// 왔는지로 압축 단계가 있었는지 판단한다.
   Future<XFile?> pickVideo({ProgressCallback? onCompress}) async {
     final f = await _picker.pickVideo(
       source: ImageSource.gallery,
-      maxDuration: const Duration(seconds: 60),
+      maxDuration: maxVideoDuration,
     );
-    return f == null ? null : _normalizeVideo(f, onCompress);
+    if (f == null) return null;
+    await _rejectIfTooLong(f);
+    return _normalizeVideo(f, onCompress);
+  }
+
+  /// 길이 상한 초과면 [StateError] — 재인코딩 **전에** 잰다. 나중에 걸러도 되지만
+  /// 그러면 어차피 버릴 영상을 굽느라 몇십 초를 쓴다.
+  ///
+  /// 못 재면 통과시킨다(길이를 모른다고 첨부를 막지는 않는다). 웹은 이 플러그인
+  /// 구현이 없어 항상 여기에 해당하고, 그쪽 방어는 100MB 상한이 맡는다.
+  Future<void> _rejectIfTooLong(XFile file) async {
+    if (kIsWeb) return;
+    final double? ms;
+    try {
+      ms = (await VideoCompress.getMediaInfo(file.path)).duration;
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'storage.videoDuration',
+        why: '길이 측정 실패 — 통과시킨다(용량 상한이 남은 방어선)',
+      );
+      return;
+    }
+    if (ms == null || ms <= 0) return;
+    final seconds = ms / 1000;
+    if (seconds <= maxVideoDuration.inSeconds + 1) return; // 반올림 여유 1초
+    throw StateError(
+      '동영상은 ${maxVideoDuration.inSeconds}초 이하만 첨부할 수 있어요'
+      ' (선택한 영상 ${seconds.round()}초)',
+    );
   }
 
   /// 업로드 전 영상 재인코딩 — 사진의 [_normalizePhoto] 와 같은 자리다.

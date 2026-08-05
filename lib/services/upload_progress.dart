@@ -64,7 +64,6 @@ class UploadProgressClient extends http.BaseClient {
 class _CountingRequest extends http.BaseRequest {
   _CountingRequest(this._inner, this._onSent)
     : super(_inner.method, _inner.url) {
-    headers.addAll(_inner.headers);
     followRedirects = _inner.followRedirects;
     maxRedirects = _inner.maxRedirects;
     persistentConnection = _inner.persistentConnection;
@@ -82,10 +81,25 @@ class _CountingRequest extends http.BaseRequest {
 
   @override
   http.ByteStream finalize() {
+    // ⚠️ 헤더 복사는 **반드시 inner.finalize() 뒤**여야 한다.
+    //
+    // MultipartRequest 는 boundary 를 finalize 시점에 만들고 그때
+    // `content-type: multipart/form-data; boundary=…` 를 자기 헤더에 넣는다
+    // (http 1.6 multipart_request.dart:88-93). 생성자에서 복사하면 그 헤더가
+    // 없는 채로 나가고, 서버는 경계 없는 멀티파트를 파싱하지 못해 업로드가
+    // 통째로 실패한다 — 실기기에서 이걸로 "동영상 업로드에 실패했어요" 를 봤다.
+    //
+    // IOClient/BrowserClient 모두 finalize() 를 먼저 부르고 그 다음에
+    // request.headers 를 읽으므로(io_client.dart send) 여기서 채우면 늦지 않다.
+    final body = _inner.finalize();
+    headers
+      ..clear()
+      ..addAll(_inner.headers);
     super.finalize();
+
     var sent = 0;
     return http.ByteStream(
-      _inner.finalize().map((chunk) {
+      body.map((chunk) {
         sent += chunk.length;
         _onSent(sent);
         return chunk;

@@ -86,6 +86,28 @@ void main() {
     expect(inner.body.length, 10);
   });
 
+  test('멀티파트 boundary 헤더가 보존된다', () async {
+    // MultipartRequest 는 boundary 를 **finalize 시점에** 만들고 그때 자기
+    // content-type 헤더에 적는다. 래퍼가 생성자에서 헤더를 복사하면 그 헤더가
+    // 빠진 채 나가고 서버는 바디를 파싱하지 못한다(실기기 업로드 실패 원인).
+    final inner = _CapturingClient();
+    final client = UploadProgressClient(inner);
+    client.watch('u/p/1.mp4', (_, _) {});
+
+    final req = http.MultipartRequest(
+      'POST',
+      url,
+    )..files.add(http.MultipartFile.fromBytes('', Uint8List(32), filename: ''));
+    await client.send(req);
+
+    final ct = inner.seen!.headers['content-type'];
+    expect(ct, isNotNull);
+    expect(ct, startsWith('multipart/form-data; boundary='));
+    // 실제로 나간 바디의 경계와 헤더의 경계가 같아야 한다.
+    final boundary = ct!.split('boundary=').last;
+    expect(utf8.decode(inner.body), contains(boundary));
+  });
+
   test('해제하면 더 이상 보고하지 않는다', () async {
     final inner = _CapturingClient();
     final client = UploadProgressClient(inner);
@@ -105,9 +127,8 @@ void main() {
     client.watch('u/p/1.mp4', (_, _) => calls++);
 
     // contentLength 를 주지 않는 요청(스트리밍 등) — 분모가 없으니 셀 수 없다.
-    final req = http.StreamedRequest('POST', url)
-      ..sink.add(utf8.encode('hi'))
-      ..sink.close();
+    final req = http.StreamedRequest('POST', url)..sink.add(utf8.encode('hi'));
+    unawaited(req.sink.close());
     await client.send(req);
 
     expect(calls, 0);

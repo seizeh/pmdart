@@ -493,8 +493,17 @@ class _FacilityReviewScreenState extends State<FacilityReviewScreen> {
                 bottom: h * 0.42,
                 child: Center(child: _contentField(hero: true)),
               ),
-            // 영상만 첨부 — 중앙 ▶ 배지(후기 카드와 동일 문법).
-            if (videoOnly) const Center(child: VideoPlayBadge(size: 56)),
+            // 영상만 첨부 — 중앙 ▶ 배지(후기 카드와 동일 문법). 탭하면 미리보기.
+            // ⚠️ VideoPlayBadge 는 장식일 뿐이라 감싸지 않으면 눌러도 무반응이다
+            //    (아래 썸네일 스트립의 VideoPosterTile 은 제 손으로 감싸고 있다).
+            if (videoOnly)
+              Center(
+                child: Pressable(
+                  borderRadius: BorderRadius.circular(28),
+                  onTap: () => openVideoPlayer(context, _videos.first.url),
+                  child: const VideoPlayBadge(size: 56),
+                ),
+              ),
             // 하단 오버레이 패널 — 상세와 동일(뒤에만 점진 블러 + 스크림).
             Positioned(
               left: 0,

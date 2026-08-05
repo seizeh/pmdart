@@ -19,7 +19,7 @@ import '../services/session.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../widgets/blob_background.dart';
-import '../widgets/media_widgets.dart' show VideoPlayBadge;
+import '../widgets/media_widgets.dart' show VideoPlayBadge, openVideoPlayer;
 import '../widgets/post_editor_parts.dart';
 import '../widgets/post_media_hero.dart' show MediaOverlayPanel;
 import '../widgets/role_badge.dart';
@@ -194,8 +194,17 @@ class _PostCreateScreenState extends State<PostCreateScreen> {
                 bottom: h * 0.42,
                 child: Center(child: _contentField(hero: true)),
               ),
-            // 영상 첨부 — 중앙 ▶ 배지(피드 카드와 동일 문법).
-            if (videoAttached) const Center(child: VideoPlayBadge(size: 56)),
+            // 영상 첨부 — 중앙 ▶ 배지(피드 카드와 동일 문법). 탭하면 미리보기.
+            // ⚠️ VideoPlayBadge 는 Container+Icon 뿐인 **장식**이다 — 감싸지 않으면
+            //    눌러도 아무 일이 없다(그대로 뒀다가 제보를 받았다).
+            if (videoAttached)
+              Center(
+                child: Pressable(
+                  borderRadius: BorderRadius.circular(28),
+                  onTap: () => openVideoPlayer(context, _uploadedVideo!.url),
+                  child: const VideoPlayBadge(size: 56),
+                ),
+              ),
             // 하단 오버레이 패널 — 상세와 동일(뒤에만 점진 블러 + 스크림).
             Positioned(
               left: 0,

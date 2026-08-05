@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -224,7 +225,7 @@ class StorageService {
   }
 
   /// 첨부 동영상 업로드 — 100MB 초과 시 예외. media 버킷에 영상을 올리고,
-  /// 첫 프레임으로 포스터(jpeg)를 만들어 함께 업로드한다(포스터 실패는 무해 —
+  /// 첫 프레임으로 포스터(jpeg)를 만들어 **동시에** 업로드한다(포스터 실패는 무해 —
   /// 표시 쪽이 어두운 타일로 폴백).
   Future<UploadedVideo> uploadVideo(
     XFile file, {
@@ -248,52 +249,72 @@ class StorageService {
     final reject = mediaUploadRejection(mime, bytes.length);
     if (reject != null) throw StateError(reject);
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await _c.storage
-        .from('media')
-        .uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(contentType: mime, upsert: false),
-        );
+
+    // 포스터는 로컬 파일만 있으면 만들 수 있으므로 **영상 업로드와 동시에** 돌린다.
+    // 종전에는 업로드가 끝난 뒤에야 디코드→업로드를 시작해서, 사용자에게는 "다
+    // 올라간 것 같은데 안 끝나는" 구간(디코드 + 왕복 한 번)이 대기 시간에 그대로
+    // 얹혔다. 포스터 쪽이 더 빨리 끝나므로 사실상 공짜가 된다.
+    final posterFuture = _uploadVideoPoster(file, category: category);
+
+    try {
+      await _c.storage
+          .from('media')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(contentType: mime, upsert: false),
+          );
+    } catch (e) {
+      // 영상이 실패했으면 먼저 끝났을지 모를 포스터는 참조될 곳이 없다 — 고아로
+      // 남기지 않고 지운다(#233 과 동종. 직렬이던 종전에는 시작조차 안 했으니
+      // 생기지 않던 경우다). 정리를 기다리느라 오류 전달이 늦지 않게 unawaited.
+      unawaited(posterFuture.then(discardByUrl));
+      rethrow;
+    }
     final url = _c.storage.from('media').getPublicUrl(path);
 
-    // 포스터(첫 프레임) — 실패해도 영상 자체는 유효하므로 무시.
-    // 웹은 video_thumbnail 구현이 없다(MissingPluginException) — 아래 catch 가
-    // 삼키긴 하지만 무의미한 왕복이라 아예 건너뛴다. 표시 쪽 폴백이 받는다.
-    String? thumbUrl;
+    return UploadedVideo(
+      url: url,
+      mime: mime,
+      size: bytes.length,
+      thumbUrl: await posterFuture,
+      path: path,
+    );
+  }
+
+  /// 영상 첫 프레임을 포스터(jpeg)로 올리고 공개 URL 반환. **절대 던지지 않는다** —
+  /// 포스터가 없어도 표시 쪽이 어두운 타일로 폴백하므로 영상 자체는 유효하다.
+  /// (던지면 업로드와 병렬로 돌 때 미처리 비동기 예외가 된다.)
+  Future<String?> _uploadVideoPoster(
+    XFile file, {
+    required String category,
+  }) async {
+    // 웹은 video_thumbnail 구현이 없다(MissingPluginException) — catch 가 삼키긴
+    // 하지만 무의미한 왕복이라 아예 건너뛴다.
+    if (kIsWeb) return null;
     try {
-      final poster = kIsWeb
-          ? null
-          : await VideoThumbnail.thumbnailData(
-              video: file.path,
-              imageFormat: ImageFormat.JPEG,
-              maxWidth: 1024,
-              quality: 75,
-            );
-      if (poster != null) {
-        final up = await uploadBytes(
-          poster,
-          category: category,
-          ext: 'jpg',
-          mime: 'image/jpeg',
-        );
-        thumbUrl = up.url;
-      }
+      final poster = await VideoThumbnail.thumbnailData(
+        video: file.path,
+        imageFormat: ImageFormat.JPEG,
+        maxWidth: 1024,
+        quality: 75,
+      );
+      if (poster == null) return null;
+      final up = await uploadBytes(
+        poster,
+        category: category,
+        ext: 'jpg',
+        mime: 'image/jpeg',
+      );
+      return up.url;
     } catch (e) {
       ErrorReporter.ignored(
         e,
         where: 'storage.videoPoster',
         why: '포스터 생성 실패 — 표시 쪽이 기본 썸네일로 폴백한다',
       );
+      return null;
     }
-
-    return UploadedVideo(
-      url: url,
-      mime: mime,
-      size: bytes.length,
-      thumbUrl: thumbUrl,
-      path: path,
-    );
   }
 
   /// 공개 URL 에서 media 버킷 내 경로 추출. media 공개 URL 형식이 아니면 null.

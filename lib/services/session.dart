@@ -180,7 +180,18 @@ class SessionManager extends ChangeNotifier {
       } catch (e, st) {
         // 저장된 사용자 JSON 이 깨졌다 = 모델 변경과 저장본이 어긋났다는 뜻.
         // 로그인 상태가 조용히 풀리는 원인이라 반드시 알아야 한다.
-        ErrorReporter.report(e, where: 'session.restoreUser', stackTrace: st);
+        // 원문의 형태(앞 8자·길이)를 함께 남긴다 — 2026-07-31 웹 발생 건은
+        // 쓰기 경로가 전부 jsonEncode 라 1st-party 로는 설명이 안 됐다(외부 요인
+        // 의심). 재발 시 "우리 버그 vs 외부 조작" 을 이걸로 가른다.
+        ErrorReporter.report(
+          e,
+          where: 'session.restoreUser',
+          stackTrace: st,
+          extra: {
+            'stored_len': userStr.length,
+            'stored_head': userStr.substring(0, userStr.length.clamp(0, 8)),
+          },
+        );
         _user = null;
       }
     }

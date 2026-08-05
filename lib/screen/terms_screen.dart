@@ -54,9 +54,31 @@ class _TermsScreenState extends State<TermsScreen> {
   final _scroll = ScrollController();
   bool _readToEnd = false;
 
+  /// 개정 이력 문단의 위치 — 앱바의 '개정 이력' 버튼이 여기로 보낸다.
+  /// 문서마다 제목이 다르다: 약관은 '부칙', 처리방침은 '14. …의 변경'.
+  /// 못 찾으면 버튼 자체를 노출하지 않는다(빈 동작보다 없는 편이 낫다).
+  final _historyKey = GlobalKey();
+  bool _hasHistory = false;
+
   // build 안에서 만들면 리빌드(읽음 처리 setState 등)마다 FutureBuilder 가
   // 대기 상태로 돌아가 스피너가 깜빡인다(#239) — 1회 생성으로 고정.
-  late final Future<String> _body = rootBundle.loadString(widget.assetPath);
+  late final Future<String> _body = _load();
+
+  /// 문서를 읽으면서 개정 이력 절이 있는지 함께 판정한다.
+  ///
+  /// ⚠️ `setState` 가 필요하다. 앱바는 `FutureBuilder` **바깥**에 있어서 문서가
+  /// 도착해도 다시 그려지지 않는다 — FutureBuilder 는 자기 하위 트리만 갱신한다.
+  /// (렌더링 도중에 판정하는 방식도 같은 이유로 안 된다: 앱바가 본문보다 먼저
+  /// 만들어진다.)
+  Future<String> _load() async {
+    final md = await rootBundle.loadString(widget.assetPath);
+    final has = md.split('\n').any((line) {
+      final h = RegExp(r'^(#{1,6})\s*(.*)$').firstMatch(line.trim());
+      return h != null && _isHistoryHeading(h.group(2)!);
+    });
+    if (has && mounted) setState(() => _hasHistory = true);
+    return md;
+  }
 
   @override
   void initState() {
@@ -80,11 +102,43 @@ class _TermsScreenState extends State<TermsScreen> {
     }
   }
 
+  /// 개정 이력 절로 이동 — 언제 무엇이 바뀌었는지는 전부 거기 적혀 있는데,
+  /// 문서 맨 끝이라 스크롤하지 않으면 있는 줄도 모른다.
+  Future<void> _goToHistory() async {
+    final ctx = _historyKey.currentContext;
+    if (ctx == null) return;
+    await Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+      alignment: 0.05, // 제목이 화면 위쪽에 걸리게
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ⚠️ 가입 동의 단계에서는 노출하지 않는다 — 개정 이력은 문서 끝이라 거기로
+    // 보내면 '끝까지 읽어야 동의 가능' 게이트가 한 번의 탭으로 풀린다.
+    final showHistory = _hasHistory && !widget.requireReadToAgree;
     return Scaffold(
       backgroundColor: context.colors.background,
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          if (showHistory)
+            TextButton(
+              onPressed: _goToHistory,
+              child: Text(
+                '개정 이력',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.primaryDark,
+                ),
+              ),
+            ),
+        ],
+      ),
       body: FutureBuilder<String>(
         future: _body,
         builder: (context, snap) {
@@ -182,7 +236,15 @@ class _TermsScreenState extends State<TermsScreen> {
       final h = RegExp(r'^(#{1,6})\s*(.*)$').firstMatch(t);
       if (h != null) {
         flushPara();
-        blocks.add(_heading(context, h.group(1)!.length, h.group(2)!));
+        final text = h.group(2)!;
+        blocks.add(
+          _heading(
+            context,
+            h.group(1)!.length,
+            text,
+            key: _isHistoryHeading(text) ? _historyKey : null,
+          ),
+        );
         continue;
       }
       if (t.startsWith('|')) {
@@ -202,13 +264,20 @@ class _TermsScreenState extends State<TermsScreen> {
     return blocks;
   }
 
-  Widget _heading(BuildContext context, int level, String text) {
+  /// 개정 이력이 실린 절의 제목인가 — 약관은 '부칙', 처리방침은 '…의 변경'.
+  static bool _isHistoryHeading(String text) {
+    final t = _stripBold(text).trim();
+    return t == '부칙' || t.endsWith('의 변경');
+  }
+
+  Widget _heading(BuildContext context, int level, String text, {Key? key}) {
     final (size, weight) = switch (level) {
       1 => (19.0, FontWeight.w800),
       2 => (16.5, FontWeight.w800),
       _ => (14.5, FontWeight.w700),
     };
     return Padding(
+      key: key,
       padding: EdgeInsets.only(top: level <= 2 ? 18 : 14, bottom: 6),
       child: Text(
         _stripBold(text),
@@ -262,7 +331,7 @@ class _TermsScreenState extends State<TermsScreen> {
     return spans;
   }
 
-  String _stripBold(String s) => s.replaceAll('**', '');
+  static String _stripBold(String s) => s.replaceAll('**', '');
 
   Widget _table(BuildContext context, List<String> tableLines) {
     // 셀 분해 — 앞뒤 빈 조각 제거, |---|:--| 구분선 행 제외.

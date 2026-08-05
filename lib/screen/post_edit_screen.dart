@@ -10,6 +10,7 @@ import '../services/community/post_write_repository.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/labels.dart' show categoryLabel;
+import '../widgets/attachment_progress.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/media_widgets.dart' show VideoPlayBadge, openVideoPlayer;
 import '../widgets/post_editor_parts.dart';
@@ -59,6 +60,9 @@ class _PostEditScreenState extends State<PostEditScreen> {
   UploadedVideo? _newVideo; // 새로 올린 동영상(사진과 상호 배타)
   bool _imageEdited = false; // 사용자가 미디어를 바꾸거나 지웠는지
   bool _uploading = false;
+  // 첨부 진행률(고리) — 작성 화면과 같은 컨트롤러. setState 대신 notifier 를 쓰는
+  // 이유는 성능이다(진행 콜백마다 히어로 전체를 다시 그리지 않는다).
+  final _progress = AttachmentProgress();
 
   /// 미리보기로 재생할 영상 URL — 새로 올린 것이 있으면 그쪽, 없으면 원래 영상.
   /// (`_imageUrl` 은 영상일 때 **포스터** 주소라 재생에 쓸 수 없다.)
@@ -184,13 +188,26 @@ class _PostEditScreenState extends State<PostEditScreen> {
 
   /// 동영상 선택 → 업로드(포스터 생성 포함). 100MB 초과는 업로드 전에 안내.
   Future<void> _pickVideo() async {
-    final file = await StorageService.instance.pickVideo();
-    if (file == null || !mounted) return;
+    // 재인코딩은 picker 가 닫힌 **뒤** 시작되므로 이 콜백이 오는 순간이 곧
+    // 대기가 시작되는 순간이다 — 여기서 버튼을 진행 상태로 넘긴다.
+    final file = await StorageService.instance.pickVideo(
+      onCompress: (p) {
+        if (!mounted) return;
+        if (!_uploading) setState(() => _uploading = true);
+        _progress.compressing(p);
+      },
+    );
+    if (file == null || !mounted) {
+      if (mounted) setState(() => _uploading = false);
+      _progress.done();
+      return;
+    }
     setState(() => _uploading = true);
     try {
       final up = await StorageService.instance.uploadVideo(
         file,
         category: 'posts',
+        onProgress: _progress.uploading,
       );
       if (!mounted) return;
       setState(() {
@@ -201,9 +218,11 @@ class _PostEditScreenState extends State<PostEditScreen> {
         _imageEdited = true;
         _uploading = false;
       });
+      _progress.done();
     } on StateError catch (e) {
       if (!mounted) return;
       setState(() => _uploading = false);
+      _progress.done();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message), // 100MB 초과 등 한국어 안내
@@ -213,6 +232,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _uploading = false);
+      _progress.done();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('동영상 업로드에 실패했어요'),
@@ -245,6 +265,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
         category: 'posts',
         ext: cropped.ext,
         mime: cropped.mime,
+        onProgress: _progress.uploading,
       );
       if (!mounted) return;
       setState(() {
@@ -255,9 +276,11 @@ class _PostEditScreenState extends State<PostEditScreen> {
         _imageEdited = true;
         _uploading = false;
       });
+      _progress.done();
     } catch (_) {
       if (!mounted) return;
       setState(() => _uploading = false);
+      _progress.done();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('사진 업로드에 실패했어요'),
@@ -281,6 +304,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _contentCtrl.dispose();
+    _progress.dispose();
     super.dispose();
   }
 
@@ -532,6 +556,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
                           : Icons.add_a_photo_outlined,
                       tooltip: _canEditVideo ? '사진·동영상 교체' : '사진 교체',
                       busy: _uploading,
+                      progress: _uploading ? _progress : null,
                       onTap: _pickMedia,
                     ),
                     if (hasPhoto && !_uploading) ...[

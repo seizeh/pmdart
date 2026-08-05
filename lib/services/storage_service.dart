@@ -4,12 +4,14 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'error_reporter.dart';
 import 'session.dart';
+import 'upload_progress.dart';
 
 /// 이미지 선택 + Supabase Storage(media 버킷) 업로드.
 /// 경로 규약: `<uid>/<category>/<timestamp>.<ext>` (RLS: 첫 폴더 = 내 uid).
@@ -49,9 +51,19 @@ String? mediaUploadRejection(String mime, int bytes) {
   return null;
 }
 
+/// 단계별 진행 콜백 — 0.0~1.0. 압축과 업로드를 한 고리로 잇는 일은
+/// 화면 쪽(`AttachmentProgress`) 몫이다.
+typedef ProgressCallback = void Function(double fraction);
+
 class StorageService {
   StorageService._();
   static final StorageService instance = StorageService._();
+
+  /// Supabase 에 넘길 http 클라이언트 — 업로드 바이트를 세는 얇은 래퍼.
+  /// [bootstrap] 이 `Supabase.initialize(httpClient:)` 로 넣는다.
+  static final UploadProgressClient uploadProgress = UploadProgressClient(
+    http.Client(),
+  );
 
   final ImagePicker _picker = ImagePicker();
   SupabaseClient get _c => Supabase.instance.client;
@@ -173,12 +185,15 @@ class StorageService {
   /// 이 값을 쓰지 않고(FLTImagePickerPlugin.m), Android 도 촬영 인텐트에만 건다
   /// (ImagePickerDelegate.java). 남겨 둔 것은 iOS 13 이하의 UIImagePicker 폴백
   /// 때문이고, 실질 방어는 100MB 상한이다.
-  Future<XFile?> pickVideo() async {
+  ///
+  /// [onCompress] 는 재인코딩이 **실제로 일어날 때만** 불린다 — 화면은 이 콜백이
+  /// 왔는지로 압축 단계가 있었는지 판단한다.
+  Future<XFile?> pickVideo({ProgressCallback? onCompress}) async {
     final f = await _picker.pickVideo(
       source: ImageSource.gallery,
       maxDuration: const Duration(seconds: 60),
     );
-    return f == null ? null : _normalizeVideo(f);
+    return f == null ? null : _normalizeVideo(f, onCompress);
   }
 
   /// 업로드 전 영상 재인코딩 — 사진의 [_normalizePhoto] 와 같은 자리다.
@@ -191,13 +206,25 @@ class StorageService {
   /// 전부 받기 전에 재생이 시작되고, 출력이 mp4 라 .mov 보다 브라우저 호환도 낫다.
   ///
   /// 실패하거나 이득이 없으면 **원본을 그대로 반환**한다. 첨부 자체를 막지 않는다.
-  Future<XFile> _normalizeVideo(XFile file) async {
+  Future<XFile> _normalizeVideo(
+    XFile file, [
+    ProgressCallback? onProgress,
+  ]) async {
     // 웹은 이 플러그인 구현이 없다(android/ios/macos 만). 원본으로 간다.
     if (kIsWeb) return file;
+    Subscription? sub;
     try {
       final length = await file.length();
       if (length <= _videoCompressOverBytes) return file;
 
+      if (onProgress != null) {
+        // 이 스트림은 **단일 구독**이다(ObservableBuilder 가 브로드캐스트가 아님).
+        // 해제하면 컨트롤러를 닫고 새로 만들므로 다음 압축에서 다시 구독해야 한다.
+        onProgress(0);
+        sub = VideoCompress.compressProgress$.subscribe(
+          (p) => onProgress((p / 100).clamp(0.0, 1.0)),
+        );
+      }
       final info = await VideoCompress.compressVideo(
         file.path,
         quality: _videoQuality,
@@ -220,6 +247,8 @@ class StorageService {
         why: '영상 재인코딩 실패 — 원본을 그대로 올린다(첨부는 계속된다)',
       );
       return file;
+    } finally {
+      sub?.unsubscribe();
     }
   }
 
@@ -238,7 +267,11 @@ class StorageService {
   }
 
   /// 업로드 후 공개 URL/메타 반환.
-  Future<UploadedImage> upload(XFile file, {required String category}) async {
+  Future<UploadedImage> upload(
+    XFile file, {
+    required String category,
+    ProgressCallback? onProgress,
+  }) async {
     final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
 
@@ -251,13 +284,22 @@ class StorageService {
     if (reject != null) throw StateError(reject);
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-    await _c.storage
-        .from('media')
-        .uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(contentType: mime, upsert: false),
-        );
+    final unwatch = onProgress == null
+        ? null
+        : uploadProgress.watch(path, (sent, total) => onProgress(sent / total));
+    try {
+      onProgress?.call(0);
+      await _c.storage
+          .from('media')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(contentType: mime, upsert: false),
+          );
+      onProgress?.call(1);
+    } finally {
+      unwatch?.call();
+    }
     final url = _c.storage.from('media').getPublicUrl(path);
     return UploadedImage(url: url, mime: mime, size: bytes.length);
   }
@@ -268,19 +310,29 @@ class StorageService {
     required String category,
     String ext = 'png',
     String mime = 'image/png',
+    ProgressCallback? onProgress,
   }) async {
     final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
     final reject = mediaUploadRejection(mime, bytes.length);
     if (reject != null) throw StateError(reject);
     final path = '$uid/$category/${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await _c.storage
-        .from('media')
-        .uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(contentType: mime, upsert: false),
-        );
+    final unwatch = onProgress == null
+        ? null
+        : uploadProgress.watch(path, (sent, total) => onProgress(sent / total));
+    try {
+      onProgress?.call(0);
+      await _c.storage
+          .from('media')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(contentType: mime, upsert: false),
+          );
+      onProgress?.call(1);
+    } finally {
+      unwatch?.call();
+    }
     final url = _c.storage.from('media').getPublicUrl(path);
     return UploadedImage(url: url, mime: mime, size: bytes.length);
   }
@@ -288,9 +340,13 @@ class StorageService {
   /// 첨부 동영상 업로드 — 100MB 초과 시 예외. media 버킷에 영상을 올리고,
   /// 첫 프레임으로 포스터(jpeg)를 만들어 **동시에** 업로드한다(포스터 실패는 무해 —
   /// 표시 쪽이 어두운 타일로 폴백).
+  ///
+  /// [onProgress] 는 **영상 본체**의 전송 진행만 알린다 — 나란히 올라가는 포스터는
+  /// 수백 KB 라 섞으면 고리가 튄다.
   Future<UploadedVideo> uploadVideo(
     XFile file, {
     required String category,
+    ProgressCallback? onProgress,
   }) async {
     final uid = SessionManager.instance.storageUserId;
     if (uid == null) throw StateError('로그인이 필요합니다');
@@ -317,7 +373,11 @@ class StorageService {
     // 얹혔다. 포스터 쪽이 더 빨리 끝나므로 사실상 공짜가 된다.
     final posterFuture = _uploadVideoPoster(file, category: category);
 
+    final unwatch = onProgress == null
+        ? null
+        : uploadProgress.watch(path, (sent, total) => onProgress(sent / total));
     try {
+      onProgress?.call(0);
       await _c.storage
           .from('media')
           .uploadBinary(
@@ -325,12 +385,15 @@ class StorageService {
             bytes,
             fileOptions: FileOptions(contentType: mime, upsert: false),
           );
+      onProgress?.call(1);
     } catch (e) {
       // 영상이 실패했으면 먼저 끝났을지 모를 포스터는 참조될 곳이 없다 — 고아로
       // 남기지 않고 지운다(#233 과 동종. 직렬이던 종전에는 시작조차 안 했으니
       // 생기지 않던 경우다). 정리를 기다리느라 오류 전달이 늦지 않게 unawaited.
       unawaited(posterFuture.then(discardByUrl));
       rethrow;
+    } finally {
+      unwatch?.call();
     }
     final url = _c.storage.from('media').getPublicUrl(path);
 

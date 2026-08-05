@@ -9,9 +9,10 @@ import '../../services/facility_repository.dart';
 import '../../services/social_repository.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/app_search_field.dart';
+import '../../widgets/facility_sheet.dart';
 import '../../widgets/gradient_header.dart';
-import '../../widgets/user_tile.dart';
-import '../facility_review_screen.dart';
+import '../../widgets/map_bottom_sheet.dart';
+import '../../widgets/profile_square_card.dart';
 import '../pet_profile_screen.dart';
 import '../user_profile_screen.dart';
 
@@ -101,7 +102,11 @@ class _UserSearchTabState extends State<UserSearchTab>
         // 상호로 찾은 결과만 업체 얼굴 — 닉네임 결과는 개인 얼굴 고정(연결 차단)
         forcePersonalFace: c.businessName == null,
         originRect: rect,
-        cardBuilder: rect == null ? null : (_) => UserTile(connection: c),
+        // 축소 안착 시 크로스페이드할 카드 — 그리드의 둥근 정사각형과 동일.
+        cardRadius: ProfileSquareCard.radius,
+        cardBuilder: rect == null
+            ? null
+            : (_) => ProfileSquareCard(connection: c),
       ),
     );
   }
@@ -114,7 +119,8 @@ class _UserSearchTabState extends State<UserSearchTab>
         petId: pet.id,
         preview: pet,
         originRect: rect,
-        cardBuilder: rect == null ? null : (_) => PetSearchTile(pet: pet),
+        cardRadius: ProfileSquareCard.radius,
+        cardBuilder: rect == null ? null : (_) => PetSquareCard(pet: pet),
       ),
     );
   }
@@ -279,7 +285,7 @@ class _UserSearchTabState extends State<UserSearchTab>
         padding: EdgeInsets.only(top: topPad, left: 20, right: 20, bottom: 20),
         children: [
           _sectionHeader('인증 업체'),
-          for (final c in _businesses) _userTile(c),
+          _grid([for (final c in _businesses) _userCard(c)]),
         ],
       );
     }
@@ -289,100 +295,81 @@ class _UserSearchTabState extends State<UserSearchTab>
     return ListView(
       padding: EdgeInsets.only(top: topPad, left: 20, right: 20, bottom: 20),
       children: [
-        // 매장을 맨 위에 — 후기를 남기러 온 손님이 가장 먼저 찾는 대상이다.
-        if (_facilityResults.isNotEmpty) ...[
-          _sectionHeader('매장'),
-          for (final f in _facilityResults) _facilityTile(f),
+        // 사람·반려동물이 먼저, 매장은 맨 아래 — 사용자 검색 탭의 주 대상은
+        // 보호자다(매장 우선이던 종전 배치를 뒤집음).
+        if (_results.isNotEmpty) ...[
+          _sectionHeader('보호자'),
+          _grid([for (final c in _results) _userCard(c)]),
         ],
         if (_petResults.isNotEmpty) ...[
           _sectionHeader('반려동물'),
-          for (final pet in _petResults)
-            // 프로필이 열린 타일은 빈자리로 — 축소가 겹침 없이 안착.
-            // 타일 간격은 채팅 목록과 동일하게 10.
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Opacity(
+          _grid([
+            for (final pet in _petResults)
+              // 프로필이 열린 카드는 빈자리로 — 축소가 겹침 없이 안착.
+              Opacity(
                 key: _tileKeys.putIfAbsent('pet:${pet.id}', GlobalKey.new),
                 opacity: _openedTileId == 'pet:${pet.id}' ? 0 : 1,
-                child: PetSearchTile(pet: pet, onTap: () => _openPet(pet)),
+                child: PetSquareCard(pet: pet, onTap: () => _openPet(pet)),
               ),
-            ),
+          ]),
         ],
-        if (_results.isNotEmpty) ...[
-          _sectionHeader('보호자'),
-          for (final c in _results) _userTile(c),
+        if (_facilityResults.isNotEmpty) ...[
+          _sectionHeader('매장'),
+          _grid([for (final f in _facilityResults) _facilityCard(f)]),
         ],
       ],
     );
   }
 
-  // 프로필이 열린 타일은 빈자리로 — 축소가 겹침 없이 안착.
-  Widget _userTile(Connection c) => Padding(
+  /// 둥근 정사각형 카드 2열 그리드 — 바깥 ListView 안에서 스크롤 없이 펼친다.
+  Widget _grid(List<Widget> cells) => GridView.count(
+    crossAxisCount: 2,
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    mainAxisSpacing: 10,
+    crossAxisSpacing: 10,
+    childAspectRatio: 1,
     padding: const EdgeInsets.only(bottom: 10),
-    child: Opacity(
-      key: _tileKeys.putIfAbsent(_userTileId(c), GlobalKey.new),
-      opacity: _openedTileId == _userTileId(c) ? 0 : 1,
-      child: UserTile(connection: c, onTap: () => _openUser(c)),
-    ),
+    children: cells,
   );
 
-  /// 매장 타일 — 누르면 그 매장의 후기 작성 화면으로. 업체 인증 여부와 무관하게
-  /// 시설 행만 있으면 동작한다(QR 로 들어온 동선과 같은 목적지).
-  Widget _facilityTile(Facility f) {
-    final c = context.colors;
-    final meta = [
-      kFacilityLabels[f.category] ?? f.category,
-      if ((f.address ?? '').isNotEmpty) f.address!,
-    ].join(' · ');
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Pressable(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.push(
-          context,
-          CollapseRoute<bool>(
-            builder: (_) => FacilityReviewScreen(
-              facility: f,
-              originRect: riseOriginRect(context),
-            ),
-          ),
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: c.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: c.border, width: 0.5),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      f.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: c.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      meta,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: c.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Icon(Icons.rate_review_outlined, size: 20, color: c.primaryDark),
-            ],
+  // 프로필이 열린 카드는 빈자리로 — 축소가 겹침 없이 안착.
+  Widget _userCard(Connection c) => Opacity(
+    key: _tileKeys.putIfAbsent(_userTileId(c), GlobalKey.new),
+    opacity: _openedTileId == _userTileId(c) ? 0 : 1,
+    child: ProfileSquareCard(connection: c, onTap: () => _openUser(c)),
+  );
+
+  /// 매장 카드 — 누르면 지도 탭과 동일한 시설 상세 시트(정보 + 후기 목록 +
+  /// 후기 쓰기)를 띄운다. 인증 업체(프로필 상세)와 동선 문법을 통일 —
+  /// "카드 탭 = 먼저 보기, 작성은 그 안에서".
+  Widget _facilityCard(Facility f) =>
+      FacilitySquareCard(facility: f, onTap: () => _openFacility(f));
+
+  /// 지도 탭의 카테고리 마커색과 동일(수동 동기화) — 시설 상세 헤더 색.
+  Color _facilityColor(String category) => switch (category) {
+    'animal_hospital' => const Color(0xFFEF5350),
+    'grooming' => const Color(0xFFAB47BC),
+    'pet_hotel' => const Color(0xFF42A5F5),
+    'pet_sales' => const Color(0xFF66BB6A),
+    'pet_cafe' => const Color(0xFFFF9800),
+    _ => const Color(0xFF5A4E3A),
+  };
+
+  void _openFacility(Facility f) {
+    // MapBottomSheet 는 스크림·슬라이드·드래그 닫기를 자급자족한다 — 투명
+    // 라우트로 띄우기만 하면 지도 탭과 같은 시트가 된다(전환은 시트가 담당).
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (ctx, _, _) => MapBottomSheet(
+          onClose: () => Navigator.of(ctx).pop(),
+          child: FacilityDetailContent(
+            facility: f,
+            color: _facilityColor(f.category),
+            label: kFacilityLabels[f.category] ?? f.category,
           ),
         ),
       ),
@@ -423,90 +410,6 @@ class _UserSearchTabState extends State<UserSearchTab>
                 height: 1.5,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 검색 결과의 반려동물 한 마리 — 누르면 펫 프로필로 이동.
-class PetSearchTile extends StatelessWidget {
-  final PetHit pet;
-
-  /// 탭 동작 재정의(선택) — 검색 탭이 타일 자리에서 펼쳐지는 전환을 걸 때 사용.
-  final VoidCallback? onTap;
-
-  const PetSearchTile({super.key, required this.pet, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final subtitle = [
-      if (pet.species.isNotEmpty) pet.species,
-      if (pet.ownerNickname.isNotEmpty) '보호자 ${pet.ownerNickname}',
-    ].join('  ·  ');
-
-    return InkWell(
-      onTap:
-          onTap ??
-          () => Navigator.push(
-            context,
-            AppPageRoute(
-              builder: (_) => PetProfileScreen(petId: pet.id, preview: pet),
-            ),
-          ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: context.colors.primarySoft,
-                borderRadius: BorderRadius.circular(14),
-                image: pet.imageUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(pet.imageUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-              ),
-              child: pet.imageUrl == null
-                  ? Icon(
-                      Icons.pets,
-                      color: context.colors.primaryDark,
-                      size: 22,
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    pet.name,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: context.colors.textPrimary,
-                    ),
-                  ),
-                  if (subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: context.colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right, color: context.colors.textTertiary),
           ],
         ),
       ),

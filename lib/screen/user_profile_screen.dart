@@ -335,7 +335,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ('작성한 게시글', _posts.length),
         ];
 
-  double get _offset => _scroll.hasClients ? _scroll.offset : 0;
+  /// 스크롤 오프셋 — `.offset` 대신 positions 를 직접 본다. 트리가 구조적으로
+  /// 교체되는 프레임에는 옛 스크롤뷰(프레임 끝까지 dispose 지연)와 새 스크롤뷰가
+  /// 같은 컨트롤러에 **동시에** 붙어 `.offset`(single 강제)이 던진다
+  /// (client_errors 'Bad state: Too many elements', iOS). 최신 attach 를 쓴다.
+  double get _offset {
+    final ps = _scroll.positions;
+    return ps.isEmpty ? 0 : ps.last.pixels;
+  }
 
   /// 현재 헤더 아래 라인(뷰포트 좌표) — 카드가 다 수축하면 바 높이로 고정.
   double _headerBottom(double topInset) {
@@ -366,7 +373,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// 오도록 스크롤. 마지막 타이틀은 도킹된 두 계단 바로 아래 라인에 정렬.
   void _scrollToSection(int i) {
     final box = _titleKeys[i].currentContext?.findRenderObject();
-    if (box is! RenderBox || !box.hasSize || !_scroll.hasClients) return;
+    // positions 가 1개가 아닌 과도기 프레임엔 animateTo/maxScrollExtent 도
+    // 불안정하다 — 스킵(다음 탭에서 정상 동작).
+    if (box is! RenderBox || !box.hasSize || _scroll.positions.length != 1) {
+      return;
+    }
     final viewport = RenderAbstractViewport.maybeOf(box);
     if (viewport == null) return;
     final reveal = viewport.getOffsetToReveal(box, 0).offset;

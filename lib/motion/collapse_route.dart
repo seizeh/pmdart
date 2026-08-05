@@ -525,9 +525,13 @@ class _CollapsibleViewState extends State<CollapsibleView>
     super.dispose();
   }
 
-  bool get _atTop =>
-      !widget.scrollController.hasClients ||
-      widget.scrollController.position.pixels <= 0;
+  // `.position`(single 강제)이 아니라 positions 를 본다 — 트리 교체 프레임에는
+  // 옛/새 스크롤뷰가 같은 컨트롤러에 동시에 붙어 single 이 던진다(프로필 화면
+  // 'Too many elements' 실사고와 같은 병). 최신 attach 기준으로 판정.
+  bool get _atTop {
+    final ps = widget.scrollController.positions;
+    return ps.isEmpty || ps.last.pixels <= 0;
+  }
 
   // 플릭(빠른 하강) 판정용 속도 추적 — 문턱 미달이어도 빠르게 내리면 닫는다.
   VelocityTracker? _velocity;

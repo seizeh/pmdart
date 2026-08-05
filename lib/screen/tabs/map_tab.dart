@@ -199,7 +199,11 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   /// 반경 5km 시설 조회 → 마커 갱신.
   Future<void> _loadFacilities(NLatLng center) async {
     final c = _controller;
-    if (c == null) return;
+    // dispose 후 늦게 도착한 호출 방어 — _initLoad 가 GPS 를 await 하는 동안
+    // 화면이 내려가면(게스트→로그인 등) 아래 context 접근이 State.context 널
+    // 단언으로 죽는다(client_errors iOS 실사고). _controller 는 dispose 후에도
+    // 참조가 남아 c == null 로는 못 거른다.
+    if (c == null || !mounted) return;
     // 마커 캡션 색 — 지도 모드에 맞춰(await 전에 캡처).
     final dark = context.isDark;
     final capColor = dark ? _markerCaptionDark : _markerCaptionLight;
@@ -440,6 +444,7 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
       return;
     }
     final loc = await LocationService.instance.getCurrentPosition();
+    if (!mounted) return; // GPS 대기 중 화면이 내려갔다
     if (loc.status == LocationStatus.ok && loc.position != null) {
       final p = NLatLng(loc.position!.latitude, loc.position!.longitude);
       await c.updateCamera(

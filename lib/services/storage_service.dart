@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -263,10 +264,11 @@ class StorageService {
             bytes,
             fileOptions: FileOptions(contentType: mime, upsert: false),
           );
-    } catch (_) {
+    } catch (e) {
       // 영상이 실패했으면 먼저 끝났을지 모를 포스터는 참조될 곳이 없다 — 고아로
-      // 남기지 않고 지운다(직렬이던 종전에는 아예 시작도 안 했던 경우).
-      await discardByUrl(await posterFuture);
+      // 남기지 않고 지운다(#233 과 동종. 직렬이던 종전에는 시작조차 안 했으니
+      // 생기지 않던 경우다). 정리를 기다리느라 오류 전달이 늦지 않게 unawaited.
+      unawaited(posterFuture.then(discardByUrl));
       rethrow;
     }
     final url = _c.storage.from('media').getPublicUrl(path);

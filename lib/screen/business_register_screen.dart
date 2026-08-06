@@ -1669,16 +1669,41 @@ class _BusinessManagePanelState extends State<BusinessManagePanel> {
           ),
         ),
         const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: () => Navigator.push(
-            context,
-            AppPageRoute(builder: (_) => const ConnectionsScreen()),
-          ),
-          icon: const Icon(Icons.group_outlined, size: 18),
-          label: const Text('내 친구 (Pawing · Pawmate)'),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
-          ),
+        // Pawing·Pawmate 는 각자 자기 화면을 연다(종전엔 탭 하나로 묶여 있었다).
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  AppPageRoute(
+                    builder: (_) => const ConnectionsScreen(initialIndex: 0),
+                  ),
+                ),
+                icon: const Icon(Icons.handshake_outlined, size: 18),
+                label: const Text('Pawing'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  AppPageRoute(
+                    builder: (_) => const ConnectionsScreen(initialIndex: 1),
+                  ),
+                ),
+                icon: const Icon(Icons.groups_outlined, size: 18),
+                label: const Text('Pawmate'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

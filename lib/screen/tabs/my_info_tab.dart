@@ -296,14 +296,32 @@ class _MyInfoTabState extends State<MyInfoTab>
               );
             },
             child: Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
-              child: Text(
-                '내 정보',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.primaryDark,
-                ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 8, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '내 정보',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: context.colors.primaryDark,
+                      ),
+                    ),
+                  ),
+                  // 설정 진입 — 종전에는 **라벨 없는 프로필 카드 탭**이 유일한
+                  // 경로였다. 그 안에 계정 삭제가 있는데 진입점이 보이지 않아
+                  // App Store 심사에서 "삭제 기능이 없다" 고 두 번 지적받았다
+                  // (5.1.1(v)). 카드 탭은 그대로 두고 눈에 보이는 길을 하나 더 낸다.
+                  IconButton(
+                    icon: Icon(
+                      Icons.settings_outlined,
+                      color: context.colors.primaryDark,
+                    ),
+                    tooltip: '설정 (Settings)',
+                    onPressed: _openProfileEdit,
+                  ),
+                ],
               ),
             ),
           ),

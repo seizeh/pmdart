@@ -468,11 +468,17 @@ class _SectionCard extends StatelessWidget {
 class _Item {
   final IconData icon;
   final String label;
+
+  /// 영문 병기 — 앱은 한국어 전용(`supportedLocales: [Locale('ko')]`)이라
+  /// 한국어를 못 읽는 사람에게는 이 목록이 통째로 불투명하다. 계정 삭제처럼
+  /// **찾지 못하면 곤란한** 항목에만 붙인다(App Store 심사 5.1.1(v) 재지적).
+  final String? labelEn;
   final String? trailing;
   final VoidCallback? onTap;
   const _Item({
     required this.icon,
     required this.label,
+    this.labelEn,
     this.trailing,
     this.onTap,
   });
@@ -493,13 +499,27 @@ class _ItemRow extends StatelessWidget {
             Icon(item.icon, size: 20, color: context.colors.primaryDark),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(
-                item.label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: context.colors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: context.colors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (item.labelEn != null)
+                    Text(
+                      item.labelEn!,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: context.colors.textSecondary,
+                      ),
+                    ),
+                ],
               ),
             ),
             if (item.trailing != null)
@@ -865,7 +885,7 @@ class _SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
-      title: '설정',
+      title: '설정 (Settings)',
       items: [
         _Item(
           icon: Icons.dark_mode_outlined,
@@ -896,11 +916,13 @@ class _SettingsSection extends StatelessWidget {
         _Item(
           icon: Icons.logout,
           label: '로그아웃',
+          labelEn: 'Log out',
           onTap: () => _confirmLogout(context),
         ),
         _Item(
           icon: Icons.person_off_outlined,
           label: '회원 탈퇴',
+          labelEn: 'Delete Account',
           onTap: () => _confirmWithdraw(context),
         ),
       ],

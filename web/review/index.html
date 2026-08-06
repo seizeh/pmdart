@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!--
+  App Review 용 화면 녹화 모음.
+
+  왜 우리 도메인에 두는가: 앞선 제출에서 YouTube 링크로 보냈다가 계정 삭제
+  녹화가 정책으로 삭제되어, 심사관이 열었을 때 아무것도 없었다(그리고 5.1.1(v)
+  로 다시 반려됐다). 여기에는 만료도, 로그인도, 정책 심사도 없다.
+
+  다시 촬영하면 web/review/ 의 파일만 교체한다 — 주소가 그대로라 회신문의
+  링크를 고칠 필요가 없다.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 심사용 자료다. 검색에 노출될 이유가 없다. -->
+<meta name="robots" content="noindex, nofollow">
+<title>PawMate — App Review Screen Recordings</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0 auto; padding: 32px 20px 64px; max-width: 760px;
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { opacity: .7; margin: 0 0 32px; font-size: 14px; }
+  section { margin: 0 0 40px; }
+  h2 { font-size: 17px; margin: 0 0 4px; }
+  .path { font-size: 14px; opacity: .75; margin: 0 0 12px; }
+  code { font-size: 13px; padding: 1px 5px; border-radius: 4px;
+         background: rgba(127,127,127,.18); }
+  video { width: 100%; max-height: 70vh; border-radius: 12px;
+          background: #000; display: block; }
+  ol { margin: 10px 0 0; padding-left: 20px; font-size: 14.5px; }
+  a.dl { font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>PawMate — App Review Screen Recordings</h1>
+<p class="sub">Captured on a physical device. No sign-in required to view.</p>
+
+<section>
+  <h2>1. Account deletion — Guideline 5.1.1(v)</h2>
+  <p class="path">
+    In-app path: <code>내 정보 (My)</code> → <code>⚙︎ 설정 (Settings)</code> →
+    <code>회원 탈퇴 (Delete Account)</code>
+  </p>
+  <video src="account-deletion.mp4" controls preload="metadata" playsinline></video>
+  <ol>
+    <li>Signing in</li>
+    <li>Navigating to the account deletion option</li>
+    <li>The complete deletion flow from initiation to confirmation</li>
+  </ol>
+  <p><a class="dl" href="account-deletion.mp4" download>Download MP4</a></p>
+</section>
+
+<section>
+  <h2>2. Reporting and blocking — Guideline 1.2</h2>
+  <p class="path">Terms agreement shown before registration, reporting, and blocking.</p>
+  <video src="report-and-block.mp4" controls preload="metadata" playsinline></video>
+  <p><a class="dl" href="report-and-block.mp4" download>Download MP4</a></p>
+</section>
+
+</body>
+</html>

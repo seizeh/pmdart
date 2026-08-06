@@ -29,11 +29,6 @@ on:
     types: [completed]
   workflow_dispatch: # 코드 변경 없이 다시 배포하고 싶을 때
 
-# 연속 푸시 시 마지막 것만 배포 — 앞선 배포가 뒤엣것을 덮어쓰지 않게.
-concurrency:
-  group: deploy-web
-  cancel-in-progress: true
-
 jobs:
   # 배포할 이유가 있는지만 판정한다. 실패한/PR 발 CI 는 여기서 걸러지고,
   # 웹 산출물과 무관한 변경(문서 등)도 여기서 걸러진다.
@@ -97,6 +92,20 @@ jobs:
     if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # 연속 푸시 시 마지막 것만 배포 — 앞선 배포가 뒤엣것을 덮어쓰지 않게.
+    #
+    # ⚠️ **워크플로 수준이 아니라 잡 수준이어야 한다.** 위에 두면 게이트에서
+    # 걸러질 실행(PR 발 CI, 웹과 무관한 커밋)까지 같은 그룹에 들어와 **진행 중인
+    # 진짜 배포를 취소한다**. 그 실행은 곧바로 gate 에서 스킵되므로 아무것도
+    # 배포하지 않는다 — 결과적으로 배포가 조용히 사라진다.
+    #
+    # 실제로 겪었다: web/review/ 를 추가한 커밋의 CI 는 성공했는데(04:13) 그
+    # 배포가 04:16 에 취소됐고, 뒤이은 04:18·04:22 실행은 gate 스킵으로 끝났다.
+    # main 에는 파일이 있는데 웹에는 없는 상태가 됐고 아무도 알지 못했다.
+    # 여기(잡 수준)에 두면 `if` 를 통과해 실제로 도는 배포끼리만 경합한다.
+    concurrency:
+      group: deploy-web
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
         with:

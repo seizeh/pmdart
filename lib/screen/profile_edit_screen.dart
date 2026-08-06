@@ -211,40 +211,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Column(
                           children: [
-                            GestureDetector(
+                            _PhotoHero(
+                              imageUrl: _state.imageUrl,
+                              initial: initial.characters.first,
+                              uploading: _state.uploading,
                               onTap: _state.uploading ? null : _pickImage,
-                              child: Container(
-                                width: 110,
-                                height: 110,
-                                decoration: BoxDecoration(
-                                  color: context.colors.primarySoft,
-                                  shape: BoxShape.circle,
-                                  image: _state.imageUrl != null
-                                      ? DecorationImage(
-                                          image: NetworkImage(_state.imageUrl!),
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
-                                ),
-                                child: _state.uploading
-                                    ? const Center(
-                                        child: CircularProgressIndicator(),
-                                      )
-                                    : (_state.imageUrl == null
-                                          ? Center(
-                                              child: Text(
-                                                initial.characters.first,
-                                                style: TextStyle(
-                                                  fontSize: 40,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: context
-                                                      .colors
-                                                      .primaryDark,
-                                                ),
-                                              ),
-                                            )
-                                          : null),
-                              ),
                             ),
                             const SizedBox(height: 8),
                             TextButton.icon(
@@ -874,6 +845,78 @@ class _BusinessSectionState extends State<_BusinessSection> {
             onTap: _toggleMode,
           ),
       ],
+    );
+  }
+}
+
+/// 내정보 수정 상단의 프로필 사진 — 화면 폭을 채우는 정사각 카드.
+///
+/// 종전에는 110px 원형이었다. 작아서 방금 고른 사진이 제대로 들어갔는지
+/// 확인이 안 됐고(제보: "변경해도 원형 프로필은 아무런 변화가 없음"), 내정보
+/// 히어로·검색 결과가 모두 둥근 정사각형인데 여기만 원형이라 문법도 어긋났다.
+///
+/// `key: ValueKey(imageUrl)` 이 핵심이다. 이게 없으면 Flutter 가 같은 자리의
+/// Image 엘리먼트를 재사용하면서 **직전 사진을 계속 그린다** — 새 URL 이 와도
+/// 화면이 그대로인 것처럼 보인다. URL 이 바뀌면 엘리먼트째 새로 만든다.
+class _PhotoHero extends StatelessWidget {
+  final String? imageUrl;
+  final String initial;
+  final bool uploading;
+  final VoidCallback? onTap;
+
+  const _PhotoHero({
+    required this.imageUrl,
+    required this.initial,
+    required this.uploading,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl;
+    return GestureDetector(
+      onTap: onTap,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: ClipRRect(
+          // 카드 곡률은 앱 전체 공통(내정보 히어로·검색 카드와 동일).
+          borderRadius: BorderRadius.circular(24),
+          child: ColoredBox(
+            color: context.colors.primarySoft,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (url != null)
+                  Image.network(
+                    url,
+                    key: ValueKey(url),
+                    fit: BoxFit.cover,
+                    // 실패해도 자리는 지킨다 — 아래 이니셜이 비쳐 보인다.
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  )
+                else
+                  Center(
+                    child: Text(
+                      initial,
+                      style: TextStyle(
+                        fontSize: 72,
+                        fontWeight: FontWeight.w700,
+                        color: context.colors.primaryDark,
+                      ),
+                    ),
+                  ),
+                if (uploading)
+                  const ColoredBox(
+                    color: Color(0x66000000),
+                    child: Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

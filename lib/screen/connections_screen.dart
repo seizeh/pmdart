@@ -4,41 +4,27 @@ import '../models/social.dart';
 import '../motion/motion.dart';
 import '../services/social_repository.dart';
 import '../theme/app_palette.dart';
-import '../widgets/user_tile.dart';
+import '../widgets/profile_square_card.dart';
 import 'user_profile_screen.dart';
 
-/// 내 연결(팔로우) 목록 — Pawing(내가 팔로우) / Pawmate(나를 팔로우) 탭.
-/// 각 항목에서 채팅 시작 / 팔로우 토글 가능.
+/// 내 연결(팔로우) 목록 — Pawing(내가 팔로우) / Pawmate(나를 팔로우).
+///
+/// 종전에는 탭 2개짜리 한 화면이었다. 내정보의 Pawing·Pawmate 버튼이 **서로 다른
+/// 버튼인데 같은 화면**을 열어(선택 탭만 달랐다) 왜 둘로 나뉘어 있는지 알 수
+/// 없었다. 이제 버튼마다 자기 목록만 연다.
 class ConnectionsScreen extends StatelessWidget {
-  final int initialIndex; // 0=Pawing, 1=Pawmate
+  /// 0=Pawing, 1=Pawmate. 호출부가 이미 이 값을 넘기고 있어 시그니처를 유지한다.
+  final int initialIndex;
   const ConnectionsScreen({super.key, this.initialIndex = 0});
+
+  bool get _isPawing => initialIndex == 0;
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      initialIndex: initialIndex,
-      child: Scaffold(
-        backgroundColor: context.colors.background,
-        appBar: AppBar(
-          title: const Text('내 친구'),
-          bottom: TabBar(
-            labelColor: context.colors.primaryDark,
-            unselectedLabelColor: context.colors.textTertiary,
-            indicatorColor: context.colors.primary,
-            tabs: [
-              Tab(text: 'Pawing (내가 팔로우)'),
-              Tab(text: 'Pawmate (나를 팔로우)'),
-            ],
-          ),
-        ),
-        body: const TabBarView(
-          children: [
-            _ConnectionList(mode: _Mode.pawing),
-            _ConnectionList(mode: _Mode.pawmate),
-          ],
-        ),
-      ),
+    return Scaffold(
+      backgroundColor: context.colors.background,
+      appBar: AppBar(title: Text(_isPawing ? 'Pawing' : 'Pawmate')),
+      body: _ConnectionList(mode: _isPawing ? _Mode.pawing : _Mode.pawmate),
     );
   }
 }
@@ -53,8 +39,7 @@ class _ConnectionList extends StatefulWidget {
   State<_ConnectionList> createState() => _ConnectionListState();
 }
 
-class _ConnectionListState extends State<_ConnectionList>
-    with AutomaticKeepAliveClientMixin {
+class _ConnectionListState extends State<_ConnectionList> {
   final _repo = SocialRepository.instance;
   List<Connection> _items = [];
   bool _loading = true;
@@ -63,9 +48,6 @@ class _ConnectionListState extends State<_ConnectionList>
   // 타일 자리에서 프로필이 펼쳐지고/그 자리로 축소되는 전환(사용자 검색과 동일).
   final _tileKeys = <String, GlobalKey>{};
   String? _openedTileId;
-
-  @override
-  bool get wantKeepAlive => true;
 
   Rect? _tileRect(String id) {
     final ctx = _tileKeys[id]?.currentContext;
@@ -99,7 +81,8 @@ class _ConnectionListState extends State<_ConnectionList>
     // 업체 행만 업체 얼굴 — 개인 행은 개인 얼굴 고정(연결 차단).
     forcePersonalFace: c.businessName == null,
     originRect: rect,
-    cardBuilder: rect == null ? null : (_) => UserTile(connection: c),
+    cardRadius: ProfileSquareCard.radius,
+    cardBuilder: rect == null ? null : (_) => ProfileSquareCard(connection: c),
   );
 
   @override
@@ -133,7 +116,6 @@ class _ConnectionListState extends State<_ConnectionList>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return _empty(_error!, retry: true);
@@ -143,21 +125,26 @@ class _ConnectionListState extends State<_ConnectionList>
         widget.mode == _Mode.pawing ? '아직 팔로우한 사람이 없어요' : '아직 나를 팔로우한 사람이 없어요',
       );
     }
+    // 둥근 정사각형 2열 — 사용자 검색과 같은 문법(간격 10, 정사각 비율).
     return RefreshIndicator(
       onRefresh: _load,
-      // 타일 간격은 사용자 검색과 동일하게 10 — 구분선 대신 여백으로 분리.
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1,
+        ),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
           final c = _items[i];
           final tileId = _tileId(c);
-          // 프로필이 열린 타일은 빈자리로 — 축소가 겹침 없이 안착(검색과 동일).
+          // 프로필이 열린 카드는 빈자리로 — 축소가 겹침 없이 안착(검색과 동일).
           return Opacity(
             key: _tileKeys.putIfAbsent(tileId, GlobalKey.new),
             opacity: _openedTileId == tileId ? 0 : 1,
-            child: UserTile(connection: c, onTap: () => _openUser(c)),
+            child: ProfileSquareCard(connection: c, onTap: () => _openUser(c)),
           );
         },
       ),

@@ -10,6 +10,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:pawmate/services/session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -34,6 +35,9 @@ class FakeSupabase {
         autoRefreshToken: false,
       ),
     );
+    // refresh 는 Supabase 클라이언트를 타지 않는다(교착 방지) — 같은 목을 꽂아
+    // 라우트와 요청 기록을 공유한다.
+    SessionManager.refreshClient = MockClient(_handle);
   }
 
   /// [pathContains] 가 요청 경로에 부분일치하면 [respond] 의 반환값을

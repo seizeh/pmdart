@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pawmate/services/session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,6 +62,38 @@ void main() {
       expect(secureStore['session_access'], newJwt);
       expect(secureStore['session_refresh'], 'r2', reason: 'refresh 회전 영속화');
       expect(SessionManager.instance.isLoggedIn, isTrue);
+    });
+
+    // 앱 첫 실행에서 커뮤니티·채팅·내정보가 **동시에** 로드를 건다. 종전에는
+    // bootstrap 의 accessToken 콜백이 `!isRefreshing` 으로 갱신을 건너뛰어,
+    // 갱신이 도는 동안 들어온 요청이 **만료된 토큰**을 달고 나갔다(401 →
+    // 새로고침 버튼). 갱신 중 진입한 호출자는 기다렸다가 **새 토큰**을 봐야 한다.
+    test('갱신이 도는 중에 들어온 호출자도 기다렸다가 새 토큰을 본다', () async {
+      final newJwt = jwtWithExp(nowSec() + 7200);
+      final gate = Completer<void>();
+      FakeSupabase.on('refresh', (_) async {
+        await gate.future; // 갱신을 붙잡아 '진행 중' 창을 만든다
+        return {'ok': true, 'token': newJwt, 'refresh_token': 'r2'};
+      });
+
+      final stale = SessionManager.instance.token;
+      final first = SessionManager.instance.refreshOnce();
+      await Future<void>.delayed(Duration.zero); // 비행 시작 보장
+      expect(SessionManager.instance.isRefreshing, isTrue);
+
+      // 이 시점의 다른 요청 — bootstrap 콜백과 같은 판정을 흉내낸다.
+      final late_ = SessionManager.instance.refreshOnce();
+
+      gate.complete();
+      await Future.wait([first, late_]);
+
+      expect(refreshCalls(), 1, reason: '기다려도 갱신은 한 번');
+      expect(SessionManager.instance.token, newJwt);
+      expect(
+        SessionManager.instance.token,
+        isNot(stale),
+        reason: '만료 토큰으로 나가면 안 된다',
+      );
     });
 
     test('완료 후 다시 부르면 새 요청이 나간다(비행 종료 후 재사용 아님)', () async {

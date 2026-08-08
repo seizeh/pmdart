@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -27,8 +28,21 @@ class AppInviteDialog extends StatelessWidget {
     );
   }
 
-  static bool get _hasStore =>
-      Env.storeUrlIos.isNotEmpty || Env.storeUrlAndroid.isNotEmpty;
+  /// 방문자가 안드로이드인가 — 웹에서 `defaultTargetPlatform` 은 브라우저의 OS 를
+  /// 알려 준다. 플랫폼별로 **갈 곳이 하나뿐**이어야 한다: 안드로이드 사용자에게
+  /// App Store 버튼을 보여 주는 건 막다른 길이다(iOS 만 출시된 지금 실제로 그랬다).
+  static bool get _isAndroid => defaultTargetPlatform == TargetPlatform.android;
+
+  /// 이 방문자가 지금 갈 수 있는 스토어 주소(없으면 빈 문자열).
+  static String get _storeUrl =>
+      _isAndroid ? Env.storeUrlAndroid : Env.storeUrlIos;
+
+  /// Play 출시 전 안드로이드 방문자에게만 보여줄 테스터 신청 폼.
+  /// 스토어가 열리면(=storeUrlAndroid 설정) 자동으로 사라진다.
+  static String get _testerUrl =>
+      _isAndroid && Env.storeUrlAndroid.isEmpty ? Env.testerFormUrl : '';
+
+  static bool get _hasStore => _storeUrl.isNotEmpty;
 
   Future<void> _open(BuildContext context, String url) async {
     Navigator.pop(context);
@@ -78,6 +92,9 @@ class AppInviteDialog extends StatelessWidget {
             Text(
               _hasStore
                   ? '앱에서는 동네 지도와 이웃과의 채팅까지 모두 쓸 수 있어요.'
+                  : _testerUrl.isNotEmpty
+                  ? '안드로이드는 지금 비공개 테스트 중이에요.\n'
+                        '테스터로 참여하시면 먼저 써보실 수 있어요.'
                   : '앱 출시를 준비하고 있어요. 곧 스토어에서 만나요!',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -87,23 +104,21 @@ class AppInviteDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 28),
-            if (Env.storeUrlIos.isNotEmpty)
+            if (_hasStore)
               _button(
                 context,
-                'App Store 에서 받기',
-                () => _open(context, Env.storeUrlIos),
+                _isAndroid ? 'Google Play 에서 받기' : 'App Store 에서 받기',
+                () => _open(context, _storeUrl),
+                primary: true,
+              )
+            else if (_testerUrl.isNotEmpty)
+              _button(
+                context,
+                '안드로이드 테스터 신청하기',
+                () => _open(context, _testerUrl),
                 primary: true,
               ),
-            if (Env.storeUrlIos.isNotEmpty && Env.storeUrlAndroid.isNotEmpty)
-              const SizedBox(height: 8),
-            if (Env.storeUrlAndroid.isNotEmpty)
-              _button(
-                context,
-                'Google Play 에서 받기',
-                () => _open(context, Env.storeUrlAndroid),
-                primary: Env.storeUrlIos.isEmpty,
-              ),
-            if (_hasStore) const SizedBox(height: 8),
+            if (_hasStore || _testerUrl.isNotEmpty) const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: TextButton(
@@ -112,7 +127,9 @@ class AppInviteDialog extends StatelessWidget {
                   minimumSize: const Size.fromHeight(48),
                   foregroundColor: c.textSecondary,
                 ),
-                child: Text(_hasStore ? '나중에 할래요' : '닫기'),
+                child: Text(
+                  _hasStore || _testerUrl.isNotEmpty ? '나중에 할래요' : '닫기',
+                ),
               ),
             ),
           ],

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../env.dart';
 
 import 'error_reporter.dart';
 import 'session_store.dart';
@@ -83,6 +86,18 @@ class AuthUser {
 /// 결과적으로 웹 세션은 access 수명(8시간)이 상한이고, 탭을 닫으면 사라진다.
 /// 로그인 요청의 `x-client-refresh:1` 헤더는 **그대로 유지해야 한다** — 빼면
 /// 서버가 레거시로 보고 30일짜리 access 를 발급해 오히려 나빠진다.
+/// refresh 엔드포인트가 **명시적으로 거절**했다(4xx) — 만료·회수된 refresh.
+/// 일시 오류(5xx·타임아웃)와 구분하려고 따로 둔다: 이쪽은 재시도하지 않고
+/// 곧바로 강제 로그아웃, 저쪽은 세션을 유지한 채 다음 요청에서 다시 시도한다.
+class _RefreshRejected implements Exception {
+  const _RefreshRejected(this.status, this.body);
+  final int status;
+  final String body;
+
+  @override
+  String toString() => 'RefreshRejected($status): $body';
+}
+
 class SessionManager extends ChangeNotifier {
   SessionManager._();
   static final SessionManager instance = SessionManager._();
@@ -98,6 +113,14 @@ class SessionManager extends ChangeNotifier {
   String? _refresh;
   AuthUser? _user;
   Future<void>? _refreshing; // 단일비행 갱신 진행 중 Future
+
+  /// refresh 전용 http 클라이언트.
+  ///
+  /// Supabase 클라이언트를 쓰지 않으므로(아래 [_postRefresh] 참고) 테스트가
+  /// 가로챌 지점이 따로 필요하다 — FakeSupabase 가 여기에 같은 MockClient 를
+  /// 꽂아 기존 라우트·요청 기록을 그대로 쓴다.
+  @visibleForTesting
+  static http.Client refreshClient = http.Client();
 
   /// 간이 회원(후기 전용, 0029) 단명 토큰 — **메모리에만** 둔다.
   ///
@@ -298,7 +321,7 @@ class SessionManager extends ChangeNotifier {
       // 갱신 도중 로그아웃됐다면 여기서 멈춘다 — 계속 진행하면 clear() 가 지운
       // 토큰을 다시 영속화해 회수된 세션이 디스크에 부활한다(#239).
       if (_access == null || _refresh == null) return;
-      final data = (res.data as Map?) ?? const {};
+      final data = res;
       if (data['ok'] == true && data['token'] is String) {
         // 새 refresh 를 access 보다 먼저 영속화 — 이 사이에 프로세스가 죽어도
         // 다음 실행이 새 refresh 로 이어갈 수 있다(회전 응답 유실 창 최소화).
@@ -323,7 +346,7 @@ class SessionManager extends ChangeNotifier {
       } else {
         await _invalidate(); // 예상 밖 응답 → 세션 만료 처리
       }
-    } on FunctionException catch (e) {
+    } on _RefreshRejected catch (e) {
       // 강제 로그아웃은 사용자가 바로 체감한다 — 빈도가 튀면 서버 쪽 문제다.
       ErrorReporter.userFacing(e, where: 'session.refresh.rejected');
       await _invalidate(); // 401 invalid_refresh 등 → 강제 로그아웃
@@ -341,13 +364,44 @@ class SessionManager extends ChangeNotifier {
   /// refresh 호출 — 일시 오류(타임아웃 등)는 1초 후 1회 즉시 재시도.
   /// 서버가 회전을 커밋한 뒤 응답이 유실된 경우 grace(30초) 안에 재요청해야
   /// 같은 패밀리로 매끄럽게 이어지므로, 다음 요청을 기다리지 않고 바로 재시도한다.
-  Future<FunctionResponse> _invokeRefreshWithRetry(String r) async {
+  /// refresh 호출은 **Supabase 클라이언트를 쓰지 않는다.**
+  ///
+  /// 그쪽으로 나가면 `Supabase.initialize` 의 accessToken 콜백을 다시 타고,
+  /// 그 콜백이 다시 갱신을 기다리면 자기 자신을 기다리는 교착이 된다. 그래서
+  /// 종전에는 콜백에 `!isRefreshing` 가드를 뒀는데, 그 가드가 **갱신 중 들어온
+  /// 다른 요청을 만료된 토큰으로 내보냈다** — 앱 첫 실행에서 커뮤니티·채팅·
+  /// 내정보가 동시에 로드를 걸면 하나만 성공하고 나머지는 401 로 새로고침
+  /// 버튼이 떴다(운영 로그: not_authenticated 42501, permission denied 42501).
+  ///
+  /// 순수 http 로 부르면 재진입이 아예 없다. 이 엔드포인트는 verify_jwt=false 라
+  /// Authorization 없이 apikey 만으로 호출된다.
+  Future<Map<String, dynamic>> _postRefresh(String r) async {
+    final res = await refreshClient
+        .post(
+          Uri.parse('${Env.supabaseUrl}/functions/v1/refresh'),
+          headers: {
+            'content-type': 'application/json',
+            'apikey': Env.supabasePublishableKey,
+          },
+          body: jsonEncode({'refresh_token': r}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    // 4xx = 서버의 명시적 거절(만료·회수된 refresh) → 재시도하지 않고 로그아웃.
+    // 5xx·타임아웃은 일시 오류로 보고 위에서 재시도·세션 유지로 간다.
+    if (res.statusCode >= 400 && res.statusCode < 500) {
+      throw _RefreshRejected(res.statusCode, res.body);
+    }
+    if (res.statusCode != 200) {
+      throw StateError('refresh ${res.statusCode}');
+    }
+    return (jsonDecode(res.body) as Map).cast<String, dynamic>();
+  }
+
+  Future<Map<String, dynamic>> _invokeRefreshWithRetry(String r) async {
     try {
-      return await Supabase.instance.client.functions.invoke(
-        'refresh',
-        body: {'refresh_token': r},
-      );
-    } on FunctionException {
+      return await _postRefresh(r);
+    } on _RefreshRejected {
       rethrow; // 401 등 명시적 거절은 재시도 대상 아님
     } catch (e) {
       ErrorReporter.ignored(
@@ -356,10 +410,7 @@ class SessionManager extends ChangeNotifier {
         why: '1회 재시도로 흡수 — 실패하면 위에서 다시 잡힌다',
       );
       await Future.delayed(const Duration(seconds: 1));
-      return await Supabase.instance.client.functions.invoke(
-        'refresh',
-        body: {'refresh_token': r},
-      );
+      return await _postRefresh(r);
     }
   }
 

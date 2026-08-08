@@ -88,7 +88,15 @@ abstract final class AppBootstrap {
       publishableKey: Env.supabasePublishableKey,
       accessToken: () async {
         final s = SessionManager.instance;
-        if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
+        // 갱신이 이미 돌고 있으면 **그것을 기다린다.** 종전에는 `!isRefreshing`
+        // 으로 건너뛰었는데, 그러면 그 요청은 만료된 토큰을 달고 나간다 —
+        // 첫 실행에서 커뮤니티·채팅·내정보가 동시에 로드를 걸면 하나만 성공하고
+        // 나머지는 401 로 새로고침 버튼이 떴다. refreshOnce 는 단일비행이라
+        // 여럿이 기다려도 갱신은 한 번이다.
+        //
+        // 기다려도 교착이 아닌 이유: refresh 호출은 Supabase 클라이언트가 아니라
+        // 순수 http 로 나가므로 이 콜백을 다시 타지 않는다(session.dart 참고).
+        if (s.isRefreshing || s.isAccessExpiringSoon(skew: 60)) {
           await s.refreshOnce();
         }
         // 갱신할 수단이 없는데 이미 만료됐다면 여기서 끊는다(#231).

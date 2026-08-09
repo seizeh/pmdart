@@ -842,8 +842,11 @@ class _ReviewDetailScreenState extends State<ReviewDetailScreen>
         // 계산해 범위 밖 fractional page 까지 그대로 따라간다(본체와 픽셀
         // 동기). 클램프는 사본 선택 인덱스에만 적용한다.
         var page = _page.toDouble();
-        if (_pageCtrl.hasClients) {
-          final pos = _pageCtrl.position;
+        // positions 가 정확히 1개일 때만 읽는다 — 교체 프레임엔 2개가 붙어
+        // `.position` 이 던진다(f5fa7c0 과 같은 원인).
+        final ps = _pageCtrl.positions;
+        if (ps.length == 1) {
+          final pos = ps.first;
           if (pos.haveDimensions && pos.viewportDimension > 0) {
             page = pos.pixels / pos.viewportDimension;
           }

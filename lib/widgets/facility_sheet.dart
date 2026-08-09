@@ -44,6 +44,16 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
 
   // 대표 사진 히어로의 제자리 수축(타사용자 프로필 헤더와 동일 문법)용 스크롤.
   final _scroll = ScrollController();
+
+  /// 스크롤 오프셋 — `.offset` 대신 positions 를 직접 본다.
+  // 트리 교체 프레임에는 옛/새 스크롤뷰가 같은 컨트롤러에 **동시에** 붙어
+  // `.offset`/`.position`(둘 다 single 강제)이 'Bad state: Too many elements'
+  // 로 던진다(f5fa7c0 과 같은 원인, client_errors iOS 실사고). 최신 attach 를 쓴다.
+  double get _scrollOffset {
+    final ps = _scroll.positions;
+    return ps.isEmpty ? 0.0 : ps.last.pixels;
+  }
+
   static const double _kHeroMax = 240;
   static const double _kHeroMin = 64;
 
@@ -168,7 +178,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
             child: AnimatedBuilder(
               animation: _scroll,
               builder: (context, child) {
-                final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+                final offset = _scrollOffset;
                 final h = (_kHeroMax - offset).clamp(_kHeroMin, _kHeroMax);
                 return ClipRect(clipper: _TopClip(8 + h), child: child!);
               },
@@ -459,7 +469,7 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
   /// 탭하면 인증 업주의 업체 프로필로 이동한다.
   Widget _heroHeader(Facility f, String dist, List<FacilityReview>? reviews) {
     final align = Alignment(0, f.ownerPhotoAlignY.clamp(-1.0, 1.0));
-    final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+    final offset = _scrollOffset;
     final h = (_kHeroMax - offset).clamp(_kHeroMin, _kHeroMax);
     final t = ((h - _kHeroMin) / (_kHeroMax - _kHeroMin)).clamp(0.0, 1.0);
     return GestureDetector(

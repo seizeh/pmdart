@@ -145,6 +145,10 @@ class _CommunityTabState extends State<CommunityTab>
   String _query = '';
   Timer? _debounce;
 
+  /// 응답 순서 꼬임 방지 — 검색어·카테고리를 빠르게 바꾸면 앞선 요청이 **나중에**
+  /// 도착해 새 목록을 옛 결과로 덮는다(사용자 검색의 같은 이름 필드와 동일 규칙).
+  int _reqId = 0;
+
   static const _categories = [
     'news', // 업체 소식 — '전체' 칩 바로 다음
     'walk_together',
@@ -237,6 +241,7 @@ class _CommunityTabState extends State<CommunityTab>
   /// [silent] 이면 로딩 스피너로 바꾸지 않고 목록을 유지한 채 데이터만 갱신한다.
   /// (상세에서 돌아올 때 리스트가 순간 축소→스크롤 최상단 점프하는 문제 방지.)
   Future<void> _load({bool silent = false}) async {
+    final myReq = ++_reqId;
     if (!silent) {
       setState(() {
         _loading = true;
@@ -248,14 +253,14 @@ class _CommunityTabState extends State<CommunityTab>
         category: _selectedCategory,
         query: _query,
       );
-      if (!mounted) return;
+      if (!mounted || myReq != _reqId) return; // 더 최신 요청이 있으면 버린다
       setState(() {
         _posts = posts;
         _loading = false;
         _error = null;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || myReq != _reqId) return;
       if (silent) return; // 조용한 갱신 실패는 기존 목록 유지(에러 화면으로 안 덮음)
       setState(() {
         _error = '게시글을 불러오지 못했어요';

@@ -61,13 +61,30 @@ class RealtimeService {
 
   /// 로그인 후/앱 시작(로그인 상태)/포그라운드 복귀 시 호출. realtime 재인증 + 구독.
   /// 여러 번 불러도 안전하다.
-  void start() {
-    final me = SessionManager.instance.user?.id;
-    final token = SessionManager.instance.token;
-    if (me == null || token == null) return;
+  /// 구독 시작 — **토큰을 먼저 확인한다.**
+  ///
+  /// 종전에는 저장된 access 를 그대로 setAuth 에 넘겼다. 콜드 스타트에서 그 토큰은
+  /// 이미 만료돼 있는 경우가 많다(운영 로그: `InvalidJWTToken: Token has expired
+  /// 42831 / 78585 / 201041 seconds ago`). REST 는 관문(accessToken 콜백)이 알아서
+  /// 갱신해 주지만 **realtime 소켓 auth 는 setAuth 를 다시 불러야만 바뀐다** —
+  /// 그래서 앱을 켜자마자 알림 구독이 조용히 죽어 있었다.
+  ///
+  /// 재시도 경로(_scheduleRetry)가 같은 일을 하고 있었는데, 그건 이미 끊긴 뒤의
+  /// 복구라 **첫 연결은 덮지 못했다**(#236 이 웜 리줌만 커버한 이유).
+  Future<void> start() async {
+    final s = SessionManager.instance;
+    final me = s.user?.id;
+    if (me == null) return;
     _wanted = true;
-    _c.realtime.setAuth(token); // 커스텀 JWT 로 realtime 인증(RLS 통과)
-    if (_notif != null) return; // 이미 구독 중(살아 있는 채널만 여기 남는다)
+    // 갱신 중이면 기다린다 — 건너뛰면 만료 토큰으로 붙는다(#299 와 같은 규칙).
+    if (s.isRefreshing || s.isAccessExpiringSoon(skew: 60)) {
+      await s.refreshOnce();
+      if (!_wanted || s.user?.id != me) return; // 대기 중 로그아웃·계정 전환
+    }
+    final token = s.token;
+    if (token == null) return; // 갱신 실패로 세션이 정리됐다
+    await _c.realtime.setAuth(token); // 커스텀 JWT 로 realtime 인증(RLS 통과)
+    if (!_wanted || _notif != null) return; // 이미 구독 중이거나 그만둔 뒤
     _subscribe(me);
   }
 
@@ -147,7 +164,9 @@ class RealtimeService {
       // access 가 만료됐을 수 있다(iOS 장기 백그라운드 복귀 실사고: 2.3일 지난
       // 토큰으로 재구독 → InvalidJWTToken). REST 는 관문(accessToken 콜백)이
       // 갱신해 주지만 realtime 소켓 auth 는 setAuth 를 다시 불러야만 바뀐다.
-      if (!s.isRefreshing && s.isAccessExpiringSoon(skew: 60)) {
+      // 갱신 중이면 **기다린다.** 건너뛰면 그 사이 요청이 만료 토큰으로 나간다
+      // (#299 에서 accessToken 콜백을 같은 이유로 고쳤다).
+      if (s.isRefreshing || s.isAccessExpiringSoon(skew: 60)) {
         await s.refreshOnce();
         if (!_wanted || _notif != null || s.user?.id != me) return;
       }

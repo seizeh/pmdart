@@ -234,7 +234,7 @@ class _PawMateAppState extends State<PawMateApp> with WidgetsBindingObserver {
       final dead = await s.checkAliveAndClearIfDead();
       if (dead) return; // 로그아웃됐으면 아래 재개·재동기화는 의미 없다
       if (s.isAccessExpiringSoon(skew: 60)) await s.refreshOnce();
-      RealtimeService.instance.start();
+      unawaited(RealtimeService.instance.start());
     }
     // 백그라운드 동안 쌓인 것을 화면에 반영 — 로그인 여부와 무관하게 안전하다
     // (구독자들이 각자 게스트 여부를 판단한다).

@@ -148,10 +148,12 @@ class _TermsScreenState extends State<TermsScreen> {
           // 본문이 화면보다 짧으면 스크롤 여지가 없으므로 즉시 읽음 처리.
           if (widget.requireReadToAgree && !_readToEnd) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted &&
-                  _scroll.hasClients &&
-                  _scroll.position.maxScrollExtent <= 0 &&
-                  !_readToEnd) {
+              if (!mounted || _readToEnd) return;
+              // positions 가 1개일 때만 읽는다 — 교체 프레임엔 2개가 붙어
+              // `.position` 이 던진다(f5fa7c0 과 같은 원인).
+              final ps = _scroll.positions;
+              if (ps.length != 1) return;
+              if (ps.first.maxScrollExtent <= 0) {
                 setState(() => _readToEnd = true);
               }
             });

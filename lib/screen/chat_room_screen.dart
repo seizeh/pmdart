@@ -122,8 +122,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   /// reverse:true 리스트라 위(과거)로 스크롤하면 maxScrollExtent 쪽으로 간다 —
   /// 과거 끝에 가까워지면 이전 페이지를 미리 불러온다(중복 호출은 홀더가 방어).
   void _onScroll() {
-    if (!_scroll.hasClients) return;
-    if (_scroll.position.extentAfter < 300) _state.loadOlder();
+    // 교체 프레임엔 positions 가 2개라 `.position` 이 던진다(f5fa7c0 과 같은 원인).
+    final ps = _scroll.positions;
+    if (ps.length != 1) return;
+    if (ps.first.extentAfter < 300) _state.loadOlder();
   }
 
   @override
@@ -396,9 +398,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
 
   void _scrollToBottom({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) return;
-      final pos =
-          _scroll.position.minScrollExtent; // reverse:true → 0.0 이 맨 아래(최신)
+      final ps = _scroll.positions;
+      if (ps.length != 1) return; // 교체 프레임엔 스킵(다음 프레임에 다시 맞춘다)
+      final pos = ps.first.minScrollExtent; // reverse:true → 0.0 이 맨 아래(최신)
       if (animate) {
         _scroll.animateTo(
           pos,

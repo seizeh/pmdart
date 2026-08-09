@@ -112,6 +112,36 @@ void main() {
       expect(refreshCalls(), 2);
     });
 
+    // 실제로 앱을 통째로 멈춘 경로다(다른 기기에서 비밀번호 변경 → refresh 4xx).
+    //
+    // _doRefresh 는 _refreshing 을 든 채 _invalidate() 를 await 하고, 그 안의
+    // 뒷정리(푸시 토큰 해제 RPC)가 accessToken 콜백을 지나며 refreshOnce() 를
+    // 다시 부른다. "갱신 중이면 기다린다" 규칙이 여기서 **자기 자신을 기다리게**
+    // 만들었다. onBeforeInvalidate 가 그 RPC 를 대신한다.
+    test('거절 → 정리 중에 갱신을 다시 불러도 교착되지 않는다', () async {
+      FakeSupabase.on(
+        'refresh',
+        (_) => FakeSupabase.error(401, {'error': 'invalid_refresh'}),
+      );
+      var reentered = false;
+      SessionManager.instance.onBeforeInvalidate = () async {
+        reentered = true;
+        // 정리 경로가 부르는 RPC 가 콜백을 타고 되돌아오는 상황.
+        await SessionManager.instance.refreshOnce();
+      };
+      addTearDown(() => SessionManager.instance.onBeforeInvalidate = null);
+
+      await SessionManager.instance.refreshOnce().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => fail('교착 — refreshOnce 가 자기 자신을 기다렸다'),
+      );
+
+      expect(reentered, isTrue, reason: '정리 경로를 실제로 지났는지');
+      expect(SessionManager.instance.isLoggedIn, isFalse, reason: '강제 로그아웃');
+      // 교착이면 여기까지 오지 못한다. 다음 갱신도 정상 진입해야 한다.
+      expect(SessionManager.instance.isRefreshing, isFalse);
+    });
+
     test('401(invalid_refresh)이면 세션 clear + 강제 로그아웃 콜백', () async {
       FakeSupabase.on(
         'refresh',

@@ -201,10 +201,13 @@ class ChatRepository {
 
   /// 방의 새 메시지 실시간 구독. [onInsert] 는 새 메시지 1건,
   /// [onDeleted] 는 상대가 삭제한 메시지 id(내 화면에서도 즉시 제거용).
+  /// [onDropped] 는 구독이 끊겼을 때(channelError·timedOut·closed) 불린다.
+  /// 재구독은 호출자 몫이다 — 방 상태(놓친 메시지 재조회)를 아는 쪽이 거기다.
   RealtimeChannel subscribeMessages(
     String roomId,
     void Function(ChatMessage) onInsert, {
     void Function(String messageId)? onDeleted,
+    void Function(RealtimeSubscribeStatus status, Object? err)? onDropped,
   }) {
     final myId = _uid;
     // 커스텀 JWT 를 realtime 인증에 적용 (RLS 통과용).
@@ -241,7 +244,14 @@ class ChatRepository {
             }
           },
         )
-        .subscribe();
+        .subscribe((status, err) {
+          // 종전에는 콜백 없이 .subscribe() 만 불렀다 — 소켓이 끊겨도 알 방법이
+          // 없어 방을 나갔다 다시 들어오기 전까지 새 메시지가 영영 안 왔다.
+          // 알림 채널(RealtimeService)에는 있던 사다리가 여기만 없었다.
+          if (status != RealtimeSubscribeStatus.subscribed) {
+            onDropped?.call(status, err);
+          }
+        });
     return channel;
   }
 

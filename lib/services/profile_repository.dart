@@ -156,16 +156,22 @@ class ProfileRepository {
         ? 'business'
         : 'personal';
 
-    // 통계 — 일부가 막혀 있어도 전체가 실패하지 않도록 개별 보호.
-    final counts = await Future.wait([
+    // 통계·펫·태그는 서로 독립이다 — 한 번에 보낸다.
+    //
+    // 종전에는 counts(4개 병렬) → pets → tags 로 **세 번 줄줄이** 기다렸다.
+    // 프로필 진입이 그만큼 늦었고, 이득 없이 왕복만 늘린 형태였다.
+    // (일부가 막혀 있어도 전체가 실패하지 않도록 개별 보호는 그대로 둔다.)
+    final results = await Future.wait([
       _count('reviews', 'reviewee_id', userId).catchError((_) => 0),
       _count('pawings', 'follower_id', userId).catchError((_) => 0),
       _followerCount(userId, face).catchError((_) => 0),
       _count('posts', 'user_id', userId).catchError((_) => 0),
+      _fetchPublicPets(userId),
+      _fetchReviewTags(userId),
     ]);
-
-    final pets = await _fetchPublicPets(userId);
-    final reviewTags = await _fetchReviewTags(userId);
+    final counts = results.take(4).cast<int>().toList();
+    final pets = results[4] as List<Pet>;
+    final reviewTags = results[5] as List<ReviewTag>;
 
     return PublicProfileData(
       userId: userId,

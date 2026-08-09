@@ -51,7 +51,14 @@ abstract final class Env {
   /// 앱은 링크만 연다.
   ///
   /// 비어 있으면 버튼을 노출하지 않는다(죽은 링크 방지 — 스토어 주소와 같은 규칙).
-  static const testerFormUrl = String.fromEnvironment('TESTER_FORM_URL');
+  static const testerFormUrl = String.fromEnvironment(
+    'TESTER_FORM_URL',
+    // 공개 구글 폼(로그인 불필요). `?usp=dialog` 같은 유입 파라미터는 떼고
+    // 정규 주소만 둔다.
+    defaultValue:
+        'https://docs.google.com/forms/d/e/'
+        '1FAIpQLSdLkrQ4a7HDnhlRp4ZPPxXzEiFaMxkrvR4tpWq0XU5QsfV29A/viewform',
+  );
 
   /// 행안부 juso.go.kr confmKey(클라이언트 키). 위의 값들과 달리 콘솔에서
   /// 앱 단위로 제한할 수 없고 쿼터 소진·남용 여지가 있어 **기본값을 두지 않는다**

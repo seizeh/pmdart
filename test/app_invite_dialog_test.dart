@@ -54,6 +54,14 @@ void main() {
     });
   });
 
+  // Play 출시 전에는 안드로이드 방문자가 갈 곳이 테스터 신청뿐이다 — 여기가
+  // 비면 "출시 준비 중" 만 뜨는 막다른 다이얼로그가 된다(TESTER_FORM_URL 회귀 방지).
+  testWidgets('안드로이드 방문자에게 테스터 신청 버튼을 보여준다', (tester) async {
+    await _withPlatform(tester, TargetPlatform.android, () async {
+      expect(find.textContaining('테스터 신청'), findsOneWidget);
+    });
+  });
+
   testWidgets('iOS 방문자에게 Google Play 버튼을 보여주지 않는다', (tester) async {
     await _withPlatform(tester, TargetPlatform.iOS, () async {
       expect(find.textContaining('Google Play'), findsNothing);

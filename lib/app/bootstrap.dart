@@ -134,7 +134,10 @@ abstract final class AppBootstrap {
     unawaited(LocalNoticeService.instance.init());
 
     // 로그인 상태면 realtime 재인증 + 알림 실시간 구독(벨/목록/채팅 목록 라이브 갱신).
-    if (SessionManager.instance.isLoggedIn) RealtimeService.instance.start();
+    // await 하지 않는다 — 토큰 갱신이 끼면 앱 시작이 그만큼 늦어진다.
+    if (SessionManager.instance.isLoggedIn) {
+      unawaited(RealtimeService.instance.start());
+    }
 
     // runApp 을 직접 부르지 않는다 — 오류 보고를 먼저 세운 뒤 앱을 띄운다.
     // (SENTRY_DSN 미설정이면 종전과 동일하게 곧바로 runApp — Observability 참고)

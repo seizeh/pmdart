@@ -307,8 +307,25 @@ class SessionManager extends ChangeNotifier {
 
   /// 단일비행 갱신 — 동시에 여러 요청이 호출해도 refresh 는 1회만.
   Future<void> refreshOnce() {
+    // 세션 정리 중에는 갱신하지 않는다 — **여기가 없으면 교착이다.**
+    //
+    // refresh 가 4xx 로 거절되면 _doRefresh 는 자기 future(_refreshing)를 아직
+    // 들고 있는 채로 _invalidate() 를 await 한다. 그 안의 뒷정리(푸시 토큰 해제)가
+    // RPC 를 부르고, 그 RPC 는 accessToken 콜백(bootstrap)을 지나며 "갱신 중이면
+    // 기다린다" 규칙에 걸려 **지금 자신을 막고 있는 그 future** 를 기다린다.
+    // 그러면 _refreshing 이 영영 해소되지 않아 앱의 모든 요청이 멈추고, 재시작해도
+    // 첫 refresh 에서 같은 자리에 다시 빠진다.
+    //
+    // 정리 중 요청은 만료 토큰으로 나가 401 을 받겠지만(그건 별건 — 강제 로그아웃
+    // 시 푸시 토큰 해제 실패), 앱이 멈추는 것보다 낫다.
+    if (_tearingDown) return Future.value();
     return _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
   }
+
+  /// 세션 정리(무효화)가 진행 중인가 — [refreshOnce] 가 이 동안 물러선다.
+  /// `_refreshing`(갱신 중)과 **구분해야 한다**: 정리는 갱신 안에서 시작될 수 있고,
+  /// 그때 둘을 같은 신호로 보면 자기 자신을 기다리게 된다.
+  bool _tearingDown = false;
 
   Future<void> _doRefresh() async {
     // 웹은 갱신하지 않는다 — 회전된 새 refresh 를 저장할 곳이 없고, 8시간 상한이
@@ -477,19 +494,24 @@ class SessionManager extends ChangeNotifier {
 
   /// 세션 무효화 → (세션 살아 있는 동안 뒷정리) → 저장소 clear → onInvalidated(라우팅).
   Future<void> _invalidate() async {
-    // clear 전에 부른다. 여기서 무엇이 실패하든 로그아웃 자체는 진행해야 하므로
-    // 예외를 삼킨다 — 세션 정리가 뒷정리 실패에 인질로 잡히면 안 된다.
+    _tearingDown = true;
     try {
-      await onBeforeInvalidate?.call();
-    } catch (e, st) {
-      ErrorReporter.report(
-        e,
-        where: 'session.beforeInvalidate',
-        stackTrace: st,
-      );
+      // clear 전에 부른다. 여기서 무엇이 실패하든 로그아웃 자체는 진행해야 하므로
+      // 예외를 삼킨다 — 세션 정리가 뒷정리 실패에 인질로 잡히면 안 된다.
+      try {
+        await onBeforeInvalidate?.call();
+      } catch (e, st) {
+        ErrorReporter.report(
+          e,
+          where: 'session.beforeInvalidate',
+          stackTrace: st,
+        );
+      }
+      await clear();
+      onInvalidated?.call();
+    } finally {
+      _tearingDown = false;
     }
-    await clear();
-    onInvalidated?.call();
   }
 
   int? _jwtExp(String jwt) {

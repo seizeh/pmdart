@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -71,6 +73,8 @@ class ChatRoomState extends ChangeNotifier {
     _disposed = true;
     // 다른 방을 위에 쌓은 경우가 아니면 활성 방 해제.
     if (_repo.activeRoomId == room.id) _repo.activeRoomId = null;
+    _resubscribe?.cancel();
+    _resubscribe = null;
     if (_channel != null) _repo.unsubscribe(_channel!);
     super.dispose();
   }
@@ -98,17 +102,73 @@ class ChatRoomState extends ChangeNotifier {
     // 실시간 구독 (상대 메시지 수신 + 삭제 반영) — dispose 이후 재개된 경우
     // 구독을 만들면 주인 없는 채널이 앱 수명 내내 남는다(#235).
     if (_disposed || !subscribeRealtime) return;
+    _subscribe();
+  }
+
+  // ── 실시간 구독 + 끊김 복구 ────────────────────────────────────────────
+  //
+  // 종전에는 한 번 붙이고 끝이었다. 소켓이 끊기면(백그라운드 복귀·네트워크 전환)
+  // 새 메시지가 조용히 안 오고, 방을 나갔다 들어오기 전까지 그대로였다.
+  // 알림 채널(RealtimeService)에는 있던 재시도가 여기만 없었다.
+
+  Timer? _resubscribe;
+  int _attempt = 0;
+
+  void _subscribe() {
+    if (_disposed || !subscribeRealtime) return;
     try {
       _channel = _repo.subscribeMessages(
         room.id,
         onIncoming,
         onDeleted: onMessageDeleted,
+        onDropped: (_, _) => _onDropped(),
       );
     } catch (e) {
       ErrorReporter.ignored(
         e,
         where: 'chat.subscribeMessages',
         why: '구독 실패해도 전송·로드는 정상 — 실시간 수신만 빠진다',
+      );
+    }
+  }
+
+  void _onDropped() {
+    if (_disposed || _resubscribe != null) return;
+    // 채널을 반드시 비운다 — 남겨 두면 다음 구독이 중복으로 쌓인다.
+    final dead = _channel;
+    _channel = null;
+    if (dead != null) _repo.unsubscribe(dead);
+
+    // 1·2·4·8초, 최대 30초. 알림 채널과 같은 감각으로 둔다.
+    final delay = Duration(seconds: (1 << _attempt.clamp(0, 5)).clamp(1, 30));
+    _attempt++;
+    _resubscribe = Timer(delay, () async {
+      _resubscribe = null;
+      if (_disposed) return;
+      _subscribe();
+      // 끊겨 있던 동안 온 메시지는 이벤트가 없었다 — 다시 읽어 메운다.
+      // 이게 없으면 재구독 이후 것만 보이고 공백이 영영 남는다.
+      await _refillMissed();
+    });
+  }
+
+  /// 끊김 구간 보충 — 목록을 다시 받아 이미 있는 것과 합친다.
+  Future<void> _refillMissed() async {
+    try {
+      final latest = await _repo.fetchMessages(room.id);
+      if (_disposed) return;
+      final known = _messages.map((m) => m.id).toSet();
+      final missed = latest.where((m) => !known.contains(m.id)).toList();
+      if (missed.isEmpty) return;
+      _attempt = 0; // 정상 복구 확인 — 다음 끊김은 짧은 지연부터
+      _messages = latest;
+      _notify();
+      _markRead();
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'chat.refillMissed',
+        why: '보충 실패해도 다음 수신·재진입에서 메워진다',
       );
     }
   }

@@ -261,7 +261,13 @@ class _CommunityTabState extends State<CommunityTab>
       });
     } catch (_) {
       if (!mounted || myReq != _reqId) return;
-      if (silent) return; // 조용한 갱신 실패는 기존 목록 유지(에러 화면으로 안 덮음)
+      // 조용한 갱신 실패는 기존 목록을 유지한다(에러 화면으로 안 덮음).
+      //
+      // 단 **스피너가 떠 있으면 그냥 반환하면 안 된다.** 최초 로드가 비행 중일 때
+      // 상세에서 돌아오며 silent 갱신이 _reqId 를 가져가면, 최초 로드의 응답은
+      // 위 가드에서 버려진다 — 이 실패마저 조용히 반환하면 _loading 을 풀 사람이
+      // 아무도 남지 않아 스피너가 영원히 돈다.
+      if (silent && !_loading) return;
       setState(() {
         _error = '게시글을 불러오지 못했어요';
         _loading = false;

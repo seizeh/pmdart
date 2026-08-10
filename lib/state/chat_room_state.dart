@@ -114,14 +114,24 @@ class ChatRoomState extends ChangeNotifier {
   Timer? _resubscribe;
   int _attempt = 0;
 
+  /// 채널 세대. 끊긴 채널의 뒤늦은(그리고 동기로 되돌아오는) 콜백을 버리는 데 쓴다.
+  ///
+  /// unsubscribe → removeChannel 은 그 채널의 subscribe 콜백에 closed 를 한 번 더
+  /// 발화시킨다. 소켓이 이미 끊겨 있으면(끊김 복구의 대부분이 이 경우)
+  /// realtime_channel 의 `if (!canPush) leavePush.trigger('ok')` 경로를 타
+  /// **동기로** 되돌아온다 — _resubscribe 대입 전이라 재진입 가드를 그냥 통과한다.
+  /// 알림 채널(RealtimeService)이 같은 이유로 세대 카운터를 쓴다.
+  int _gen = 0;
+
   void _subscribe() {
     if (_disposed || !subscribeRealtime) return;
+    final gen = ++_gen;
     try {
       _channel = _repo.subscribeMessages(
         room.id,
         onIncoming,
         onDeleted: onMessageDeleted,
-        onDropped: (_, _) => _onDropped(),
+        onDropped: (_, _) => _onDropped(gen),
       );
     } catch (e) {
       ErrorReporter.ignored(
@@ -132,8 +142,12 @@ class ChatRoomState extends ChangeNotifier {
     }
   }
 
-  void _onDropped() {
-    if (_disposed || _resubscribe != null) return;
+  void _onDropped(int gen) {
+    // gen 검사가 둘을 함께 막는다: ① 아래 unsubscribe 가 동기로 되돌리는 closed
+    // ② 이미 재구독을 마친 뒤 뒤늦게 도착하는 죽은 채널의 closed(멀쩡한 새 채널을
+    //   파괴해 30초마다 재구독이 도는 상태가 된다).
+    if (_disposed || gen != _gen || _resubscribe != null) return;
+    _gen++; // 이 세대의 이후 콜백은 전부 버린다.
     // 채널을 반드시 비운다 — 남겨 두면 다음 구독이 중복으로 쌓인다.
     final dead = _channel;
     _channel = null;

@@ -177,6 +177,13 @@ class PushService {
         why: '토큰을 못 읽으면 서버 해제를 건너뛴다 — 아래 기기측 삭제는 그대로 시도',
       );
     }
+    // 세션이 이미 회수돼 RPC 를 부를 자격이 없는 상태인가.
+    // app.uid() 가 token_version 불일치·비활성 상태에서 null 을 주면 RLS 가
+    // 42501(not_authenticated)로 막는다 — 강제 로그아웃의 정상 결과다.
+    bool isSessionRevoked(Object e) =>
+        e is PostgrestException &&
+        (e.code == '42501' || e.message.contains('not_authenticated'));
+
     if (token != null && SessionManager.instance.isLoggedIn) {
       try {
         await Supabase.instance.client.rpc(
@@ -184,9 +191,22 @@ class PushService {
           params: {'p_token': token},
         );
       } catch (e, st) {
-        // 오프라인 로그아웃이 정확히 이 경로다. 로그아웃 자체는 막지 않되,
-        // **얼마나 자주 새는지는 알아야 한다** — 이 실패가 곧 #237 의 재현이다.
-        ErrorReporter.report(e, where: 'push.releaseToken', stackTrace: st);
+        // 세션이 이미 회수된 경우(다른 기기 비밀번호 변경·정지·탈퇴)는 실패가
+        // **정상이다.** app.uid() 가 token_version 을 보므로 부를 자격이 없고,
+        // 기기 토큰은 DB 트리거(users_revoke_device_tokens)가 이미 껐다.
+        // 이걸 오류로 올리면 있지도 않은 누수를 알리는 거짓 경보가 된다.
+        //
+        // 그 밖의 실패(오프라인 로그아웃 등)는 진짜 누수다 — #237 의 재현이므로
+        // 얼마나 자주 새는지 계속 본다.
+        if (isSessionRevoked(e)) {
+          ErrorReporter.ignored(
+            e,
+            where: 'push.releaseToken',
+            why: '세션이 이미 회수됨 — 기기 토큰은 DB 트리거가 껐다',
+          );
+        } else {
+          ErrorReporter.report(e, where: 'push.releaseToken', stackTrace: st);
+        }
       }
     }
     try {

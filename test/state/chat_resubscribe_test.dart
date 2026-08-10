@@ -70,8 +70,7 @@ class _DropRepo implements ChatRepository {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 ChatRoomSummary _room() => const ChatRoomSummary(

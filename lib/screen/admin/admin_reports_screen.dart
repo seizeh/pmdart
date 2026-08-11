@@ -195,6 +195,7 @@ class _ReportCard extends StatelessWidget {
     'comment' => '댓글',
     'chat_message' => '채팅',
     'user' => '회원',
+    'facility' => '시설 정보',
     _ => t,
   };
 

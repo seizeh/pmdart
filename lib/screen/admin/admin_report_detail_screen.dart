@@ -211,8 +211,76 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
       'comment' => _commentTarget(t.data),
       'user' => _userTarget(t.data),
       'chat_message' => _chatTarget(t.data),
+      'facility' => _facilityTarget(t.data),
       _ => _box(Text('알 수 없는 대상 (${t.kind})')),
     };
+  }
+
+  /// 시설 정보 제보 대상.
+  ///
+  /// 다른 신고와 달리 처벌이 아니라 **데이터 교정**이다. 판정하면
+  /// facilities.reported_closed_at 이 서고, 그 덕에 다음 공공데이터 재적재가
+  /// is_open 을 도로 올리지 못한다(그쪽은 아직 '영업/정상'이라고 하기 때문).
+  Widget _facilityTarget(Map<String, dynamic> d) {
+    final closed = d['reported_closed_at'] != null;
+    final open = d['is_open'] == true;
+    return _box(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            (d['name'] ?? '이름 없음').toString(),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: context.colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            (d['address'] ?? '').toString(),
+            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '공공데이터 상태: ${d['biz_status'] ?? '-'}'
+            '  ·  지도 노출: ${open ? '노출중' : '숨김'}'
+            '  ·  후기 ${d['review_count'] ?? 0}건'
+            '${closed ? '  ·  관리자 폐업 판정됨' : ''}',
+            style: TextStyle(fontSize: 12, color: context.colors.textTertiary),
+          ),
+          const SizedBox(height: 12),
+          _actionRow([
+            if (!closed)
+              _btn(
+                '폐업/이전으로 판정',
+                () => _markFacilityClosed(d, true),
+                primary: true,
+              )
+            else
+              _btn('판정 해제', () => _markFacilityClosed(d, false)),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _markFacilityClosed(Map<String, dynamic> d, bool closed) async {
+    try {
+      await AdminModerationRepository.instance.markFacilityClosed(
+        d['id'] as String,
+        closed,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(closed ? '폐업으로 판정했어요' : '판정을 해제했어요')),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('처리 실패: $e')));
+    }
   }
 
   Widget _sectionTitle(String s) => Padding(
@@ -599,6 +667,7 @@ class _AdminReportDetailScreenState extends State<AdminReportDetailScreen> {
     'comment' => '댓글',
     'chat_message' => '채팅',
     'user' => '회원',
+    'facility' => '시설 정보',
     _ => t,
   };
 

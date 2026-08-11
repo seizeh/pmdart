@@ -10,9 +10,11 @@ import '../screen/facility_review_screen.dart';
 import '../screen/user_profile_screen.dart';
 import '../services/facility_repository.dart';
 import '../services/facility_review_repository.dart';
+import '../services/report_repository.dart';
 import '../services/session.dart';
 import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
+import 'report_sheet.dart';
 import 'review_cards.dart';
 
 /// 시설 상세 콘텐츠(정보 + 후기/사진 + 후기 작성 + 네이버 지도 링크).
@@ -135,6 +137,33 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
       ),
     );
     if (ok == true) unawaited(_load());
+  }
+
+  /// 시설 정보 제보(폐업·이전·정보 불일치).
+  ///
+  /// 다른 신고와 성격이 다르다 — 누구를 벌하자는 게 아니라 공공데이터가 늦어서
+  /// 틀린 정보를 고치는 경로다. 관리자가 확인하면 지도에서 내려간다.
+  Future<void> _reportFacility(Facility f) async {
+    if (!SessionManager.instance.isLoggedIn) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('제보는 로그인 후 남길 수 있어요')));
+      return;
+    }
+    // 카페는 마커 id 가 가짜다 — 후기와 같은 기준(승격된 실제 id)으로 보낸다.
+    final targetId = f.isNaver ? _fid : f.id;
+    if (targetId == null) return;
+    final ok = await showReportSheet(
+      context,
+      targetType: ReportRepository.targetFacility,
+      targetId: targetId,
+      targetLabel: '시설 정보',
+      targetTitle: f.name,
+    );
+    if (!mounted || !ok) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('제보 감사합니다. 확인 후 반영할게요')));
   }
 
   Future<void> _openInNaverMap() async {
@@ -369,7 +398,38 @@ class _FacilityDetailContentState extends State<FacilityDetailContent> {
           ),
         ],
       ),
-      const SizedBox(height: 18),
+      const SizedBox(height: 10),
+      // 공공데이터(LOCALDATA)는 인허가 신고 기반이라 폐업·이전 반영이 2~3개월
+      // 늦는다. 가게 앞에 선 사용자가 가장 빠른 탐지기라 제보 경로를 둔다.
+      // 후기 쓰기와 경쟁하지 않게 눈에 띄지 않는 텍스트로 둔다.
+      // 네이버 카페는 마커 id 가 가짜라, 승격된 실제 id(_fid)가 잡히기 전에는
+      // 제보해도 관리자가 대상을 찾을 수 없다 → 그때는 노출하지 않는다.
+      // Align 은 무한 너비에서 터진다(이 화면 규칙) — Row(min) 로 왼쪽 정렬.
+      if (!f.isNaver || _fid != null) ...[
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _reportFacility(f),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  '정보가 달라요 · 폐업/이전 제보',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.textTertiary,
+                    decoration: TextDecoration.underline,
+                    decorationColor: context.colors.textTertiary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+      ],
       Divider(height: 1, color: context.colors.border),
       const SizedBox(height: 14),
       Text(

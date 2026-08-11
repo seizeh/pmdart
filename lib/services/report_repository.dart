@@ -18,6 +18,11 @@ class ReportRepository {
   static const targetChatMessage = 'chat_message';
   static const targetUser = 'user';
 
+  /// 시설 정보 제보 — 다른 신고와 성격이 다르다. 누구를 벌하자는 게 아니라
+  /// **공공데이터가 늦어서 틀린 정보**를 사용자가 고쳐 주는 경로다.
+  /// (LOCALDATA 는 인허가 신고 기반이라 폐업·이전 반영이 2~3개월 늦는다.)
+  static const targetFacility = 'facility';
+
   /// 신고 사유 — DB CHECK(reports_categories_allowed)와 일치해야 한다.
   /// '기타'류 선택 시 [extraDescription] 필수(reports_extra_required).
   /// 일반(댓글/사용자/채팅)용 사유.
@@ -36,11 +41,22 @@ class ReportRepository {
     '실제 반려동물이 아니에요',
     '기타(직접작성)',
   ];
+
+  /// 시설 전용 제보 사유.
+  static const facilityCategories = <String>[
+    '폐업했어요',
+    '이사갔어요',
+    '정보가 달라요',
+    '기타(직접작성)',
+  ];
   static const categoryEtc = '기타';
 
   /// 대상 타입에 맞는 신고 사유 목록.
-  static List<String> categoriesFor(String targetType) =>
-      targetType == targetPost ? postCategories : categories;
+  static List<String> categoriesFor(String targetType) => switch (targetType) {
+    targetPost => postCategories,
+    targetFacility => facilityCategories,
+    _ => categories,
+  };
 
   /// 상세설명이 필수인 '기타'류 사유인지.
   static bool isEtc(String category) => category.startsWith('기타');

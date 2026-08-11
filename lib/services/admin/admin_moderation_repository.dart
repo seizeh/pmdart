@@ -30,6 +30,18 @@ class AdminModerationRepository {
     );
   }
 
+  /// 시설 폐업/이전 판정. 제보를 확인한 관리자가 지도에서 내린다.
+  ///
+  /// 단순히 is_open 을 끄는 게 아니라 facilities.reported_closed_at 을 세운다 —
+  /// 그게 없으면 다음 공공데이터 재적재가 is_open 을 도로 켠다(원천은 아직
+  /// '영업/정상'이라고 하기 때문). 해제하면 원천 상태로 되돌아간다.
+  Future<void> markFacilityClosed(String facilityId, bool closed) async {
+    await _c.rpc(
+      'admin_mark_facility_closed',
+      params: {'p_facility': facilityId, 'p_closed': closed},
+    );
+  }
+
   /// 신고 대상의 실제 내용 조회.
   Future<ReportTarget> getReportTarget(String reportId) async {
     final res = await _c.rpc(

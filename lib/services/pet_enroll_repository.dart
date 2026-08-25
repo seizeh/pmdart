@@ -32,10 +32,15 @@ class PetEnrollResult {
         return '영상이 너무 짧아요. 더 길게(약 5초) 다시 촬영해주세요';
       case 'ai_unavailable':
         return 'AI 사용량이 많아 잠시 지연되고 있어요. 잠시 후 다시 시도해주세요';
-      // 원인은 길이가 아니라 해상도·비트레이트(촬영 화질 제한 없음) — "짧게
-      // 다시" 류의 사용자가 실행 불가능한 지시를 주지 않는다.
+      // 종전 문구는 "잠시 후 다시 시도하거나 고객센터로 문의" 였다. 그때는 앱이
+      // 촬영 원본을 그대로 보냈고, 원인이 길이가 아니라 화질이라 **사용자가 할 수
+      // 있는 게 없었다** — 그래서 실행 불가능한 지시를 주지 않는 쪽을 택했다.
+      //
+      // 이제는 앱이 720p 로 다시 굽고 나서 재므로(capturePetVideo) 그래도 넘친다면
+      // 남은 변수는 **길이와 밝기**다. 둘 다 사용자가 바꿀 수 있다 —
+      // 어두우면 노이즈 때문에 같은 길이도 파일이 커진다. 이제야 이 안내가 성립한다.
       case 'video_too_large':
-        return '영상 용량이 커서 처리하지 못했어요. 잠시 후 다시 시도하거나 고객센터로 문의해주세요';
+        return '영상 용량이 커서 처리하지 못했어요. 조금 더 짧게, 밝은 곳에서 다시 촬영해주세요';
       default:
         return '신원 인증에 실패했어요. 다시 시도해주세요';
     }
@@ -50,12 +55,44 @@ class PetEnrollRepository {
 
   SupabaseClient get _c => Supabase.instance.client;
 
+  /// 서버 `enroll-pet-identity` 의 `MAX_INLINE_B64_CHARS` 와 **같은 값**이어야 한다.
+  /// (Gemini 요청당 20MB 보호선. 영상 + 프레임 base64 길이의 합.)
+  ///
+  /// 여기서 미리 재는 이유는 방어가 아니라 **낭비 방지**다. 서버가 어차피 거절하는데,
+  /// 그 판정을 받으려면 25MB 를 모바일로 다 올려야 했다. 그동안 사용자는 진행률도
+  /// 없는 화면을 보고, 실패해도 `aienroll` 레이트리밋(10회)은 그대로 소모된다.
+  /// 2026-08-23 실사용에서 3회 중 2회가 그렇게 나갔다(pmdb#136).
+  ///
+  /// ⚠️ 서버 상수와 갈리면 **여기가 더 관대할 때만 안전하다.** 더 빡빡하면 서버가
+  /// 받아 줄 영상을 앱이 먼저 막는다 — 값을 바꿀 일이 생기면 서버부터 올릴 것.
+  static const int maxInlineB64Chars = 19000000;
+
+  /// base64 인코딩 후 길이. 실제로 인코딩하지 않고 센다 — 25MB 문자열을 만들어
+  /// 보고 나서 "너무 크네" 하는 건 재려는 낭비를 그대로 치르는 짓이다.
+  static int b64Len(int bytes) => ((bytes + 2) ~/ 3) * 4;
+
+  /// 이 조합이 서버 한도를 넘는지. [enroll] 이 전송 전에 부른다.
+  static bool exceedsInlineLimit(int videoBytes, Iterable<int> frameBytes) {
+    var chars = b64Len(videoBytes);
+    for (final n in frameBytes) {
+      chars += b64Len(n);
+    }
+    return chars > maxInlineB64Chars;
+  }
+
   Future<PetEnrollResult> enroll({
     required String petId,
     required Uint8List videoBytes,
     String videoMime = 'video/mp4',
     required List<Uint8List> frames,
   }) async {
+    // 전송 전 차단 — 서버와 같은 사유 코드를 돌려주므로 화면 문구는 그대로 쓴다.
+    if (exceedsInlineLimit(videoBytes.length, frames.map((f) => f.length))) {
+      return const PetEnrollResult(
+        enrolled: false,
+        errorCode: 'video_too_large',
+      );
+    }
     try {
       final res = await _c.functions.invoke(
         'enroll-pet-identity',

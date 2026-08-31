@@ -40,12 +40,32 @@ class _PetIdentityEnrollScreenState extends State<PetIdentityEnrollScreen> {
   Future<void> _captureAndEnroll() async {
     XFile? video;
     try {
-      video = await StorageService.instance.capturePetVideo();
+      // 재인코딩은 촬영 직후 몇 초가 걸린다. 진행률이 없으면 화면이 멈춘 것처럼
+      // 보인다 — 콜백은 압축이 **실제로 일어날 때만** 온다(작은 영상은 건너뜀).
+      video = await StorageService.instance.capturePetVideo(
+        onCompress: (p) {
+          if (!mounted) return;
+          setState(() {
+            _busy = true;
+            _status = '영상 준비 중… ${(p * 100).round()}%';
+          });
+        },
+      );
     } catch (_) {
+      if (mounted && _busy) setState(() => _busy = false);
       _toast('카메라를 열 수 없어요. 카메라/마이크 권한을 확인하거나 실기기에서 시도해주세요');
       return;
     }
-    if (video == null) return; // 취소
+    if (video == null) {
+      // 취소. 압축 콜백이 _busy 를 켰을 수 있으므로 되돌린다.
+      if (mounted && _busy) {
+        setState(() {
+          _busy = false;
+          _status = null;
+        });
+      }
+      return;
+    }
     if (!mounted) return; // 픽커 대기 중 라우트 제거 가능(#238)
     setState(() {
       _busy = true;

@@ -104,6 +104,22 @@ jobs:
             exit 1
           fi
 
+      # 파일 크기 래칫 — 커버리지·catch (_) 래칫과 같은 방식(#155 God Widget).
+      # 현재 최대 파일(business_register_screen.dart 2,100줄)을 상한으로 고정해
+      # "더 큰 화면이 새로 생기는 것"부터 막고, 분리가 진행되는 만큼 상한을 내린다.
+      # 파일을 쪼개는 방법은 docs/architecture-state.md 의 상태 홀더 패턴 참고.
+      - name: 파일 크기 래칫(≤2100줄)
+        shell: bash
+        run: |
+          max=$(git ls-files 'lib/**.dart' | xargs wc -l | sed '$d' | sort -rn | head -1)
+          n=$(echo "$max" | awk '{print $1}')
+          f=$(echo "$max" | awk '{print $2}')
+          echo "최대 파일 $n줄 — $f (상한 2100)" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$n" -gt 2100 ]; then
+            echo "::error::lib/ 파일이 2,100줄을 넘었습니다($f: $n줄). 화면 분리(상태 홀더/위젯 추출) 후 다시 올리세요."
+            exit 1
+          fi
+
       # `dart:io` 금지 게이트 — 웹에서 컴파일은 되지만 Platform.isIOS 등이 런타임에
       # UnsupportedError 를 던진다(빌드로는 안 잡히고 흰 화면으로만 드러남).
       # 플랫폼 판별은 lib/utils/platform_info.dart, 파일 조작은 조건부 import 파사드로.

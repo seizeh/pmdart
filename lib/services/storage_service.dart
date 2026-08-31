@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
+import '../utils/temp_file.dart';
 import 'error_reporter.dart';
 import 'session.dart';
 import 'upload_progress.dart';
@@ -160,11 +161,42 @@ class StorageService {
   }
 
   /// 신원 인증용: 카메라 영상만(갤러리 진입 불가). 무작위 임무 수행 영상(~11초).
-  Future<XFile?> capturePetVideo() => _picker.pickVideo(
-    source: ImageSource.camera,
-    preferredCameraDevice: CameraDevice.rear,
-    maxDuration: const Duration(seconds: 11),
-  );
+  ///
+  /// ── 왜 여기서 재인코딩하나 (pmdb#136)
+  ///
+  /// 종전에는 촬영 원본을 그대로 넘겼다. 첨부 영상은 [pickVideo] 가 720p 로 다시
+  /// 굽는데 **이 경로만 그걸 안 거쳤다.** 그 결과 실사용 첫날 3회 중 2회가 서버
+  /// 한도(19M base64 chars ≈ 원본 13.6MB, 영상+프레임 합산)에 걸려 거절됐다 —
+  /// 7초짜리가 17MB(≈19Mbps)였다. 길이가 아니라 화질이 원인이라 사용자가 짧게
+  /// 다시 찍어도 또 걸린다.
+  ///
+  /// 야간이면 더 나쁘다. 어두우면 ISO 가 올라가고 센서 노이즈가 생기는데, 노이즈는
+  /// 프레임마다 무작위라 인코더가 압축하지 못한다(같은 설정으로 뽑은 프레임 실측:
+  /// 주간 0.21MB → 야간 0.45MB). 720p 로 다시 구우면 11초를 꽉 채워도 3MB 안팎이라
+  /// 이 축이 통째로 사라진다.
+  ///
+  /// ⚠️ **압축은 반드시 이 자리여야 한다.** 화면은 여기서 받은 파일 하나만 보고
+  /// 거기서 프레임을 뽑는다(`pet_identity_enroll_screen`). 즉 반환한 파일이 곧
+  /// 전송될 파일이라 **프레임과 영상의 출처가 갈릴 수 없다.** 전송 직전 단계에서
+  /// 압축하면 원본에서 뽑은 프레임이 압축본과 함께 나가고, 서버의
+  /// `frames_from_video` 판정이 "영상에 없는 장면"으로 오탐할 수 있다(pmdb#135).
+  ///
+  /// [onCompress] 는 재인코딩이 **실제로 일어날 때만** 불린다([pickVideo] 와 동일).
+  Future<XFile?> capturePetVideo({ProgressCallback? onCompress}) async {
+    final f = await _picker.pickVideo(
+      source: ImageSource.camera,
+      preferredCameraDevice: CameraDevice.rear,
+      maxDuration: const Duration(seconds: 11),
+    );
+    if (f == null) return null;
+    final normalized = await _normalizeVideo(f, onCompress);
+    // 촬영 임시본은 **우리가 만들게 한 사본**이고 다시 고를 일이 없다 — 압축본이
+    // 따로 생겼으면 즉시 지운다. 갤러리 경로가 원본을 남기는 것과 이유가 다르다
+    // (저기는 사용자가 다시 고를 수 있는 파일이다 — _normalizeVideo 주석).
+    // 안 지우면 검증만 하고 버릴 원본 17MB 가 기기에 남는다(화면의 '잔존 방지' 의도).
+    if (normalized.path != f.path) unawaited(deleteTempFile(f.path));
+    return normalized;
+  }
 
   /// 첨부 영상 상한(서버 CHECK 와 동일 — 100MB). 초과 시 업로드 전에 거른다.
   static const int maxVideoBytes = 100 * 1024 * 1024;

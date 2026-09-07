@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pawmate/models/chat.dart';
+import 'package:pawmate/services/app_events.dart';
 import 'package:pawmate/services/chat_repository.dart';
 import 'package:pawmate/services/session.dart';
 import 'package:pawmate/state/chat_room_state.dart';
@@ -96,6 +97,22 @@ void main() {
 
       s.dispose();
       expect(ChatRepository.instance.activeRoomId, isNull, reason: '이탈 시 해제');
+    });
+
+    test('읽음 처리 성공은 방 목록 갱신 이벤트를 쏜다', () async {
+      // 목록에서 연 방은 pop 복귀 시 재조회가 따로 있지만, **알림 딥링크로 연
+      // 방**은 이 이벤트가 유일한 배지 갱신 경로다 — 없으면 채팅 목록에 미읽음
+      // "1" 이 남는다(실사고).
+      FakeSupabase.on('chat_messages', (_) => [msg('m1')]);
+      FakeSupabase.on('chat_room_members', (_) => []);
+      final before = AppEvents.instance.chat.value;
+      final s = newState();
+
+      s.init();
+      await pumpEventQueue();
+
+      expect(AppEvents.instance.chat.value, greaterThan(before));
+      s.dispose();
     });
 
     test('빈 방은 읽음 처리 요청을 보내지 않는다', () async {

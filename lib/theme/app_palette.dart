@@ -90,6 +90,13 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color catAdoption;
   final Color catFree;
 
+  /// 안읽은 알림 행 배경 — 골드 브라운(primarySoft)을 절반 채도로 surface 에
+  /// 섞은 톤. 라이트는 흰 행과 "구분은 되지만 크게 다르지 않은" 연한 라떼,
+  /// 다크는 탠 기운이 도는 살짝 밝은 면(흰색 하드코딩 금지 — 다크에서 눈부심).
+  /// 읽은 행은 [surface] 그대로 — 두 값은 항상 짝으로 쓴다(벨 패널·알림함 공용).
+  Color get unreadTint =>
+      Color.alphaBlend(primarySoft.withValues(alpha: 0.5), surface);
+
   /// 라이트 — 기존 브랜드 팔레트 그대로.
   /// background 는 앱의 실질 페이지 배경(흰색), 크림은 [cream] 토큰.
   static const light = AppPalette(

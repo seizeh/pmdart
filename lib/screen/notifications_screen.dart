@@ -142,9 +142,9 @@ class _NotificationTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: n.isRead
-            ? Colors.white
-            : context.colors.primarySoft.withValues(alpha: 0.18),
+        // 읽음 = surface(테마 추종 — 흰색 하드코딩은 다크에서 눈부셨다),
+        // 안읽음 = 연한 골드 브라운(unreadTint, 라이트/다크 공통 규칙).
+        color: n.isRead ? context.colors.surface : context.colors.unreadTint,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -105,7 +105,7 @@ class _MainScreenState extends State<MainScreen>
   ];
 
   Widget _buildTab(int tab) => switch (tab) {
-    MainScreen.tabMap => const MapTab(),
+    MainScreen.tabMap => MapTab(isGuest: widget.isGuest),
     MainScreen.tabSearch => UserSearchTab(chromeVisible: _navVisible),
     MainScreen.tabCommunity => CommunityTab(
       isGuest: widget.isGuest,

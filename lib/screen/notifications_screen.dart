@@ -32,11 +32,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.dispose();
   }
 
+  /// 제자리에서 본문을 펼쳐 둔 알림 id — 이동할 화면이 없는 알림의 "더 보기".
+  final Set<String> _expanded = {};
+
   Future<void> _onTap(AppNotification n) async {
     _state.markRead(n);
+    if (!n.hasDestination) {
+      // 이동할 곳이 없다(공지 등) — 새 화면 대신 그 자리에서 본문을 아래로
+      // 펼친다(다시 탭하면 접힘). 종전에는 아무 일도 안 일어나 2줄로 잘린
+      // 본문을 읽을 방법이 없었다.
+      setState(() {
+        if (!_expanded.add(n.id)) _expanded.remove(n.id);
+      });
+      return;
+    }
     // 푸시 탭과 동일한 딥링크 라우팅 — 관련 탭으로 전환한 뒤 상세를 rise 로
     // 열어, 닫으면(쓸어내리기/뒤로가기) 채팅 목록 등 관련 탭이 나온다.
-    // 이미 알림함이므로 폴백(알림함 열기)은 끈다 — 라우팅 없는 타입은 제자리.
+    // 이미 알림함이므로 폴백(알림함 열기)은 끈다 — 재귀 방지.
     await openFromPush(
       n.type,
       n.resourceType,
@@ -80,6 +92,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             Divider(height: 1, color: context.colors.border),
         itemBuilder: (_, i) => _NotificationTile(
           notification: items[i],
+          expanded: _expanded.contains(items[i].id),
           onTap: () => _onTap(items[i]),
         ),
       ),
@@ -113,8 +126,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
 class _NotificationTile extends StatelessWidget {
   final AppNotification notification;
+  /// 본문을 줄 제한 없이 아래로 펼침 — 이동할 화면이 없는 알림의 "더 보기".
+  final bool expanded;
   final VoidCallback onTap;
-  const _NotificationTile({required this.notification, required this.onTap});
+  const _NotificationTile({
+    required this.notification,
+    required this.expanded,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -153,13 +172,19 @@ class _NotificationTile extends StatelessWidget {
                   ),
                   if (n.body != null && n.body!.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      n.body!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: context.colors.textSecondary,
+                    // 펼침/접힘이 제자리에서 아래로 자라도록 크기만 애니메이션.
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topLeft,
+                      child: Text(
+                        n.body!,
+                        maxLines: expanded ? null : 2,
+                        overflow: expanded ? null : TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: context.colors.textSecondary,
+                        ),
                       ),
                     ),
                   ],

@@ -191,6 +191,11 @@ class ChatRepository {
         .update({'last_read_message_id': lastMessageId})
         .eq('room_id', roomId)
         .eq('user_id', _uid);
+    // 방 목록의 미읽음 배지 갱신 — 목록 화면이 이 이벤트로 silent reload 한다.
+    // 목록에서 연 방은 pop 복귀 시 재조회가 따로 있지만, **알림 딥링크로 연 방**은
+    // 그 경로를 타지 않아 배지 "1" 이 그대로 남았다(실사고). 읽음의 진실원은
+    // 여기이므로 성공 시점에 알리는 것이 모든 진입 경로를 덮는다.
+    AppEvents.instance.notifyChat();
   }
 
   /// 내 메시지 삭제(소프트) — 서버 RPC 가 본인 검증·방 미리보기·미읽음 보정까지 처리.

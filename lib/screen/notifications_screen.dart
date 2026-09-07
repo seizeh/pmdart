@@ -126,6 +126,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
 class _NotificationTile extends StatelessWidget {
   final AppNotification notification;
+
   /// 본문을 줄 제한 없이 아래로 펼침 — 이동할 화면이 없는 알림의 "더 보기".
   final bool expanded;
   final VoidCallback onTap;

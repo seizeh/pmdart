@@ -16,13 +16,15 @@ import '../../widgets/facility_sheet.dart';
 import '../../widgets/map_bottom_sheet.dart';
 import '../../widgets/map_marker_icons.dart';
 import '../../widgets/region_posts_sheet.dart';
+import '../auth/auth_wall_dialog.dart';
 
 // 게시글 행정동 클러스터 칩(시설과 별개) — 코드/라벨/색.
 const _postsLayer = ('posts', '게시글', Color(0xFF26A69A));
 
 /// 지도 탭 — 주변 반려동물 시설(공공데이터)을 네이버 지도에 표시 (0021).
 class MapTab extends StatefulWidget {
-  const MapTab({super.key});
+  final bool isGuest;
+  const MapTab({super.key, this.isGuest = false});
 
   @override
   State<MapTab> createState() => _MapTabState();
@@ -525,6 +527,14 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   // 카테고리 단일 선택(게시글 포함 한 번에 하나만). 같은 칩을 다시 누르면 해제.
   // 검색 모드에서는 지도 레이어가 아니라 검색 목록 필터로 동작한다.
   void _toggleCategory(String code) {
+    // 게시글 레이어는 로그인 전용 — 서버가 posts_by_region 의 anon 실행을 의도적으로
+    // 막아 두었다(pmdb 20260727170000: "게스트가 그 레이어를 켜면 여전히 로그인이
+    // 필요하다"). 여기서 안 막으면 게스트의 RPC 가 42501 로 죽고 레이어만 조용히
+    // 비어 보인다(운영 client_errors 실사고). 다른 게스트 차단 지점과 같은 안내를 띄운다.
+    if (code == _postsLayer.$1 && widget.isGuest) {
+      AuthWallDialog.show(context, message: '게시글 지도는 로그인 후 볼 수 있어요');
+      return;
+    }
     if (_searchMode) {
       // 게시글은 시설 검색 대상이 아니라 필터로 선택 불가(추후 기능 확장 시 지원).
       if (code == _postsLayer.$1) return;

@@ -51,6 +51,24 @@ class AppNotification {
   /// title 이 없을 때 타입으로 기본 문구.
   String get displayTitle => title ?? _defaultTitle(type);
 
+  /// 탭했을 때 이동할 화면이 있는가 — push_routing.openFromPush 의 분기와
+  /// 거울이어야 한다(거기서 라우팅을 추가하면 여기도 함께).
+  ///
+  /// 없으면(공지 등) 알림함이 탭을 "이동" 이 아니라 "본문 제자리 펼침" 으로
+  /// 처리한다 — 이동할 곳도 없는데 본문이 2줄에서 잘리면 긴 공지는 영영 못
+  /// 읽는다(관리자 운영 알람 실사고).
+  bool get hasDestination {
+    if (type == 'guardian_invite' || type == 'review_received') return true;
+    if (resourceId == null || resourceId!.isEmpty) return false;
+    return const {
+      'post',
+      'user',
+      'chat_room',
+      'pet',
+      'facility_review',
+    }.contains(resourceType);
+  }
+
   static String _defaultTitle(String type) => switch (type) {
     'chat_message' => '새 메시지',
     'post_application' => '내 게시글에 지원이 왔어요',

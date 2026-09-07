@@ -7,6 +7,7 @@ import '../../services/auth_service.dart';
 import '../../services/session.dart';
 import '../../theme/app_palette.dart';
 import '../change_password_screen.dart';
+import '../notifications_screen.dart';
 import '../welcome_screen.dart';
 import 'admin_broadcast_screen.dart';
 import 'admin_business_screen.dart';
@@ -101,6 +102,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         context,
         '관리자 콘솔',
         actions: [
+          // 운영 알람(ops_alarm_fire)이 관리자 알림으로 오는데, 관리자 화면에는
+          // 열어 볼 목록이 없어 푸시를 놓치면 그걸로 끝이었다 — 알림함을 단다.
+          IconButton(
+            icon: const Icon(Icons.notifications_rounded),
+            tooltip: '알림',
+            onPressed: () => _open(const NotificationsScreen()),
+          ),
           IconButton(
             icon: const Icon(Icons.lock_outline),
             tooltip: '비밀번호 변경',

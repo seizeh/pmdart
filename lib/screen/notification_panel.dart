@@ -237,26 +237,48 @@ class _NotificationPanelState extends State<_NotificationPanel> {
     }
   }
 
+  /// 제자리에서 본문을 펼쳐 둔 알림 id — 이동할 화면이 없는 알림의 "더 보기".
+  final Set<String> _expanded = {};
+
   void _onTap(AppNotification n) {
-    // 패널을 바로 닫으므로 await 해도 보여줄 UI 가 없다. 다만 **조용히 삼키지는
-    // 않는다** — 실패하면 알림이 되살아나는데, 그게 왜인지 알 방법이 없었다(#232).
-    unawaited(
-      _repo.delete(n.id).catchError((Object e, StackTrace st) {
-        ErrorReporter.report(e, where: 'notification.delete', stackTrace: st);
-      }),
-    ); // 확인한 알림은 삭제
-    Navigator.of(context).pop(); // 패널 닫기
-    // 푸시 탭과 동일한 딥링크 라우팅 — 관련 탭으로 전환한 뒤 상세를 rise 로
-    // 열어, 닫으면(쓸어내리기/뒤로가기) 채팅 목록 등 관련 탭이 나온다.
-    // 패널에서의 탭도 폴백(알림함 열기)은 끈다 — 라우팅 없는 타입은 제자리.
-    unawaited(
-      openFromPush(
-        n.type,
-        n.resourceType,
-        n.resourceId,
-        fallbackToInbox: false,
-      ),
-    );
+    // 확인 = **읽음 처리**(낙관 갱신). 종전에는 탭 즉시 삭제했는데, 이동할 화면이
+    // 없는 알림(공지 등)은 그 삭제가 2줄로 잘린 본문을 영영 못 읽게 만들었다
+    // (운영 알람 실사고). 기록은 남기고, 지우는 길은 '모두 읽음' 하나로 좁힌다.
+    if (!n.isRead) {
+      unawaited(
+        _repo.markRead(n.id).catchError((Object e, StackTrace st) {
+          ErrorReporter.report(
+            e,
+            where: 'notification.markRead',
+            stackTrace: st,
+          );
+        }),
+      );
+      final idx = _items.indexWhere((e) => e.id == n.id);
+      if (idx >= 0) {
+        setState(() => _items = [..._items]..[idx] = n.copyWith(isRead: true));
+      }
+    }
+    if (n.hasDestination) {
+      Navigator.of(context).pop(); // 패널 닫기
+      // 푸시 탭과 동일한 딥링크 라우팅 — 관련 탭으로 전환한 뒤 상세를 rise 로
+      // 열어, 닫으면(쓸어내리기/뒤로가기) 채팅 목록 등 관련 탭이 나온다.
+      // 패널에서의 탭도 폴백(알림함 열기)은 끈다 — 재귀 방지.
+      unawaited(
+        openFromPush(
+          n.type,
+          n.resourceType,
+          n.resourceId,
+          fallbackToInbox: false,
+        ),
+      );
+      return;
+    }
+    // 이동할 곳이 없다 — 새 화면을 띄우는 대신 그 자리에서 본문을 아래로
+    // 펼친다(다시 탭하면 접힘). 패널은 닫지 않는다.
+    setState(() {
+      if (!_expanded.add(n.id)) _expanded.remove(n.id);
+    });
   }
 
   @override
@@ -375,6 +397,7 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                         Divider(height: 1, color: context.colors.border),
                     itemBuilder: (_, i) => _PanelTile(
                       notification: items[i],
+                      expanded: _expanded.contains(items[i].id),
                       onTap: () => _onTap(items[i]),
                     ),
                   ),
@@ -404,11 +427,17 @@ class _BellDot extends StatelessWidget {
   }
 }
 
-/// 패널용 컴팩트 알림 행.
+/// 패널용 컴팩트 알림 행. [expanded] 면 본문을 줄 제한 없이 아래로 펼친다
+/// (이동할 화면이 없는 알림의 "더 보기" — 펼침/접힘은 AnimatedSize 로 부드럽게).
 class _PanelTile extends StatelessWidget {
   final AppNotification notification;
+  final bool expanded;
   final VoidCallback onTap;
-  const _PanelTile({required this.notification, required this.onTap});
+  const _PanelTile({
+    required this.notification,
+    required this.expanded,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -449,14 +478,20 @@ class _PanelTile extends StatelessWidget {
                   ),
                   if (n.body != null && n.body!.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      n.body!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: context.colors.textSecondary,
-                        height: 1.35,
+                    // 펼침/접힘이 제자리에서 아래로 자라도록 크기만 애니메이션.
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topLeft,
+                      child: Text(
+                        n.body!,
+                        maxLines: expanded ? null : 2,
+                        overflow: expanded ? null : TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: context.colors.textSecondary,
+                          height: 1.35,
+                        ),
                       ),
                     ),
                   ],

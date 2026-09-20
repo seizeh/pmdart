@@ -124,7 +124,6 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
   // 마커 이미지 렌더링·캐시는 전부 여기(#155 — lib/widgets/map_marker_icons.dart).
   final _icons = MapMarkerIcons();
   final Map<String, PostCluster> _clusterByMarkerId = {}; // 게시글 클러스터 마커
-  bool _dongSynced = false; // 세션당 1회 행정동 centroid 보충
   NLatLng? _loadedCenter; // 마지막 조회 중심(디바운스 기준)
 
   Facility? _searchResult; // 검색으로 선택된 시설(강조 마커, 재조회에도 유지)
@@ -231,13 +230,11 @@ class _MapTabState extends State<MapTab> with AutomaticKeepAliveClientMixin {
           ),
       ];
       // 게시글 행정동 클러스터(현재 뷰포트 bbox 기준) — 별도 레이어.
-      // 첫 진입 시 행정동 중심좌표를 1회 보충(지오코딩) 후 클러스터 조회.
+      // 행정동 중심좌표 보충은 서버 크론(dong-centroid-sweep, 매시)이 담당한다 —
+      // 2026-09-20 전에는 여기서 sync-dong-centroids 를 직접 호출하는 lazy backfill
+      // 이었다(pmdb#202). 빈 동은 posts_by_region 이 사용자 평균으로 폴백한다.
       List<PostCluster> clusters = const [];
       if (_selected.contains('posts')) {
-        if (!_dongSynced) {
-          _dongSynced = true;
-          await PostQueryRepository.instance.syncDongCentroids();
-        }
         clusters = await _loadClusters(c);
       }
 

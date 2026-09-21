@@ -100,4 +100,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Play Integrity 표준 요청(기기 증명 — AttestService/MainActivity, pmdb §7.5)
+    implementation("com.google.android.play:integrity:1.4.0")
 }

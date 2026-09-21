@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'attest_service.dart';
 import 'location_service.dart';
 
 /// 게시글 사진 동일개체 매칭 결과 (0018→0020).
@@ -109,17 +110,23 @@ class PhotoVerifyRepository {
     final pos = loc.position!;
     try {
       final bytes = await shot.readAsBytes();
+      // 본문은 직접 인코딩한 문자열로 보낸다 — 기기 증명이 이 바이트의 SHA-256 에
+      // 바인딩되므로(AttestService), SDK 의 Map 재인코딩을 거치면 해시가 어긋난다.
+      // (이미지 base64 도 해시에 들어가 사진 바꿔치기까지 함께 잡힌다.)
+      final bodyJson = jsonEncode({
+        'imageBase64': base64Encode(bytes),
+        'mimeType': shot.mimeType ?? 'image/jpeg',
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'accuracy': pos.accuracy,
+        'isMocked': pos.isMocked,
+        'petId': petId,
+      });
+      final attestHeaders = await AttestService.instance.headersFor(bodyJson);
       final res = await _c.functions.invoke(
         'verify-post-photo',
-        body: {
-          'imageBase64': base64Encode(bytes),
-          'mimeType': shot.mimeType ?? 'image/jpeg',
-          'lat': pos.latitude,
-          'lng': pos.longitude,
-          'accuracy': pos.accuracy,
-          'isMocked': pos.isMocked,
-          'petId': petId,
-        },
+        body: bodyJson,
+        headers: attestHeaders,
       );
       final data = (res.data as Map?) ?? const {};
       if (data['pass'] == true) {

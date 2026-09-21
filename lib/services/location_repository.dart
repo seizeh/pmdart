@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_events.dart';
+import 'attest_service.dart';
 import 'location_service.dart';
 
 /// 동네 인증 시도 결과.
@@ -86,14 +89,19 @@ class LocationRepository {
 
     final pos = loc.position!;
     try {
+      // 본문은 직접 인코딩한 문자열로 보낸다 — 기기 증명이 이 바이트의 SHA-256 에
+      // 바인딩되므로(AttestService), SDK 의 Map 재인코딩을 거치면 해시가 어긋난다.
+      final bodyJson = jsonEncode({
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'accuracy': pos.accuracy,
+        'isMocked': pos.isMocked,
+      });
+      final attestHeaders = await AttestService.instance.headersFor(bodyJson);
       final res = await _c.functions.invoke(
         'verify-location',
-        body: {
-          'lat': pos.latitude,
-          'lng': pos.longitude,
-          'accuracy': pos.accuracy,
-          'isMocked': pos.isMocked,
-        },
+        body: bodyJson,
+        headers: attestHeaders,
       );
       final data = (res.data as Map?) ?? const {};
       if (data['verified'] == true) {

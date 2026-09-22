@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'error_reporter.dart';
+
 /// 기기 증명(App Attest / Play Integrity) 헤더 — 좌표 자기신고 보강(pmdb §7.5).
 ///
 /// verify-location / verify-post-photo 요청에 "미변조 정품 앱이 정품 기기에서
@@ -61,7 +63,11 @@ class AttestService {
       if (platform == 'ios') return await _iosHeaders(bodyJson);
       return await _androidHeaders(bodyJson);
     } catch (e) {
-      debugPrint('attest: 헤더 생략 — $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'attest.headers',
+        why: '서버가 섀도 모드 — 헤더 미첨부는 검증 결과에 영향이 없다',
+      );
       return const {};
     }
   }
@@ -110,8 +116,14 @@ class AttestService {
     String? stored;
     try {
       stored = await _secure.read(key: _keyIdStorageKey);
-    } catch (_) {
-      stored = null; // 저장소 접근 실패 — 등록 경로로(실패해도 섀도라 무해)
+    } catch (e) {
+      // 저장소 접근 실패 — 등록 경로로(실패해도 섀도라 무해)
+      ErrorReporter.ignored(
+        e,
+        where: 'attest.keyid.read',
+        why: '보관 keyId 를 못 읽으면 재등록하면 된다(서버는 중복 등록 no-op)',
+      );
+      stored = null;
     }
     if (stored != null && stored.isNotEmpty) return stored;
     if (_registrationFailedThisSession) return null;
@@ -119,7 +131,11 @@ class AttestService {
     try {
       return await _registerIosKey().timeout(_registerTimeout);
     } catch (e) {
-      debugPrint('attest: iOS 키 등록 실패 — $e');
+      ErrorReporter.ignored(
+        e,
+        where: 'attest.register',
+        why: '등록 실패는 헤더 미첨부(absent)로 남을 뿐 — 세션당 1회만 재시도',
+      );
       _registrationFailedThisSession = true;
       return null;
     }
@@ -167,8 +183,12 @@ class AttestService {
 
     try {
       await _secure.write(key: _keyIdStorageKey, value: keyId);
-    } catch (_) {
-      // 보관 실패 시 다음 실행에서 재등록된다(서버는 키 중복 등록을 no-op 처리).
+    } catch (e) {
+      ErrorReporter.ignored(
+        e,
+        where: 'attest.keyid.write',
+        why: '보관 실패 시 다음 실행에서 재등록된다(서버는 키 중복 등록을 no-op 처리)',
+      );
     }
     return keyId;
   }

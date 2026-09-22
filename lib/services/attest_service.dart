@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../utils/platform_info.dart' as platform_info;
 import 'error_reporter.dart';
 
 /// 기기 증명(App Attest / Play Integrity) 헤더 — 좌표 자기신고 보강(pmdb §7.5).
@@ -53,11 +53,9 @@ class AttestService {
   Future<Map<String, String>> headersFor(String bodyJson) async {
     final platform =
         debugPlatform ??
-        (kIsWeb
-            ? null
-            : (Platform.isIOS
-                  ? 'ios'
-                  : (Platform.isAndroid ? 'android' : null)));
+        (platform_info.isIOS
+            ? 'ios'
+            : (platform_info.isAndroid ? 'android' : null));
     if (platform == null) return const {};
     try {
       if (platform == 'ios') return await _iosHeaders(bodyJson);

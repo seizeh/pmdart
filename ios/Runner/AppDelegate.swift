@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import UserNotifications
 import FirebaseMessaging
+import DeviceCheck
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -96,6 +97,66 @@ import FirebaseMessaging
         }
       }
       pushTapChannel = channel
+    }
+
+    // 기기 증명(App Attest) 채널 — AttestService(Dart)가 부른다(pmdb §7.5).
+    // 실패는 FlutterError 로 돌려주고 Dart 가 헤더 미첨부로 강등한다(서버 섀도).
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PawmateAttest") {
+      let attestChannel = FlutterMethodChannel(
+        name: "pawmate/attest",
+        binaryMessenger: registrar.messenger()
+      )
+      attestChannel.setMethodCallHandler { call, result in
+        guard #available(iOS 14.0, *) else {
+          if call.method == "isSupported" { result(false) } else {
+            result(FlutterError(code: "unsupported", message: "iOS 14 미만", details: nil))
+          }
+          return
+        }
+        let service = DCAppAttestService.shared
+        switch call.method {
+        case "isSupported":
+          result(service.isSupported)
+        case "generateKey":
+          service.generateKey { keyId, error in
+            DispatchQueue.main.async {
+              if let keyId = keyId {
+                result(keyId)
+              } else {
+                result(FlutterError(
+                  code: "generate_failed",
+                  message: error?.localizedDescription, details: nil))
+              }
+            }
+          }
+        case "attestKey", "generateAssertion":
+          guard let args = call.arguments as? [String: Any],
+                let keyId = args["keyId"] as? String,
+                let hash = (args["clientDataHash"] as? FlutterStandardTypedData)?.data
+          else {
+            result(FlutterError(code: "bad_args", message: "keyId/clientDataHash", details: nil))
+            return
+          }
+          let done: (Data?, Error?) -> Void = { data, error in
+            DispatchQueue.main.async {
+              if let data = data {
+                result(FlutterStandardTypedData(bytes: data))
+              } else {
+                result(FlutterError(
+                  code: call.method == "attestKey" ? "attest_failed" : "assert_failed",
+                  message: error?.localizedDescription, details: nil))
+              }
+            }
+          }
+          if call.method == "attestKey" {
+            service.attestKey(keyId, clientDataHash: hash, completionHandler: done)
+          } else {
+            service.generateAssertion(keyId, clientDataHash: hash, completionHandler: done)
+          }
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
     }
   }
 }

@@ -37,7 +37,8 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - uses: subosito/flutter-action@v2
+      # SHA 고정 — 이유는 deploy-web.yml 의 같은 스텝 주석(캐시를 공유한다).
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
           cache: true

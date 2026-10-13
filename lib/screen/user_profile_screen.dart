@@ -15,12 +15,14 @@ import '../services/error_reporter.dart';
 import '../services/facility_repository.dart' show Facility;
 import '../services/facility_review_repository.dart';
 import '../services/report_repository.dart';
+import '../services/session.dart';
 import '../state/user_profile_state.dart';
 import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/review_cards.dart';
 import '../widgets/role_badge.dart' show categoryColor;
+import 'auth/auth_wall_dialog.dart';
 import 'facility_review_screen.dart';
 import 'pet_profile_screen.dart';
 import 'post_detail_screen.dart';
@@ -129,7 +131,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _load({bool silent = false}) => _state.load(silent: silent);
 
-  Future<void> _toggleFollow() => _state.toggleFollow();
+  /// 비로그인이면 인증 벽을 띄우고 false. 이 화면은 피드의 닉네임·사용자 검색처럼
+  /// 게스트도 닿는 길로 열리지만 게스트 여부를 넘겨받지 않는다 — 세션을 직접
+  /// 본다(게시글 상세와 같은 규칙). 가드가 없으면 팔로우는 말없이 되돌아가고
+  /// 채팅·차단은 "잠시 후 다시" 류의 실패 안내로 끝난다.
+  bool _guard(String message) {
+    if (SessionManager.instance.isLoggedIn) return true;
+    AuthWallDialog.show(context, message: message);
+    return false;
+  }
+
+  Future<void> _toggleFollow() async {
+    if (!_guard('Pawing 은 로그인 후 할 수 있어요')) return;
+    await _state.toggleFollow();
+  }
+
+  void _startChat(PublicProfileData p) {
+    if (!_guard('채팅은 로그인 후 이용할 수 있어요')) return;
+    openDirectChat(context, p.userId, business: _bizFace);
+  }
 
   String _userTypeLabel(String t) => switch (t) {
     'pet_owner' => '반려동물 보호자',
@@ -861,7 +881,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             // 채팅방에서 열린 프로필이면 새 방을 쌓지 않고 그 방으로 되돌아간다.
             onPressed: widget.fromChatRoom
                 ? () => Navigator.of(context).maybePop()
-                : () => openDirectChat(context, p.userId, business: _bizFace),
+                : () => _startChat(p),
             icon: const Icon(Icons.chat_bubble_outline, size: 18),
             label: Text(_bizFace ? '업체 문의' : '채팅'),
             style: OutlinedButton.styleFrom(
@@ -997,6 +1017,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// 사용자 차단 — `block_user` RPC 가 차단과 신고를 함께 남긴다(App Store 1.2).
   /// 차단한 사람의 프로필에 머물지 않도록 즉시 뒤로 나간다.
   Future<void> _block(String userId, String nickname) async {
+    if (!_guard('차단은 로그인 후 할 수 있어요')) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(

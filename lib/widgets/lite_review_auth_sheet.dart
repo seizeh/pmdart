@@ -158,6 +158,11 @@ class _LiteReviewAuthSheetState extends State<_LiteReviewAuthSheet> {
           TextField(
             controller: _phoneCtrl,
             enabled: !_sent,
+            // 비활성 TextField 는 꾸밈(suffixIcon 포함) 전체의 포인터를 무시한다.
+            // 그대로 두면 발송 뒤 "재발송" 이 켜져 보여도 눌리지 않는다. 포인터는
+            // 받되, 잠긴 번호가 선택·복사 대상이 되지 않게 선택만 끈다.
+            ignorePointers: false,
+            enableInteractiveSelection: !_sent,
             keyboardType: TextInputType.phone,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             onChanged: (_) => setState(() {}),

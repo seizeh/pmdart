@@ -290,7 +290,7 @@ class ProfileRepository {
     final rows = await _c
         .from('pet_guardians')
         .select(
-          'role, pets(id, name, species, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count)',
+          'role, pets(id, name, species, species_kind, gender, birth_date, bio, image_url, pet_status, primary_guardian_id, identity_verified, pet_match_count)',
         )
         .eq('user_id', uid);
 
@@ -341,6 +341,8 @@ class ProfileRepository {
         id: id,
         name: (p['name'] ?? '') as String,
         species: (p['species'] ?? '') as String,
+        // 펫 상세의 접종 일정이 이 값으로 종별 표를 고른다 — 빠지면 강아지 표가 된다.
+        speciesKind: p['species_kind'] as String?,
         gender: p['gender'] as String?,
         birthDate: p['birth_date'] == null
             ? null

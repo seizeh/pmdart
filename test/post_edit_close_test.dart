@@ -52,7 +52,45 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('닫기'), findsOneWidget);
   });
+
+  // 실제 결함: 잠긴 글에서 제목은 잠겼는데 본문 입력칸만 살아 있었다. 저장은
+  // 막혀 있으니 적은 내용은 갈 곳이 없고, 그 상태로 닫으면 "수정을 취소할까요?"
+  // 까지 물었다 — 잠긴 글은 고칠 수 없어 바로 닫힌다는 전제가 깨진다.
+  testWidgets('잠긴 게시글은 제목·본문 입력이 모두 잠긴다', (tester) async {
+    FakeSupabase.on('post_edit_locked', (_) => true);
+    await pumpEdit(tester, _lockedWalkPost);
+    await tester.pump(); // 잠금 조회 응답 반영
+    await tester.pump();
+
+    expect(find.textContaining('약속이 완료된 게시글'), findsOneWidget);
+    final fields = tester.widgetList<TextField>(find.byType(TextField));
+    expect(fields, hasLength(2), reason: '제목 + 본문');
+    expect(
+      fields.map((f) => f.enabled),
+      everyElement(isFalse),
+      reason: '잠긴 글은 어느 칸에도 입력할 수 없다',
+    );
+  });
 }
+
+/// 약속이 완료된 산책 게시글 — 잠금 조회(post_edit_locked)를 탄다.
+final _lockedWalkPost = Post(
+  id: 'p2',
+  category: 'walk',
+  title: '원래 제목',
+  content: '원래 내용',
+  userId: 'u1',
+  authorNickname: '테스트유저',
+  authorUserType: 'personal',
+  createdAt: DateTime(2026, 7, 20),
+  scheduledAt: DateTime(2026, 7, 25, 10),
+  location: '역삼동',
+  heartCount: 0,
+  commentCount: 0,
+  viewCount: 0,
+  progressStatus: 'done',
+  hearted: false,
+);
 
 /// 자유 게시글 + 일정 없음 → 잠금 조회(네트워크)를 타지 않는다.
 final _freePost = Post(

@@ -64,7 +64,7 @@ GPS 동네 인증을 기반으로 이웃과 반려동물 산책 메이트를 찾
 | **pgTAP 불변식 16종** | 자기초대 차단·팔로우 얼굴 분리·채팅 삭제 권한 등을 **DB 레벨**에서 검증(클라이언트가 아니라) | [`pmdb/tests/`](https://github.com/seizeh/pmdb/tree/main/supabase/tests) |
 | **커버리지 래칫 (≥18%)** | 달성 못 할 80% 를 적어 두는 대신 **현재값을 하한으로 고정** — 떨어지면 실패 | [`ci.yml`](.github/workflows/ci.yml) |
 | **`catch (_)` 래칫 (≤103)** | 예외를 삼킨 판단이 런타임에 흔적을 안 남기는 것 — 세 등급 중 하나를 쓰게 강제한다([정책](docs/error-policy.md)) | [`ci.yml`](.github/workflows/ci.yml) |
-| **파일 크기 래칫 (≤2,100줄)** | God Widget 이 더 자라는 것 — 현재 최대 파일을 상한으로 고정하고 분리한 만큼 내린다 ([#155](https://github.com/seizeh/pmdart/issues/155)) | [`ci.yml`](.github/workflows/ci.yml) |
+| **파일 크기 래칫 (≤1,974줄)** | God Widget 이 더 자라는 것 — 현재 최대 파일을 상한으로 고정하고 분리한 만큼 내린다 ([#155](https://github.com/seizeh/pmdart/issues/155)) | [`ci.yml`](.github/workflows/ci.yml) |
 | 웹 빌드 게이트 | 앱 변경이 웹 번들을 조용히 깨는 것 | [`ci.yml`](.github/workflows/ci.yml) |
 | 포맷·정적 분석 | `dart format --set-exit-if-changed`, `flutter analyze` | [`ci.yml`](.github/workflows/ci.yml) |
 
@@ -78,7 +78,7 @@ GPS 동네 인증을 기반으로 이웃과 반려동물 산책 메이트를 찾
 | 부채 | 현황 |
 |---|---|
 | **관측성** | 3등급 정책 + 자체 수집(`app.client_errors`)·관리자 화면까지 붙였다([error-policy.md](docs/error-policy.md)). 등급화가 남은 `catch (_)` 103곳(162→103)은 CI 래칫으로 줄이는 중 ([#157](https://github.com/seizeh/pmdart/issues/157)) |
-| **God Widget** | 1,000줄 넘는 화면 10개(최대 2,100줄) — 파일 크기 래칫으로 상한 고정 ([#155](https://github.com/seizeh/pmdart/issues/155)) |
+| **God Widget** | 1,000줄 넘는 화면 10개(최대 1,974줄) — 파일 크기 래칫으로 상한 고정 ([#155](https://github.com/seizeh/pmdart/issues/155)) |
 | **상태관리·DI** | 프레임워크 없이 `ChangeNotifier` 홀더로 점진 전환 중(59개 중 6개) ([#156](https://github.com/seizeh/pmdart/issues/156) · [ADR-0008](docs/adr/0008-state-holders-without-framework.md)) |
 | 커버리지 17% | 위 구조의 결과. 래칫으로 하한만 지키는 중 ([#158](https://github.com/seizeh/pmdart/issues/158)) |
 | i18n 미도입 | 하드코딩 한글 문자열 ([#159](https://github.com/seizeh/pmdart/issues/159)) |

@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
+import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../models/chat.dart';
 import '../motion/motion.dart';
@@ -223,7 +224,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   /// 동영상 첨부 — 갤러리에서 선택해 업로드(포스터 생성) 후 영상 메시지로 전송.
   Future<void> _sendVideo() async {
     if (_state.sending) return;
-    final file = await StorageService.instance.pickVideo();
+    final XFile? file;
+    try {
+      file = await StorageService.instance.pickVideo();
+    } on StateError catch (e) {
+      // 길이 초과 등 — 왜 안 되는지 그대로 알려 준다(작성·수정·후기와 같은 처리).
+      // 안 받으면 예외가 새어 나가 긴 영상을 골라도 아무 반응이 없다.
+      _toast(e.message);
+      return;
+    }
     if (file == null || !mounted) return;
     final err = await _state.sendVideo(file);
     if (err != null) _toast(err);

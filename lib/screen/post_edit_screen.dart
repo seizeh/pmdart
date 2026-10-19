@@ -526,6 +526,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
                   child: EditorContentField(
                     controller: _contentCtrl,
                     hero: true,
+                    enabled: !_editLocked,
                     onChanged: _editLocked ? null : (_) => setState(() {}),
                   ),
                 ),
@@ -681,6 +682,7 @@ class _PostEditScreenState extends State<PostEditScreen> {
             EditorContentField(
               controller: _contentCtrl,
               hero: false,
+              enabled: !_editLocked,
               onChanged: _editLocked ? null : (_) => setState(() {}),
             ),
           ],

@@ -24,18 +24,24 @@ class EditorContentField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final String hintText;
 
+  /// false 면 입력을 막는다(수정 화면의 잠긴 게시글). `onChanged` 를 비우는
+  /// 것만으로는 칸이 잠기지 않는다 — 글자는 그대로 쳐진다.
+  final bool enabled;
+
   const EditorContentField({
     super.key,
     required this.controller,
     required this.hero,
     this.onChanged,
     this.hintText = '내용을 입력하세요',
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      enabled: enabled,
       onChanged: onChanged,
       minLines: 1,
       maxLines: hero ? 9 : 3,
@@ -59,6 +65,7 @@ class EditorContentField extends StatelessWidget {
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
         filled: false,
         hintText: hintText,
         hintStyle: hero

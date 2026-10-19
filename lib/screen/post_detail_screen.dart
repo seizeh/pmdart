@@ -38,6 +38,9 @@ class _ReportAction {
 /// 피드 카드와 동일한 정보 오버레이(+ 매칭 글 지원 버튼), 댓글은 바텀시트.
 class PostDetailScreen extends StatefulWidget {
   final Post post;
+
+  /// 게스트(비로그인 둘러보기)로 열렸는가. 넘기지 않아도 비로그인이면 게스트로
+  /// 본다 — 화면이 세션을 직접 확인한다(아래 `_isGuest`).
   final bool isGuest;
 
   /// 피드 카드에서 펼쳐지고/카드로 축소되는 인터랙션용. null 이면 일반 화면.
@@ -73,8 +76,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   // 내비게이션만 담당한다 (docs/architecture-state.md).
   late final PostDetailState _state = PostDetailState(
     post: widget.post,
-    isGuest: widget.isGuest,
+    isGuest: _isGuest,
   );
+
+  // 게스트 여부는 넘겨받은 값만 믿지 않는다. 이 화면은 피드 말고도 사용자·
+  // 반려동물 프로필, 지도 시트, 알림에서 열리는데 그 진입로들은 값을 넘기지
+  // 않는다. 프로필은 게스트도 열 수 있어(피드의 닉네임·사용자 검색), 값에만 기대면
+  // 가드가 통째로 빠져 인증 벽 대신 "잠시 후 다시 시도해주세요" 가 떴다.
+  late final bool _isGuest =
+      widget.isGuest || !SessionManager.instance.isLoggedIn;
   final _commentCtrl = TextEditingController();
 
   // 본문 최상단에서 아래로 당기면 카드로 축소되는 CollapsibleView 용 스크롤 컨트롤러.
@@ -151,7 +161,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   bool _guard(String message) {
-    if (widget.isGuest) {
+    if (_isGuest) {
       AuthWallDialog.show(context, message: message);
       return false;
     }

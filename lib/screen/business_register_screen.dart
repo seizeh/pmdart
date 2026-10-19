@@ -1127,6 +1127,9 @@ class AddressSearchSheetState extends State<AddressSearchSheet> {
   bool _searching = false;
   bool _searched = false;
 
+  /// 실패·검색어 문제 안내(있으면 "검색 결과가 없어요" 대신 보인다).
+  String? _message;
+
   @override
   void dispose() {
     _ctrl.dispose();
@@ -1142,7 +1145,8 @@ class AddressSearchSheetState extends State<AddressSearchSheet> {
     setState(() {
       _searching = false;
       _searched = true;
-      _results = r;
+      _results = r.addresses;
+      _message = r.message;
     });
   }
 
@@ -1200,7 +1204,8 @@ class AddressSearchSheetState extends State<AddressSearchSheet> {
                     padding: const EdgeInsets.all(24),
                     child: Center(
                       child: Text(
-                        _searched ? '검색 결과가 없어요' : '주소를 검색해주세요',
+                        _message ?? (_searched ? '검색 결과가 없어요' : '주소를 검색해주세요'),
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
                           color: context.colors.textTertiary,

@@ -149,13 +149,24 @@ jobs:
       # '어느 배포부터 생긴 오류인지' 를 보게 한다. pubspec version 만으로는
       # 같은 버전의 여러 배포가 구분되지 않아 커밋 短해시를 덧붙인다
       # (예: pawmate@2.0.0+9.4adfd64 — 오류가 어느 배포부터인지 정확히 찍힌다).
+      #
+      # JUSO_API_KEY 는 업체 등록의 주소 검색(행안부 juso) 승인키다. 빠지면 빌드는
+      # 성공하지만 주소 칸이 수동 입력으로 바뀌어 아무도 모른다 — 실제로 웹이 그렇게
+      # 나가 있었다. 번들에 실리는 공개 클라이언트 키라 시크릿은 값 보관용이다
+      # (lib/env.dart). 비어 있으면 경고만 남기고 배포는 막지 않는다.
       - name: 웹 빌드
+        env:
+          JUSO_API_KEY: ${{ secrets.JUSO_API_KEY }}
         run: |
+          if [ -z "$JUSO_API_KEY" ]; then
+            echo "::warning::JUSO_API_KEY 시크릿이 없어 주소 검색 없이(수동 입력) 빌드합니다"
+          fi
           sha7="$(git rev-parse --short=7 HEAD)"
           release="pawmate@$(grep -E '^version:' pubspec.yaml | awk '{print $2}').${sha7}"
           echo "release: $release"
           flutter build web --release --no-web-resources-cdn \
-            --dart-define=APP_RELEASE="$release"
+            --dart-define=APP_RELEASE="$release" \
+            --dart-define=JUSO_API_KEY="$JUSO_API_KEY"
 
       # 런타임에 쓰지 않는 디버그 심볼(약 8MB) 제거.
       - name: 디버그 심볼 제거

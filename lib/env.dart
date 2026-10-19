@@ -62,8 +62,10 @@ abstract final class Env {
 
   /// 행안부 juso.go.kr confmKey(클라이언트 키). 위의 값들과 달리 콘솔에서
   /// 앱 단위로 제한할 수 없고 쿼터 소진·남용 여지가 있어 **기본값을 두지 않는다**
-  /// — 빌드 시 --dart-define=JUSO_API_KEY=... 로 주입한다.
-  /// 비우면 주소 검색이 비활성화되고 업체등록 화면이 수동 입력으로 폴백한다.
+  /// — 빌드 시 --dart-define=JUSO_API_KEY=... 로 주입한다. 앱 릴리스 빌드에도
+  /// 넣어야 하고, 웹은 저장소 시크릿 JUSO_API_KEY 를 deploy-web.yml 이 넘긴다.
+  /// 비우면 주소 검색이 비활성화되고 업체등록 화면이 수동 입력으로 폴백한다
+  /// (그 빌드는 업체 등록을 열 때 `juso.keyMissing` 오류를 한 번 남긴다).
   static const jusoApiKey = String.fromEnvironment('JUSO_API_KEY');
 
   /// 웹 푸시(FCM) VAPID **공개** 키 — Firebase 콘솔의 '웹 푸시 인증서' 키 쌍.

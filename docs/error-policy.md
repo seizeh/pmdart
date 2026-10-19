@@ -140,8 +140,12 @@ select * from public.admin_client_errors(null, 100, 0); -- 최근 100건
 웹은 `deploy-web.yml` 이 `pubspec.yaml` 버전에서 뽑아 자동으로 넣는다. 앱은 수동이다:
 
 ```bash
-flutter build ipa --release --dart-define=APP_RELEASE=pawmate@2.0.0+10
+flutter build ipa --release --dart-define=APP_RELEASE=pawmate@2.0.0+10 \
+  --dart-define=JUSO_API_KEY=<주소검색 승인키>
 ```
+
+`JUSO_API_KEY` 는 오류 보고와 무관하지만 같은 명령에 꼭 넣는다 — 빠지면 업체 등록의
+주소 검색이 수동 입력으로 바뀌고, 그 빌드는 `juso.keyMissing` 을 한 번 보고한다.
 
 ### 전역 훅
 
@@ -159,7 +163,7 @@ flutter build ipa --release --dart-define=APP_RELEASE=pawmate@2.0.0+10
 162곳을 한 번에 고치지 않는다. **늘어나지 않게 못 박고 줄여 간다** — 커버리지 래칫과
 같은 방식이다([ADR-0007](adr/0007-coverage-ratchet.md)).
 
-CI 가 `lib/` 의 `catch (_)` 개수를 세어 상한을 넘으면 실패한다. 지금 상한은 **104**.
+CI 가 `lib/` 의 `catch (_)` 개수를 세어 상한을 넘으면 실패한다. 지금 상한은 **103**.
 줄일 때마다 상한도 함께 내린다.
 
 | 단계 | 남은 `catch (_)` |
@@ -169,7 +173,8 @@ CI 가 `lib/` 의 `catch (_)` 개수를 세어 상한을 넘으면 실패한다.
 | 네트워크를 타는 리포지토리 3개 22곳 | 122 |
 | `map_tab.dart` 12곳 | 110 |
 | 잠재 결함 리뷰 후속 — 채팅·피드·저장소·저위험 묶음(#233·#234·#239) | 105 |
-| 펫 사진 업로드 실패 | **104** |
+| 펫 사진 업로드 실패 | 104 |
+| 주소 검색(juso) — 키 누락·키 오류·네트워크·검색어 문제 구분 | **103** |
 
 **순서는 "많은 곳" 이 아니라 "모르면 곤란한 곳" 으로 잡는다.** 리포지토리를 먼저 한
 이유가 그것이고, 다음이 `map_tab.dart` 였던 이유도 같다 — 지도는 네이버 SDK ·
@@ -190,6 +195,6 @@ CI 가 `lib/` 의 `catch (_)` 개수를 세어 상한을 넘으면 실패한다.
 
 ## 남은 일
 
-- 나머지 104곳 등급화 — 화면 계층(`lib/screen/`)이 대부분이다.
+- 나머지 103곳 등급화 — 화면 계층(`lib/screen/`)이 대부분이다.
   UI 방어성 `catch` 가 많아 실사용 실패와는 거리가 있어 후순위다
 - 브레드크럼을 화면 전환·주요 동작에 심어 리포트를 읽을 수 있게 만들기

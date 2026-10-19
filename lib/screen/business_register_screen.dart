@@ -9,6 +9,7 @@ import '../services/juso_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
 import '../utils/phone_format.dart';
+import 'address_search_sheet.dart';
 import 'boarding_thread_list_screen.dart';
 import 'care_report_list_screen.dart';
 import 'care_report_send_screen.dart';
@@ -49,7 +50,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
   bool _renamed = false;
   final _prevNameCtrl = TextEditingController();
 
-  // ④ 주소 — juso 검색 결과(키 미설정 시 수동 입력 폴백)
+  // ④ 주소 — juso 검색 결과. _manualAddrCtrl 은 재신청 때 이전 신청의 주소를 담는다
   JusoAddress? _address;
   final _manualAddrCtrl = TextEditingController();
 
@@ -586,16 +587,12 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
     });
   }
 
-  // ── ④ 주소: juso 검색(키 있으면) / 수동 입력 폴백 ──
+  // ── ④ 주소: juso 검색(서버 함수 juso-search) ──
 
   Widget _addressField() {
-    if (!JusoService.instance.enabled) {
-      return TextField(
-        controller: _manualAddrCtrl,
-        onChanged: (_) => setState(() {}),
-        decoration: const InputDecoration(hintText: '사업자등록증의 사업장 소재지 (도로명 주소)'),
-      );
-    }
+    // 재신청이면 이전 신청의 주소가 미리 들어 있다 — 다시 검색하지 않으면 그대로 낸다.
+    final prefilled = _manualAddrCtrl.text.trim();
+    final shown = _address?.roadAddr ?? (prefilled.isEmpty ? null : prefilled);
     return InkWell(
       onTap: _openAddressSearch,
       borderRadius: BorderRadius.circular(12),
@@ -613,10 +610,10 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                _address?.roadAddr ?? '주소 검색 (탭해서 찾기)',
+                shown ?? '주소 검색 (탭해서 찾기)',
                 style: TextStyle(
                   fontSize: 14,
-                  color: _address == null
+                  color: shown == null
                       ? context.colors.textTertiary
                       : context.colors.textPrimary,
                 ),
@@ -1111,133 +1108,6 @@ class _PhotoAlignSheetState extends State<_PhotoAlignSheet> {
 
 /// 서류 선택 경로 — 갤러리 사진 / 파일 브라우저.
 enum _DocSource { gallery, file }
-
-// ── juso 주소검색 바텀시트 ──
-
-class AddressSearchSheet extends StatefulWidget {
-  const AddressSearchSheet({super.key});
-
-  @override
-  State<AddressSearchSheet> createState() => AddressSearchSheetState();
-}
-
-class AddressSearchSheetState extends State<AddressSearchSheet> {
-  final _ctrl = TextEditingController();
-  List<JusoAddress> _results = const [];
-  bool _searching = false;
-  bool _searched = false;
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _search() async {
-    final q = _ctrl.text.trim();
-    if (q.length < 2) return;
-    setState(() => _searching = true);
-    final r = await JusoService.instance.search(q);
-    if (!mounted) return;
-    setState(() {
-      _searching = false;
-      _searched = true;
-      _results = r;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottomInset),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '사업장 주소 검색',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: context.colors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _ctrl,
-                  autofocus: true,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _search(),
-                  decoration: const InputDecoration(hintText: '도로명, 건물명 또는 지번'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                // 테마 기본 minimumSize(Size.fromHeight)는 최소 폭이 무한이라
-                // Row(무한 폭 제약) 안에서는 레이아웃이 터진다 — 폭을 명시.
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(64, 48),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
-                onPressed: _searching ? null : _search,
-                child: const Text('검색'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: _searching
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                : _results.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Center(
-                      child: Text(
-                        _searched ? '검색 결과가 없어요' : '주소를 검색해주세요',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: context.colors.textTertiary,
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: _results.length,
-                    separatorBuilder: (_, _) =>
-                        Divider(height: 1, color: context.colors.border),
-                    itemBuilder: (context, i) {
-                      final a = _results[i];
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          a.roadAddr,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        subtitle: Text(
-                          a.jibunAddr,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: context.colors.textTertiary,
-                          ),
-                        ),
-                        onTap: () => Navigator.pop(context, a),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 /// 승인 업체 관리 패널 — 업체 정보 요약·수정, 대표 사진 설정/위치 조절/제거.
 /// BusinessRegisterScreen(승인 상태)과 업체 모드의 내정보(업체 관리) 최상단에서

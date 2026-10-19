@@ -60,12 +60,6 @@ abstract final class Env {
         '1FAIpQLSdLkrQ4a7HDnhlRp4ZPPxXzEiFaMxkrvR4tpWq0XU5QsfV29A/viewform',
   );
 
-  /// 행안부 juso.go.kr confmKey(클라이언트 키). 위의 값들과 달리 콘솔에서
-  /// 앱 단위로 제한할 수 없고 쿼터 소진·남용 여지가 있어 **기본값을 두지 않는다**
-  /// — 빌드 시 --dart-define=JUSO_API_KEY=... 로 주입한다.
-  /// 비우면 주소 검색이 비활성화되고 업체등록 화면이 수동 입력으로 폴백한다.
-  static const jusoApiKey = String.fromEnvironment('JUSO_API_KEY');
-
   /// 웹 푸시(FCM) VAPID **공개** 키 — Firebase 콘솔의 '웹 푸시 인증서' 키 쌍.
   ///
   /// 공개값이 맞다. 비밀키는 Firebase 가 갖고 있고, 이 공개키는 원래 클라이언트

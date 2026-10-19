@@ -3,7 +3,7 @@
 // '검색' 버튼에 적용되면 무한 폭 레이아웃 예외로 화면이 배리어만 깔린 채 멈췄다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pawmate/screen/business_register_screen.dart';
+import 'package:pawmate/screen/address_search_sheet.dart';
 import 'package:pawmate/theme/app_palette.dart';
 import 'package:pawmate/theme/app_theme.dart';
 

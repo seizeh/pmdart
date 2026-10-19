@@ -63,8 +63,8 @@ GPS 동네 인증을 기반으로 이웃과 반려동물 산책 메이트를 찾
 | **마이그레이션 리플레이** | 빈 DB 에 마이그레이션 175건을 처음부터 재생해 운영 스냅샷과 대조 — **마이그레이션 없이 운영 DB 에 직접 친 DDL 이 즉시 빨간불** | [`pmdb/db-tests.yml`](https://github.com/seizeh/pmdb/blob/main/.github/workflows/db-tests.yml) |
 | **pgTAP 불변식 16종** | 자기초대 차단·팔로우 얼굴 분리·채팅 삭제 권한 등을 **DB 레벨**에서 검증(클라이언트가 아니라) | [`pmdb/tests/`](https://github.com/seizeh/pmdb/tree/main/supabase/tests) |
 | **커버리지 래칫 (≥18%)** | 달성 못 할 80% 를 적어 두는 대신 **현재값을 하한으로 고정** — 떨어지면 실패 | [`ci.yml`](.github/workflows/ci.yml) |
-| **`catch (_)` 래칫 (≤104)** | 예외를 삼킨 판단이 런타임에 흔적을 안 남기는 것 — 세 등급 중 하나를 쓰게 강제한다([정책](docs/error-policy.md)) | [`ci.yml`](.github/workflows/ci.yml) |
-| **파일 크기 래칫 (≤2,100줄)** | God Widget 이 더 자라는 것 — 현재 최대 파일을 상한으로 고정하고 분리한 만큼 내린다 ([#155](https://github.com/seizeh/pmdart/issues/155)) | [`ci.yml`](.github/workflows/ci.yml) |
+| **`catch (_)` 래칫 (≤103)** | 예외를 삼킨 판단이 런타임에 흔적을 안 남기는 것 — 세 등급 중 하나를 쓰게 강제한다([정책](docs/error-policy.md)) | [`ci.yml`](.github/workflows/ci.yml) |
+| **파일 크기 래칫 (≤1,970줄)** | God Widget 이 더 자라는 것 — 현재 최대 파일을 상한으로 고정하고 분리한 만큼 내린다 ([#155](https://github.com/seizeh/pmdart/issues/155)) | [`ci.yml`](.github/workflows/ci.yml) |
 | 웹 빌드 게이트 | 앱 변경이 웹 번들을 조용히 깨는 것 | [`ci.yml`](.github/workflows/ci.yml) |
 | 포맷·정적 분석 | `dart format --set-exit-if-changed`, `flutter analyze` | [`ci.yml`](.github/workflows/ci.yml) |
 
@@ -77,8 +77,8 @@ GPS 동네 인증을 기반으로 이웃과 반려동물 산책 메이트를 찾
 
 | 부채 | 현황 |
 |---|---|
-| **관측성** | 3등급 정책 + 자체 수집(`app.client_errors`)·관리자 화면까지 붙였다([error-policy.md](docs/error-policy.md)). 등급화가 남은 `catch (_)` 104곳(162→104)은 CI 래칫으로 줄이는 중 ([#157](https://github.com/seizeh/pmdart/issues/157)) |
-| **God Widget** | 1,000줄 넘는 화면 10개(최대 2,100줄) — 파일 크기 래칫으로 상한 고정 ([#155](https://github.com/seizeh/pmdart/issues/155)) |
+| **관측성** | 3등급 정책 + 자체 수집(`app.client_errors`)·관리자 화면까지 붙였다([error-policy.md](docs/error-policy.md)). 등급화가 남은 `catch (_)` 103곳(162→103)은 CI 래칫으로 줄이는 중 ([#157](https://github.com/seizeh/pmdart/issues/157)) |
+| **God Widget** | 1,000줄 넘는 화면 10개(최대 1,970줄) — 파일 크기 래칫으로 상한 고정 ([#155](https://github.com/seizeh/pmdart/issues/155)) |
 | **상태관리·DI** | 프레임워크 없이 `ChangeNotifier` 홀더로 점진 전환 중(59개 중 6개) ([#156](https://github.com/seizeh/pmdart/issues/156) · [ADR-0008](docs/adr/0008-state-holders-without-framework.md)) |
 | 커버리지 17% | 위 구조의 결과. 래칫으로 하한만 지키는 중 ([#158](https://github.com/seizeh/pmdart/issues/158)) |
 | i18n 미도입 | 하드코딩 한글 문자열 ([#159](https://github.com/seizeh/pmdart/issues/159)) |
@@ -187,9 +187,8 @@ flutter test --coverage
 
 - 지도·Supabase 등 클라이언트 공개 키는 `lib/env.dart` 의 기본값으로 동작하며,
   `--dart-define=SUPABASE_URL=...` 등으로 환경별 재정의할 수 있습니다.
-- 주소검색(행안부 juso) 키는 쿼터 남용 여지가 있어 기본값 없이
-  `--dart-define=JUSO_API_KEY=...` 로만 주입합니다 — 미설정 시 주소 검색만
-  비활성화되고(수동 입력 폴백) 나머지 기능은 정상 동작합니다.
+- 주소검색(행안부 juso)은 Edge Function `juso-search`(pmdb)가 대신 부릅니다 — 승인키는
+  서버 시크릿에만 있고 앱 빌드에는 넣지 않습니다.
 - 푸시(FCM/APNs)는 실기기 + 서명 설정이 필요합니다.
 
 ## 라이선스

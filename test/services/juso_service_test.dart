@@ -1,17 +1,16 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:pawmate/services/error_reporter.dart';
 import 'package:pawmate/services/juso_service.dart';
 
-/// 주소 검색(행안부 juso)의 실패 구분 회귀 가드.
+import '../helpers/fake_supabase.dart';
+
+/// 주소 검색(서버 함수 juso-search)의 응답 해석 회귀 가드.
 ///
-/// 종전에는 키 누락·키 오류·네트워크 실패·검색어 문제가 전부 빈 목록으로 뭉개져
-/// "검색 결과가 없어요" 하나로 보였고 어디에도 기록되지 않았다. 릴리스·웹 빌드에
-/// 키가 빠져 주소 검색이 통째로 사라졌는데도 아무도 알아채지 못했다.
+/// 종전에는 앱이 juso 를 직접 불렀고, 키 누락·키 오류·네트워크 실패·검색어 문제가
+/// 전부 빈 목록으로 뭉개져 "검색 결과가 없어요" 하나로 보였다. 지금은 키를 서버에만
+/// 두고(pmdb juso-search), 앱은 서버가 나눠 준 응답을 화면 문구와 기록으로 옮긴다.
 class _Sink implements ErrorSink {
   final records = <ErrorRecord>[];
   @override
@@ -20,135 +19,107 @@ class _Sink implements ErrorSink {
   void breadcrumb(String m, {String? category, Map<String, Object?>? data}) {}
 }
 
-http.Response _json(Map<String, Object?> body, {int status = 200}) =>
-    http.Response(
-      jsonEncode(body),
-      status,
-      headers: {'content-type': 'application/json;charset=UTF-8'},
-    );
-
-Map<String, Object?> _common(String code, String message, {int total = 0}) => {
-  'results': {
-    'common': {
-      'errorCode': code,
-      'errorMessage': message,
-      'totalCount': '$total',
-    },
-    'juso': code == '0' ? <Object?>[] : null,
-  },
-};
-
 void main() {
   late _Sink sink;
-  final juso = JusoService.withKey('test-key');
+  final juso = JusoService.instance;
+
+  setUpAll(() async {
+    await FakeSupabase.init();
+  });
 
   setUp(() {
+    FakeSupabase.reset();
     ErrorReporter.resetForTest();
-    JusoService.resetForTest();
     sink = _Sink();
     ErrorReporter.sink = sink;
   });
 
   tearDown(ErrorReporter.resetForTest);
 
-  Future<JusoSearchResult> searchWith(
-    FutureOr<http.Response> Function(http.Request) handler,
-    String keyword,
-  ) => http.runWithClient(
-    () => juso.search(keyword),
-    () => MockClient((req) async => handler(req)),
-  );
+  test('정상 응답은 주소 목록 — 검색어·페이지를 서버에 넘기고 기록은 없다', () async {
+    late Map<String, dynamic> sent;
+    FakeSupabase.on('juso-search', (req) {
+      sent = jsonDecode(req.body) as Map<String, dynamic>;
+      return {
+        'results': [
+          {
+            'road_addr': '경기도 화성시 동탄구 동탄대로 537 (여울동)',
+            'jibun_addr': '경기도 화성시 동탄구 오산동 1023',
+            'adm_cd': '4159012000',
+            'zip_no': '18471',
+          },
+          {'road_addr': '', 'jibun_addr': '버려지는 행'},
+        ],
+        'total': 1,
+      };
+    });
 
-  test('정상 응답은 주소 목록, 안내 없음, 기록 없음', () async {
-    late Uri sent;
-    final r = await searchWith((req) {
-      sent = req.url;
-      return _json({
-        'results': {
-          'common': {'errorCode': '0', 'errorMessage': '정상', 'totalCount': '1'},
-          'juso': [
-            {
-              'roadAddr': '경기도 화성시 동탄대로 537',
-              'jibunAddr': '경기도 화성시 오산동 1023',
-              'admCd': '4159012000',
-              'zipNo': '18471',
-            },
-          ],
-        },
-      });
-    }, '  동탄대로 537 ');
+    final r = await juso.search('  동탄대로 537 ', page: 2);
 
-    expect(sent.queryParameters['keyword'], '동탄대로 537');
-    expect(sent.queryParameters['confmKey'], 'test-key');
+    expect(sent, {'keyword': '동탄대로 537', 'page': 2});
     expect(r.message, isNull);
-    expect(r.addresses.single.jibunAddr, '경기도 화성시 오산동 1023');
+    expect(r.addresses.single.jibunAddr, '경기도 화성시 동탄구 오산동 1023');
+    expect(r.addresses.single.admCd, '4159012000');
     expect(sink.records, isEmpty);
   });
 
   test('결과가 없어도 정상이다 — 안내 문구 없이 빈 목록', () async {
-    final r = await searchWith((_) => _json(_common('0', '정상')), '없는주소');
+    FakeSupabase.on('juso-search', (_) => {'results': [], 'total': 0});
+    final r = await juso.search('없는주소없는주소');
     expect(r.addresses, isEmpty);
     expect(r.message, isNull);
     expect(sink.records, isEmpty);
   });
 
-  test('검색어 문제(E0013)는 API 문구를 그대로 보여 주고 오류로 보고하지 않는다', () async {
-    const apiMessage = 'SQL 예약어 또는 특수문자( %,=,>,<,[,] )는 검색이 불가능 합니다.';
-    final r = await searchWith(
-      (_) => _json(_common('E0013', apiMessage)),
-      'select',
+  test('검색어 거절(422)은 서버가 넘긴 juso 문구를 그대로 보여 주고 기록하지 않는다', () async {
+    const msg = 'SQL 예약어 또는 특수문자( %,=,>,<,[,] )는 검색이 불가능 합니다.';
+    FakeSupabase.on(
+      'juso-search',
+      (_) => FakeSupabase.error(422, {
+        'error': 'keyword_rejected',
+        'message': msg,
+      }),
     );
-    expect(r.message, apiMessage);
+    final r = await juso.search('select');
+    expect(r.message, msg);
     expect(sink.records, isEmpty);
   });
 
-  test('키 문제(E0001)는 실패 안내 + 보고', () async {
-    final r = await searchWith(
-      (_) => _json(_common('E0001', '승인되지 않은 KEY 입니다.')),
-      '동탄대로',
+  test('호출 제한(429)은 따로 안내하고 사용자 등급으로 남긴다', () async {
+    FakeSupabase.on(
+      'juso-search',
+      (_) => FakeSupabase.error(429, {'error': 'rate_limited'}),
     );
+    final r = await juso.search('동탄대로');
+    expect(r.message, JusoService.rateLimitedMessage);
+    expect(sink.records.single.tier, ErrorTier.userFacing);
+  });
+
+  test('juso·키 문제(502)는 실패 안내 + 보고', () async {
+    FakeSupabase.on(
+      'juso-search',
+      (_) => FakeSupabase.error(502, {'error': 'juso_unavailable'}),
+    );
+    final r = await juso.search('동탄대로');
     expect(r.message, JusoService.failMessage);
     final rec = sink.records.single;
     expect(rec.tier, ErrorTier.reported);
     expect(rec.where, 'juso.search');
-    expect(rec.extra?['errorCode'], 'E0001');
-  });
-
-  test('HTTP 오류는 실패 안내 + 보고', () async {
-    final r = await searchWith((_) => http.Response('busy', 503), '동탄대로');
-    expect(r.message, JusoService.failMessage);
-    expect(sink.records.single.tier, ErrorTier.reported);
-    expect(sink.records.single.extra?['status'], 503);
+    expect(rec.extra?['status'], 502);
+    expect(rec.extra?['error'], 'juso_unavailable');
   });
 
   test('네트워크 실패는 실패 안내 + 사용자 등급(서버·코드 문제가 아니다)', () async {
-    final r = await searchWith(
-      (_) => throw http.ClientException('connection reset'),
-      '동탄대로',
-    );
+    FakeSupabase.on('juso-search', (_) => throw Exception('connection reset'));
+    final r = await juso.search('동탄대로');
     expect(r.message, JusoService.failMessage);
     expect(sink.records.single.tier, ErrorTier.userFacing);
   });
 
   test('한 글자 검색은 서버에 묻지 않는다', () async {
-    var called = false;
-    final r = await searchWith((_) {
-      called = true;
-      return _json(_common('0', '정상'));
-    }, '동');
-    expect(called, isFalse);
+    final r = await juso.search('동');
+    expect(FakeSupabase.requests, isEmpty);
     expect(r.addresses, isEmpty);
     expect(r.message, isNull);
-  });
-
-  test('키 없이 빌드되면 비활성 + 한 번만 보고한다', () async {
-    final noKey = JusoService.withKey('');
-    expect(noKey.enabled, isFalse);
-    expect(noKey.enabled, isFalse);
-    final r = await noKey.search('동탄대로');
-    expect(r.addresses, isEmpty);
-    expect(sink.records, hasLength(1));
-    expect(sink.records.single.where, 'juso.keyMissing');
-    expect(sink.records.single.tier, ErrorTier.reported);
   });
 }

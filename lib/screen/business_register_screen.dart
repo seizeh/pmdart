@@ -50,7 +50,7 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
   bool _renamed = false;
   final _prevNameCtrl = TextEditingController();
 
-  // ④ 주소 — juso 검색 결과(키 미설정 시 수동 입력 폴백)
+  // ④ 주소 — juso 검색 결과. _manualAddrCtrl 은 재신청 때 이전 신청의 주소를 담는다
   JusoAddress? _address;
   final _manualAddrCtrl = TextEditingController();
 
@@ -587,16 +587,12 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
     });
   }
 
-  // ── ④ 주소: juso 검색(키 있으면) / 수동 입력 폴백 ──
+  // ── ④ 주소: juso 검색(서버 함수 juso-search) ──
 
   Widget _addressField() {
-    if (!JusoService.instance.enabled) {
-      return TextField(
-        controller: _manualAddrCtrl,
-        onChanged: (_) => setState(() {}),
-        decoration: const InputDecoration(hintText: '사업자등록증의 사업장 소재지 (도로명 주소)'),
-      );
-    }
+    // 재신청이면 이전 신청의 주소가 미리 들어 있다 — 다시 검색하지 않으면 그대로 낸다.
+    final prefilled = _manualAddrCtrl.text.trim();
+    final shown = _address?.roadAddr ?? (prefilled.isEmpty ? null : prefilled);
     return InkWell(
       onTap: _openAddressSearch,
       borderRadius: BorderRadius.circular(12),
@@ -614,10 +610,10 @@ class _BusinessRegisterScreenState extends State<BusinessRegisterScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                _address?.roadAddr ?? '주소 검색 (탭해서 찾기)',
+                shown ?? '주소 검색 (탭해서 찾기)',
                 style: TextStyle(
                   fontSize: 14,
-                  color: _address == null
+                  color: shown == null
                       ? context.colors.textTertiary
                       : context.colors.textPrimary,
                 ),

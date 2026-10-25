@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -94,9 +95,17 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
     return byH < _imageRect.width ? byH : _imageRect.width;
   }
 
+  /// 틀을 사진 안으로 밀어 넣는다.
+  ///
+  /// 틀이 사진과 같은 높이(3:4 보다 넓은 사진)나 같은 폭이면 상한·하한이 이론상
+  /// 같은데, 부동소수점 오차로 상한이 하한보다 아주 조금 작아질 수 있다 — 그대로
+  /// `clamp` 하면 ArgumentError 가 드래그 프레임마다 난다. 상한을 하한 아래로
+  /// 내려가지 않게 막는다.
   Rect _clampInside(Rect f) {
-    var left = f.left.clamp(_imageRect.left, _imageRect.right - f.width);
-    var top = f.top.clamp(_imageRect.top, _imageRect.bottom - f.height);
+    final maxLeft = math.max(_imageRect.left, _imageRect.right - f.width);
+    final maxTop = math.max(_imageRect.top, _imageRect.bottom - f.height);
+    final left = f.left.clamp(_imageRect.left, maxLeft);
+    final top = f.top.clamp(_imageRect.top, maxTop);
     return Rect.fromLTWH(left, top, f.width, f.height);
   }
 

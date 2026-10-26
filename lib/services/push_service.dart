@@ -44,8 +44,10 @@ class PushService {
     _inited = true;
 
     // 웹은 아래 네이티브 전용 배선(백그라운드 핸들러·APNs·iOS 탭 채널)이 전부
-    // 해당 없다. 표시는 firebase-messaging-sw.js 가, 탭 라우팅은 그 SW 의
-    // notificationclick(webpush.fcm_options.link)이 담당한다.
+    // 해당 없다. 백그라운드 표시는 firebase-messaging-sw.js 의 SDK 가, 탭 라우팅은
+    // 그 SW 의 notificationclick 이 서버가 실은 webpush.fcm_options.link 를 열린 탭에
+    // 넘기고 web/notification_link.js 가 그 탭에서 이동하는 방식으로 맡는다.
+    // 탭이 보이는 동안의 표시는 네이티브와 같이 실시간 구독의 인앱 배너다.
     if (kIsWeb) {
       if (SessionManager.instance.isLoggedIn) await registerToken();
       return;

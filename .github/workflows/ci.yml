@@ -122,9 +122,12 @@ jobs:
       - name: 파일 크기 래칫(≤1970줄)
         shell: bash
         run: |
-          max=$(git ls-files 'lib/**.dart' | xargs wc -l | sed '$d' | sort -rn | head -1)
-          n=$(echo "$max" | awk '{print $1}')
-          f=$(echo "$max" | awk '{print $2}')
+          # 최댓값을 awk 하나로 고른다. `sort -rn | head -1` 은 head 가 첫 줄만 읽고
+          # 먼저 끝나면 sort 가 Broken pipe 로 종료 코드 2 를 내고, pipefail 때문에
+          # 검사가 줄 수와 무관하게 실패했다(PR #326 첫 실행). wc 의 합계 줄은
+          # xargs 가 여러 번 나눠 실행하면 여러 개가 생기므로 이름으로 거른다.
+          read -r n f < <(git ls-files 'lib/**.dart' | xargs wc -l \
+            | awk '$2 != "total" && $1 > n { n = $1; f = $2 } END { print n, f }')
           echo "최대 파일 $n줄 — $f (상한 1970)" | tee -a "$GITHUB_STEP_SUMMARY"
           if [ "$n" -gt 1970 ]; then
             echo "::error::lib/ 파일이 1,970줄을 넘었습니다($f: $n줄). 화면 분리(상태 홀더/위젯 추출) 후 다시 올리세요."

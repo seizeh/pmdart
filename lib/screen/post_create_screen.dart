@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:image_picker/image_picker.dart' show XFile;
 
-import '../data/mock_data.dart' show categoryLabel;
 import '../models/community.dart';
 import '../models/profile.dart';
 import '../motion/motion.dart';
@@ -18,6 +17,7 @@ import '../services/profile_repository.dart';
 import '../services/session.dart';
 import '../services/storage_service.dart';
 import '../theme/app_palette.dart';
+import '../utils/labels.dart' show categoryLabel;
 import '../widgets/attachment_progress.dart';
 import '../widgets/blob_background.dart';
 import '../widgets/media_widgets.dart' show VideoPlayBadge, openVideoPlayer;

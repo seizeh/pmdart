@@ -62,7 +62,7 @@ GPS 동네 인증을 기반으로 이웃과 반려동물 산책 메이트를 찾
 | **`dart:io` 금지 게이트** | 웹에서 **컴파일은 되지만** `Platform.isIOS` 등이 런타임에 `UnsupportedError` 를 던진다 — 빌드로는 안 잡히고 흰 화면으로만 드러난다 | [`ci.yml`](.github/workflows/ci.yml) |
 | **마이그레이션 리플레이** | 빈 DB 에 마이그레이션 175건을 처음부터 재생해 운영 스냅샷과 대조 — **마이그레이션 없이 운영 DB 에 직접 친 DDL 이 즉시 빨간불** | [`pmdb/db-tests.yml`](https://github.com/seizeh/pmdb/blob/main/.github/workflows/db-tests.yml) |
 | **pgTAP 불변식 16종** | 자기초대 차단·팔로우 얼굴 분리·채팅 삭제 권한 등을 **DB 레벨**에서 검증(클라이언트가 아니라) | [`pmdb/tests/`](https://github.com/seizeh/pmdb/tree/main/supabase/tests) |
-| **커버리지 래칫 (≥18%)** | 달성 못 할 80% 를 적어 두는 대신 **현재값을 하한으로 고정** — 떨어지면 실패 | [`ci.yml`](.github/workflows/ci.yml) |
+| **커버리지 래칫 (≥24%)** | 달성 못 할 80% 를 적어 두는 대신 **현재값을 하한으로 고정** — 떨어지면 실패 | [`ci.yml`](.github/workflows/ci.yml) |
 | **`catch (_)` 래칫 (≤103)** | 예외를 삼킨 판단이 런타임에 흔적을 안 남기는 것 — 세 등급 중 하나를 쓰게 강제한다([정책](docs/error-policy.md)) | [`ci.yml`](.github/workflows/ci.yml) |
 | **파일 크기 래칫 (≤1,970줄)** | God Widget 이 더 자라는 것 — 현재 최대 파일을 상한으로 고정하고 분리한 만큼 내린다 ([#155](https://github.com/seizeh/pmdart/issues/155)) | [`ci.yml`](.github/workflows/ci.yml) |
 | 웹 빌드 게이트 | 앱 변경이 웹 번들을 조용히 깨는 것 | [`ci.yml`](.github/workflows/ci.yml) |
@@ -181,7 +181,7 @@ flutter run -d chrome  # 웹
 
 # 검사 & 테스트 (CI 와 동일)
 dart format --output=none --set-exit-if-changed lib test
-flutter analyze --no-fatal-infos
+flutter analyze
 flutter test --coverage
 ```
 
